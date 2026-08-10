@@ -1,0 +1,13 @@
+name: libass_plugin
+description: A local wrapper plugin to bundle ass.framework for iOS builds.
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+
+flutter:
+  plugin:
+    platforms:
+      ios:
+        pluginClass: LibassPlugin

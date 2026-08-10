@@ -1,0 +1,70 @@
+{
+  "version": "1.0.0",
+  "name": "PlayTorrio Official Sources",
+  "updatedAt": "2026-08-09T08:45:00Z",
+  "sources": [
+    {
+      "id": "flystream",
+      "name": "FlyStream",
+      "provider": "PlayTorrioHTTP",
+      "scriptAsset": "assets/scrapers/flystream.js",
+      "scriptUrl": "flystream.js"
+    },
+    {
+      "id": "videasy",
+      "name": "Videasy",
+      "provider": "PlayTorrioHTTP",
+      "scriptAsset": "assets/scrapers/videasy.js",
+      "scriptUrl": "videasy.js"
+    },
+    {
+      "id": "vidsrc",
+      "name": "VidSrc",
+      "provider": "PlayTorrioHTTP",
+      "scriptAsset": "assets/scrapers/vidsrc.js",
+      "scriptUrl": "vidsrc.js"
+    },
+    {
+      "id": "multiembed",
+      "name": "MultiEmbed",
+      "provider": "PlayTorrioHTTP",
+      "scriptAsset": "assets/scrapers/multiembed.js",
+      "scriptUrl": "multiembed.js"
+    },
+    {
+      "id": "vidcore",
+      "name": "VidCore",
+      "provider": "PlayTorrioHTTP",
+      "scriptAsset": "assets/scrapers/vidcore.js",
+      "scriptUrl": "vidcore.js"
+    },
+    {
+      "id": "fourkhdhub",
+      "name": "4KHDHub",
+      "provider": "PlayTorrioHTTP",
+      "scriptAsset": "assets/scrapers/fourkhdhub.js",
+      "scriptUrl": "fourkhdhub.js"
+    },
+    {
+      "id": "xdownloader",
+      "name": "XDownloader",
+      "provider": "PlayTorrioHTTP",
+      "scriptAsset": "assets/scrapers/xdownloader.js",
+      "scriptUrl": "xdownloader.js"
+    },
+    {
+      "id": "knaben",
+      "name": "Knaben",
+      "provider": "PlayTorrio",
+      "scriptAsset": "assets/scrapers/knaben.js",
+      "scriptUrl": "knaben.js"
+    },
+    {
+      "id": "torrent_galaxy",
+      "name": "TorrentGalaxy",
+      "provider": "PlayTorrio",
+      "scriptAsset": "assets/scrapers/torrent_galaxy.js",
+      "scriptUrl": "torrent_galaxy.js"
+    }
+  ]
+}
