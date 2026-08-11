@@ -7,6 +7,9 @@ import 'package:libtorrent_flutter/libtorrent_flutter.dart';
 import './pages/home/home_page.dart';
 import './services/addon/addon_manager.dart';
 import './services/glass_settings.dart';
+import './services/my_list/my_list_service.dart';
+import './services/trakt/trakt_auth_service.dart';
+import './services/trakt/trakt_sync_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,6 +19,9 @@ void main() async {
   await Future.wait([
     AddonManager.instance.initialize(),
     GlassSettings.initialize(),
+    MyListService.initialize(),
+    TraktAuthService().initialize(),
+    TraktSyncService.initialize(),
   ]);
   runApp(const PlayTorrioApp());
 }
