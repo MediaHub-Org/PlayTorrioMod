@@ -8,9 +8,11 @@ import '../../models/movie/link.dart';
 import '../../models/movie/video.dart';
 import '../../models/movie/movie_detail.dart';
 import '../../models/movie/movie_section.dart';
+import '../../models/my_list/my_list_item.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../services/metadata/metadata_service.dart';
+import '../../services/my_list/my_list_service.dart';
 import '../../utils/route_transitions.dart';
 import '../discover/discover_page.dart';
 import '../player/watch_screen.dart';
@@ -907,27 +909,90 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
   Widget _buildLibraryButton({required bool fullWidth}) {
-    return _HoverButton(
-      onTap: () {},
-      child: Container(
-        width: fullWidth ? double.infinity : null,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.white.withOpacity(0.14)),
-        ),
-        child: Row(
-          mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: const [
-            Icon(Icons.add_rounded, color: Colors.white, size: 22),
-            SizedBox(width: 6),
-            Text('Library', style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600)),
-          ],
-        ),
-      ),
+    return ValueListenableBuilder<List<MyListItem>>(
+      valueListenable: MyListService.items,
+      builder: (context, items, _) {
+        final inList = _detail != null &&
+            MyListService.isInList(
+              MyListItem.fromMovieDetail(
+                id: _detail!.id,
+                name: _detail!.name,
+                poster: _detail!.poster,
+                year: _detail!.year,
+                type: _detail!.type,
+                imdbId: _detail!.id.startsWith('tt') ? _detail!.id : null,
+                tmdbId: _detail!.tmdbId != null ? int.tryParse(_detail!.tmdbId!) : null,
+              ),
+            );
+
+        return _HoverButton(
+          onTap: () => _toggleMyList(),
+          child: Container(
+            width: fullWidth ? double.infinity : null,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              color: inList
+                  ? const Color(0xFF7C5CFF).withOpacity(0.18)
+                  : Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: inList
+                    ? const Color(0xFF7C5CFF).withOpacity(0.35)
+                    : Colors.white.withOpacity(0.14),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  inList ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                  color: inList ? const Color(0xFF7C5CFF) : Colors.white,
+                  size: 22,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  inList ? 'In Library' : 'Library',
+                  style: TextStyle(
+                    color: inList ? const Color(0xFF7C5CFF) : Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
+  }
+
+  void _toggleMyList() {
+    if (_detail == null) return;
+
+    final item = MyListItem.fromMovieDetail(
+      id: _detail!.id,
+      name: _detail!.name,
+      poster: _detail!.poster,
+      year: _detail!.year,
+      type: _detail!.type,
+      imdbId: _detail!.id.startsWith('tt') ? _detail!.id : null,
+      tmdbId: _detail!.tmdbId != null ? int.tryParse(_detail!.tmdbId!) : null,
+    );
+
+    MyListService.toggle(item);
+    final isNowInList = MyListService.isInList(item);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isNowInList ? 'Added to My List' : 'Removed from My List'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          backgroundColor: isNowInList ? const Color(0xFF1E8E3E) : Colors.grey.shade800,
+        ),
+      );
+    }
   }
 
   Widget _buildSynopsis(String text) {

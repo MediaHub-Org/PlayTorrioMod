@@ -20,6 +20,7 @@ import '../settings/settings_page.dart';
 import '../manga/manga_page.dart';
 import '../audiobooks/audiobooks_page.dart';
 import '../music/music_page.dart';
+import '../my_list/my_list_page.dart';
 
 import '../../widgets/common/liquid_dock.dart';
 
@@ -302,8 +303,16 @@ class _HomePageState extends State<HomePage> {
               ),
               DockItem(
                 icon: Icons.favorite_rounded,
-                label: 'Favorites',
-                onTap: () {},
+                label: 'My List',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    LiquidRevealRoute(
+                      page: const MyListPage(),
+                      tapPosition: null,
+                    ),
+                  );
+                },
               ),
               DockItem(
                 icon: Icons.bookmark_rounded,
