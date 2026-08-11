@@ -6,45 +6,65 @@ import 'trakt_api_service.dart';
 import 'trakt_auth_service.dart';
 
 class TraktSyncService {
-  static DateTime? _lastSync;
+  static final ValueNotifier<bool> isSyncing = ValueNotifier<bool>(false);
+  static final ValueNotifier<DateTime?> lastSync = ValueNotifier<DateTime?>(null);
 
-  static Future<void> syncDown() async {
+  static Future<void> initialize() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastSyncStr = prefs.getString('last_trakt_sync');
+    if (lastSyncStr != null) {
+      lastSync.value = DateTime.tryParse(lastSyncStr);
+    }
+  }
+
+  /// Perform a safe, non-destructive sync with Trakt.
+  /// Merges remote watchlist into local items without removing any local entries.
+  static Future<void> manualSync() async {
     final auth = TraktAuthService();
-    if (!auth.isLoggedIn.value) return;
+    if (!auth.isLoggedIn.value || isSyncing.value) return;
 
-    // Check if anything changed since last sync
-    final activities = await TraktApiService.getLastActivities();
-    if (_lastSync != null && activities != null) {
-      final watchlistUpdated = activities['watchlist']?['updated_at'];
-      if (watchlistUpdated != null) {
-        final updatedAt = DateTime.tryParse(watchlistUpdated.toString());
-        if (updatedAt != null && updatedAt.isBefore(_lastSync!)) {
-          return; // Nothing new
+    isSyncing.value = true;
+    try {
+      // 1. Pull movie watchlist from Trakt
+      final movies = await TraktApiService.getWatchlistMovies();
+      for (final raw in movies) {
+        final item = MyListItem.fromTraktJson(raw);
+        if (!MyListService.isInList(item)) {
+          MyListService.add(item);
         }
       }
-    }
 
-    // Pull movie watchlist
-    final movies = await TraktApiService.getWatchlistMovies();
-    for (final raw in movies) {
-      final item = MyListItem.fromTraktJson(raw);
-      if (!MyListService.isInList(item)) {
-        MyListService.add(item);
+      // 2. Pull show watchlist from Trakt
+      final shows = await TraktApiService.getWatchlistShows();
+      for (final raw in shows) {
+        final item = MyListItem.fromTraktJson(raw);
+        if (!MyListService.isInList(item)) {
+          MyListService.add(item);
+        }
       }
-    }
 
-    // Pull show watchlist
-    final shows = await TraktApiService.getWatchlistShows();
-    for (final raw in shows) {
-      final item = MyListItem.fromTraktJson(raw);
-      if (!MyListService.isInList(item)) {
-        MyListService.add(item);
+      // 3. Sync up any local-only items that haven't been pushed to Trakt
+      final localOnly = MyListService.items.value
+          .where((i) => i.source == MyListSource.local)
+          .toList();
+
+      for (final item in localOnly) {
+        await syncUp(item);
       }
-    }
 
-    _lastSync = DateTime.now();
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('last_trakt_sync', _lastSync!.toIso8601String());
+      final now = DateTime.now();
+      lastSync.value = now;
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_trakt_sync', now.toIso8601String());
+    } catch (e) {
+      debugPrint('[TraktSyncService] Manual sync error: $e');
+    } finally {
+      isSyncing.value = false;
+    }
+  }
+
+  static Future<void> syncDown() async {
+    await manualSync();
   }
 
   static Future<void> syncUp(MyListItem item) async {
@@ -67,13 +87,11 @@ class TraktSyncService {
         await TraktApiService.addToWatchlist(movies: [entry], shows: []);
       }
 
-      // Update local item to mark as synced
+      // Safely update local item state to mark as synced with Trakt
       final updated = item.copyWith(source: MyListSource.trakt);
-      // Remove old, add updated to avoid duplicates
-      MyListService.remove(item);
-      MyListService.add(updated);
+      MyListService.markSynced(item, updated);
     } catch (e) {
-      debugPrint('Trakt syncUp error: $e');
+      debugPrint('[TraktSyncService] syncUp error: $e');
     }
   }
 
@@ -91,25 +109,25 @@ class TraktSyncService {
         backgroundColor: const Color(0xFF151822),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Remove from Trakt?',
-            style: TextStyle(fontWeight: FontWeight.w800)),
+            style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
         content: Text(
-          'Also remove "${item.title}" from your Trakt watchlist?',
-          style: TextStyle(color: Colors.white.withOpacity(0.55)),
+          'Also remove "${item.title}" from your Trakt.tv watchlist?',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
             child: Text('Keep on Trakt',
-                style: TextStyle(color: Colors.white.withOpacity(0.45))),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red.shade700,
+              backgroundColor: const Color(0xFFE50914),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
             child: const Text('Remove from Trakt',
-                style: TextStyle(color: Colors.white)),
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -125,19 +143,11 @@ class TraktSyncService {
           await TraktApiService.removeFromWatchlist(movies: [entry], shows: []);
         }
       } catch (e) {
-        debugPrint('Trakt syncRemove error: $e');
+        debugPrint('[TraktSyncService] syncRemove error: $e');
       }
     }
 
     MyListService.remove(item);
     return true;
-  }
-
-  static Future<void> initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    final lastSyncStr = prefs.getString('last_trakt_sync');
-    if (lastSyncStr != null) {
-      _lastSync = DateTime.tryParse(lastSyncStr);
-    }
   }
 }

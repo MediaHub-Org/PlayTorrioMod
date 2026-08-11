@@ -4,10 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../../models/addon/addon.dart';
 import '../../models/movie/movie.dart';
-import '../../models/movie/link.dart';
-import '../../models/movie/video.dart';
 import '../../models/movie/movie_detail.dart';
-import '../../models/movie/movie_section.dart';
 
 /// Generic service for any Stremio-protocol addon.
 /// All methods are static — provide the addon's base URL and they hit the
@@ -54,6 +51,10 @@ class MetadataService {
     String? genre,
     int? skip,
   }) async {
+    final effectiveBaseUrl = (baseUrl.trim().isEmpty || !baseUrl.startsWith('http'))
+        ? 'https://v3-cinemeta.strem.io'
+        : (baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl);
+
     final extra = <String>[];
     if (genre != null) {
       extra.add('genre=${Uri.encodeComponent(genre)}');
@@ -63,7 +64,7 @@ class MetadataService {
     }
 
     final extraPath = extra.isNotEmpty ? '/${extra.join("&")}' : '';
-    final url = '$baseUrl/catalog/$type/$catalogId$extraPath.json';
+    final url = '$effectiveBaseUrl/catalog/$type/$catalogId$extraPath.json';
 
     if (_catalogCache.containsKey(url)) {
       return List.from(_catalogCache[url]!);
@@ -82,7 +83,7 @@ class MetadataService {
     final metas = decoded['metas'] as List<dynamic>? ?? [];
 
     final result = metas
-        .map((item) => Movie.fromJson(item as Map<String, dynamic>, baseUrl))
+        .map((item) => Movie.fromJson(item as Map<String, dynamic>, effectiveBaseUrl))
         .where((movie) => movie.poster != null && movie.poster!.isNotEmpty)
         .toList();
 
@@ -99,8 +100,12 @@ class MetadataService {
     required String catalogId,
     required String query,
   }) async {
+    final effectiveBaseUrl = (baseUrl.trim().isEmpty || !baseUrl.startsWith('http'))
+        ? 'https://v3-cinemeta.strem.io'
+        : (baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl);
+
     final encoded = Uri.encodeComponent(query);
-    final url = '$baseUrl/catalog/$type/$catalogId/search=$encoded.json';
+    final url = '$effectiveBaseUrl/catalog/$type/$catalogId/search=$encoded.json';
 
     // We can cache searches too!
     if (_catalogCache.containsKey(url)) {
@@ -108,7 +113,6 @@ class MetadataService {
     }
 
     final response = await http.get(Uri.parse(url));
-    print('SEARCH URL: $url - STATUS: ${response.statusCode}');
     if (response.statusCode != 200) return [];
     
     final bodyStr = response.body.trim();
@@ -117,17 +121,15 @@ class MetadataService {
     try {
       final decoded = jsonDecode(bodyStr) as Map<String, dynamic>;
       final metas = decoded['metas'] as List<dynamic>? ?? [];
-      print('SEARCH RESULTS COUNT: ${metas.length}');
       
       final result = metas
-          .map((item) => Movie.fromJson(item as Map<String, dynamic>, baseUrl))
+          .map((item) => Movie.fromJson(item as Map<String, dynamic>, effectiveBaseUrl))
           .where((movie) => movie.poster != null && movie.poster!.isNotEmpty)
           .toList();
           
       _catalogCache[url] = result;
       return List.from(result);
     } catch (e) {
-      print('Search JSON parse error for $url: $e');
       return [];
     }
   }
@@ -140,8 +142,12 @@ class MetadataService {
     required String type,
     required String imdbId,
   }) async {
+    final effectiveBaseUrl = (baseUrl.trim().isEmpty || !baseUrl.startsWith('http'))
+        ? 'https://v3-cinemeta.strem.io'
+        : (baseUrl.endsWith('/') ? baseUrl.substring(0, baseUrl.length - 1) : baseUrl);
+
     final encodedId = Uri.encodeComponent(imdbId);
-    final url = '$baseUrl/meta/$type/$encodedId.json';
+    final url = '$effectiveBaseUrl/meta/$type/$encodedId.json';
 
     if (_metaCache.containsKey(url)) {
       return _metaCache[url];
@@ -163,7 +169,6 @@ class MetadataService {
       _metaCache[url] = result;
       return result;
     } catch (e) {
-      print('Metadata JSON parse error for $url: $e');
       return null;
     }
   }

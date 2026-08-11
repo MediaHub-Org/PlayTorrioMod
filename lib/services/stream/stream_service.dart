@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../models/addon/addon.dart';
@@ -16,6 +17,7 @@ import '../scraper/sites/vidsrc.dart';
 import '../scraper/sites/multiembed.dart';
 import '../scraper/sites/vidcore.dart';
 import '../scraper/sites/flystream.dart';
+import '../scraper/sites/movienight.dart';
 
 
 /// Service that fetches playback streams from all installed Stremio addons
@@ -54,6 +56,7 @@ class StreamService {
     ScraperManager.instance.registerScraper(MultiEmbedScraper());
     ScraperManager.instance.registerScraper(VidCoreScraper());
     ScraperManager.instance.registerScraper(FlyStreamScraper());
+    ScraperManager.instance.registerScraper(MovieNightScraper());
 
     int pending = addons.length + 1; // addons + local scrapers
 
@@ -124,7 +127,7 @@ class StreamService {
           .where((s) => s.url != null || s.infoHash != null || s.externalUrl != null)
           .toList();
     } catch (e, st) {
-      print('Addon ${addon.manifest.name} failed: $e\n$st');
+      debugPrint('Addon ${addon.manifest.name} failed: $e\n$st');
       return []; // Silently skip failed addons
     }
   }

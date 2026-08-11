@@ -39,7 +39,7 @@ dependencies:
   cached_network_image: ^3.4.1
   shared_preferences: ^2.3.3
   url_launcher: ^6.3.2
-  libtorrent_flutter: ^1.8.4
+  libtorrent_flutter: ^1.9.5
   fvp: ^0.37.3
   video_player: ^2.11.1
   archive: ^4.0.9

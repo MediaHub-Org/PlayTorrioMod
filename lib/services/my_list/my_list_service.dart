@@ -49,9 +49,19 @@ abstract final class MyListService {
     items.value = newList;
     _persist();
 
-    // Push to Trakt if logged in (fire-and-forget, don't block UI)
-    if (TraktAuthService().isLoggedIn.value) {
+    // Push to Trakt if logged in (only for new local items, fire-and-forget)
+    if (TraktAuthService().isLoggedIn.value && item.source == MyListSource.local) {
       TraktSyncService.syncUp(item);
+    }
+  }
+
+  static void markSynced(MyListItem oldItem, MyListItem newItem) {
+    final list = List<MyListItem>.from(items.value);
+    final idx = list.indexWhere((i) => i.uniqueKey == oldItem.uniqueKey);
+    if (idx != -1) {
+      list[idx] = newItem;
+      items.value = list;
+      _persist();
     }
   }
 

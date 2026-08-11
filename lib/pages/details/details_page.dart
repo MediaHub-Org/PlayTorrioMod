@@ -981,18 +981,6 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     );
 
     MyListService.toggle(item);
-    final isNowInList = MyListService.isInList(item);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(isNowInList ? 'Added to My List' : 'Removed from My List'),
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-          backgroundColor: isNowInList ? const Color(0xFF1E8E3E) : Colors.grey.shade800,
-        ),
-      );
-    }
   }
 
   Widget _buildSynopsis(String text) {
