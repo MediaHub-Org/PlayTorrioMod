@@ -18,7 +18,7 @@
   <b>Subtitle Download</b> &nbsp;&middot;&nbsp; <b>Glassmorphism UI</b> &nbsp;&middot;&nbsp; <b>5-Platform Support</b> &nbsp;&middot;&nbsp; <b>Responsive Layout</b> &nbsp;&middot;&nbsp; <b>Progress Persistence</b>
   <br/>
   <img height="20" src="https://img.shields.io/badge/v3.0.0-early-7C5CFF?style=flat" alt="Version"/>
-  <img height="20" src="https://img.shields.io/badge/LICENSE-MIT-4169A1?style=flat" alt="License"/>
+  <img height="20" src="https://img.shields.io/badge/LICENSE-GPL--3.0-4169A1?style=flat" alt="License"/>
   <img height="20" src="https://img.shields.io/badge/FLUTTER-3.x-02569B?style=flat&logo=flutter&logoColor=white" alt="Flutter"/>
   <img height="20" src="https://img.shields.io/badge/DART-3.11-0175C2?style=flat&logo=dart&logoColor=white" alt="Dart"/>
   <img height="20" src="https://img.shields.io/badge/libtorrent-Native-4B32C3?style=flat" alt="libtorrent"/>
@@ -1113,5 +1113,5 @@ A single failing scraper or addon never blocks the rest. Every concurrent operat
 ---
 
 <p align="center">
-  <sub>Licensed under MIT &middot; Built with Flutter and Dart &middot; Streaming powered by libtorrent, fvp, and the open web</sub>
+  <sub>Licensed under GPL-3.0 &middot; Built with Flutter and Dart &middot; Streaming powered by libtorrent, fvp, and the open web</sub>
 </p>
