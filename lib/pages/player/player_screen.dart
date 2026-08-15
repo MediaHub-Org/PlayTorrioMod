@@ -528,6 +528,14 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _showSubtitleMenu() {
+    int? searchYear;
+    if (widget.detail?.year != null && widget.detail!.year!.isNotEmpty) {
+      final yMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(widget.detail!.year!);
+      if (yMatch != null) {
+        searchYear = int.tryParse(yMatch.group(1)!);
+      }
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -539,6 +547,7 @@ class _PlayerScreenState extends State<PlayerScreen>
               imdbId: widget.detail?.id,
               season: widget.episode?.season,
               episode: widget.episode?.episode,
+              year: searchYear,
             ),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {

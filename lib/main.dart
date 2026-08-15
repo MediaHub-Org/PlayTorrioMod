@@ -2,20 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import 'package:fvp/fvp.dart' as fvp;
-import 'package:libtorrent_flutter/libtorrent_flutter.dart';
 
 import './pages/home/home_page.dart';
 import './services/addon/addon_manager.dart';
+import './services/app_updater_service.dart';
 import './services/glass_settings.dart';
 import './services/my_list/my_list_service.dart';
 import './services/trakt/trakt_auth_service.dart';
 import './services/trakt/trakt_sync_service.dart';
+import './widgets/update_dialog.dart';
+
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   fvp.registerWith();
-  await LibtorrentFlutter.init();
   await Future.wait([
     AddonManager.instance.initialize(),
     GlassSettings.initialize(),
@@ -26,12 +28,69 @@ void main() async {
   runApp(const PlayTorrioApp());
 }
 
-class PlayTorrioApp extends StatelessWidget {
+class PlayTorrioApp extends StatefulWidget {
   const PlayTorrioApp({super.key});
+
+  @override
+  State<PlayTorrioApp> createState() => _PlayTorrioAppState();
+}
+
+class _PlayTorrioAppState extends State<PlayTorrioApp>
+    with WidgetsBindingObserver {
+  static bool _hasCheckedInitialUpdate = false;
+  static bool _isShowingUpdateDialog = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_hasCheckedInitialUpdate) {
+        _hasCheckedInitialUpdate = true;
+        _checkForUpdates();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _checkForUpdates();
+    }
+  }
+
+  Future<void> _checkForUpdates() async {
+    if (_isShowingUpdateDialog) return;
+    try {
+      final updater = AppUpdaterService();
+      final updateInfo = await updater.checkForUpdates();
+      final context = navigatorKey.currentContext;
+
+      if (updateInfo != null && context != null && context.mounted) {
+        _isShowingUpdateDialog = true;
+        await showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (context) => UpdateDialog(updateInfo: updateInfo),
+        );
+        _isShowingUpdateDialog = false;
+      }
+    } catch (e) {
+      _isShowingUpdateDialog = false;
+      debugPrint('Error checking for app updates: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'PlayTorrio',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
@@ -47,3 +106,4 @@ class PlayTorrioApp extends StatelessWidget {
     );
   }
 }
+

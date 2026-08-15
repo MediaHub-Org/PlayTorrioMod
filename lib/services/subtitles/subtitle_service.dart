@@ -14,8 +14,20 @@ class SubtitleService {
 
   /// Fetches subtitles from all registered providers concurrently.
   /// Groups the results by language.
-  Future<List<SubtitleLanguageGroup>> fetchAllSubtitles(String movieName, {String? imdbId, int? season, int? episode}) async {
-    final futures = _providers.map((p) => p.search(movieName, imdbId: imdbId, season: season, episode: episode));
+  Future<List<SubtitleLanguageGroup>> fetchAllSubtitles(
+    String movieName, {
+    String? imdbId,
+    int? season,
+    int? episode,
+    int? year,
+  }) async {
+    final futures = _providers.map((p) => p.search(
+      movieName,
+      imdbId: imdbId,
+      season: season,
+      episode: episode,
+      year: year,
+    ));
     
     // Wait for all providers to finish (or fail)
     final results = await Future.wait(futures.map((f) => f.catchError((_) => <SubtitleVariant>[])));

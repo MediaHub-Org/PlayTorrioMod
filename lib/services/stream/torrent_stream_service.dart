@@ -209,6 +209,13 @@ class TorrentStreamService {
         _activeStreams[hash] = streamInfo.id;
       }
 
+      // Preload initial stream pieces for immediate playback start
+      try {
+        LibtorrentFlutter.instance.preloadStream(streamInfo.id);
+      } catch (e) {
+        _log('preloadStream error (non-fatal): $e');
+      }
+
       _log('Stream started: ${streamInfo.url}');
       return streamInfo.url;
     } catch (e) {

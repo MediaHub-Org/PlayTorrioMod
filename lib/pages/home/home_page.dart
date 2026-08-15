@@ -23,6 +23,8 @@ import '../music/music_page.dart';
 import '../my_list/my_list_page.dart';
 
 import '../../widgets/common/liquid_dock.dart';
+import '../../services/app_updater_service.dart';
+import '../../widgets/update_dialog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});

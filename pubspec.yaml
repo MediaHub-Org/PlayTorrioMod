@@ -39,7 +39,10 @@ dependencies:
   cached_network_image: ^3.4.1
   shared_preferences: ^2.3.3
   url_launcher: ^6.3.2
-  libtorrent_flutter: ^1.9.5
+  libtorrent_flutter:
+    git:
+      url: https://github.com/RyanYuuki/AnymeXExtensionRuntimeBridge.git
+      path: packages/libtorrent_flutter
   fvp: ^0.37.3
   video_player: ^2.11.1
   archive: ^4.0.9
@@ -49,6 +52,9 @@ dependencies:
     path: ./libass_plugin
   photo_view: ^0.15.0
   flutter_js: ^0.8.1
+  ota_update: ^7.1.0
+  package_info_plus: ^9.0.1
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:

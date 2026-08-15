@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../models/addon/addon.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../services/glass_settings.dart';
+import '../../services/app_updater_service.dart';
 import '../../services/trakt/trakt_auth_service.dart';
 import '../../services/trakt/trakt_sync_service.dart';
+import '../../widgets/update_dialog.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -16,6 +19,146 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   final _manager = AddonManager.instance;
   bool _isAdding = false;
+  bool _isCheckingForUpdates = false;
+
+  Future<void> _checkForUpdates(BuildContext context) async {
+    setState(() {
+      _isCheckingForUpdates = true;
+    });
+
+    try {
+      final updater = AppUpdaterService();
+      final updateInfo = await updater.checkForUpdates();
+
+      if (!context.mounted) return;
+
+      if (updateInfo != null) {
+        showDialog(
+          context: context,
+          builder: (context) => UpdateDialog(updateInfo: updateInfo),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('PlayTorrio is up to date!'),
+            backgroundColor: Color(0xFF7C5CFF),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error checking updates: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCheckingForUpdates = false;
+        });
+      }
+    }
+  }
+
+  Widget _buildUpdateSection() {
+    return FutureBuilder<PackageInfo>(
+      future: PackageInfo.fromPlatform(),
+      builder: (context, snapshot) {
+        final versionText = snapshot.hasData
+            ? 'v${snapshot.data!.version}+${snapshot.data!.buildNumber}'
+            : 'Check for app updates';
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF12151E),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7C5CFF).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.system_update_rounded,
+                  color: Color(0xFF7C5CFF),
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'App Updates',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      versionText,
+                      style: const TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12.5,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              ElevatedButton(
+                onPressed: _isCheckingForUpdates
+                    ? null
+                    : () => _checkForUpdates(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF7C5CFF),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                ),
+                child: _isCheckingForUpdates
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text(
+                        'Check',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +243,10 @@ class _SettingsPageState extends State<SettingsPage> {
               );
             },
           ),
+          const SizedBox(height: 28),
+
+          // ── App Updates section ──
+          _buildUpdateSection(),
           const SizedBox(height: 28),
 
           // ── Trakt section ──
