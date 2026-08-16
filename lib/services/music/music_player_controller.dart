@@ -1,8 +1,13 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import '../../models/music/music_track.dart';
+import 'music_library_service.dart';
 import 'music_service.dart';
+import 'youtube_stream_http.dart';
+
+enum MusicRepeatMode { off, all, one }
 
 class MusicPlayerController extends ChangeNotifier {
   static final MusicPlayerController instance = MusicPlayerController._internal();
@@ -12,6 +17,7 @@ class MusicPlayerController extends ChangeNotifier {
 
   MusicTrack? _currentTrack;
   List<MusicTrack> _playlist = [];
+  List<MusicTrack> _originalPlaylist = [];
   int _currentIndex = 0;
 
   bool _isLoading = false;
@@ -21,7 +27,12 @@ class MusicPlayerController extends ChangeNotifier {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   double _volume = 1.0;
-  String _currentQuality = 'lossless'; // 'lossless', '320', '128'
+  bool _isShuffle = false;
+  MusicRepeatMode _repeatMode = MusicRepeatMode.off;
+
+  LyricsData _currentLyrics = LyricsData.empty();
+  bool _isLoadingLyrics = false;
+  int _activeLyricIndex = -1;
 
   // Getters
   MusicTrack? get currentTrack => _currentTrack;
@@ -33,25 +44,42 @@ class MusicPlayerController extends ChangeNotifier {
   Duration get position => _position;
   Duration get duration => _duration;
   double get volume => _volume;
-  String get currentQuality => _currentQuality;
+  bool get isShuffle => _isShuffle;
+  MusicRepeatMode get repeatMode => _repeatMode;
   bool get hasTrack => _currentTrack != null;
+  bool get hasNext => _playlist.isNotEmpty && (_repeatMode != MusicRepeatMode.off || _currentIndex < _playlist.length - 1);
+  bool get hasPrevious => _playlist.isNotEmpty && (_currentIndex > 0 || _position.inSeconds > 3);
+  LyricsData get currentLyrics => _currentLyrics;
+  bool get isLoadingLyrics => _isLoadingLyrics;
+  int get activeLyricIndex => _activeLyricIndex;
 
-  Future<void> playTrack(MusicTrack track, {List<MusicTrack>? playlistQueue, String quality = 'lossless'}) async {
+  Future<void> playTrack(
+    MusicTrack track, {
+    List<MusicTrack>? playlistQueue,
+  }) async {
     if (playlistQueue != null && playlistQueue.isNotEmpty) {
-      _playlist = List<MusicTrack>.from(playlistQueue);
-      _currentIndex = _playlist.indexWhere((t) => t.id == track.id);
-      if (_currentIndex < 0) {
-        _playlist.insert(0, track);
+      _originalPlaylist = List<MusicTrack>.from(playlistQueue);
+      if (_isShuffle) {
+        final rest = List<MusicTrack>.from(playlistQueue)..removeWhere((t) => t.id == track.id);
+        rest.shuffle(Random());
+        _playlist = [track, ...rest];
         _currentIndex = 0;
+      } else {
+        _playlist = List<MusicTrack>.from(playlistQueue);
+        _currentIndex = _playlist.indexWhere((t) => t.id == track.id);
+        if (_currentIndex < 0) {
+          _playlist.insert(0, track);
+          _currentIndex = 0;
+        }
       }
     } else {
       if (!_playlist.any((t) => t.id == track.id)) {
         _playlist.add(track);
+        _originalPlaylist.add(track);
       }
       _currentIndex = _playlist.indexWhere((t) => t.id == track.id);
     }
 
-    _currentQuality = quality;
     await _loadAndPlayTrack(track);
   }
 
@@ -60,9 +88,20 @@ class MusicPlayerController extends ChangeNotifier {
     _isLoading = true;
     _errorMessage = null;
     _position = Duration.zero;
-    _duration = Duration.zero;
+    _duration = track.durationSeconds > 0
+        ? Duration(seconds: track.durationSeconds)
+        : Duration.zero;
+    _currentLyrics = LyricsData.empty();
+    _activeLyricIndex = -1;
     notifyListeners();
 
+    // Add to recent history
+    MusicLibraryService.instance.addToRecent(track);
+
+    // Fetch lyrics asynchronously
+    _fetchLyricsForTrack(track);
+
+    // Dispose previous controller
     if (_videoPlayerController != null) {
       _videoPlayerController!.removeListener(_onPlayerStateChanged);
       await _videoPlayerController!.dispose();
@@ -70,23 +109,20 @@ class MusicPlayerController extends ChangeNotifier {
     }
 
     try {
-      final audioUrl = await OctaveMusicService.instance.getAudioStreamUrl(
-        track.id,
-        quality: _currentQuality,
-      );
-
-      if (audioUrl == null || audioUrl.isEmpty) {
-        throw Exception('Failed to resolve audio stream URL from Octave API');
+      final streamResult = await MusicService.instance.getAudioStream(track);
+      if (streamResult == null || streamResult.url.isEmpty) {
+        throw Exception('Failed to extract audio stream from YouTube');
       }
 
-      final uri = Uri.parse(audioUrl);
+      final uri = Uri.parse(streamResult.url);
+      final headers = YoutubeStreamHttp.streamHeaders(
+        streamResult.url,
+        userAgent: streamResult.userAgent,
+      );
+
       final controller = VideoPlayerController.networkUrl(
         uri,
-        httpHeaders: const {
-          'User-Agent':
-              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-          'Referer': 'https://music.octavestreaming.com/',
-        },
+        httpHeaders: headers,
       );
 
       await controller.initialize();
@@ -94,104 +130,217 @@ class MusicPlayerController extends ChangeNotifier {
       controller.addListener(_onPlayerStateChanged);
 
       _videoPlayerController = controller;
-      _duration = controller.value.duration;
+      if (controller.value.duration > Duration.zero) {
+        _duration = controller.value.duration;
+      }
       _isLoading = false;
       _isPlaying = true;
-      notifyListeners();
-
       await controller.play();
+      notifyListeners();
     } catch (e) {
       _isLoading = false;
       _isPlaying = false;
-      _errorMessage = 'Playback Error: $e';
+      _errorMessage = 'Could not load audio: ${e.toString()}';
+      debugPrint('Playback error for ${track.title}: $e');
       notifyListeners();
+    }
+  }
+
+  Future<void> _fetchLyricsForTrack(MusicTrack track) async {
+    _isLoadingLyrics = true;
+    notifyListeners();
+    try {
+      final lyrics = await MusicService.instance.fetchLyrics(track);
+      if (_currentTrack?.id == track.id) {
+        _currentLyrics = lyrics;
+        _isLoadingLyrics = false;
+        _updateActiveLyricIndex();
+        notifyListeners();
+      }
+    } catch (_) {
+      if (_currentTrack?.id == track.id) {
+        _isLoadingLyrics = false;
+        notifyListeners();
+      }
     }
   }
 
   void _onPlayerStateChanged() {
-    if (_videoPlayerController == null || !_videoPlayerController!.value.isInitialized) return;
+    final controller = _videoPlayerController;
+    if (controller == null) return;
 
-    final val = _videoPlayerController!.value;
-    _position = val.position;
-    _duration = val.duration;
-    _isPlaying = val.isPlaying;
+    final value = controller.value;
+    _position = value.position;
+    if (value.duration > Duration.zero) {
+      _duration = value.duration;
+    }
+    _isPlaying = value.isPlaying;
 
-    if (_duration > Duration.zero && _position >= _duration - const Duration(milliseconds: 500)) {
-      nextTrack();
+    _updateActiveLyricIndex();
+
+    // Check track completed
+    if (value.isInitialized &&
+        _duration > Duration.zero &&
+        _position >= _duration - const Duration(milliseconds: 500) &&
+        !value.isPlaying) {
+      _onTrackEnded();
     } else {
       notifyListeners();
     }
   }
 
-  void togglePlayPause() {
-    if (_videoPlayerController == null || !_videoPlayerController!.value.isInitialized) return;
+  void _updateActiveLyricIndex() {
+    if (_currentLyrics.isSynced && _currentLyrics.syncedLines.isNotEmpty) {
+      final newIndex = _currentLyrics.activeLineIndex(_position);
+      if (newIndex != _activeLyricIndex) {
+        _activeLyricIndex = newIndex;
+        notifyListeners();
+      }
+    }
+  }
 
-    if (_videoPlayerController!.value.isPlaying) {
-      _videoPlayerController!.pause();
-      _isPlaying = false;
+  void _onTrackEnded() {
+    if (_repeatMode == MusicRepeatMode.one && _currentTrack != null) {
+      seekTo(Duration.zero);
+      play();
+    } else if (hasNext) {
+      playNext();
+    } else if (_repeatMode == MusicRepeatMode.all && _playlist.isNotEmpty) {
+      _currentIndex = 0;
+      _loadAndPlayTrack(_playlist[0]);
     } else {
-      _videoPlayerController!.play();
+      _isPlaying = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> play() async {
+    if (_videoPlayerController != null) {
+      await _videoPlayerController!.play();
       _isPlaying = true;
+      notifyListeners();
+    } else if (_currentTrack != null) {
+      await _loadAndPlayTrack(_currentTrack!);
+    }
+  }
+
+  Future<void> pause() async {
+    if (_videoPlayerController != null) {
+      await _videoPlayerController!.pause();
+      _isPlaying = false;
+      notifyListeners();
+    }
+  }
+
+  Future<void> togglePlayPause() async {
+    if (_isPlaying) {
+      await pause();
+    } else {
+      await play();
+    }
+  }
+
+  Future<void> seekTo(Duration position) async {
+    if (_videoPlayerController != null) {
+      await _videoPlayerController!.seekTo(position);
+      _position = position;
+      _updateActiveLyricIndex();
+      notifyListeners();
+    }
+  }
+
+  Future<void> setVolume(double volume) async {
+    _volume = volume.clamp(0.0, 1.0);
+    if (_videoPlayerController != null) {
+      await _videoPlayerController!.setVolume(_volume);
     }
     notifyListeners();
   }
 
-  void seekTo(Duration pos) {
-    if (_videoPlayerController == null || !_videoPlayerController!.value.isInitialized) return;
-    _videoPlayerController!.seekTo(pos);
-    _position = pos;
-    notifyListeners();
-  }
-
-  void setVolume(double vol) {
-    _volume = vol.clamp(0.0, 1.0);
-    _videoPlayerController?.setVolume(_volume);
-    notifyListeners();
-  }
-
-  void setQuality(String quality) {
-    if (_currentQuality == quality || _currentTrack == null) return;
-    final currentPos = _position;
-    _currentQuality = quality;
-    _loadAndPlayTrack(_currentTrack!).then((_) {
-      if (_videoPlayerController != null && _videoPlayerController!.value.isInitialized) {
-        _videoPlayerController!.seekTo(currentPos);
+  void toggleShuffle() {
+    _isShuffle = !_isShuffle;
+    if (_isShuffle) {
+      if (_currentTrack != null) {
+        final rest = List<MusicTrack>.from(_originalPlaylist)..removeWhere((t) => t.id == _currentTrack!.id);
+        rest.shuffle(Random());
+        _playlist = [_currentTrack!, ...rest];
+        _currentIndex = 0;
+      } else {
+        _playlist.shuffle(Random());
       }
-    });
+    } else {
+      _playlist = List<MusicTrack>.from(_originalPlaylist);
+      if (_currentTrack != null) {
+        _currentIndex = _playlist.indexWhere((t) => t.id == _currentTrack!.id);
+        if (_currentIndex < 0) _currentIndex = 0;
+      }
+    }
+    notifyListeners();
   }
 
-  void nextTrack() {
+  void toggleRepeat() {
+    switch (_repeatMode) {
+      case MusicRepeatMode.off:
+        _repeatMode = MusicRepeatMode.all;
+        break;
+      case MusicRepeatMode.all:
+        _repeatMode = MusicRepeatMode.one;
+        break;
+      case MusicRepeatMode.one:
+        _repeatMode = MusicRepeatMode.off;
+        break;
+    }
+    notifyListeners();
+  }
+
+  Future<void> playNext() async {
     if (_playlist.isEmpty) return;
+
     if (_currentIndex < _playlist.length - 1) {
       _currentIndex++;
-      _loadAndPlayTrack(_playlist[_currentIndex]);
-    } else {
+      await _loadAndPlayTrack(_playlist[_currentIndex]);
+    } else if (_repeatMode == MusicRepeatMode.all) {
       _currentIndex = 0;
-      _loadAndPlayTrack(_playlist[_currentIndex]);
+      await _loadAndPlayTrack(_playlist[0]);
     }
   }
 
-  void previousTrack() {
+  Future<void> playPrevious() async {
     if (_playlist.isEmpty) return;
-    if (_position.inSeconds > 4) {
-      seekTo(Duration.zero);
+
+    if (_position.inSeconds > 3) {
+      await seekTo(Duration.zero);
       return;
     }
+
     if (_currentIndex > 0) {
       _currentIndex--;
-      _loadAndPlayTrack(_playlist[_currentIndex]);
+      await _loadAndPlayTrack(_playlist[_currentIndex]);
     } else {
-      _currentIndex = _playlist.length - 1;
-      _loadAndPlayTrack(_playlist[_currentIndex]);
+      await seekTo(Duration.zero);
     }
   }
 
-  void closePlayer() {
+  void removeFromQueue(int index) {
+    if (index >= 0 && index < _playlist.length) {
+      _playlist.removeAt(index);
+      if (index < _currentIndex) {
+        _currentIndex--;
+      }
+      notifyListeners();
+    }
+  }
+
+  void clearQueue() {
+    _playlist.clear();
+    _currentIndex = 0;
+    notifyListeners();
+  }
+
+  @override
+  void dispose() {
     _videoPlayerController?.removeListener(_onPlayerStateChanged);
     _videoPlayerController?.dispose();
-    _videoPlayerController = null;
-    _currentTrack = null;
-    _isPlaying = false;
-    notifyListeners();
+    super.dispose();
   }
 }
