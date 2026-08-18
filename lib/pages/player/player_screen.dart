@@ -118,10 +118,13 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (!mounted) return;
       setState(() => _statusMessage = 'Buffering video...');
 
-      final playerHeaders = <String, String>{
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      };
+      final playerHeaders = <String, String>{};
+      if (sanitizedUrlStr.contains('hakunaymatata.com')) {
+        playerHeaders['User-Agent'] = 'Lavf/60.16.100';
+      } else {
+        playerHeaders['User-Agent'] =
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+      }
       if (widget.source.headers != null) {
         playerHeaders.addAll(widget.source.headers!);
       }

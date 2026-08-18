@@ -20,6 +20,7 @@ import '../settings/settings_page.dart';
 import '../manga/manga_page.dart';
 import '../audiobooks/audiobooks_page.dart';
 import '../music/music_page.dart';
+import '../anime/anime_page.dart';
 import '../my_list/my_list_page.dart';
 
 import '../../widgets/common/liquid_dock.dart';
@@ -291,7 +292,15 @@ class _HomePageState extends State<HomePage> {
               DockItem(
                 icon: Icons.animation_rounded,
                 label: 'Anime',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    LiquidRevealRoute(
+                      page: const AnimePage(),
+                      tapPosition: null,
+                    ),
+                  );
+                },
               ),
               DockItem(
                 icon: Icons.extension_rounded,
