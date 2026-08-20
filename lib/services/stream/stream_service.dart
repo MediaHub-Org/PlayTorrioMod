@@ -19,6 +19,7 @@ import '../scraper/sites/vidcore.dart';
 import '../scraper/sites/flystream.dart';
 import '../scraper/sites/movienight.dart';
 import '../scraper/sites/downloadeverything.dart';
+import '../scraper/sites/movy.dart';
 
 
 /// Service that fetches playback streams from all installed Stremio addons
@@ -59,6 +60,7 @@ class StreamService {
     ScraperManager.instance.registerScraper(FlyStreamScraper());
     ScraperManager.instance.registerScraper(MovieNightScraper());
     ScraperManager.instance.registerScraper(DownloadEverythingScraper());
+    ScraperManager.instance.registerScraper(MovyScraper());
 
     int pending = addons.length + 1; // addons + local scrapers
 
