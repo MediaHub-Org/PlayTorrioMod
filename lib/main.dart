@@ -20,6 +20,11 @@ void main() async {
   fvp.registerWith(options: {
     'demux.format.allowed_extensions': 'ALL',
     'demux.format.protocol_whitelist': 'file,http,https,tcp,tls,crypto,data',
+    'subtitleFontFile': 'assets/subfont.ttf',
+    'global': {
+      'subtitle.fonts.file': 'assets://flutter_assets/assets/subfont.ttf',
+      'subtitle.fonts.family': 'GoNotoKurrent',
+    },
   });
   await Future.wait([
     AddonManager.instance.initialize(),
