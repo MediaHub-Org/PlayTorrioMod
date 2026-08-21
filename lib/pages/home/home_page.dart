@@ -643,11 +643,14 @@ class _HeroCarouselState extends State<_HeroCarousel> {
 
   double _heroHeight(double screenWidth, double screenHeight) {
     if (screenWidth < 600) {
-      return (screenHeight * 0.66).clamp(460.0, 640.0);
-    } else if (screenWidth < 1000) {
-      return (screenHeight * 0.62).clamp(520.0, 680.0);
+      return (screenHeight * 0.68).clamp(460.0, 640.0);
+    } else if (screenWidth < 1100) {
+      return (screenHeight * 0.70).clamp(520.0, 740.0);
     } else {
-      return (screenHeight * 0.78).clamp(620.0, 760.0);
+      // Maximized / Widescreen Desktop: give generous height (up to 85% of viewport)
+      // so 16:9 backdrops don't get aggressively cropped or squished into narrow strips.
+      final targetHeight = screenHeight * 0.85;
+      return targetHeight.clamp(680.0, 920.0);
     }
   }
 
@@ -694,7 +697,7 @@ class _HeroCarouselState extends State<_HeroCarousel> {
             // Dot indicators
             if (widget.movies.length > 1)
               Positioned(
-                bottom: 14,
+                bottom: 16,
                 left: 0,
                 right: 0,
                 child: Row(
@@ -862,6 +865,7 @@ class _HeroSlide extends StatelessWidget {
           CachedNetworkImage(
             imageUrl: imageUrl,
             fit: BoxFit.cover,
+            alignment: const Alignment(0, -0.15),
             filterQuality: FilterQuality.medium,
             fadeInDuration: const Duration(milliseconds: 300),
             placeholder: (_, __) => const ColoredBox(color: Color(0xFF151822)),
@@ -870,6 +874,24 @@ class _HeroSlide extends StatelessWidget {
           )
         else
           const ColoredBox(color: Color(0xFF151822)),
+
+        // Left horizontal wash for cinematic readability
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                stops: const [0.0, 0.38, 0.85],
+                colors: [
+                  const Color(0xFF080A0F).withValues(alpha: 0.95),
+                  const Color(0xFF080A0F).withValues(alpha: 0.70),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
+        ),
 
         // Top gradient
         Positioned.fill(
@@ -894,10 +916,10 @@ class _HeroSlide extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
-                stops: const [0.0, 0.35, 0.75],
+                stops: const [0.0, 0.30, 0.75],
                 colors: [
                   const Color(0xFF080A0F),
-                  const Color(0xFF080A0F).withValues(alpha: 0.85),
+                  const Color(0xFF080A0F).withValues(alpha: 0.80),
                   Colors.transparent,
                 ],
               ),
@@ -907,13 +929,19 @@ class _HeroSlide extends StatelessWidget {
 
         // ── Content overlay ──
         Positioned(
-          left: 26,
-          right: 26,
-          bottom: 48,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          left: isCompact ? 20 : 48,
+          right: isCompact ? 20 : 48,
+          bottom: isCompact ? 36 : 56,
+          child: Align(
+            alignment: Alignment.bottomLeft,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: isCompact ? double.infinity : 680.0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
               // Rating + year + runtime
               Row(
                 children: [
@@ -1118,8 +1146,10 @@ class _HeroSlide extends StatelessWidget {
             ],
           ),
         ),
-      ],
-    );
+      ),
+    ),
+  ],
+);
   }
 }
 

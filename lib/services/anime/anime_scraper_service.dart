@@ -1,354 +1,360 @@
 import 'dart:async';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'package:flutter/foundation.dart';
 import '../../models/anime/anime_media.dart';
 import '../../models/movie/movie_detail.dart';
 import '../../models/movie/video.dart';
 import '../../models/stream/stream_model.dart';
+import 'extractors/anikoto_resolver.dart';
+import 'extractors/allanime_extractor.dart';
+import 'extractors/miruro_extractor.dart';
+import 'extractors/watchhentai_extractor.dart';
+import 'extractors/hentaini_extractor.dart';
 
 class AnimeScraperService {
   static final AnimeScraperService instance = AnimeScraperService._internal();
   AnimeScraperService._internal();
 
-  /// Scrape all stream sources for an Anime and Episode across all providers concurrently.
+  final AnikotoResolver _anikoto = AnikotoResolver.instance;
+  final AllAnimeExtractor _allAnime = AllAnimeExtractor();
+  final MiruroExtractor _miruro = MiruroExtractor();
+  final WatchHentaiExtractor _watchHentai = WatchHentaiExtractor();
+  final HentainiExtractor _hentaini = HentainiExtractor();
+
+  /// Scrape all stream sources for an Anime and Episode across all native extractors concurrently.
   Stream<StreamSource> scrapeStreamsStream({
     required AnimeMedia anime,
     required int episodeNumber,
-  }) async* {
+    String? categoryFilter, // 'sub', 'dub', or null for both
+  }) {
     final controller = StreamController<StreamSource>();
+    final seenUrls = <String>{};
 
-    final tasks = <Future>[
-      _scrapeMiruro(anime, episodeNumber, false, controller),
-      _scrapeMiruro(anime, episodeNumber, true, controller),
-      _scrapeGogoanime(anime, episodeNumber, false, controller),
-      _scrapeGogoanime(anime, episodeNumber, true, controller),
-      _scrapeZoro(anime, episodeNumber, false, controller),
-      _scrapeZoro(anime, episodeNumber, true, controller),
-    ];
+    final titleCandidates = [
+      anime.titleEnglish,
+      anime.titleRomaji,
+      anime.titleUserPreferred,
+      anime.titleNative,
+    ].where((t) => t.trim().isNotEmpty).toList();
 
-    Future.wait(tasks).whenComplete(() {
+    () async {
+      final tasks = <Future>[];
+
+      // 1. Anikoto -> MegaPlay (HD-1) & VidWish (HD-2)
+      tasks.add(() async {
+        try {
+          final series = await _anikoto.resolveAnikoto(
+            anilistId: anime.id,
+            titleCandidates: titleCandidates,
+            expectedEpisodes: anime.totalEpisodes,
+          );
+
+          if (series != null) {
+            final ep = series.episodes
+                .where((e) => e.number == episodeNumber)
+                .cast<AnikotoEpisode?>()
+                .firstWhere((_) => true, orElse: () => null);
+
+            if (ep != null && ep.embedId.isNotEmpty) {
+              final cats = categoryFilter != null ? [categoryFilter] : ['sub', 'dub'];
+              final anikotoTasks = <Future>[];
+
+              for (final cat in cats) {
+                // MegaPlay HD-1
+                anikotoTasks.add(
+                  _anikoto
+                      .extractDirect(
+                    host: 'megaplay.buzz',
+                    embedId: ep.embedId,
+                    category: cat,
+                  )
+                      .then((res) {
+                    if (res != null &&
+                        res.url.isNotEmpty &&
+                        seenUrls.add(res.url) &&
+                        !controller.isClosed) {
+                      final catUpper = cat.toUpperCase();
+                      controller.add(
+                        StreamSource(
+                          name: '⚡ MegaPlay (HD-1) • $catUpper',
+                          title:
+                              '${anime.displayTitle} • Ep $episodeNumber [MegaPlay HD-1 • $catUpper]',
+                          description:
+                              'MegaPlay • Master HLS • $catUpper • ${res.tracks.length} Subtitles',
+                          url: res.url,
+                          addonName: 'MegaPlay',
+                          headers: {
+                            'Referer': res.referer,
+                            'Origin': res.origin,
+                            'User-Agent':
+                                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                          },
+                          behaviorHints: {
+                            'notWebReady': false,
+                            'proxyHeaders': {
+                              'request': {
+                                'Referer': res.referer,
+                                'Origin': res.origin,
+                                'User-Agent':
+                                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                              },
+                            },
+                          },
+                        ),
+                      );
+                    }
+                  }).catchError((_) {}),
+                );
+
+                // VidWish HD-2
+                anikotoTasks.add(
+                  _anikoto
+                      .extractDirect(
+                    host: 'vidwish.live',
+                    embedId: ep.embedId,
+                    category: cat,
+                  )
+                      .then((res) {
+                    if (res != null &&
+                        res.url.isNotEmpty &&
+                        seenUrls.add(res.url) &&
+                        !controller.isClosed) {
+                      final catUpper = cat.toUpperCase();
+                      controller.add(
+                        StreamSource(
+                          name: '⚡ VidWish (HD-2) • $catUpper',
+                          title:
+                              '${anime.displayTitle} • Ep $episodeNumber [VidWish HD-2 • $catUpper]',
+                          description:
+                              'VidWish • Master HLS • $catUpper • ${res.tracks.length} Subtitles',
+                          url: res.url,
+                          addonName: 'VidWish',
+                          headers: {
+                            'Referer': res.referer,
+                            'Origin': res.origin,
+                            'User-Agent':
+                                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                          },
+                          behaviorHints: {
+                            'notWebReady': false,
+                            'proxyHeaders': {
+                              'request': {
+                                'Referer': res.referer,
+                                'Origin': res.origin,
+                                'User-Agent':
+                                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                              },
+                            },
+                          },
+                        ),
+                      );
+                    }
+                  }).catchError((_) {}),
+                );
+              }
+
+              await Future.wait(anikotoTasks);
+            }
+          }
+        } catch (e) {
+          if (kDebugMode) debugPrint('[AnimeScraper] Anikoto extract error: $e');
+        }
+      }());
+
+      // 2. AllAnime Extractor
+      final allAnimeCats = categoryFilter != null ? [categoryFilter] : ['sub', 'dub'];
+      for (final cat in allAnimeCats) {
+        for (final prov in AllAnimeExtractor.knownProviders) {
+          tasks.add(
+            _allAnime
+                .extractWithProvider(
+              titleCandidates: titleCandidates,
+              episodeNumber: episodeNumber,
+              category: cat,
+              provider: prov,
+            )
+                .then((res) {
+              if (res != null &&
+                  res.url.isNotEmpty &&
+                  seenUrls.add(res.url) &&
+                  !controller.isClosed) {
+                final catUpper = cat.toUpperCase();
+                final isHls = res.url.contains('.m3u8');
+                final typeTag = isHls ? 'HLS' : 'MP4';
+                controller.add(
+                  StreamSource(
+                    name: '⚡ AllAnime ($prov) • $catUpper',
+                    title:
+                        '${anime.displayTitle} • Ep $episodeNumber [AllAnime $prov • $catUpper]',
+                    description: 'AllAnime • $prov • $typeTag • $catUpper',
+                    url: res.url,
+                    addonName: 'AllAnime',
+                    headers: {
+                      'Referer': res.referer,
+                      'Origin': res.origin,
+                      'User-Agent':
+                          'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+                    },
+                    behaviorHints: {
+                      'notWebReady': false,
+                      'proxyHeaders': {
+                        'request': {
+                          'Referer': res.referer,
+                          'Origin': res.origin,
+                          'User-Agent':
+                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+                        },
+                      },
+                    },
+                  ),
+                );
+              }
+            }).catchError((_) {}),
+          );
+        }
+      }
+
+      // 3. Miruro Secure-Pipe Extractor
+      final miruroCats = categoryFilter != null ? [categoryFilter] : ['sub', 'dub'];
+      for (final cat in miruroCats) {
+        for (final prov in MiruroExtractor.knownProviders) {
+          tasks.add(
+            _miruro
+                .extractWithProvider(
+              anilistId: anime.id,
+              episodeNumber: episodeNumber,
+              category: cat,
+              provider: prov,
+            )
+                .then((res) {
+              if (res != null &&
+                  res.url.isNotEmpty &&
+                  seenUrls.add(res.url) &&
+                  !controller.isClosed) {
+                final catUpper = cat.toUpperCase();
+                final provUpper =
+                    prov[0].toUpperCase() + (prov.length > 1 ? prov.substring(1) : '');
+                controller.add(
+                  StreamSource(
+                    name: '⚡ Miruro ($provUpper) • $catUpper',
+                    title:
+                        '${anime.displayTitle} • Ep $episodeNumber [Miruro $provUpper • $catUpper]',
+                    description:
+                        'Miruro • $provUpper • HLS • $catUpper • ${res.tracks.length} Subtitles',
+                    url: res.url,
+                    addonName: 'Miruro',
+                    headers: {
+                      'Referer': res.referer,
+                      'Origin': res.origin,
+                      'User-Agent':
+                          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    },
+                    behaviorHints: {
+                      'notWebReady': false,
+                      'proxyHeaders': {
+                        'request': {
+                          'Referer': res.referer,
+                          'Origin': res.origin,
+                          'User-Agent':
+                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                        },
+                      },
+                    },
+                  ),
+                );
+              }
+            }).catchError((_) {}),
+          );
+        }
+      }
+
+      // 4. WatchHentai & Hentaini Extractor (if Adult/NSFW)
+      final isAdultAnime = anime.genres.any((g) =>
+          g.toLowerCase().contains('hentai') || g.toLowerCase().contains('erotica'));
+      if (isAdultAnime && titleCandidates.isNotEmpty) {
+        tasks.add(
+          _watchHentai
+              .extract(
+            titleCandidates: titleCandidates,
+            episodeNumber: episodeNumber,
+          )
+              .then((res) {
+            if (res != null &&
+                res.url.isNotEmpty &&
+                seenUrls.add(res.url) &&
+                !controller.isClosed) {
+              controller.add(
+                StreamSource(
+                  name: '⚡ WatchHentai • HD',
+                  title: '${anime.displayTitle} • Ep $episodeNumber [WatchHentai]',
+                  description: 'WatchHentai • Direct Video',
+                  url: res.url,
+                  addonName: 'WatchHentai',
+                  headers: {
+                    'Referer': res.referer,
+                    'Origin': res.origin,
+                  },
+                ),
+              );
+            }
+          }).catchError((_) {}),
+        );
+
+        tasks.add(
+          _hentaini
+              .extract(
+            titleCandidates: titleCandidates,
+            episodeNumber: episodeNumber,
+          )
+              .then((res) {
+            if (res != null &&
+                res.url.isNotEmpty &&
+                seenUrls.add(res.url) &&
+                !controller.isClosed) {
+              controller.add(
+                StreamSource(
+                  name: '⚡ Hentaini • HD',
+                  title: '${anime.displayTitle} • Ep $episodeNumber [Hentaini]',
+                  description: 'Hentaini • Direct Video',
+                  url: res.url,
+                  addonName: 'Hentaini',
+                  headers: {
+                    'Referer': res.referer,
+                    'Origin': res.origin,
+                  },
+                ),
+              );
+            }
+          }).catchError((_) {}),
+        );
+      }
+
+      await Future.wait(tasks);
       if (!controller.isClosed) {
         controller.close();
       }
-    });
+    }();
 
-    yield* controller.stream;
+    return controller.stream;
   }
 
   /// Fetch all scraped stream sources as a list
   Future<List<StreamSource>> scrapeAllStreams({
     required AnimeMedia anime,
     required int episodeNumber,
+    String? categoryFilter,
   }) async {
     final list = <StreamSource>[];
     await for (final source in scrapeStreamsStream(
       anime: anime,
       episodeNumber: episodeNumber,
+      categoryFilter: categoryFilter,
     )) {
       list.add(source);
     }
     return list;
   }
 
-  /// Get the single best scraped stream source (for instant Play / Resume)
-  Future<StreamSource?> getBestStream({
-    required AnimeMedia anime,
-    required int episodeNumber,
-    bool isDub = false,
-  }) async {
-    // 1. Try Miruro first
-    final miruroList = await _fetchMiruroSources(anime, episodeNumber, isDub);
-    if (miruroList.isNotEmpty) return miruroList.first;
-
-    // 2. Try Gogoanime fallback
-    final gogoList = await _fetchGogoSources(anime, episodeNumber, isDub);
-    if (gogoList.isNotEmpty) return gogoList.first;
-
-    // 3. Try Zoro / HiAnime fallback
-    final zoroList = await _fetchZoroSources(anime, episodeNumber, isDub);
-    if (zoroList.isNotEmpty) return zoroList.first;
-
-    return null;
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Miruro Provider Scraper
-  // ───────────────────────────────────────────────────────────────────────────
-
-  Future<void> _scrapeMiruro(
-    AnimeMedia anime,
-    int episodeNumber,
-    bool isDub,
-    StreamController<StreamSource> controller,
-  ) async {
-    try {
-      final sources = await _fetchMiruroSources(anime, episodeNumber, isDub);
-      for (final s in sources) {
-        if (!controller.isClosed) controller.add(s);
-      }
-    } catch (_) {}
-  }
-
-  Future<List<StreamSource>> _fetchMiruroSources(
-    AnimeMedia anime,
-    int episodeNumber,
-    bool isDub,
-  ) async {
-    final list = <StreamSource>[];
-    try {
-      final uri = Uri.parse(
-          'https://api.miruro.online/anime/info/${anime.id}?dub=$isDub');
-      final res = await http.get(uri, headers: {
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
-        'Accept': 'application/json',
-      }).timeout(const Duration(seconds: 6));
-
-      if (res.statusCode == 200) {
-        final data = jsonDecode(res.body) as Map<String, dynamic>;
-        final episodes = data['episodes'] as List?;
-        if (episodes != null && episodes.isNotEmpty) {
-          final ep = episodes.firstWhere(
-            (e) => (e['number'] as int? ?? 0) == episodeNumber,
-            orElse: () => episodes.first,
-          );
-          final epId = ep['id']?.toString() ?? '$episodeNumber';
-
-          final watchUri = Uri.parse(
-              'https://api.miruro.online/anime/watch/$epId?dub=$isDub');
-          final watchRes = await http.get(watchUri, headers: {
-            'User-Agent':
-                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
-            'Accept': 'application/json',
-          }).timeout(const Duration(seconds: 6));
-
-          if (watchRes.statusCode == 200) {
-            final watchData = jsonDecode(watchRes.body) as Map<String, dynamic>;
-            final sources = watchData['sources'] as List?;
-            final dubTag = isDub ? 'Dub' : 'Sub';
-
-            if (sources != null) {
-              for (final s in sources) {
-                if (s is Map<String, dynamic>) {
-                  final url = s['url']?.toString() ?? '';
-                  final quality = s['quality']?.toString() ?? 'auto';
-                  if (url.isNotEmpty) {
-                    list.add(
-                      StreamSource(
-                        name: '⚡ Miruro • $quality ($dubTag)',
-                        title:
-                            '${anime.displayTitle} - EP $episodeNumber [$quality]',
-                        description:
-                            'Miruro Ultra Fast HLS • ${isDub ? "English Dub" : "Japanese Sub"} • $quality',
-                        url: url,
-                        addonName: 'Miruro Anime',
-                        headers: {
-                          'Referer': 'https://miruro.to/',
-                          'Origin': 'https://miruro.to',
-                          'User-Agent':
-                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
-                        },
-                        behaviorHints: {
-                          'notWebReady': false,
-                          'proxyHeaders': {
-                            'request': {'Referer': 'https://miruro.to/'}
-                          },
-                        },
-                      ),
-                    );
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (_) {}
-    return list;
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Gogoanime Provider Scraper
-  // ───────────────────────────────────────────────────────────────────────────
-
-  Future<void> _scrapeGogoanime(
-    AnimeMedia anime,
-    int episodeNumber,
-    bool isDub,
-    StreamController<StreamSource> controller,
-  ) async {
-    try {
-      final sources = await _fetchGogoSources(anime, episodeNumber, isDub);
-      for (final s in sources) {
-        if (!controller.isClosed) controller.add(s);
-      }
-    } catch (_) {}
-  }
-
-  Future<List<StreamSource>> _fetchGogoSources(
-    AnimeMedia anime,
-    int episodeNumber,
-    bool isDub,
-  ) async {
-    final list = <StreamSource>[];
-    try {
-      final cleanTitle = _cleanTitle(anime.displayTitle);
-      final searchUri = Uri.parse(
-          'https://consumet.api.amvstr.me/anime/gogoanime/$cleanTitle');
-      final searchRes = await http.get(searchUri, headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      }).timeout(const Duration(seconds: 6));
-
-      if (searchRes.statusCode == 200) {
-        final searchData = jsonDecode(searchRes.body) as Map<String, dynamic>;
-        final results = searchData['results'] as List?;
-        if (results != null && results.isNotEmpty) {
-          final target = results.firstWhere(
-            (r) =>
-                isDub ? (r['id']?.toString().contains('-dub') ?? false) : true,
-            orElse: () => results.first,
-          );
-
-          final gogoId = target['id']?.toString() ?? '';
-          final episodeId = '$gogoId-episode-$episodeNumber';
-
-          final watchUri = Uri.parse(
-              'https://consumet.api.amvstr.me/anime/gogoanime/watch/$episodeId');
-          final watchRes = await http.get(watchUri, headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          }).timeout(const Duration(seconds: 6));
-
-          if (watchRes.statusCode == 200) {
-            final watchData = jsonDecode(watchRes.body) as Map<String, dynamic>;
-            final sources = watchData['sources'] as List?;
-            final dubTag = isDub ? 'Dub' : 'Sub';
-
-            if (sources != null) {
-              for (final s in sources) {
-                if (s is Map<String, dynamic>) {
-                  final url = s['url']?.toString() ?? '';
-                  final quality = s['quality']?.toString() ?? 'default';
-                  if (url.isNotEmpty) {
-                    list.add(
-                      StreamSource(
-                        name: '📺 Gogoanime • $quality ($dubTag)',
-                        title:
-                            '${anime.displayTitle} - EP $episodeNumber [$quality]',
-                        description:
-                            'Gogoanime Server • ${isDub ? "English Dub" : "Japanese Sub"} • $quality',
-                        url: url,
-                        addonName: 'Gogoanime',
-                        headers: {
-                          'Referer': 'https://anitaku.to/',
-                          'User-Agent':
-                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
-                        },
-                      ),
-                    );
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (_) {}
-    return list;
-  }
-
-  // ───────────────────────────────────────────────────────────────────────────
-  // Zoro / HiAnime Provider Scraper
-  // ───────────────────────────────────────────────────────────────────────────
-
-  Future<void> _scrapeZoro(
-    AnimeMedia anime,
-    int episodeNumber,
-    bool isDub,
-    StreamController<StreamSource> controller,
-  ) async {
-    try {
-      final sources = await _fetchZoroSources(anime, episodeNumber, isDub);
-      for (final s in sources) {
-        if (!controller.isClosed) controller.add(s);
-      }
-    } catch (_) {}
-  }
-
-  Future<List<StreamSource>> _fetchZoroSources(
-    AnimeMedia anime,
-    int episodeNumber,
-    bool isDub,
-  ) async {
-    final list = <StreamSource>[];
-    try {
-      final cleanTitle = _cleanTitle(anime.displayTitle);
-      final searchUri =
-          Uri.parse('https://consumet.api.amvstr.me/anime/zoro/$cleanTitle');
-      final searchRes = await http.get(searchUri, headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-      }).timeout(const Duration(seconds: 6));
-
-      if (searchRes.statusCode == 200) {
-        final searchData = jsonDecode(searchRes.body) as Map<String, dynamic>;
-        final results = searchData['results'] as List?;
-        if (results != null && results.isNotEmpty) {
-          final zoroId = results.first['id']?.toString() ?? '';
-          final watchUri = Uri.parse(
-              'https://consumet.api.amvstr.me/anime/zoro/watch?episodeId=$zoroId\$episode\$$episodeNumber&server=vidcloud');
-
-          final watchRes = await http.get(watchUri, headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-          }).timeout(const Duration(seconds: 6));
-
-          if (watchRes.statusCode == 200) {
-            final watchData = jsonDecode(watchRes.body) as Map<String, dynamic>;
-            final sources = watchData['sources'] as List?;
-            final dubTag = isDub ? 'Dub' : 'Sub';
-
-            if (sources != null) {
-              for (final s in sources) {
-                if (s is Map<String, dynamic>) {
-                  final url = s['url']?.toString() ?? '';
-                  final quality = s['quality']?.toString() ?? 'auto';
-                  if (url.isNotEmpty) {
-                    list.add(
-                      StreamSource(
-                        name: '✨ HiAnime • $quality ($dubTag)',
-                        title:
-                            '${anime.displayTitle} - EP $episodeNumber [$quality]',
-                        description:
-                            'HiAnime Cloud HLS • ${isDub ? "English Dub" : "Japanese Sub"} • $quality',
-                        url: url,
-                        addonName: 'HiAnime',
-                        headers: {
-                          'Referer': 'https://hianime.to/',
-                          'User-Agent':
-                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
-                        },
-                      ),
-                    );
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    } catch (_) {}
-    return list;
-  }
-
-  static String _cleanTitle(String title) {
-    return title
-        .replaceAll(RegExp(r'\([^)]*\)'), '')
-        .replaceAll(RegExp(r'\[[^\]]*\]'), '')
-        .replaceAll(RegExp(r'[^a-zA-Z0-9\s]'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim()
-        .replaceAll(' ', '-');
-  }
-
-  /// Converts AnimeMedia and Episode to MovieDetail and Video for the existing PlayerScreen
+  /// Converts AnimeMedia and Episode to MovieDetail and Video for the PlayerScreen
   static MovieDetail toMovieDetail(AnimeMedia anime) {
     return MovieDetail(
       id: 'anilist:${anime.id}',

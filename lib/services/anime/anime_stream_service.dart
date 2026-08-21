@@ -1,25 +1,35 @@
 import '../../models/anime/anime_media.dart';
-import 'miruro_stream_resolver.dart';
+import '../../models/stream/stream_model.dart';
+import 'anime_scraper_service.dart';
 
 class AnimeStreamService {
   static final AnimeStreamService instance = AnimeStreamService._internal();
   AnimeStreamService._internal();
 
-  final MiruroStreamResolver _resolver = MiruroStreamResolver.instance;
+  final AnimeScraperService _scraper = AnimeScraperService.instance;
 
   List<AnimeEpisode> getEpisodes(AnimeMedia anime) {
-    return _resolver.generateEpisodeList(anime);
+    final count = anime.totalEpisodes > 0 ? anime.totalEpisodes : 24;
+    return List.generate(
+      count,
+      (i) => AnimeEpisode(
+        number: i + 1,
+        title: 'Episode ${i + 1}',
+        thumbnail: anime.backdropUrl,
+        description: 'Episode ${i + 1} of ${anime.displayTitle}',
+      ),
+    );
   }
 
-  Future<AnimeStreamResult?> getEpisodeStream({
+  Stream<StreamSource> getEpisodeStreams({
     required AnimeMedia anime,
     required int episodeNumber,
-    bool isDub = false,
-  }) async {
-    return await _resolver.resolveStream(
+    String? categoryFilter,
+  }) {
+    return _scraper.scrapeStreamsStream(
       anime: anime,
       episodeNumber: episodeNumber,
-      isDub: isDub,
+      categoryFilter: categoryFilter,
     );
   }
 }

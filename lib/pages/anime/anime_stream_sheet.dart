@@ -26,7 +26,8 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
   final AnimeScraperService _scraper = AnimeScraperService.instance;
   final AnimeLibraryService _library = AnimeLibraryService.instance;
 
-  final List<StreamSource> _sources = [];
+  final List<StreamSource> _allSources = [];
+  String _selectedCategory = 'all'; // 'all', 'sub', 'dub'
   bool _isScraping = true;
   String? _error;
   StreamSubscription<StreamSource>? _streamSub;
@@ -45,7 +46,7 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
 
   void _startScraping() {
     setState(() {
-      _sources.clear();
+      _allSources.clear();
       _isScraping = true;
       _error = null;
     });
@@ -59,10 +60,10 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
       (source) {
         if (mounted) {
           setState(() {
-            _sources.add(source);
+            _allSources.add(source);
           });
 
-          if (widget.autoPlay && _sources.length == 1) {
+          if (widget.autoPlay && _allSources.length == 1) {
             _playSource(source);
           }
         }
@@ -79,8 +80,9 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
         if (mounted) {
           setState(() {
             _isScraping = false;
-            if (_sources.isEmpty) {
-              _error = 'No playable streams found for Episode ${widget.episodeNumber}.';
+            if (_allSources.isEmpty) {
+              _error =
+                  'No playable streams found for Episode ${widget.episodeNumber}.';
             }
           });
         }
@@ -88,8 +90,24 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
     );
   }
 
+  List<StreamSource> get _filteredSources {
+    if (_selectedCategory == 'sub') {
+      return _allSources
+          .where((s) =>
+              !(s.description?.toLowerCase().contains('dub') ?? false) &&
+              !(s.name?.toLowerCase().contains('dub') ?? false))
+          .toList();
+    } else if (_selectedCategory == 'dub') {
+      return _allSources
+          .where((s) =>
+              (s.description?.toLowerCase().contains('dub') ?? false) ||
+              (s.name?.toLowerCase().contains('dub') ?? false))
+          .toList();
+    }
+    return _allSources;
+  }
+
   void _playSource(StreamSource source) {
-    // Record watch history
     _library.updateProgress(
       anime: widget.anime,
       episodeNumber: widget.episodeNumber,
@@ -98,7 +116,8 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
     );
 
     final detail = AnimeScraperService.toMovieDetail(widget.anime);
-    final video = AnimeScraperService.toVideo(widget.anime, widget.episodeNumber);
+    final video =
+        AnimeScraperService.toVideo(widget.anime, widget.episodeNumber);
 
     Navigator.pushReplacement(
       context,
@@ -116,6 +135,8 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final filtered = _filteredSources;
+
     return Container(
       decoration: const BoxDecoration(
         color: Color(0xFF0F121C),
@@ -168,7 +189,7 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
                             ),
                             const SizedBox(width: 8),
                             const Text(
-                              'Scraping stream sources...',
+                              'Cascading native anime extractors...',
                               style: TextStyle(
                                 color: Color(0xFF7C5CFF),
                                 fontSize: 12,
@@ -177,7 +198,7 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
                             ),
                           ] else
                             Text(
-                              '${_sources.length} sources found',
+                              '${_allSources.length} sources found',
                               style: const TextStyle(
                                 color: Colors.white54,
                                 fontSize: 12,
@@ -195,11 +216,27 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
               ],
             ),
           ),
+
+          // Sub / Dub Category Filter Pills
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Row(
+              children: [
+                _buildFilterChip('All (${_allSources.length})', 'all'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Sub', 'sub'),
+                const SizedBox(width: 8),
+                _buildFilterChip('Dub', 'dub'),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 6),
           const Divider(color: Colors.white10, height: 1),
 
           // Stream list
           Flexible(
-            child: _sources.isEmpty && _isScraping
+            child: _allSources.isEmpty && _isScraping
                 ? const Padding(
                     padding: EdgeInsets.symmetric(vertical: 40),
                     child: Column(
@@ -208,13 +245,13 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
                         CircularProgressIndicator(color: Color(0xFF7C5CFF)),
                         SizedBox(height: 14),
                         Text(
-                          'Fetching Miruro, Gogoanime & HiAnime streams...',
+                          'Extracting MegaPlay, VidWish, AllAnime & Miruro streams...',
                           style: TextStyle(color: Colors.white70, fontSize: 13),
                         ),
                       ],
                     ),
                   )
-                : _sources.isEmpty && _error != null
+                : _allSources.isEmpty && _error != null
                     ? Padding(
                         padding: const EdgeInsets.all(28),
                         child: Column(
@@ -245,107 +282,152 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
                           ],
                         ),
                       )
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.all(16),
-                        itemCount: _sources.length,
-                        separatorBuilder: (_, __) =>
-                            const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final s = _sources[index];
-                          final isDub =
-                              s.description?.contains('Dub') ?? false;
+                    : filtered.isEmpty
+                        ? Padding(
+                            padding: const EdgeInsets.all(32),
+                            child: Text(
+                              'No ${_selectedCategory.toUpperCase()} sources found.',
+                              style: const TextStyle(
+                                  color: Colors.white54, fontSize: 13),
+                            ),
+                          )
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            padding: const EdgeInsets.all(16),
+                            itemCount: filtered.length,
+                            separatorBuilder: (_, __) =>
+                                const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final s = filtered[index];
+                              final isDub =
+                                  (s.description?.toLowerCase().contains('dub') ??
+                                          false) ||
+                                      (s.name?.toLowerCase().contains('dub') ??
+                                          false);
 
-                          return Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () => _playSource(s),
-                              borderRadius: BorderRadius.circular(14),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 12,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: const Color(0xFF191C28),
+                              return Material(
+                                color: Colors.transparent,
+                                child: InkWell(
+                                  onTap: () => _playSource(s),
                                   borderRadius: BorderRadius.circular(14),
-                                  border: Border.all(
-                                    color: Colors.white.withValues(alpha: 0.08),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF191C28),
+                                      borderRadius: BorderRadius.circular(14),
+                                      border: Border.all(
+                                        color:
+                                            Colors.white.withValues(alpha: 0.08),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(8),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF7C5CFF)
+                                                .withValues(alpha: 0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(10),
+                                          ),
+                                          child: const Icon(
+                                            Icons.play_circle_fill_rounded,
+                                            color: Color(0xFF7C5CFF),
+                                            size: 24,
+                                          ),
+                                        ),
+                                        const SizedBox(width: 14),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                s.name ?? 'Stream Source',
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 3),
+                                              Text(
+                                                s.description ?? s.addonName,
+                                                style: const TextStyle(
+                                                  color: Colors.white54,
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 8,
+                                            vertical: 4,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: isDub
+                                                ? Colors.orange
+                                                    .withValues(alpha: 0.2)
+                                                : Colors.blue
+                                                    .withValues(alpha: 0.2),
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                          child: Text(
+                                            isDub ? 'DUB' : 'SUB',
+                                            style: TextStyle(
+                                              color: isDub
+                                                  ? Colors.orangeAccent
+                                                  : Colors.lightBlueAccent,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFF7C5CFF)
-                                            .withValues(alpha: 0.2),
-                                        borderRadius:
-                                            BorderRadius.circular(10),
-                                      ),
-                                      child: const Icon(
-                                        Icons.play_circle_fill_rounded,
-                                        color: Color(0xFF7C5CFF),
-                                        size: 24,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 14),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            s.name ?? 'Stream Source',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                          const SizedBox(height: 3),
-                                          Text(
-                                            s.description ?? s.addonName,
-                                            style: const TextStyle(
-                                              color: Colors.white54,
-                                              fontSize: 11,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: isDub
-                                            ? Colors.orange.withValues(alpha: 0.2)
-                                            : Colors.blue.withValues(alpha: 0.2),
-                                        borderRadius:
-                                            BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        isDub ? 'DUB' : 'SUB',
-                                        style: TextStyle(
-                                          color: isDub
-                                              ? Colors.orangeAccent
-                                              : Colors.lightBlueAccent,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w900,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                              );
+                            },
+                          ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFilterChip(String label, String category) {
+    final isSelected = _selectedCategory == category;
+    return GestureDetector(
+      onTap: () => setState(() => _selectedCategory = category),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFF7C5CFF)
+              : Colors.white.withValues(alpha: 0.08),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isSelected
+                ? const Color(0xFF7C5CFF)
+                : Colors.white.withValues(alpha: 0.12),
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: isSelected ? Colors.white : Colors.white70,
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
       ),
     );
   }

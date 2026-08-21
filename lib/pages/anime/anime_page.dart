@@ -9,6 +9,7 @@ import '../../services/anime/anime_library_service.dart';
 import '../../services/glass_settings.dart';
 import '../../utils/route_transitions.dart';
 import '../../widgets/anime/anime_slider_section.dart';
+import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/common/liquid_dock.dart';
 import '../audiobooks/audiobooks_page.dart';
 import '../manga/manga_page.dart';
@@ -16,8 +17,9 @@ import '../music/music_page.dart';
 import '../my_list/my_list_page.dart';
 import '../search/search_page.dart';
 import '../settings/settings_page.dart';
-import 'anime_details_modal.dart';
+import 'anime_details_page.dart';
 import 'anime_stream_sheet.dart';
+import 'anime_search_page.dart';
 
 class AnimePage extends StatefulWidget {
   const AnimePage({super.key});
@@ -42,8 +44,6 @@ class _AnimePageState extends State<AnimePage> {
   List<AnimeMedia> _romanceAnime = [];
   List<AnimeMedia> _fantasyAnime = [];
   List<AnimeMedia> _sciFiAnime = [];
-
-  AnimeMedia? _activeDetailsModal;
 
   @override
   void initState() {
@@ -123,13 +123,18 @@ class _AnimePageState extends State<AnimePage> {
       builder: (_) => AnimeStreamSheet(
         anime: anime,
         episodeNumber: episodeNumber,
-        autoPlay: true,
+        autoPlay: false,
       ),
     );
   }
 
   void _openDetails(AnimeMedia anime) {
-    setState(() => _activeDetailsModal = anime);
+    Navigator.push(
+      context,
+      CinematicSlideRoute(
+        page: AnimeDetailsPage(anime: anime),
+      ),
+    );
   }
 
   void _navigateToSettings(Offset? tapPosition) {
@@ -146,7 +151,7 @@ class _AnimePageState extends State<AnimePage> {
     Navigator.push(
       context,
       LiquidRevealRoute(
-        page: const SearchPage(),
+        page: const AnimeSearchPage(),
         tapPosition: tapPosition,
       ),
     );
@@ -312,6 +317,14 @@ class _AnimePageState extends State<AnimePage> {
         ),
       ),
 
+      // Custom Scroll Track (Matching Home Page)
+      if (MediaQuery.sizeOf(context).width > 800)
+        Positioned(
+          right: 24,
+          bottom: 40,
+          child: CustomScrollTrack(controller: _scrollController),
+        ),
+
       // Liquid Dock Navbar (Home Page Style)
       Positioned(
         bottom: 24,
@@ -406,22 +419,6 @@ class _AnimePageState extends State<AnimePage> {
           ),
         ),
       ),
-
-      // Anime Details Modal Popup
-      if (_activeDetailsModal != null)
-        Positioned.fill(
-          child: AnimeDetailsModal(
-            initialAnime: _activeDetailsModal!,
-            onPlayEpisode: (anime, epNum, dub) {
-              setState(() => _activeDetailsModal = null);
-              _playEpisode(anime, epNum, dub);
-            },
-            onNavigateToAnime: (nextAnime) {
-              setState(() => _activeDetailsModal = nextAnime);
-            },
-            onClose: () => setState(() => _activeDetailsModal = null),
-          ),
-        ),
     ];
 
     return Scaffold(
@@ -648,11 +645,14 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel> {
 
   double _heroHeight(double screenWidth, double screenHeight) {
     if (screenWidth < 600) {
-      return (screenHeight * 0.66).clamp(460.0, 640.0);
-    } else if (screenWidth < 1000) {
-      return (screenHeight * 0.62).clamp(520.0, 680.0);
+      return (screenHeight * 0.68).clamp(460.0, 640.0);
+    } else if (screenWidth < 1100) {
+      return (screenHeight * 0.70).clamp(520.0, 740.0);
     } else {
-      return (screenHeight * 0.78).clamp(620.0, 760.0);
+      // Maximized / Widescreen Desktop: give generous height (up to 85% of viewport)
+      // so 16:9 backdrops don't get aggressively cropped or squished into narrow strips.
+      final targetHeight = screenHeight * 0.85;
+      return targetHeight.clamp(680.0, 920.0);
     }
   }
 
@@ -697,7 +697,7 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel> {
             // Dot indicators
             if (widget.animeList.length > 1)
               Positioned(
-                bottom: 14,
+                bottom: 16,
                 left: 0,
                 right: 0,
                 child: Row(
@@ -793,10 +793,28 @@ class _AnimeHeroSlide extends StatelessWidget {
         CachedNetworkImage(
           imageUrl: anime.backdropUrl,
           fit: BoxFit.cover,
-          alignment: Alignment.topCenter,
+          alignment: const Alignment(0, -0.15),
           filterQuality: FilterQuality.medium,
           placeholder: (_, __) => const ColoredBox(color: Color(0xFF151822)),
           errorWidget: (_, __, ___) => const ColoredBox(color: Color(0xFF151822)),
+        ),
+
+        // Left horizontal wash for cinematic readability
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                stops: const [0.0, 0.38, 0.85],
+                colors: [
+                  const Color(0xFF080A0F).withValues(alpha: 0.95),
+                  const Color(0xFF080A0F).withValues(alpha: 0.70),
+                  Colors.transparent,
+                ],
+              ),
+            ),
+          ),
         ),
 
         // Top Gradient
@@ -822,10 +840,10 @@ class _AnimeHeroSlide extends StatelessWidget {
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
-                stops: const [0.0, 0.35, 0.75],
+                stops: const [0.0, 0.30, 0.75],
                 colors: [
                   const Color(0xFF080A0F),
-                  const Color(0xFF080A0F).withValues(alpha: 0.85),
+                  const Color(0xFF080A0F).withValues(alpha: 0.80),
                   Colors.transparent,
                 ],
               ),
@@ -835,228 +853,236 @@ class _AnimeHeroSlide extends StatelessWidget {
 
         // Content Overlay
         Positioned(
-          left: 26,
-          right: 26,
-          bottom: 48,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Rating + Year + Episodes row
-              Row(
+          left: isCompact ? 20 : 48,
+          right: isCompact ? 20 : 48,
+          bottom: isCompact ? 36 : 56,
+          child: Align(
+            alignment: Alignment.bottomLeft,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: isCompact ? double.infinity : 680.0,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (anime.averageScore > 0) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFD700).withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(
-                          color: const Color(0xFFFFD700).withValues(alpha: 0.28),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.star_rounded,
-                            size: 17,
-                            color: Color(0xFFFFD700),
+                  // Rating + Year + Episodes row
+                  Row(
+                    children: [
+                      if (anime.averageScore > 0) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 6,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            anime.formattedScore,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFFFFD700),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD700).withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(9),
+                            border: Border.all(
+                              color: const Color(0xFFFFD700).withValues(alpha: 0.28),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-                  if (anime.seasonYear > 0)
-                    Text(
-                      '${anime.seasonYear}',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  if (anime.totalEpisodes > 0) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Icon(
-                        Icons.circle,
-                        size: 4,
-                        color: Colors.white.withValues(alpha: 0.25),
-                      ),
-                    ),
-                    Text(
-                      '${anime.totalEpisodes} Episodes',
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                  if (anime.studioName.isNotEmpty) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Icon(
-                        Icons.circle,
-                        size: 4,
-                        color: Colors.white.withValues(alpha: 0.25),
-                      ),
-                    ),
-                    Text(
-                      anime.studioName,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // Title
-              Text(
-                anime.displayTitle,
-                style: TextStyle(
-                  fontSize: isCompact ? 30 : 44,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.2,
-                  height: 1.05,
-                  color: Colors.white,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-
-              // Description
-              if (anime.description.isNotEmpty) ...[
-                SizedBox(height: isCompact ? 12 : 16),
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: isCompact ? double.infinity : 580,
-                  ),
-                  child: Text(
-                    anime.description,
-                    maxLines: isCompact ? 2 : 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: isCompact ? 14.5 : 15.5,
-                      color: Colors.white.withValues(alpha: 0.65),
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ],
-
-              // Genre chips
-              if (anime.genres.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: anime.genres.take(4).map((genre) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 13,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 17,
+                                color: Color(0xFFFFD700),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                anime.formattedScore,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFFFD700),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 10),
+                      ],
+                      if (anime.seasonYear > 0)
+                        Text(
+                          '${anime.seasonYear}',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.white.withValues(alpha: 0.55),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      if (anime.totalEpisodes > 0) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Icon(
+                            Icons.circle,
+                            size: 4,
+                            color: Colors.white.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        Text(
+                          '${anime.totalEpisodes} Episodes',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.white.withValues(alpha: 0.55),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                      if (anime.studioName.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Icon(
+                            Icons.circle,
+                            size: 4,
+                            color: Colors.white.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        Text(
+                          anime.studioName,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.white.withValues(alpha: 0.55),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Title
+                  Text(
+                    anime.displayTitle,
+                    style: TextStyle(
+                      fontSize: isCompact ? 30 : 44,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -1.2,
+                      height: 1.05,
+                      color: Colors.white,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+
+                  // Description
+                  if (anime.description.isNotEmpty) ...[
+                    SizedBox(height: isCompact ? 12 : 16),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isCompact ? double.infinity : 580,
                       ),
                       child: Text(
-                        genre,
+                        anime.description,
+                        maxLines: isCompact ? 2 : 3,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.70),
-                          fontWeight: FontWeight.w600,
+                          fontSize: isCompact ? 14.5 : 15.5,
+                          color: Colors.white.withValues(alpha: 0.65),
+                          height: 1.5,
                         ),
                       ),
-                    );
-                  }).toList(),
-                ),
-              ],
+                    ),
+                  ],
 
-              // Action buttons (Matching Home Page)
-              SizedBox(height: isCompact ? 22 : 26),
-              Row(
-                children: [
-                  ElevatedButton.icon(
-                    onPressed: onWatchNow,
-                    icon: const Icon(Icons.play_arrow_rounded, size: 24),
-                    label: const Text(
-                      'Watch Ep 1',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15.5,
-                      ),
+                  // Genre chips
+                  if (anime.genres.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: anime.genres.take(4).map((genre) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 13,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          child: Text(
+                            genre,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.70),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      }).toList(),
                     ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF7C5CFF),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 28,
-                        vertical: 16,
+                  ],
+
+                  // Action buttons (Matching Home Page)
+                  SizedBox(height: isCompact ? 22 : 26),
+                  Row(
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: onWatchNow,
+                        icon: const Icon(Icons.play_arrow_rounded, size: 24),
+                        label: const Text(
+                          'Watch Ep 1',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15.5,
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF7C5CFF),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 28,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          elevation: 12,
+                          shadowColor: const Color(0xFF7C5CFF).withValues(alpha: 0.45),
+                        ),
                       ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
+                      const SizedBox(width: 12),
+                      OutlinedButton.icon(
+                        onPressed: onDetailsTap,
+                        icon: Icon(
+                          Icons.info_outline_rounded,
+                          size: 21,
+                          color: Colors.white.withValues(alpha: 0.80),
+                        ),
+                        label: Text(
+                          'Details',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15.5,
+                            color: Colors.white.withValues(alpha: 0.80),
+                          ),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 16,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          side: BorderSide(
+                            color: Colors.white.withValues(alpha: 0.18),
+                            width: 1.2,
+                          ),
+                        ),
                       ),
-                      elevation: 12,
-                      shadowColor: const Color(0xFF7C5CFF).withValues(alpha: 0.45),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  OutlinedButton.icon(
-                    onPressed: onDetailsTap,
-                    icon: Icon(
-                      Icons.info_outline_rounded,
-                      size: 21,
-                      color: Colors.white.withValues(alpha: 0.80),
-                    ),
-                    label: Text(
-                      'Details',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15.5,
-                        color: Colors.white.withValues(alpha: 0.80),
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 24,
-                        vertical: 16,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      side: BorderSide(
-                        color: Colors.white.withValues(alpha: 0.18),
-                        width: 1.2,
-                      ),
-                    ),
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ],

@@ -55,6 +55,8 @@ dependencies:
   ota_update: ^7.1.0
   package_info_plus: ^9.0.1
   path: ^1.9.0
+  crypto: ^3.0.5
+  pointycastle: ^3.9.1
 
 dev_dependencies:
   flutter_test:

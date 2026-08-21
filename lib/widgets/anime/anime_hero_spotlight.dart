@@ -61,8 +61,9 @@ class _AnimeHeroSpotlightState extends State<AnimeHeroSpotlight> {
     if (widget.featuredAnime.isEmpty) return const SizedBox.shrink();
 
     final screenWidth = MediaQuery.sizeOf(context).width;
+    final screenHeight = MediaQuery.sizeOf(context).height;
     final isMobile = screenWidth < 650;
-    final bannerHeight = isMobile ? 320.0 : 420.0;
+    final bannerHeight = isMobile ? 320.0 : (screenHeight * 0.60).clamp(440.0, 680.0);
 
     return Container(
       margin: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24),
@@ -87,7 +88,7 @@ class _AnimeHeroSpotlightState extends State<AnimeHeroSpotlight> {
                       child: CachedNetworkImage(
                         imageUrl: anime.backdropUrl,
                         fit: BoxFit.cover,
-                        alignment: Alignment.topCenter,
+                        alignment: const Alignment(0, -0.15),
                         placeholder: (_, __) => Container(
                           color: const Color(0xFF131522),
                         ),
@@ -139,9 +140,13 @@ class _AnimeHeroSpotlightState extends State<AnimeHeroSpotlight> {
                     // Anime Information Overlay
                     Positioned(
                       left: isMobile ? 18 : 36,
-                      right: isMobile ? 18 : (screenWidth * 0.40),
+                      right: isMobile ? 18 : 36,
                       bottom: isMobile ? 20 : 36,
-                      child: Column(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: isMobile ? double.infinity : 640.0,
+                        ),
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
@@ -346,10 +351,11 @@ class _AnimeHeroSpotlightState extends State<AnimeHeroSpotlight> {
                         ],
                       ),
                     ),
-                  ],
-                );
-              },
-            ),
+                  ),
+                ],
+              );
+            },
+          ),
 
             // Bottom Right Page Indicator Dots
             if (widget.featuredAnime.length > 1)

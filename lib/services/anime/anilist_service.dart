@@ -238,15 +238,23 @@ class AnilistService {
   Future<List<AnimeMedia>> searchAnime(
     String search, {
     String? genre,
+    int? year,
+    String? season,
     String? format,
     String? status,
+    String sort = 'SEARCH_MATCH',
+    bool isAdult = false,
     int page = 1,
-    int perPage = 25,
+    int perPage = 30,
   }) async {
-    const query = '''
-      query (\$page: Int, \$perPage: Int, \$search: String, \$genre: String, \$format: MediaFormat, \$status: MediaStatus) {
+    final hasSearch = search.trim().isNotEmpty;
+    final sortClause = hasSearch ? '[SEARCH_MATCH, POPULARITY_DESC]' : '[$sort]';
+    final isAdultFinal = isAdult || (genre != null && genre.toLowerCase() == 'hentai');
+
+    final query = '''
+      query (\$page: Int, \$perPage: Int, \$search: String, \$genre: String, \$year: Int, \$season: MediaSeason, \$format: MediaFormat, \$status: MediaStatus, \$isAdult: Boolean) {
         Page(page: \$page, perPage: \$perPage) {
-          media(type: ANIME, search: \$search, genre: \$genre, format: \$format, status: \$status, sort: [POPULARITY_DESC, SEARCH_MATCH], isAdult: false) {
+          media(type: ANIME, search: \$search, genre: \$genre, seasonYear: \$year, season: \$season, format: \$format, status: \$status, sort: $sortClause, isAdult: \$isAdult) {
             $_mediaFields
           }
         }
@@ -256,8 +264,11 @@ class AnilistService {
     final variables = <String, dynamic>{
       'page': page,
       'perPage': perPage,
-      if (search.trim().isNotEmpty) 'search': search.trim(),
+      'isAdult': isAdultFinal,
+      if (hasSearch) 'search': search.trim(),
       if (genre != null && genre.isNotEmpty && genre != 'All') 'genre': genre,
+      if (year != null) 'year': year,
+      if (season != null && season.isNotEmpty && season != 'All') 'season': season.toUpperCase(),
       if (format != null && format.isNotEmpty && format != 'All')
         'format': format.toUpperCase(),
       if (status != null && status.isNotEmpty && status != 'All')
@@ -266,6 +277,32 @@ class AnilistService {
 
     final data = await _postGraphQL(query, variables);
     return _parseMediaList(data);
+  }
+
+  /// Browse Anime with Filter Parameters
+  Future<List<AnimeMedia>> browseAnime({
+    String? genre,
+    int? year,
+    String? season,
+    String? format,
+    String? status,
+    String sort = 'TRENDING_DESC',
+    bool isAdult = false,
+    int page = 1,
+    int perPage = 30,
+  }) async {
+    return searchAnime(
+      '',
+      genre: genre,
+      year: year,
+      season: season,
+      format: format,
+      status: status,
+      sort: sort,
+      isAdult: isAdult,
+      page: page,
+      perPage: perPage,
+    );
   }
 
   /// Full Anime Details (Including Voice Actors/Characters, Relations, Recommendations)
