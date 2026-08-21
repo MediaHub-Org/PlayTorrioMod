@@ -54,7 +54,7 @@ class FlyStreamScraper extends StreamScraper {
       };
 
       final uri = Uri.parse('$_apiBase/api/streams').replace(queryParameters: params);
-      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 10));
+      final res = await http.get(uri, headers: _headers).timeout(const Duration(seconds: 5));
 
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;

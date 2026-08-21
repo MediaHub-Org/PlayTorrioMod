@@ -21,6 +21,8 @@ import '../scraper/sites/movienight.dart';
 import '../scraper/sites/downloadeverything.dart';
 import '../scraper/sites/movy.dart';
 import '../scraper/sites/vuflix.dart';
+import '../scraper/sites/rivestream.dart';
+import '../scraper/sites/cinejoy.dart';
 
 
 /// Service that fetches playback streams from all installed Stremio addons
@@ -63,6 +65,8 @@ class StreamService {
     ScraperManager.instance.registerScraper(DownloadEverythingScraper());
     ScraperManager.instance.registerScraper(MovyScraper());
     ScraperManager.instance.registerScraper(VuflixScraper());
+    ScraperManager.instance.registerScraper(RiveStreamScraper());
+    ScraperManager.instance.registerScraper(CinejoyScraper());
 
     int pending = addons.length + 1; // addons + local scrapers
 

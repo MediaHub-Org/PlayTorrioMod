@@ -17,7 +17,10 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
-  fvp.registerWith();
+  fvp.registerWith(options: {
+    'demux.format.allowed_extensions': 'ALL',
+    'demux.format.protocol_whitelist': 'file,http,https,tcp,tls,crypto,data',
+  });
   await Future.wait([
     AddonManager.instance.initialize(),
     GlassSettings.initialize(),

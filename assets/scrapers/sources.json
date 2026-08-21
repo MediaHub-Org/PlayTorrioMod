@@ -53,6 +53,20 @@
       "scriptUrl": "xdownloader.js"
     },
     {
+      "id": "rivestream",
+      "name": "RiveStream",
+      "provider": "PlayTorrioHTTP",
+      "scriptAsset": "assets/scrapers/rivestream.dart",
+      "scriptUrl": "rivestream.dart"
+    },
+    {
+      "id": "cinejoy",
+      "name": "Cinejoy",
+      "provider": "PlayTorrioHTTP",
+      "scriptAsset": "assets/scrapers/cinejoy.dart",
+      "scriptUrl": "cinejoy.dart"
+    },
+    {
       "id": "knaben",
       "name": "Knaben",
       "provider": "PlayTorrio",

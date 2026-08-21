@@ -62,16 +62,16 @@ class MovieNightScraper extends StreamScraper {
     final idToUse = tmdbId ?? imdbId;
     debugPrint('[MovieNightScraper] Scraping MovieNight for "$title" (id: $idToUse, type: $mediaType)');
 
-    for (final server in _priorityServers) {
+    final encTitle = Uri.encodeComponent(title);
+    final yearQuery = year != null ? '&year=$year' : '';
+    final imdbQuery = (imdbId != null && imdbId.isNotEmpty) ? '&imdbId=$imdbId' : '';
+
+    final serverTasks = _priorityServers.map((server) async {
       final serverId = server['id']!;
       final serverLabel = server['label']!;
 
       try {
         final Uri uri;
-        final encTitle = Uri.encodeComponent(title);
-        final yearQuery = year != null ? '&year=$year' : '';
-        final imdbQuery = (imdbId != null && imdbId.isNotEmpty) ? '&imdbId=$imdbId' : '';
-
         if (mediaType == 'tv') {
           final s = season ?? 1;
           final e = episode ?? 1;
@@ -88,7 +88,7 @@ class MovieNightScraper extends StreamScraper {
         final request = http.Request('GET', uri);
         request.headers.addAll(_headers);
 
-        final response = await client.send(request).timeout(const Duration(seconds: 8));
+        final response = await client.send(request).timeout(const Duration(seconds: 4));
 
         if (response.statusCode == 200) {
           final bodyBytes = await response.stream.toBytes();
@@ -136,10 +136,12 @@ class MovieNightScraper extends StreamScraper {
           }
         }
         client.close();
-      } catch (e) {
-        // Individual server timeout or error, continue to next server
+      } catch (_) {
+        // Timeout or connection error
       }
-    }
+    });
+
+    await Future.wait(serverTasks);
 
     debugPrint('[MovieNightScraper] Total sources found: ${sources.length}');
     return sources;
