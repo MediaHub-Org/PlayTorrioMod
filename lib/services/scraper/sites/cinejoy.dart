@@ -1,22 +1,21 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:pointycastle/export.dart';
-import 'package:wasm_run/wasm_run.dart';
 import '../stream_scraper.dart';
 import '../../../models/stream/stream_model.dart';
 import 'tmdb_helper.dart';
 
-/// Cinejoy Stream Scraper for PlayTorrioHTTP.
+/// Pure-Dart Cinejoy Stream Scraper for PlayTorrioHTTP.
 ///
-/// Encrypts media requests using Cinejoy's self-contained WebAssembly module
-/// (crush.wasm) and decrypts the resulting AES-256-GCM payloads in pure Dart.
-///
-/// Extracts 4K & HD HLS playlists, direct MP4 streams, and subtitles from
-/// all active servers (Lisbon, Solara, Athens, Castle, Canaias).
+/// Features:
+/// - 100% Pure Dart Cryptography (ECDH on P-256, HKDF-SHA256, AES-256-GCM)
+/// - Zero WASM runtimes, zero WebView, zero native assets / C++ / Rust build hooks
+/// - 100% cross-platform (Windows, Android, iOS, macOS, Linux)
+/// - Queries active Cinejoy servers (Lisbon, Solara, Athens, Castle, Canaias)
 class CinejoyScraper extends StreamScraper {
   @override
   String get name => 'PlayTorrioHTTP';
@@ -42,41 +41,177 @@ class CinejoyScraper extends StreamScraper {
     {'name': 'Canaias', '4k': false, 'status': 'ok'},
   ];
 
-  static WasmModule? _cachedModule;
-  static Uint8List? _cachedWasmBytes;
+  static final _domain = ECDomainParameters('secp256r1');
 
-  static Future<WasmModule?> _getWasmModule() async {
-    if (_cachedModule != null) return _cachedModule;
+  static const _serverPubKeyHex =
+      '0483c7a82132b8516e3eb4061b82e9c881cc585593a4709001131bff7443eabc1701c1f0d50e23ac02b0b9a5979903dbd7e9055aab5e4a5532132d1d200707f5f2';
 
+  static final ECPublicKey _serverPublicKey = () {
+    final bytes = Uint8List.fromList([
+      for (int i = 0; i < _serverPubKeyHex.length; i += 2)
+        int.parse(_serverPubKeyHex.substring(i, i + 2), radix: 16)
+    ]);
+    final point = _domain.curve.decodePoint(bytes)!;
+    return ECPublicKey(point, _domain);
+  }();
+
+  static Uint8List _hkdfExtract({
+    required Uint8List salt,
+    required Uint8List ikm,
+  }) {
+    final hmac = HMac(SHA256Digest(), 64);
+    hmac.init(KeyParameter(salt));
+    final prk = Uint8List(32);
+    hmac.update(ikm, 0, ikm.length);
+    hmac.doFinal(prk, 0);
+    return prk;
+  }
+
+  static Uint8List _hkdfExpand({
+    required Uint8List prk,
+    required Uint8List info,
+    required int length,
+  }) {
+    final hmac = HMac(SHA256Digest(), 64);
+    hmac.init(KeyParameter(prk));
+    final input = Uint8List(info.length + 1);
+    input.setRange(0, info.length, info);
+    input[info.length] = 1;
+    final out = Uint8List(32);
+    hmac.update(input, 0, input.length);
+    hmac.doFinal(out, 0);
+    return out.sublist(0, length);
+  }
+
+  static Map<String, dynamic> _sealRequest({
+    required String path,
+    required Map<String, dynamic> payload,
+  }) {
+    // 1. Generate ephemeral P-256 keypair
+    final rnd = Random.secure();
+    final privBytes = Uint8List.fromList(List.generate(32, (_) => rnd.nextInt(256)));
+    var d = BigInt.parse(
+      privBytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join(),
+      radix: 16,
+    );
+    while (d >= _domain.n || d == BigInt.zero) {
+      final b = Uint8List.fromList(List.generate(32, (_) => rnd.nextInt(256)));
+      d = BigInt.parse(b.map((x) => x.toRadixString(16).padLeft(2, '0')).join(), radix: 16);
+    }
+
+    final clientPriv = ECPrivateKey(d, _domain);
+    final clientQ = _domain.G * d;
+    final clientPubBytes = clientQ!.getEncoded(false); // 65 bytes: 0x04 || X || Y
+
+    // 2. Compute ECDH shared secret
+    final agreement = ECDHBasicAgreement();
+    agreement.init(clientPriv);
+    final BigInt zInt = agreement.calculateAgreement(_serverPublicKey);
+    final zHex = zInt.toRadixString(16).padLeft(64, '0');
+    final zBytes = Uint8List.fromList([
+      for (int i = 0; i < 64; i += 2) int.parse(zHex.substring(i, i + 2), radix: 16)
+    ]);
+
+    // 3. HKDF key derivation
+    final prk = _hkdfExtract(salt: clientPubBytes, ikm: zBytes);
+    final reqKey = _hkdfExpand(prk: prk, info: utf8.encode('lumen-gate-v2|c2s'), length: 32);
+    final resKey = _hkdfExpand(prk: prk, info: utf8.encode('lumen-gate-v2|s2c'), length: 32);
+
+    // 4. Encrypt JSON payload with AES-256-GCM
+    final reqJson = jsonEncode({'path': path, 'payload': payload});
+    final reqPlaintext = Uint8List.fromList(utf8.encode(reqJson));
+    final iv = Uint8List.fromList(List.generate(12, (_) => rnd.nextInt(256)));
+
+    // Request AAD: "lumen-gate-v2" || 0x00 || 0x01 || 0x01 || clientPubBytes
+    final reqAad = Uint8List(13 + 3 + clientPubBytes.length);
+    final prefix = utf8.encode('lumen-gate-v2');
+    reqAad.setRange(0, prefix.length, prefix);
+    reqAad[prefix.length] = 0;
+    reqAad[prefix.length + 1] = 1;
+    reqAad[prefix.length + 2] = 1; // keyId = 1
+    reqAad.setRange(prefix.length + 3, reqAad.length, clientPubBytes);
+
+    final cipher = GCMBlockCipher(AESEngine());
+    cipher.init(true, AEADParameters(KeyParameter(reqKey), 128, iv, reqAad));
+    final ciphertextAndTag = cipher.process(reqPlaintext);
+
+    // 5. Binary packet: version(0x02) || keyId(0x01) || clientPub(65b) || IV(12b) || ciphertextAndTag
+    final body = Uint8List(2 + clientPubBytes.length + iv.length + ciphertextAndTag.length);
+    body[0] = 2;
+    body[1] = 1;
+    body.setRange(2, 2 + clientPubBytes.length, clientPubBytes);
+    body.setRange(2 + clientPubBytes.length, 2 + clientPubBytes.length + iv.length, iv);
+    body.setRange(2 + clientPubBytes.length + iv.length, body.length, ciphertextAndTag);
+
+    // Response AAD: "lumen-gate-v2" || 0x00 || 0x02 || 0x01 || clientPubBytes
+    final resAad = Uint8List(13 + 3 + clientPubBytes.length);
+    resAad.setRange(0, prefix.length, prefix);
+    resAad[prefix.length] = 0;
+    resAad[prefix.length + 1] = 2;
+    resAad[prefix.length + 2] = 1;
+    resAad.setRange(prefix.length + 3, resAad.length, clientPubBytes);
+
+    return {
+      'body': body,
+      'resKey': resKey,
+      'aad': resAad,
+    };
+  }
+
+  static Uint8List _decryptResponse({
+    required Uint8List resKey,
+    required Uint8List aad,
+    required Uint8List respBytes,
+  }) {
+    final iv = respBytes.sublist(0, 12);
+    final ciphertext = respBytes.sublist(12);
+
+    final cipher = GCMBlockCipher(AESEngine());
+    cipher.init(false, AEADParameters(KeyParameter(resKey), 128, iv, aad));
+    return cipher.process(ciphertext);
+  }
+
+  static Future<Map<String, dynamic>?> _executeEncryptedQuery({
+    required String path,
+    required Map<String, dynamic> payload,
+  }) async {
     try {
-      await WasmRunLibrary.setUp();
+      final sealed = _sealRequest(path: path, payload: payload);
+      final client = http.Client();
+      final postRes = await client.post(
+        Uri.parse('$_apiBase/g'),
+        headers: {
+          'User-Agent': _ua,
+          'Origin': _origin,
+          'Referer': '$_origin/watch',
+          'Content-Type': 'application/octet-stream',
+        },
+        body: sealed['body'] as Uint8List,
+      ).timeout(const Duration(seconds: 7));
+      client.close();
 
-      if (_cachedWasmBytes == null) {
-        try {
-          final byteData = await rootBundle.load('assets/wasm/crush.wasm');
-          _cachedWasmBytes = byteData.buffer.asUint8List(
-            byteData.offsetInBytes,
-            byteData.lengthInBytes,
-          );
-        } catch (_) {
-          final res = await http.get(
-            Uri.parse('$_apiBase/crush.wasm'),
-            headers: _defaultHeaders,
-          ).timeout(const Duration(seconds: 8));
-          if (res.statusCode == 200) {
-            _cachedWasmBytes = res.bodyBytes;
-          }
-        }
+      if (postRes.statusCode != 200 || postRes.bodyBytes.length <= 28) {
+        debugPrint('[CinejoyScraper] POST /g status: ${postRes.statusCode}, bodyLen: ${postRes.bodyBytes.length}');
+        return null;
       }
 
-      if (_cachedWasmBytes != null) {
-        _cachedModule = await compileWasmModule(_cachedWasmBytes!);
-        debugPrint('[CinejoyScraper] WASM module compiled successfully (${_cachedWasmBytes!.length} bytes)');
+      final decryptedBytes = _decryptResponse(
+        resKey: sealed['resKey'] as Uint8List,
+        aad: sealed['aad'] as Uint8List,
+        respBytes: postRes.bodyBytes,
+      );
+
+      final decryptedJson = utf8.decode(decryptedBytes);
+      final decoded = jsonDecode(decryptedJson);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      } else if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
       }
     } catch (e, stack) {
-      debugPrint('[CinejoyScraper] Failed to compile WASM module: $e\n$stack');
+      debugPrint('[CinejoyScraper] _executeEncryptedQuery error: $e\n$stack');
     }
-    return _cachedModule;
+    return null;
   }
 
   @override
@@ -110,13 +245,6 @@ class CinejoyScraper extends StreamScraper {
         debugPrint(
             '[CinejoyScraper] Starting scrape for "$title" (tmdb: $tmdbId, S:${season}E:$episode)');
 
-        final wasmMod = await _getWasmModule();
-        if (wasmMod == null) {
-          debugPrint('[CinejoyScraper] WASM engine not available');
-          controller.close();
-          return;
-        }
-
         // 1. Fetch available servers dynamically
         List<Map<String, dynamic>> servers = _fallbackServers;
         try {
@@ -142,7 +270,6 @@ class CinejoyScraper extends StreamScraper {
         final serverTasks = servers.map((srv) async {
           final srvName = srv['name']?.toString() ?? '';
           if (srvName.isEmpty || srv['status'] == 'disabled') return;
-          // Sakura is anime-only, skip non-anime unless appropriate
           if (srvName.toLowerCase() == 'sakura' && !isTv) return;
 
           try {
@@ -158,7 +285,6 @@ class CinejoyScraper extends StreamScraper {
 
             debugPrint('[CinejoyScraper] Querying $targetPath with payload $payload');
             final result = await _executeEncryptedQuery(
-              wasmModule: wasmMod,
               path: targetPath,
               payload: payload,
             );
@@ -253,137 +379,6 @@ class CinejoyScraper extends StreamScraper {
     }();
 
     return controller.stream;
-  }
-
-  /// Encrypts the payload via WASM, dispatches POST /g, and decrypts the response.
-  static Future<Map<String, dynamic>?> _executeEncryptedQuery({
-    required WasmModule wasmModule,
-    required String path,
-    required Map<String, dynamic> payload,
-  }) async {
-    try {
-      final instance = await wasmModule.builder().build();
-      final alloc = instance.getFunction('alloc')!;
-      final sealRequest = instance.getFunction('seal_request')!;
-      final memory = instance.getMemory('memory')!;
-
-      final reqJson = jsonEncode({'path': path, 'payload': payload});
-      final reqBytes = Uint8List.fromList(utf8.encode(reqJson));
-
-      final rnd = Random.secure();
-      final randBytes = Uint8List.fromList(List.generate(44, (_) => rnd.nextInt(256)));
-
-      final outCap = reqBytes.length + 512;
-
-      final reqPtr = _unwrapInt(alloc([reqBytes.length]));
-      final randPtr = _unwrapInt(alloc([randBytes.length]));
-      final outPtr = _unwrapInt(alloc([outCap]));
-
-      memory.view.setRange(reqPtr, reqPtr + reqBytes.length, reqBytes);
-      memory.view.setRange(randPtr, randPtr + randBytes.length, randBytes);
-
-      final outLen = _unwrapInt(sealRequest([
-        reqPtr,
-        reqBytes.length,
-        randPtr,
-        randBytes.length,
-        outPtr,
-        outCap,
-      ]));
-
-      if (outLen <= 98) {
-        debugPrint('[CinejoyScraper] seal_request outLen too small: $outLen');
-        return null;
-      }
-
-      final outBytes = Uint8List.fromList(memory.view.sublist(outPtr, outPtr + outLen));
-
-      final dealloc = instance.getFunction('dealloc');
-      if (dealloc != null) {
-        try {
-          dealloc([reqPtr, reqBytes.length]);
-          dealloc([randPtr, randBytes.length]);
-          dealloc([outPtr, outCap]);
-        } catch (_) {}
-      }
-
-      final responseKey = outBytes.sublist(0, 32);
-      final keyId = outBytes[32];
-      final ephemeralPublic = outBytes.sublist(33, 98);
-      final body = outBytes.sublist(98);
-
-      final client = http.Client();
-      final postRes = await client.post(
-        Uri.parse('$_apiBase/g'),
-        headers: {
-          'User-Agent': _ua,
-          'Origin': _origin,
-          'Referer': '$_origin/watch',
-          'Content-Type': 'application/octet-stream',
-        },
-        body: body,
-      ).timeout(const Duration(seconds: 7));
-      client.close();
-
-      if (postRes.statusCode != 200 || postRes.bodyBytes.length < 28) {
-        debugPrint('[CinejoyScraper] POST /g status: ${postRes.statusCode}, bodyLen: ${postRes.bodyBytes.length}');
-        return null;
-      }
-
-      final respBytes = postRes.bodyBytes;
-      final iv = respBytes.sublist(0, 12);
-      final ciphertext = respBytes.sublist(12);
-
-      final prefixBytes = utf8.encode('lumen-gate-v2');
-      final aad = Uint8List(prefixBytes.length + 3 + ephemeralPublic.length);
-      aad.setRange(0, prefixBytes.length, prefixBytes);
-      aad[prefixBytes.length] = 0;
-      aad[prefixBytes.length + 1] = 2;
-      aad[prefixBytes.length + 2] = keyId;
-      aad.setRange(prefixBytes.length + 3, aad.length, ephemeralPublic);
-
-      final decryptedBytes = _aesGcmDecrypt(
-        key: responseKey,
-        iv: iv,
-        ciphertext: ciphertext,
-        aad: aad,
-      );
-
-      final decryptedJson = utf8.decode(decryptedBytes);
-      final decoded = jsonDecode(decryptedJson);
-      if (decoded is Map<String, dynamic>) {
-        return decoded;
-      } else if (decoded is Map) {
-        return Map<String, dynamic>.from(decoded);
-      }
-    } catch (e, stack) {
-      debugPrint('[CinejoyScraper] _executeEncryptedQuery error: $e\n$stack');
-    }
-    return null;
-  }
-
-  static int _unwrapInt(dynamic val) {
-    if (val is List && val.isNotEmpty) {
-      return (val.first as num).toInt();
-    }
-    return (val as num).toInt();
-  }
-
-  static Uint8List _aesGcmDecrypt({
-    required Uint8List key,
-    required Uint8List iv,
-    required Uint8List ciphertext,
-    required Uint8List aad,
-  }) {
-    final cipher = GCMBlockCipher(AESEngine());
-    final params = AEADParameters(
-      KeyParameter(key),
-      128,
-      iv,
-      aad,
-    );
-    cipher.init(false, params);
-    return cipher.process(ciphertext);
   }
 
   StreamSource _buildSource({

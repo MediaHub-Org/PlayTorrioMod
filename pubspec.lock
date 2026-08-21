@@ -33,22 +33,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.2"
-  build_cli_annotations:
-    dependency: transitive
-    description:
-      name: build_cli_annotations
-      sha256: e563c2e01de8974566a1998410d3f6f03521788160a02503b0b1f1a46c7b3d95
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.1.1"
-  build_rust_binaries:
-    dependency: transitive
-    description:
-      name: build_rust_binaries
-      sha256: "49134c1e60ba888b95b70464a672765549453ebbab5902f3a2e88a4489672206"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.1.0"
   cached_network_image:
     dependency: "direct main"
     description:
@@ -222,14 +206,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
-  flutter_rust_bridge:
-    dependency: transitive
-    description:
-      name: flutter_rust_bridge
-      sha256: e87d6b9ee934dcd24a128ccb2bd91905d2d5fe5c06245d6a8f5477d4907a437a
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.12.0"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -240,14 +216,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  freezed_annotation:
-    dependency: transitive
-    description:
-      name: freezed_annotation
-      sha256: "7294967ff0a6d98638e7acb774aac3af2550777accd8149c90af5b014e6d44d8"
-      url: "https://pub.dev"
-    source: hosted
-    version: "3.1.0"
   fvp:
     dependency: "direct main"
     description:
@@ -917,22 +885,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "15.2.0"
-  wasm_run:
-    dependency: "direct main"
-    description:
-      name: wasm_run
-      sha256: a3e17ebfa17ca002265cbc57e2acb71411154fe81dce09b97d809410c92a0537
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.0+2"
-  wasm_run_flutter:
-    dependency: "direct main"
-    description:
-      name: wasm_run_flutter
-      sha256: d62f3168f76ab2ca36021db2d9488a85101fbecbf06ca100e0c64d59184dd803
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.2.0+1"
   web:
     dependency: transitive
     description:

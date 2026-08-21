@@ -57,8 +57,6 @@ dependencies:
   path: ^1.9.0
   crypto: ^3.0.5
   pointycastle: ^3.9.1
-  wasm_run: ^0.2.0+2
-  wasm_run_flutter: ^0.2.0+1
 
 dev_dependencies:
   flutter_test:
