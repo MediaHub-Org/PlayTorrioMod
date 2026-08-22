@@ -133,6 +133,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         cleanUri,
         httpHeaders: playerHeaders,
       );
+      _controller!.addListener(_onControllerError);
       await _controller!.initialize();
 
       print(
@@ -638,6 +639,19 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
+  void _onControllerError() {
+    if (!mounted || _controller == null) return;
+    final value = _controller!.value;
+    if (value.hasError && !_isLoading) {
+      final errorMsg = value.errorDescription ?? 'Unknown playback error';
+      print('[PlayerScreen ERROR] Video controller error: $errorMsg');
+      setState(() {
+        _isLoading = true;
+        _statusMessage = 'Playback error: $errorMsg';
+      });
+    }
+  }
+
   @override
   void dispose() {
     _hideTimer?.cancel();
@@ -647,6 +661,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
+    _controller?.removeListener(_onControllerError);
     _controller?.dispose();
     _logoAnimController.dispose();
     TorrentStreamService().cleanup();
@@ -1052,20 +1067,10 @@ class _AnimatedLiquidButton extends StatefulWidget {
 
 class _AnimatedLiquidButtonState extends State<_AnimatedLiquidButton> {
   bool _hovered = false;
-  bool _pressed = false;
-  double _jellyValue = 0;
 
   void _setHovered(bool value) {
     setState(() {
       _hovered = value;
-      _jellyValue += value ? 10 : -10;
-    });
-  }
-
-  void _setPressed(bool value) {
-    setState(() {
-      _pressed = value;
-      _jellyValue += value ? 20 : -20;
     });
   }
 
@@ -1073,66 +1078,58 @@ class _AnimatedLiquidButtonState extends State<_AnimatedLiquidButton> {
     return MouseRegion(
       onEnter: (_) => _setHovered(true),
       onExit: (_) => _setHovered(false),
-      child: Listener(
-        onPointerDown: (_) => _setPressed(true),
-        onPointerUp: (_) => _setPressed(false),
-        onPointerCancel: (_) => _setPressed(false),
-        child: AnimatedScale(
-          scale: _pressed ? 0.88 : (_hovered ? 1.32 : 1),
-          duration: const Duration(milliseconds: 180),
-          curve: Curves.easeOutBack,
-          child: LiquidGlassJelly(
-            value: _jellyValue,
-            width: widget.baseSize,
-            height: widget.baseSize,
-            config: const LiquidGlassJellyConfig(
-              style: LiquidGlassJellyStyle.squashStretch,
-              stiffness: 200,
-              damping: 14,
-              maxVelocity: 50,
+      child: AnimatedScale(
+        scale: _hovered ? 1.25 : 1.0,
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutBack,
+        child: SizedBox.square(
+          dimension: widget.baseSize,
+          child: LiquidGlassButton(
+            padding: EdgeInsets.zero,
+            touch: const LiquidGlassTouch(
+              flex: LiquidGlassFlex.pronounced(),
             ),
-            child: SizedBox.square(
-              dimension: widget.baseSize,
-              child: LiquidGlassButton.custom(
-                padding: EdgeInsets.zero,
-                style: const LiquidGlassStyle(
-                  shape: LiquidGlassShape.squircle(
-                    cornerRadius: 999,
-                    clipQuality: LiquidGlassClipQuality.exact,
-                    borderWidth: 1.5,
-                    lightIntensity: 1.5,
-                    lightColor: Color(0xEFFFFFFF),
-                    lightDirection: 115,
-                    borderType: OpticalBorder(
-                      borderSaturation: 1.6,
-                      ambientIntensity: 1.2,
-                      borderSolidity: 0.2,
-                      lightSpread: 0.75,
-                    ),
-                  ),
-                  appearance: LiquidGlassAppearance(
-                    color: Color(0x22FFFFFF),
-                    saturation: 1.12,
-                    blur: LiquidGlassBlur(sigmaX: 2, sigmaY: 2),
-                  ),
-                  refraction: LiquidGlassRefraction(
-                    magnification: 1.055,
-                    chromaticAberration: 0.0025,
-                    refractionType: OpticalRefraction(
-                      refraction: 1.52,
-                      refractionWidth: 22,
-                      depth: 0.76,
-                    ),
-                  ),
-                ),
-                onPressed: widget.onPressed,
-                child: AnimatedScale(
-                  scale: _pressed ? 0.82 : (_hovered ? 1.12 : 1),
-                  duration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOutBack,
-                  child: widget.icon,
+            style: const LiquidGlassStyle(
+              shape: LiquidGlassShape.squircle(
+                cornerRadius: 999,
+                clipQuality: LiquidGlassClipQuality.exact,
+                borderWidth: 1.5,
+                lightIntensity: 1.5,
+                lightColor: Color(0xEFFFFFFF),
+                lightDirection: 115,
+                borderType: OpticalBorder(
+                  borderSaturation: 1.6,
+                  ambientIntensity: 1.2,
+                  borderSolidity: 0.2,
+                  lightSpread: 0.75,
                 ),
               ),
+              appearance: LiquidGlassAppearance(
+                color: Color(0x22FFFFFF),
+                saturation: 1.12,
+                blur: LiquidGlassBlur(sigmaX: 2, sigmaY: 2),
+                shadow: LiquidGlassShadow(
+                  blur: 8,
+                  opacity: 0.3,
+                  color: Color(0xFF000000),
+                ),
+              ),
+              refraction: LiquidGlassRefraction(
+                magnification: 1.055,
+                chromaticAberration: 0.0025,
+                refractionType: OpticalRefraction(
+                  refraction: 1.52,
+                  refractionWidth: 22,
+                  depth: 0.76,
+                ),
+              ),
+            ),
+            onPressed: widget.onPressed,
+            child: AnimatedScale(
+              scale: _hovered ? 1.08 : 1.0,
+              duration: const Duration(milliseconds: 150),
+              curve: Curves.easeOutBack,
+              child: widget.icon,
             ),
           ),
         ),

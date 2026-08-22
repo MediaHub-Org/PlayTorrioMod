@@ -25,6 +25,11 @@ abstract final class PerformanceGlassStyles {
       color: Color(0x24FFFFFF),
       saturation: 1.12,
       blur: LiquidGlassBlur(sigmaX: 2.5, sigmaY: 2.5),
+      shadow: LiquidGlassShadow(
+        blur: 14,
+        opacity: 0.35,
+        color: Color(0xFF000000),
+      ),
     ),
     refraction: LiquidGlassRefraction(
       magnification: 1.035,
@@ -56,6 +61,11 @@ abstract final class PerformanceGlassStyles {
       color: Color(0x780B0D12),
       saturation: 1.08,
       blur: LiquidGlassBlur(sigmaX: 4, sigmaY: 4),
+      shadow: LiquidGlassShadow(
+        blur: 18,
+        opacity: 0.45,
+        color: Color(0xFF000000),
+      ),
     ),
     refraction: LiquidGlassRefraction(
       magnification: 1.025,
@@ -87,6 +97,11 @@ abstract final class PerformanceGlassStyles {
       color: Color(0x3813151C),
       saturation: 1.1,
       blur: LiquidGlassBlur(sigmaX: 2, sigmaY: 2),
+      shadow: LiquidGlassShadow(
+        blur: 8,
+        opacity: 0.3,
+        color: Color(0xFF000000),
+      ),
     ),
     refraction: LiquidGlassRefraction(
       magnification: 1.03,
@@ -118,6 +133,11 @@ abstract final class PerformanceGlassStyles {
       color: Color(0x8813151C),
       saturation: 1.08,
       blur: LiquidGlassBlur(sigmaX: 3, sigmaY: 3),
+      shadow: LiquidGlassShadow(
+        blur: 12,
+        opacity: 0.4,
+        color: Color(0xFF000000),
+      ),
     ),
     refraction: LiquidGlassRefraction(
       magnification: 1.025,

@@ -258,7 +258,6 @@ class _DockItemWidget extends StatefulWidget {
 class _DockItemWidgetState extends State<_DockItemWidget> {
   bool _pressed = false;
   bool _hovered = false;
-  double _jellyValue = 0;
 
   Widget _icon(double size) => Tooltip(
     message: widget.item.label,
@@ -272,14 +271,12 @@ class _DockItemWidgetState extends State<_DockItemWidget> {
   void _setHover(bool value) {
     setState(() {
       _hovered = value;
-      _jellyValue += value ? 10 : -10;
     });
   }
 
   void _setPressed(bool value) {
     setState(() {
       _pressed = value;
-      _jellyValue += value ? 20 : -20;
     });
   }
 
@@ -296,61 +293,54 @@ class _DockItemWidgetState extends State<_DockItemWidget> {
         curve: Curves.easeOutBack,
         width: targetSize,
         height: targetSize,
-        child: Listener(
-          onPointerDown: (_) => _setPressed(true),
-          onPointerUp: (_) => _setPressed(false),
-          onPointerCancel: (_) => _setPressed(false),
-          child: LiquidGlassJelly(
-            value: _jellyValue,
-            width: targetSize,
-            height: targetSize,
-            config: const LiquidGlassJellyConfig(
-              style: LiquidGlassJellyStyle.squashStretch,
-              stiffness: 180,
-              damping: 12,
+        child: SizedBox.square(
+          dimension: targetSize,
+          child: LiquidGlassButton(
+            padding: EdgeInsets.zero,
+            touch: const LiquidGlassTouch(
+              flex: LiquidGlassFlex.pronounced(),
             ),
-            child: SizedBox.square(
-              dimension: targetSize,
-              child: LiquidGlassButton.custom(
-                padding: EdgeInsets.zero,
-                style: const LiquidGlassStyle(
-                  shape: LiquidGlassShape.squircle(
-                    cornerRadius: 22,
-                    clipQuality: LiquidGlassClipQuality.exact,
-                    borderWidth: 1.5,
-                    lightIntensity: 1.5,
-                    lightColor: Color(0xEFFFFFFF),
-                    lightDirection: 115,
-                    borderType: OpticalBorder(
-                      borderSaturation: 1.6,
-                      ambientIntensity: 1.2,
-                      borderSolidity: 0.2,
-                      lightSpread: 0.72,
-                    ),
-                  ),
-                  appearance: LiquidGlassAppearance(
-                    color: Color(0x20FFFFFF),
-                    saturation: 1.12,
-                    blur: LiquidGlassBlur(sigmaX: 2, sigmaY: 2),
-                  ),
-                  refraction: LiquidGlassRefraction(
-                    magnification: 1.05,
-                    chromaticAberration: 0.0025,
-                    refractionType: OpticalRefraction(
-                      refraction: 1.52,
-                      refractionWidth: 22,
-                      depth: 0.75,
-                    ),
-                  ),
-                ),
-                onPressed: widget.item.onTap,
-                child: AnimatedScale(
-                  scale: _pressed ? 0.76 : (_hovered ? 1.18 : 1),
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOutBack,
-                  child: _icon(targetSize),
+            style: const LiquidGlassStyle(
+              shape: LiquidGlassShape.squircle(
+                cornerRadius: 22,
+                clipQuality: LiquidGlassClipQuality.exact,
+                borderWidth: 1.5,
+                lightIntensity: 1.5,
+                lightColor: Color(0xEFFFFFFF),
+                lightDirection: 115,
+                borderType: OpticalBorder(
+                  borderSaturation: 1.6,
+                  ambientIntensity: 1.2,
+                  borderSolidity: 0.2,
+                  lightSpread: 0.72,
                 ),
               ),
+              appearance: LiquidGlassAppearance(
+                color: Color(0x20FFFFFF),
+                saturation: 1.12,
+                blur: LiquidGlassBlur(sigmaX: 2, sigmaY: 2),
+                shadow: LiquidGlassShadow(
+                  blur: 10,
+                  opacity: 0.35,
+                  color: Color(0xFF000000),
+                ),
+              ),
+              refraction: LiquidGlassRefraction(
+                magnification: 1.05,
+                chromaticAberration: 0.0025,
+                refractionType: OpticalRefraction(
+                  refraction: 1.52,
+                  refractionWidth: 22,
+                  depth: 0.75,
+                ),
+              ),
+            ),
+            onPressed: widget.item.onTap,
+            child: AnimatedScale(
+              scale: _hovered ? 1.15 : 1.0,
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOutBack,
+              child: _icon(targetSize),
             ),
           ),
         ),
