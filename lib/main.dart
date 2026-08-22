@@ -7,6 +7,7 @@ import './pages/home/home_page.dart';
 import './services/addon/addon_manager.dart';
 import './services/app_updater_service.dart';
 import './services/glass_settings.dart';
+import './services/iptv/iptv_controller.dart';
 import './services/my_list/my_list_service.dart';
 import './services/trakt/trakt_auth_service.dart';
 import './services/trakt/trakt_sync_service.dart';
@@ -29,6 +30,7 @@ void main() async {
   await Future.wait([
     AddonManager.instance.initialize(),
     GlassSettings.initialize(),
+    IptvController.instance.init(),
     MyListService.initialize(),
     TraktAuthService().initialize(),
     TraktSyncService.initialize(),

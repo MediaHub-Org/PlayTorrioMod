@@ -14,6 +14,7 @@ import '../../widgets/common/liquid_dock.dart';
 import '../audiobooks/audiobooks_page.dart';
 import '../manga/manga_page.dart';
 import '../music/music_page.dart';
+import '../iptv/iptv_page.dart';
 import '../my_list/my_list_page.dart';
 import '../search/search_page.dart';
 import '../settings/settings_page.dart';
@@ -381,6 +382,19 @@ class _AnimePageState extends State<AnimePage> {
                 icon: Icons.animation_rounded,
                 label: 'Anime',
                 onTap: () {},
+              ),
+              DockItem(
+                icon: Icons.live_tv_rounded,
+                label: 'Live TV',
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    LiquidRevealRoute(
+                      page: const IptvPage(),
+                      tapPosition: null,
+                    ),
+                  );
+                },
               ),
               DockItem(
                 icon: Icons.extension_rounded,
