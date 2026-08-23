@@ -3,13 +3,33 @@ import 'package:flutter/foundation.dart';
 import '../../models/music/music_track.dart';
 import 'deezer_api_client.dart';
 import 'lyrics_service.dart';
+import 'qobuz_music_service.dart';
 import 'youtube_stream_resolver.dart';
+
+enum MusicAudioSource { flac, youtube }
+
+class MusicStreamResult {
+  final String url;
+  final String? userAgent;
+  final String format;
+  final String quality;
+  final bool isLossless;
+
+  const MusicStreamResult({
+    required this.url,
+    this.userAgent,
+    this.format = 'flac',
+    this.quality = 'FLAC Hi-Res',
+    this.isLossless = true,
+  });
+}
 
 class MusicService {
   static final MusicService instance = MusicService._internal();
   MusicService._internal();
 
   final DeezerApiClient _deezer = DeezerApiClient.instance;
+  final QobuzMusicService _qobuz = QobuzMusicService.instance;
   final YoutubeStreamResolver _streamResolver = YoutubeStreamResolver.instance;
   final LyricsService _lyricsService = LyricsService.instance;
 
@@ -131,8 +151,40 @@ class MusicService {
     return _deezer.searchTracks('$genreName Top Hits', limit: 25);
   }
 
-  Future<({String url, String? userAgent})?> getAudioStream(MusicTrack track) async {
-    return _streamResolver.resolveUrl(track);
+  Future<MusicStreamResult?> getAudioStream(
+    MusicTrack track, {
+    MusicAudioSource source = MusicAudioSource.flac,
+  }) async {
+    if (source == MusicAudioSource.flac) {
+      try {
+        final flac = await _qobuz.resolveLosslessUrl(track);
+        if (flac != null && flac.url.isNotEmpty) {
+          return MusicStreamResult(
+            url: flac.url,
+            userAgent: flac.headers['User-Agent'],
+            format: flac.format,
+            quality: flac.quality,
+            isLossless: true,
+          );
+        }
+      } catch (e) {
+        debugPrint('Qobuz FLAC error, falling back to YouTube: $e');
+      }
+    }
+
+    // YouTube Audio Stream (Primary or Fallback)
+    final yt = await _streamResolver.resolveUrl(track);
+    if (yt != null && yt.url.isNotEmpty) {
+      return MusicStreamResult(
+        url: yt.url,
+        userAgent: yt.userAgent,
+        format: 'm4a',
+        quality: 'YouTube HQ',
+        isLossless: false,
+      );
+    }
+
+    return null;
   }
 
   Future<LyricsData> fetchLyrics(MusicTrack track) async {

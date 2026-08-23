@@ -1,17 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
-import 'youtube_stream_http.dart';
-
-/// Robust YouTube audio stream resolver using InnerTube directly.
+/// 1-to-1 Match of WAVE / NuvioTV InAppYouTubeExtractor for Audio Streams.
 ///
-/// Uses the InnerTube API directly (no HTML scraping) and cycles through a
-/// variety of clients that are known to return plain (non-ciphered) audio URLs
-/// for different networks/regions.
+/// Features:
+/// 1. VisionOS (101), Android (3), and iOS (5) InnerTube clients.
+/// 2. Automatic watch page scraping for INNERTUBE_API_KEY and VISITOR_DATA.
+/// 3. 3-hour cache TTL with auto-invalidation on LOGIN_REQUIRED.
+/// 4. Precise candidate scoring (bitrate * 1e6 + audioSampleRate), non-nParam preference,
+///    container ranking (m4a > webm), and client priority hierarchy.
+/// 5. Multi-node CDN redundancy probing (parsing `mn` param to find the fastest reachable host).
 class YoutubeAudioExtractor {
   YoutubeAudioExtractor._();
   static final YoutubeAudioExtractor instance = YoutubeAudioExtractor._();
@@ -23,16 +24,18 @@ class YoutubeAudioExtractor {
 
   static const Duration _configTtl = Duration(hours: 3);
   static const Duration _requestTimeout = Duration(seconds: 10);
-  static const Duration _candidateResolveTimeout = Duration(seconds: 8);
   static const int _maxVideoCandidates = 2;
 
-  static const String _desktopUserAgent = YoutubeStreamHttp.desktopUserAgent;
+  static const String _defaultUserAgent =
+      'Mozilla/5.0 (Linux; Android 12; Android TV) AppleWebKit/537.36 '
+      '(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36';
 
+  // Search client context: WEB is most reliable for InnerTube search queries.
   static final _YtClient _searchClient = _YtClient(
     key: 'web_search',
     id: '1',
     version: '2.20250217.03.00',
-    userAgent: _desktopUserAgent,
+    userAgent: _defaultUserAgent,
     context: {
       'clientName': 'WEB',
       'clientVersion': '2.20250217.03.00',
@@ -40,70 +43,41 @@ class YoutubeAudioExtractor {
       'gl': 'US',
       'platform': 'DESKTOP',
     },
+    priority: 99,
   );
 
+  // 1-to-1 Match with WAVE / NuvioTV CLIENTS hierarchy
   static final List<_YtClient> _clients = [
+    // 1. visionOS (Priority 0 - Highest, unthrottled, no cipher)
     _YtClient(
-      key: 'tv_embedded',
-      id: '85',
-      version: '2.0',
+      key: 'visionos',
+      id: '101',
+      version: '1.02',
       userAgent:
-          'Mozilla/5.0 (PlayStation; PlayStation 4/12.00) AppleWebKit/537.36 '
-          '(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 '
+          '(KHTML, like Gecko) Version/26.0 Safari/605.1.15',
       context: {
-        'clientName': 'TVHTML5_SIMPLY_EMBEDDED_PLAYER',
-        'clientVersion': '2.0',
-        'clientScreen': 'EMBED',
-        'hl': 'en',
-        'gl': 'US',
-        'platform': 'TV',
-      },
-      thirdParty: const _ThirdParty(embedUrl: 'https://www.youtube.com'),
-    ),
-    _YtClient(
-      key: 'tvhtml5',
-      id: '7',
-      version: '7.20250219.14.00',
-      userAgent:
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
-          '(KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
-      context: {
-        'clientName': 'TVHTML5',
-        'clientVersion': '7.20250219.14.00',
-        'hl': 'en',
-        'gl': 'US',
-        'platform': 'TV',
-      },
-    ),
-    _YtClient(
-      key: 'android_vr',
-      id: '28',
-      version: '1.60.19',
-      userAgent:
-          'com.google.android.apps.youtube.vr.oculus/1.60.19 (Linux; U; Android 14; en_US; Quest 3; Build/UQ1A.240105.004) gzip',
-      context: {
-        'clientName': 'ANDROID_VR',
-        'clientVersion': '1.60.19',
-        'deviceMake': 'Oculus',
-        'deviceModel': 'Quest 3',
-        'osName': 'Android',
-        'osVersion': '14',
-        'platform': 'MOBILE',
-        'androidSdkVersion': 34,
+        'clientName': 'VISIONOS',
+        'clientVersion': '1.02',
+        'deviceMake': 'Apple',
+        'deviceModel': 'RealityDevice17,1',
+        'osName': 'visionOS',
+        'osVersion': '26.5.23O471',
         'hl': 'en',
         'gl': 'US',
       },
-      requiresVisitorData: true,
+      priority: 0,
     ),
+    // 2. Android (Priority 1)
     _YtClient(
       key: 'android',
       id: '3',
-      version: '19.44.38',
+      version: '20.10.35',
       userAgent:
-          'com.google.android.youtube/19.44.38 (Linux; U; Android 14; en_US) gzip',
+          'com.google.android.youtube/20.10.35 (Linux; U; Android 14; en_US) gzip',
       context: {
         'clientName': 'ANDROID',
-        'clientVersion': '19.44.38',
+        'clientVersion': '20.10.35',
         'osName': 'Android',
         'osVersion': '14',
         'platform': 'MOBILE',
@@ -111,50 +85,41 @@ class YoutubeAudioExtractor {
         'hl': 'en',
         'gl': 'US',
       },
+      priority: 1,
     ),
+    // 3. iOS (Priority 2)
     _YtClient(
       key: 'ios',
       id: '5',
-      version: '19.45.4',
+      version: '20.10.1',
       userAgent:
-          'com.google.ios.youtube/19.45.4 (iPhone17,1; U; CPU iOS 18_1 like Mac OS X)',
+          'com.google.ios.youtube/20.10.1 (iPhone16,2; U; CPU iOS 17_4 like Mac OS X)',
       context: {
         'clientName': 'IOS',
-        'clientVersion': '19.45.4',
-        'deviceModel': 'iPhone17,1',
+        'clientVersion': '20.10.1',
+        'deviceModel': 'iPhone16,2',
         'osName': 'iPhone',
-        'osVersion': '18.1.0.22B83',
+        'osVersion': '17.4.0.21E219',
         'platform': 'MOBILE',
         'hl': 'en',
         'gl': 'US',
       },
-    ),
-    _YtClient(
-      key: 'mweb',
-      id: '2',
-      version: '2.20250217.03.00',
-      userAgent:
-          'Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 '
-          '(KHTML, like Gecko) Chrome/133.0.0.0 Mobile Safari/537.36',
-      context: {
-        'clientName': 'MWEB',
-        'clientVersion': '2.20250217.03.00',
-        'hl': 'en',
-        'gl': 'US',
-        'platform': 'MOBILE',
-      },
-      requiresVisitorData: true,
+      priority: 2,
     ),
   ];
 
+  // --- State ---
   _CachedConfig? _config;
   Future<_CachedConfig>? _configInFlight;
 
   final Map<String, _CachedVideoIds> _videoIdCache = {};
   final Map<String, _CachedStream> _streamCache = {};
 
-  _YtClient? _lastSuccessfulClient;
+  // ===========================================================================
+  // Public API
+  // ===========================================================================
 
+  /// Search YouTube for [title] + [artist] and return the best ranked videoId.
   Future<String?> searchVideoId(
     String title,
     String artist, {
@@ -170,6 +135,7 @@ class YoutubeAudioExtractor {
     return ids.isEmpty ? null : ids.first;
   }
 
+  /// Search YouTube and return ranked candidate videoIds.
   Future<List<String>> searchVideoIds(
     String title,
     String artist, {
@@ -242,6 +208,7 @@ class YoutubeAudioExtractor {
     }
   }
 
+  /// Resolve a plaintext audio URL for [videoId] using NuvioTV extraction logic.
   Future<({String url, String userAgent})?> getAudioUrl(
     String videoId, {
     bool verifyStream = true,
@@ -251,28 +218,24 @@ class YoutubeAudioExtractor {
       return (url: cached.url, userAgent: cached.userAgent);
     }
 
-    final config = await _ensureConfig();
-    final result = await _tryClients(
-      config,
-      videoId,
-      verifyStream: verifyStream,
-    );
-    if (result != null) return result;
-
-    if (!_isForced(config)) {
-      _config = null;
-      final fresh = await _ensureConfig(forceRefresh: true);
-      final result2 = await _tryClients(
-        fresh,
-        videoId,
-        verifyStream: verifyStream,
-      );
-      if (result2 != null) return result2;
+    var result = await _extractAudioInternal(videoId, forceRefreshConfig: false);
+    if (result == null) {
+      _log('First extraction attempt failed for $videoId, retrying with fresh config...');
+      result = await _extractAudioInternal(videoId, forceRefreshConfig: true);
     }
 
-    return null;
+    if (result != null) {
+      _streamCache[videoId] = _CachedStream(
+        result.url,
+        _expiresAt(result.url),
+        result.userAgent,
+      );
+    }
+
+    return result;
   }
 
+  /// One-shot extraction helper: searches and resolves audio URL.
   Future<({String videoId, String audioUrl, String userAgent})?> extract(
     String title,
     String artist, {
@@ -286,10 +249,10 @@ class YoutubeAudioExtractor {
       targetDuration: targetDuration,
       titleVersion: titleVersion,
     );
-    for (final id in ids.take(_maxVideoCandidates)) {
+    for (final id in ids.take(1)) {
       try {
         final res = await getAudioUrl(id, verifyStream: verifyStream).timeout(
-          _candidateResolveTimeout,
+          const Duration(seconds: 4),
           onTimeout: () {
             _log('candidate $id timed out');
             return null;
@@ -304,6 +267,202 @@ class YoutubeAudioExtractor {
     }
     return null;
   }
+
+  // ===========================================================================
+  // 1-to-1 NuvioTV / WAVE Audio Extraction Engine
+  // ===========================================================================
+
+  Future<({String url, String userAgent})?> _extractAudioInternal(
+    String videoId, {
+    required bool forceRefreshConfig,
+  }) async {
+    final config = await _ensureConfig(forceRefresh: forceRefreshConfig);
+    final candidates = <_NuvioAudioCandidate>[];
+    int loginRequiredCount = 0;
+
+    for (final client in _clients) {
+      try {
+        final player = await _fetchPlayer(config, videoId, client);
+        final playabilityStatus = _map(player['playabilityStatus']);
+        final status = _str(playabilityStatus, 'status');
+
+        if (status == 'LOGIN_REQUIRED') {
+          loginRequiredCount++;
+          _log('Client ${client.key}: LOGIN_REQUIRED');
+          continue;
+        }
+        if (status != null && status != 'OK') {
+          continue;
+        }
+
+        final streamingData = _map(player['streamingData']);
+        if (streamingData == null) continue;
+
+        final adaptiveFormats = _listOfMaps(streamingData['adaptiveFormats']);
+        for (final format in adaptiveFormats) {
+          final url = _usableUrl(format);
+          if (url == null || url.isEmpty) continue;
+          final mimeType = _str(format, 'mimeType')?.toLowerCase() ?? '';
+          if (!mimeType.contains('audio/')) continue;
+
+          final bitrate = (_num(format, 'bitrate') ?? _num(format, 'averageBitrate') ?? 0).toDouble();
+          final asr = double.tryParse(_str(format, 'audioSampleRate') ?? '') ?? 0.0;
+          final score = (bitrate * 1000000.0) + asr;
+          final hasN = _hasNParam(url);
+          final ext = mimeType.contains('webm') ? 'webm' : 'm4a';
+
+          candidates.add(_NuvioAudioCandidate(
+            clientKey: client.key,
+            clientPriority: client.priority,
+            userAgent: client.userAgent,
+            url: url,
+            score: score,
+            hasN: hasN,
+            itag: _str(format, 'itag') ?? '',
+            bitrate: bitrate,
+            ext: ext,
+          ));
+        }
+
+        // Also check progressive formats as secondary fallback
+        final formats = _listOfMaps(streamingData['formats']);
+        for (final format in formats) {
+          final url = _usableUrl(format);
+          if (url == null || url.isEmpty) continue;
+          final bitrate = (_num(format, 'bitrate') ?? _num(format, 'averageBitrate') ?? 0).toDouble();
+          final hasN = _hasNParam(url);
+
+          candidates.add(_NuvioAudioCandidate(
+            clientKey: client.key,
+            clientPriority: client.priority,
+            userAgent: client.userAgent,
+            url: url,
+            score: bitrate, // lower score than adaptive
+            hasN: hasN,
+            itag: _str(format, 'itag') ?? '',
+            bitrate: bitrate,
+            ext: 'mp4',
+          ));
+        }
+      } catch (e) {
+        _log('Client ${client.key} failed: $e');
+      }
+    }
+
+    if (loginRequiredCount == _clients.length) {
+      _log('All ${_clients.length} clients returned LOGIN_REQUIRED, invalidating config');
+      _config = null;
+      return null;
+    }
+
+    if (candidates.isEmpty) return null;
+
+    // NuvioTV Sort Hierarchy:
+    // 1. Higher score first
+    // 2. without 'n' param first
+    // 3. m4a over webm
+    // 4. client priority (visionos > android > ios)
+    candidates.sort((a, b) {
+      final s = b.score.compareTo(a.score);
+      if (s != 0) return s;
+      final n = (a.hasN ? 1 : 0).compareTo(b.hasN ? 1 : 0);
+      if (n != 0) return n;
+      final c = a.containerPreference.compareTo(b.containerPreference);
+      if (c != 0) return c;
+      return a.clientPriority.compareTo(b.clientPriority);
+    });
+
+    // Probing & CDN resolution
+    for (final best in candidates) {
+      final reachableUrl = await _resolveReachableUrl(best.url, userAgent: best.userAgent);
+      if (reachableUrl != null) {
+        _log('Resolved reachable audio URL (client=${best.clientKey}, itag=${best.itag}, ext=${best.ext})');
+        return (url: reachableUrl, userAgent: best.userAgent);
+      }
+    }
+
+    return null;
+  }
+
+  /// Probes CDN nodes for the given googlevideo URL and returns the first reachable one.
+  /// Generates alternate hosts based on YouTube's `mn` parameter.
+  Future<String?> _resolveReachableUrl(String url, {required String userAgent}) async {
+    if (!url.contains('googlevideo.com')) return url;
+    final uri = Uri.tryParse(url);
+    if (uri == null) return url;
+
+    final mnParam = uri.queryParameters['mn'];
+    if (mnParam == null || mnParam.isEmpty) {
+      return await _isUrlReachable(url, userAgent: userAgent) ? url : null;
+    }
+
+    final servers = mnParam.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+    if (servers.length < 2) {
+      return await _isUrlReachable(url, userAgent: userAgent) ? url : null;
+    }
+
+    final candidates = <String>[url];
+    for (int i = 0; i < servers.length; i++) {
+      final server = servers[i];
+      final currentHost = uri.host;
+      final altHost = currentHost
+          .replaceFirst(RegExp(r'^rr\d+---'), 'rr${i + 1}---')
+          .replaceFirst(RegExp(r'sn-[a-z0-9]+-[a-z0-9]+'), server);
+
+      if (altHost != currentHost) {
+        candidates.add(url.replaceFirst(currentHost, altHost));
+      }
+    }
+
+    if (candidates.length == 1) {
+      return await _isUrlReachable(candidates[0], userAgent: userAgent) ? candidates[0] : null;
+    }
+
+    final completer = Completer<String?>();
+    var completed = false;
+
+    for (final cand in candidates) {
+      _isUrlReachable(cand, userAgent: userAgent).then((reachable) {
+        if (reachable && !completed && !completer.isCompleted) {
+          completed = true;
+          completer.complete(cand);
+        }
+      });
+    }
+
+    return await completer.future.timeout(
+      const Duration(milliseconds: 2000),
+      onTimeout: () => _isUrlReachable(candidates.first, userAgent: userAgent).then((ok) => ok ? candidates.first : null),
+    );
+  }
+
+  Future<bool> _isUrlReachable(String url, {required String userAgent}) async {
+    try {
+      final res = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Range': 'bytes=0-0',
+          'User-Agent': userAgent,
+          'Accept-Language': 'en-US,en;q=0.9',
+        },
+      ).timeout(const Duration(milliseconds: 1500));
+      return res.statusCode == 200 || res.statusCode == 206;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static bool _hasNParam(String url) {
+    try {
+      return Uri.parse(url).queryParameters.containsKey('n');
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // ===========================================================================
+  // Config & InnerTube Requests
+  // ===========================================================================
 
   Future<_CachedConfig> _ensureConfig({bool forceRefresh = false}) {
     final existing = _config;
@@ -328,7 +487,7 @@ class YoutubeAudioExtractor {
           .get(
             Uri.parse('https://www.youtube.com/watch?v=dQw4w9WgXcQ&hl=en'),
             headers: {
-              'User-Agent': _desktopUserAgent,
+              'User-Agent': _defaultUserAgent,
               'Accept-Language': 'en-US,en;q=0.9',
               'Accept':
                   'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -455,6 +614,7 @@ class YoutubeAudioExtractor {
 
       double score = 0.0;
 
+      // 1. Title match score
       if (normSongTitle.isNotEmpty && normCandTitle.contains(normSongTitle)) {
         score += 100.0;
       } else {
@@ -479,10 +639,12 @@ class YoutubeAudioExtractor {
         }
       }
 
+      // 2. Artist match score
       if (normArtist.isNotEmpty && normCandTitle.contains(normArtist)) {
         score += 30.0;
       }
 
+      // 3. Variant matching
       final candVariants = _detectVariants(normCandTitle);
       final allVariants = <String>{...targetVariants, ...candVariants};
       for (final tag in allVariants) {
@@ -493,6 +655,7 @@ class YoutubeAudioExtractor {
         }
       }
 
+      // 4. Duration match
       if (targetDuration != null && candDuration != null) {
         final diffSecs = (candDuration.inSeconds - targetDuration.inSeconds).abs();
         if (diffSecs <= 4) {
@@ -583,92 +746,6 @@ class YoutubeAudioExtractor {
     return null;
   }
 
-  Future<({String url, String userAgent})?> _tryClients(
-    _CachedConfig config,
-    String videoId, {
-    required bool verifyStream,
-  }) async {
-    final clientsToTry = _clientsForRuntime();
-    if (_lastSuccessfulClient != null) {
-      clientsToTry.remove(_lastSuccessfulClient);
-      clientsToTry.insert(0, _lastSuccessfulClient!);
-    }
-
-    for (final client in clientsToTry) {
-      if (client.requiresVisitorData &&
-          (config.visitorData == null || config.visitorData!.isEmpty)) {
-        continue;
-      }
-      try {
-        final player = await _fetchPlayer(config, videoId, client);
-        final status = _str(_map(player['playabilityStatus']), 'status');
-        if (status == 'LOGIN_REQUIRED') {
-          _log('${client.key}: LOGIN_REQUIRED');
-          continue;
-        }
-        final reason = _str(_map(player['playabilityStatus']), 'reason');
-        if (reason != null && reason.toLowerCase().contains('age')) {
-          _log('${client.key}: age-restricted');
-          continue;
-        }
-
-        final streamingData = _map(player['streamingData']);
-        if (streamingData == null) continue;
-
-        final candidates = _audioCandidates(streamingData);
-        for (final best in candidates) {
-          if (best.isExpiredSoon) {
-            _log('${client.key}: skipped expired stream URL');
-            continue;
-          }
-          if (verifyStream) {
-            final playable = await YoutubeStreamHttp.probe(
-              best.url,
-              userAgent: client.userAgent,
-            );
-            if (!playable) {
-              _log('${client.key}: stream probe rejected ${best.label}');
-              continue;
-            }
-          }
-          _streamCache[videoId] = _CachedStream(
-            best.url,
-            best.expiresAt,
-            client.userAgent,
-          );
-          _lastSuccessfulClient = client;
-          return (url: best.url, userAgent: client.userAgent);
-        }
-      } catch (e) {
-        _log('${client.key} failed: $e');
-      }
-    }
-    return null;
-  }
-
-  List<_YtClient> _clientsForRuntime() {
-    if (!Platform.isAndroid) return _clients.toList();
-
-    const preferred = <String>[
-      'android',
-      'android_vr',
-      'mweb',
-      'ios',
-      'tv_embedded',
-      'tvhtml5',
-    ];
-
-    final ordered = <_YtClient>[];
-    for (final key in preferred) {
-      final matches = _clients.where((client) => client.key == key);
-      ordered.addAll(matches);
-    }
-    for (final client in _clients) {
-      if (!ordered.contains(client)) ordered.add(client);
-    }
-    return ordered;
-  }
-
   Map<String, String> _commonHeaders(_CachedConfig config, _YtClient client) {
     return {
       'Content-Type': 'application/json',
@@ -694,12 +771,7 @@ class YoutubeAudioExtractor {
     );
 
     final headers = _commonHeaders(config, client);
-
     final context = <String, dynamic>{'client': client.context};
-
-    if (client.thirdParty != null) {
-      context['thirdParty'] = {'embedUrl': client.thirdParty!.embedUrl};
-    }
 
     final body = jsonEncode({
       'videoId': videoId,
@@ -722,54 +794,6 @@ class YoutubeAudioExtractor {
     final decoded = jsonDecode(resp.body);
     if (decoded is Map<String, dynamic>) return decoded;
     return <String, dynamic>{};
-  }
-
-  List<_AudioCandidate> _audioCandidates(Map<String, dynamic> streamingData) {
-    final adaptive = _listOfMaps(streamingData['adaptiveFormats']);
-    final progressive = _listOfMaps(streamingData['formats']);
-
-    final candidates = <_AudioCandidate>[];
-    for (final f in adaptive) {
-      final mime = _str(f, 'mimeType') ?? '';
-      if (!mime.contains('audio/')) continue;
-
-      final url = _usableUrl(f);
-      if (url == null || url.isEmpty) continue;
-
-      final bitrate = (_num(f, 'bitrate') ?? _num(f, 'averageBitrate') ?? 0).toDouble();
-
-      candidates.add(
-        _AudioCandidate(
-          url,
-          bitrate,
-          _expiresAt(url),
-          audioOnly: true,
-          label: 'itag ${_str(f, 'itag') ?? '?'} $mime',
-        ),
-      );
-    }
-
-    for (final f in progressive) {
-      final url = _usableUrl(f);
-      if (url == null || url.isEmpty) continue;
-
-      final bitrate = (_num(f, 'bitrate') ?? _num(f, 'averageBitrate') ?? 0).toDouble();
-      final mime = _str(f, 'mimeType') ?? 'muxed';
-      candidates.add(
-        _AudioCandidate(
-          url,
-          bitrate,
-          _expiresAt(url),
-          audioOnly: false,
-          label: 'itag ${_str(f, 'itag') ?? '?'} $mime',
-        ),
-      );
-    }
-    candidates.sort((a, b) {
-      if (a.audioOnly != b.audioOnly) return a.audioOnly ? -1 : 1;
-      return b.bitrate.compareTo(a.bitrate);
-    });
-    return candidates;
   }
 
   String? _usableUrl(Map<String, dynamic> format) {
@@ -805,6 +829,8 @@ class YoutubeAudioExtractor {
   }
 
   bool _isForced(_CachedConfig config) => config.forced;
+
+  // --- tiny JSON helpers -----------------------------------------------------
 
   static Object? _dig(Object? root, List<String> keys) {
     Object? current = root;
@@ -853,6 +879,7 @@ class YoutubeAudioExtractor {
 
   static Set<String> _detectVariants(String norm) {
     final tags = <String>{};
+
     if (RegExp(r'\b(8d|16d|spatial\saudio?|binaural|360|surround)\b').hasMatch(norm)) {
       tags.add('8d');
     }
@@ -883,6 +910,7 @@ class YoutubeAudioExtractor {
     if (RegExp(r'\b(extended\s(mix|version)|full\sversion)\b').hasMatch(norm)) {
       tags.add('extended');
     }
+
     return tags;
   }
 
@@ -900,10 +928,7 @@ class YoutubeAudioExtractor {
   };
 }
 
-class _ThirdParty {
-  final String embedUrl;
-  const _ThirdParty({required this.embedUrl});
-}
+// --- private types -----------------------------------------------------------
 
 class _YtClient {
   final String key;
@@ -911,8 +936,7 @@ class _YtClient {
   final String version;
   final String userAgent;
   final Map<String, Object> context;
-  final bool requiresVisitorData;
-  final _ThirdParty? thirdParty;
+  final int priority;
 
   _YtClient({
     required this.key,
@@ -920,9 +944,44 @@ class _YtClient {
     required this.version,
     required this.userAgent,
     required this.context,
-    this.requiresVisitorData = false,
-    this.thirdParty,
+    required this.priority,
   });
+}
+
+class _NuvioAudioCandidate {
+  final String clientKey;
+  final int clientPriority;
+  final String userAgent;
+  final String url;
+  final double score;
+  final bool hasN;
+  final String itag;
+  final double bitrate;
+  final String ext;
+
+  _NuvioAudioCandidate({
+    required this.clientKey,
+    required this.clientPriority,
+    required this.userAgent,
+    required this.url,
+    required this.score,
+    required this.hasN,
+    required this.itag,
+    required this.bitrate,
+    required this.ext,
+  });
+
+  int get containerPreference {
+    switch (ext.toLowerCase()) {
+      case 'm4a':
+      case 'mp4':
+        return 0;
+      case 'webm':
+        return 1;
+      default:
+        return 2;
+    }
+  }
 }
 
 class _CachedConfig {
@@ -968,28 +1027,6 @@ class _CachedStream {
       return DateTime.now().isAfter(exp.subtract(const Duration(seconds: 60)));
     }
     return DateTime.now().difference(cachedAt) >= const Duration(hours: 4);
-  }
-}
-
-class _AudioCandidate {
-  final String url;
-  final double bitrate;
-  final DateTime? expiresAt;
-  final bool audioOnly;
-  final String label;
-
-  _AudioCandidate(
-    this.url,
-    this.bitrate,
-    this.expiresAt, {
-    required this.audioOnly,
-    required this.label,
-  });
-
-  bool get isExpiredSoon {
-    final exp = expiresAt;
-    if (exp == null) return false;
-    return DateTime.now().isAfter(exp.subtract(const Duration(minutes: 2)));
   }
 }
 

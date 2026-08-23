@@ -13,6 +13,7 @@
         android:label="playtorrio"
         android:name="${applicationName}"
         android:usesCleartextTraffic="true"
+        android:extractNativeLibs="true"
         android:icon="@mipmap/ic_launcher">
         <activity
             android:name=".MainActivity"

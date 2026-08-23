@@ -251,6 +251,28 @@ class _MusicPageState extends State<MusicPage> {
         (HardwareKeyboard.instance.isShiftPressed &&
             key == LogicalKeyboardKey.slash)) {
       setState(() => _showShortcutsModal = !_showShortcutsModal);
+    } else if (key == LogicalKeyboardKey.escape) {
+      if (_isPlayerExpanded) {
+        setState(() => _isPlayerExpanded = false);
+      } else if (_showQueueDrawer) {
+        setState(() => _showQueueDrawer = false);
+      } else if (_showLyricsDrawer) {
+        setState(() => _showLyricsDrawer = false);
+      } else if (_showShortcutsModal) {
+        setState(() => _showShortcutsModal = false);
+      } else if (_activeArtistModal != null ||
+          _activeAlbumModal != null ||
+          _activeCuratedPlaylistModal != null ||
+          _activeUserPlaylistModal != null) {
+        setState(() {
+          _activeArtistModal = null;
+          _activeAlbumModal = null;
+          _activeCuratedPlaylistModal = null;
+          _activeUserPlaylistModal = null;
+        });
+      } else {
+        Navigator.maybePop(context);
+      }
     }
   }
 
@@ -3340,13 +3362,56 @@ class _MusicExpandedPlayer extends StatelessWidget {
                     onPressed: onCollapse,
                   ),
                   const Spacer(),
-                  const Text(
-                    'PLAYING FROM DEEZER & YOUTUBE',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0,
+                  InkWell(
+                    onTap: () => _AudioSourceSelectorButton._showAudioSourceDialog(context),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: playerController.isCurrentTrackLossless
+                            ? const Color(0xFF00D2EF).withValues(alpha: 0.15)
+                            : const Color(0xFFFF3366).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: playerController.isCurrentTrackLossless
+                              ? const Color(0xFF00D2EF).withValues(alpha: 0.4)
+                              : const Color(0xFFFF3366).withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            playerController.isCurrentTrackLossless
+                                ? Icons.diamond_rounded
+                                : Icons.play_circle_fill_rounded,
+                            size: 13,
+                            color: playerController.isCurrentTrackLossless
+                                ? const Color(0xFF00D2EF)
+                                : const Color(0xFFFF6688),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            playerController.currentQualityLabel.toUpperCase(),
+                            style: TextStyle(
+                              color: playerController.isCurrentTrackLossless
+                                  ? const Color(0xFF00D2EF)
+                                  : const Color(0xFFFF6688),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_drop_down_rounded,
+                            size: 16,
+                            color: playerController.isCurrentTrackLossless
+                                ? const Color(0xFF00D2EF)
+                                : const Color(0xFFFF6688),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const Spacer(),

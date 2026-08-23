@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -9,6 +10,7 @@ import './services/audiobook/audiobook_library_service.dart';
 import './services/debrid/debrid_service.dart';
 import './services/download/download_service.dart';
 import './services/glass_settings.dart';
+import './services/iptv/iptv_controller.dart';
 import './services/my_list/my_list_service.dart';
 import './services/playback/playback_history_service.dart';
 import './services/player_settings.dart';
@@ -24,6 +26,15 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   fvp.registerWith(options: {
+    'platforms': ['windows', 'linux', 'macos', 'android', 'ios'],
+    'video.decoders': Platform.isWindows
+        ? ['MFT:d3d=11:copy=0', 'D3D11:copy=0', 'FFmpeg']
+        : Platform.isMacOS || Platform.isIOS
+            ? ['VT:copy=0', 'FFmpeg']
+            : Platform.isAndroid
+                ? ['AMediaCodec:copy=0', 'FFmpeg']
+                : ['VAAPI:copy=0', 'CUDA:copy=0', 'FFmpeg'],
+    'lowLatency': 0,
     'demux.format.allowed_extensions': 'ALL',
     'demux.format.protocol_whitelist': 'file,http,https,tcp,tls,crypto,data',
     'subtitleFontFile': 'assets/subfont.ttf',
@@ -38,6 +49,7 @@ void main() async {
     DebridService.instance.initialize(),
     DownloadService.initialize(),
     GlassSettings.initialize(),
+    IptvController.instance.init(),
     MyListService.initialize(),
     PlaybackHistoryService.initialize(),
     PlayerSettings.initialize(),

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 import '../../models/music/music_track.dart';
 import '../playback_coordinator.dart';
@@ -12,7 +13,9 @@ enum MusicRepeatMode { off, all, one }
 
 class MusicPlayerController extends ChangeNotifier {
   static final MusicPlayerController instance = MusicPlayerController._internal();
-  MusicPlayerController._internal();
+  MusicPlayerController._internal() {
+    _initSettings();
+  }
 
   VideoPlayerController? _videoPlayerController;
 
@@ -47,6 +50,10 @@ class MusicPlayerController extends ChangeNotifier {
   bool _isShuffle = false;
   MusicRepeatMode _repeatMode = MusicRepeatMode.off;
 
+  MusicAudioSource _audioSource = MusicAudioSource.flac;
+  String _currentQualityLabel = 'FLAC Hi-Res';
+  bool _isCurrentTrackLossless = true;
+
   LyricsData _currentLyrics = LyricsData.empty();
   bool _isLoadingLyrics = false;
   int _activeLyricIndex = -1;
@@ -69,6 +76,45 @@ class MusicPlayerController extends ChangeNotifier {
   LyricsData get currentLyrics => _currentLyrics;
   bool get isLoadingLyrics => _isLoadingLyrics;
   int get activeLyricIndex => _activeLyricIndex;
+  MusicAudioSource get audioSource => _audioSource;
+  String get currentQualityLabel => _currentQualityLabel;
+  bool get isCurrentTrackLossless => _isCurrentTrackLossless;
+
+  Future<void> _initSettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final saved = prefs.getString('music_audio_source');
+      if (saved == 'youtube') {
+        _audioSource = MusicAudioSource.youtube;
+        _currentQualityLabel = 'YouTube HQ';
+        _isCurrentTrackLossless = false;
+      } else {
+        _audioSource = MusicAudioSource.flac;
+        _currentQualityLabel = 'FLAC Hi-Res';
+        _isCurrentTrackLossless = true;
+      }
+      notifyListeners();
+    } catch (_) {}
+  }
+
+  Future<void> setAudioSource(MusicAudioSource source) async {
+    if (_audioSource == source) return;
+    _audioSource = source;
+    _currentQualityLabel = source == MusicAudioSource.flac ? 'FLAC Hi-Res' : 'YouTube HQ';
+    _isCurrentTrackLossless = source == MusicAudioSource.flac;
+    notifyListeners();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('music_audio_source', source == MusicAudioSource.flac ? 'flac' : 'youtube');
+    } catch (_) {}
+
+    // If a track is currently loaded/playing, reload it seamlessly with new source at current position
+    if (_currentTrack != null) {
+      final currentPos = _position;
+      await _loadAndPlayTrack(_currentTrack!, startPosition: currentPos);
+    }
+  }
 
   Future<void> playTrack(
     MusicTrack track, {
@@ -118,11 +164,11 @@ class MusicPlayerController extends ChangeNotifier {
     await _loadAndPlayTrack(track);
   }
 
-  Future<void> _loadAndPlayTrack(MusicTrack track) async {
+  Future<void> _loadAndPlayTrack(MusicTrack track, {Duration? startPosition}) async {
     _currentTrack = track;
     _isLoading = true;
     _errorMessage = null;
-    _position = Duration.zero;
+    _position = startPosition ?? Duration.zero;
     _duration = track.durationSeconds > 0
         ? Duration(seconds: track.durationSeconds)
         : Duration.zero;
@@ -144,16 +190,24 @@ class MusicPlayerController extends ChangeNotifier {
     }
 
     try {
-      final streamResult = await MusicService.instance.getAudioStream(track);
+      final streamResult = await MusicService.instance.getAudioStream(
+        track,
+        source: _audioSource,
+      );
       if (streamResult == null || streamResult.url.isEmpty) {
-        throw Exception('Failed to extract audio stream from YouTube');
+        throw Exception('Failed to extract audio stream');
       }
 
+      _currentQualityLabel = streamResult.quality;
+      _isCurrentTrackLossless = streamResult.isLossless;
+
       final uri = Uri.parse(streamResult.url);
-      final headers = YoutubeStreamHttp.streamHeaders(
-        streamResult.url,
-        userAgent: streamResult.userAgent,
-      );
+      final headers = streamResult.isLossless
+          ? (streamResult.userAgent != null ? {'User-Agent': streamResult.userAgent!} : <String, String>{})
+          : YoutubeStreamHttp.streamHeaders(
+              streamResult.url,
+              userAgent: streamResult.userAgent,
+            );
 
       final controller = VideoPlayerController.networkUrl(
         uri,
@@ -163,6 +217,10 @@ class MusicPlayerController extends ChangeNotifier {
       await controller.initialize();
       controller.setVolume(_volume);
       controller.addListener(_onPlayerStateChanged);
+
+      if (startPosition != null && startPosition > Duration.zero) {
+        await controller.seekTo(startPosition);
+      }
 
       _videoPlayerController = controller;
       if (controller.value.duration > Duration.zero) {
