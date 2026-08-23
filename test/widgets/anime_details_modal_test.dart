@@ -37,7 +37,7 @@ void main() {
         home: Scaffold(
           body: AnimeDetailsModal(
             initialAnime: testAnime,
-            onPlayEpisode: (_, __, ___) {},
+            onPlayEpisode: (ep, isDub, server) {},
             onNavigateToAnime: (_) {},
             onClose: () {},
           ),

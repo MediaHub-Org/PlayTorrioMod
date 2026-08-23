@@ -969,7 +969,7 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
                                         style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5),
                                       ),
                                       Text(
-                                        '${pl.channels.length} channels ${pl.sourceUrl != null ? "· " + pl.sourceUrl! : ""}',
+                                        '${pl.channels.length} channels ${pl.sourceUrl != null ? '· ${pl.sourceUrl!}' : ''}',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 11),

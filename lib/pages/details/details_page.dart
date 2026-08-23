@@ -1,13 +1,10 @@
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/movie/movie.dart';
-import '../../models/movie/link.dart';
 import '../../models/movie/video.dart';
 import '../../models/movie/movie_detail.dart';
-import '../../models/movie/movie_section.dart';
 import '../../models/my_list/my_list_item.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../services/metadata/bestsimilar_scraper.dart';
@@ -16,7 +13,6 @@ import '../../services/my_list/my_list_service.dart';
 import '../../utils/route_transitions.dart';
 import '../discover/discover_page.dart';
 import '../player/watch_screen.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 // ---------------------------------------------------------------------------
 // Design tokens
 // ---------------------------------------------------------------------------
@@ -379,11 +375,8 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     });
   }
 
-  bool _isDesktop() {
-    if (kIsWeb) return true;
-    return defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.linux;
+  bool _isDesktop([BuildContext? ctx]) {
+    return MediaQuery.sizeOf(ctx ?? context).width >= 800;
   }
 
   @override
@@ -421,8 +414,10 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     final meta = _detail!;
     final bgUrl = meta.background ?? meta.poster ?? widget.movie.poster;
     final posterUrl = meta.poster ?? widget.movie.poster;
-    final isDesktop = _isDesktop();
+    final isDesktop = _isDesktop(context);
     final screenSize = MediaQuery.sizeOf(context);
+    final topInset = MediaQuery.paddingOf(context).top;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     // This is now just how far down the *content* starts — the backdrop
     // itself is full-viewport and persistent (see _buildBackdrop), so this
@@ -445,7 +440,12 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                   child: FadeTransition(
                     opacity: _fadeAnimation,
                     child: Padding(
-                      padding: EdgeInsets.symmetric(horizontal: isDesktop ? _Space.xxl : _Space.lg),
+                      padding: EdgeInsets.fromLTRB(
+                        isDesktop ? _Space.xxl : _Space.lg,
+                        0,
+                        isDesktop ? _Space.xxl : _Space.lg,
+                        _Space.xxl + bottomInset,
+                      ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -543,7 +543,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
           ),
         ),
         Positioned(
-          top: _Space.lg,
+          top: isDesktop ? _Space.lg : (topInset + 10),
           left: isDesktop ? _Space.xxl : _Space.md,
           child: ClipOval(
             child: BackdropFilter(

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/iptv/iptv_models.dart';
@@ -165,11 +164,18 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
     );
   }
 
-  bool _isDesktop() {
-    if (kIsWeb) return true;
-    return defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.linux;
+  bool _isDesktop(BuildContext context) {
+    return MediaQuery.sizeOf(context).width >= 750;
+  }
+
+  String _selectedCategoryName() {
+    if (_selectedCategoryId == favoritesCategoryId) return '⭐ Favorites';
+    if (_selectedCategoryId.isEmpty) return 'All Categories';
+    final found = _categories.firstWhere(
+      (c) => c.id == _selectedCategoryId,
+      orElse: () => const IptvCategory(id: '', name: 'All Categories'),
+    );
+    return found.name;
   }
 
   Future<void> _loadSectionData() async {
@@ -454,6 +460,121 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
         series: series,
       ),
     );
+  }  void _showMobileCategorySheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final cats = _filteredCategories();
+            return Container(
+              height: MediaQuery.sizeOf(context).height * 0.75,
+              decoration: const BoxDecoration(
+                color: Color(0xFF0C0F17),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border(top: BorderSide(color: Color(0xFF22283A), width: 1.2)),
+              ),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 10, bottom: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.folder_rounded, color: Color(0xFF7C5CFF), size: 20),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Select Category',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${_categories.length} total',
+                          style: const TextStyle(color: Colors.white38, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141824),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF22283A)),
+                      ),
+                      child: TextField(
+                        controller: _catSearchCtrl,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Filter categories…',
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12.5),
+                          prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54, size: 18),
+                          suffixIcon: _catSearchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
+                                  onPressed: () {
+                                    _catSearchCtrl.clear();
+                                    setState(() => _catSearchQuery = '');
+                                    setSheetState(() {});
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onChanged: (v) {
+                          setState(() => _catSearchQuery = v);
+                          setSheetState(() {});
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Divider(color: Color(0xFF1B2030), height: 1),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: cats.length,
+                      itemExtent: 50.0,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      itemBuilder: (ctx, i) {
+                        final cat = cats[i];
+                        final isSelected = _selectedCategoryId == cat.id;
+                        final count = _countForCategory(cat.id);
+                        return _CategoryListRow(
+                          category: cat,
+                          count: count,
+                          isSelected: isSelected,
+                          onTap: () {
+                            setState(() => _selectedCategoryId = cat.id);
+                            _contentScrollController.jumpTo(0);
+                            Navigator.pop(ctx);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
@@ -462,7 +583,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
         ? widget.portal!.name
         : (widget.m3uPlaylist?.name ?? 'IPTV Portal');
 
-    final isDesktop = _isDesktop();
+    final isDesktop = _isDesktop(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFF07090E),
@@ -470,317 +591,494 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
         child: Column(
           children: [
             // ── TOP APPLICATION HEADER ──
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: const BoxDecoration(
-                color: Color(0xFF0C0F17),
-                border: Border(
-                  bottom: BorderSide(color: Color(0xFF1B2030), width: 1.2),
+            if (isDesktop)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0C0F17),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFF1B2030), width: 1.2),
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
-                    tooltip: 'Back',
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 8),
-
-                  // Portal Emblem & Title
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.4)),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.pop(context),
                     ),
-                    child: const Icon(Icons.settings_input_antenna_rounded, color: Color(0xFF7C5CFF), size: 20),
-                  ),
-                  const SizedBox(width: 12),
+                    const SizedBox(width: 8),
 
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      if (widget.portal != null) ...[
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Text(
-                              'Expiry: ${widget.portal!.expiry}',
-                              style: const TextStyle(color: Color(0xFF9D4EDD), fontSize: 11, fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(width: 10),
-                            Container(width: 3, height: 3, decoration: const BoxDecoration(color: Colors.white30, shape: BoxShape.circle)),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Connections: ${widget.portal!.activeConnections}/${widget.portal!.maxConnections}',
-                              style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-
-                  const Spacer(),
-
-                  // ── SECTION SWITCHER TABS ──
-                  if (widget.portal != null) ...[
+                    // Portal Emblem & Title
                     Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF141824),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF22283A)),
+                        color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.4)),
                       ),
-                      child: Row(
+                      child: const Icon(Icons.settings_input_antenna_rounded, color: Color(0xFF7C5CFF), size: 20),
+                    ),
+                    const SizedBox(width: 12),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildSectionTab('Live TV', Icons.live_tv_rounded, IptvSection.live),
-                          const SizedBox(width: 4),
-                          _buildSectionTab('Movies', Icons.movie_rounded, IptvSection.vod),
-                          const SizedBox(width: 4),
-                          _buildSectionTab('TV Series', Icons.tv_rounded, IptvSection.series),
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          if (widget.portal != null) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Text(
+                                  'Expiry: ${widget.portal!.expiry}',
+                                  style: const TextStyle(color: Color(0xFF9D4EDD), fontSize: 11, fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(width: 10),
+                                Container(width: 3, height: 3, decoration: const BoxDecoration(color: Colors.white30, shape: BoxShape.circle)),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Connections: ${widget.portal!.activeConnections}/${widget.portal!.maxConnections}',
+                                  style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
+
                     const SizedBox(width: 16),
-                  ],
 
-                  // Search Bar
-                  SizedBox(
-                    width: 260,
-                    height: 40,
-                    child: TextField(
-                      controller: _searchCtrl,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: 'Search channels…',
-                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12.5),
-                        prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF7C5CFF), size: 18),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
-                                onPressed: () {
-                                  _searchCtrl.clear();
-                                  setState(() => _searchQuery = '');
-                                },
+                    // ── SECTION SWITCHER TABS ──
+                    if (widget.portal != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141824),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF22283A)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildSectionTab('Live TV', Icons.live_tv_rounded, IptvSection.live),
+                            const SizedBox(width: 4),
+                            _buildSectionTab('Movies', Icons.movie_rounded, IptvSection.vod),
+                            const SizedBox(width: 4),
+                            _buildSectionTab('TV Series', Icons.tv_rounded, IptvSection.series),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+
+                    // Search Bar
+                    SizedBox(
+                      width: 240,
+                      height: 40,
+                      child: TextField(
+                        controller: _searchCtrl,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Search channels…',
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12.5),
+                          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF7C5CFF), size: 18),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: const Color(0xFF141824),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFF22283A)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFF7C5CFF), width: 1.4),
+                          ),
+                        ),
+                        onChanged: (v) => setState(() => _searchQuery = v),
+                      ),
+                    ),
+
+                    // Alive Sniffer Action
+                    if (_activeSection == IptvSection.live && widget.portal != null) ...[
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _isCheckingAlive ? const Color(0xFFB91C1C) : const Color(0xFF7C5CFF),
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        icon: _isCheckingAlive
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
-                            : null,
-                        filled: true,
-                        fillColor: const Color(0xFF141824),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF22283A)),
+                            : const Icon(Icons.speed_rounded, size: 16, color: Colors.white),
+                        label: Text(
+                          _isCheckingAlive ? 'Stop ($_aliveChecked/$_aliveTotal)' : 'Check Health',
+                          style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF7C5CFF), width: 1.4),
-                        ),
+                        onPressed: _isCheckingAlive ? () => setState(() => _cancelAlive = true) : _startAliveCheck,
                       ),
-                      onChanged: (v) => setState(() => _searchQuery = v),
-                    ),
+                    ],
+                  ],
+                ),
+              )
+            else
+              // ── MOBILE RESPONSIVE HEADER ──
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0C0F17),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFF1B2030), width: 1.2),
                   ),
+                ),
+                child: Column(
+                  children: [
+                    // Top Bar: Back, Portal Title, Health button
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.4)),
+                          ),
+                          child: const Icon(Icons.settings_input_antenna_rounded, color: Color(0xFF7C5CFF), size: 16),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (widget.portal != null)
+                                Text(
+                                  'Conn: ${widget.portal!.activeConnections}/${widget.portal!.maxConnections} • ${widget.portal!.expiry}',
+                                  style: const TextStyle(color: Colors.white54, fontSize: 10.5),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (_activeSection == IptvSection.live && widget.portal != null)
+                          IconButton(
+                            tooltip: 'Check Health',
+                            icon: _isCheckingAlive
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent),
+                                  )
+                                : const Icon(Icons.speed_rounded, color: Color(0xFF00D2EF), size: 20),
+                            onPressed: _isCheckingAlive ? () => setState(() => _cancelAlive = true) : _startAliveCheck,
+                          ),
+                      ],
+                    ),
 
-                  // Alive Sniffer Action
-                  if (_activeSection == IptvSection.live && widget.portal != null) ...[
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isCheckingAlive ? const Color(0xFFB91C1C) : const Color(0xFF7C5CFF),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    const SizedBox(height: 8),
+
+                    // Controls Bar: Category Selector Chip + Section Tabs
+                    Row(
+                      children: [
+                        // Mobile Category Chip
+                        InkWell(
+                          onTap: () => _showMobileCategorySheet(context),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF141824),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.5)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.folder_rounded, color: Color(0xFF7C5CFF), size: 15),
+                                const SizedBox(width: 6),
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.32),
+                                  child: Text(
+                                    _selectedCategoryName(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.arrow_drop_down_rounded, color: Color(0xFF7C5CFF), size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // Section Switchers
+                        if (widget.portal != null)
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF141824),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFF22283A)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildSectionTab('Live', Icons.live_tv_rounded, IptvSection.live),
+                                    const SizedBox(width: 2),
+                                    _buildSectionTab('Movies', Icons.movie_rounded, IptvSection.vod),
+                                    const SizedBox(width: 2),
+                                    _buildSectionTab('Series', Icons.tv_rounded, IptvSection.series),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // Search Input
+                    Container(
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141824),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF22283A)),
                       ),
-                      icon: _isCheckingAlive
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.speed_rounded, size: 16, color: Colors.white),
-                      label: Text(
-                        _isCheckingAlive ? 'Stop ($_aliveChecked/$_aliveTotal)' : 'Check Health',
-                        style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        style: const TextStyle(color: Colors.white, fontSize: 12.5),
+                        decoration: InputDecoration(
+                          hintText: 'Search in this category…',
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
+                          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF7C5CFF), size: 18),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                        ),
+                        onChanged: (v) => setState(() => _searchQuery = v),
                       ),
-                      onPressed: _isCheckingAlive ? () => setState(() => _cancelAlive = true) : _startAliveCheck,
                     ),
                   ],
-                ],
+                ),
               ),
-            ),
 
-            // ── MAIN SPLIT VIEW (LEFT CATEGORIES PANEL + RIGHT CONTENT) ──
+            // ── MAIN CONTENT (SPLIT VIEW ON DESKTOP, FULL-WIDTH ON MOBILE) ──
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF)))
                   : _errorMessage != null
                       ? Center(child: Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent, fontSize: 15)))
-                      : Row(
-                          children: [
-                            // ── LEFT CATEGORIES PANEL ──
-                            SizedBox(
-                              width: 290,
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF0A0D14),
-                                  border: Border(
-                                    right: BorderSide(color: Color(0xFF1B2030), width: 1.2),
+                      : isDesktop
+                          ? Row(
+                              children: [
+                                // ── LEFT CATEGORIES PANEL ──
+                                SizedBox(
+                                  width: 280,
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF0A0D14),
+                                      border: Border(
+                                        right: BorderSide(color: Color(0xFF1B2030), width: 1.2),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        // Categories Search Filter
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                                          child: Container(
+                                            height: 38,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF141824),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: const Color(0xFF22283A)),
+                                            ),
+                                            child: TextField(
+                                              controller: _catSearchCtrl,
+                                              style: const TextStyle(color: Colors.white, fontSize: 12.5),
+                                              decoration: InputDecoration(
+                                                hintText: 'Filter categories…',
+                                                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
+                                                prefixIcon: const Icon(Icons.filter_list_rounded, color: Colors.white54, size: 18),
+                                                suffixIcon: _catSearchQuery.isNotEmpty
+                                                    ? IconButton(
+                                                        icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
+                                                        onPressed: () {
+                                                          _catSearchCtrl.clear();
+                                                          setState(() => _catSearchQuery = '');
+                                                        },
+                                                      )
+                                                    : null,
+                                                border: InputBorder.none,
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                              ),
+                                              onChanged: (v) => setState(() => _catSearchQuery = v),
+                                            ),
+                                          ),
+                                        ),
+
+                                        // Category List with Desktop Vertical Scroll Arrows
+                                        Expanded(
+                                          child: MouseRegion(
+                                            onEnter: (_) => setState(() => _isHoveringCategories = true),
+                                            onExit: (_) => setState(() => _isHoveringCategories = false),
+                                            child: Stack(
+                                              children: [
+                                                ListView.builder(
+                                                  controller: _categoryScrollController,
+                                                  itemExtent: 46.0,
+                                                  cacheExtent: 300.0,
+                                                  addAutomaticKeepAlives: false,
+                                                  addRepaintBoundaries: true,
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                  itemCount: _filteredCategories().length,
+                                                  itemBuilder: (context, index) {
+                                                    final cat = _filteredCategories()[index];
+                                                    final isSelected = _selectedCategoryId == cat.id;
+                                                    final count = _countForCategory(cat.id);
+
+                                                    return _CategoryListRow(
+                                                      category: cat,
+                                                      count: count,
+                                                      isSelected: isSelected,
+                                                      onTap: () {
+                                                        setState(() => _selectedCategoryId = cat.id);
+                                                        _contentScrollController.jumpTo(0);
+                                                      },
+                                                    );
+                                                  },
+                                                ),
+
+                                                // Desktop Category Scroll Up Arrow
+                                                if (_isHoveringCategories && _canScrollCatUp)
+                                                  Positioned(
+                                                    top: 6,
+                                                    left: 0,
+                                                    right: 0,
+                                                    child: Center(
+                                                      child: _VerticalScrollButton(
+                                                        icon: Icons.keyboard_arrow_up_rounded,
+                                                        onTap: () => _scrollCategories(-240),
+                                                      ),
+                                                    ),
+                                                  ),
+
+                                                // Desktop Category Scroll Down Arrow
+                                                if (_isHoveringCategories && _canScrollCatDown)
+                                                  Positioned(
+                                                    bottom: 6,
+                                                    left: 0,
+                                                    right: 0,
+                                                    child: Center(
+                                                      child: _VerticalScrollButton(
+                                                        icon: Icons.keyboard_arrow_down_rounded,
+                                                        onTap: () => _scrollCategories(240),
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                                child: Column(
-                                  children: [
-                                    // Categories Search Filter
-                                    Padding(
-                                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-                                      child: Container(
-                                        height: 38,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF141824),
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: const Color(0xFF22283A)),
-                                        ),
-                                        child: TextField(
-                                          controller: _catSearchCtrl,
-                                          style: const TextStyle(color: Colors.white, fontSize: 12.5),
-                                          decoration: InputDecoration(
-                                            hintText: 'Filter categories…',
-                                            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
-                                            prefixIcon: const Icon(Icons.filter_list_rounded, color: Colors.white54, size: 18),
-                                            suffixIcon: _catSearchQuery.isNotEmpty
-                                                ? IconButton(
-                                                    icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
-                                                    onPressed: () {
-                                                      _catSearchCtrl.clear();
-                                                      setState(() => _catSearchQuery = '');
-                                                    },
-                                                  )
-                                                : null,
-                                            border: InputBorder.none,
-                                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                                          ),
-                                          onChanged: (v) => setState(() => _catSearchQuery = v),
-                                        ),
-                                      ),
-                                    ),
 
-                                    // Category List with Desktop Vertical Scroll Arrows
-                                    Expanded(
-                                      child: MouseRegion(
-                                        onEnter: (_) => setState(() => _isHoveringCategories = true),
-                                        onExit: (_) => setState(() => _isHoveringCategories = false),
-                                        child: Stack(
-                                          children: [
-                                            ListView.builder(
-                                              controller: _categoryScrollController,
-                                              itemExtent: 46.0,
-                                              cacheExtent: 300.0,
-                                              addAutomaticKeepAlives: false,
-                                              addRepaintBoundaries: true,
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                              itemCount: _filteredCategories().length,
-                                              itemBuilder: (context, index) {
-                                                final cat = _filteredCategories()[index];
-                                                final isSelected = _selectedCategoryId == cat.id;
-                                                final count = _countForCategory(cat.id);
+                                // ── RIGHT CONTENT PANEL ──
+                                Expanded(
+                                  child: MouseRegion(
+                                    onEnter: (_) => setState(() => _isHoveringContent = true),
+                                    onExit: (_) => setState(() => _isHoveringContent = false),
+                                    child: Stack(
+                                      children: [
+                                        _buildMainContent(),
 
-                                                return _CategoryListRow(
-                                                  category: cat,
-                                                  count: count,
-                                                  isSelected: isSelected,
-                                                  onTap: () {
-                                                    setState(() => _selectedCategoryId = cat.id);
-                                                    _contentScrollController.jumpTo(0);
-                                                  },
-                                                );
-                                              },
+                                        // Desktop Content Scroll Up Arrow
+                                        if (_isHoveringContent && _canScrollContentUp)
+                                          Positioned(
+                                            top: 14,
+                                            right: 28,
+                                            child: _VerticalScrollButton(
+                                              icon: Icons.keyboard_arrow_up_rounded,
+                                              onTap: () => _scrollContent(-450),
                                             ),
+                                          ),
 
-                                            // Desktop Category Scroll Up Arrow
-                                            if (isDesktop && _isHoveringCategories && _canScrollCatUp)
-                                              Positioned(
-                                                top: 6,
-                                                left: 0,
-                                                right: 0,
-                                                child: Center(
-                                                  child: _VerticalScrollButton(
-                                                    icon: Icons.keyboard_arrow_up_rounded,
-                                                    onTap: () => _scrollCategories(-240),
-                                                  ),
-                                                ),
-                                              ),
-
-                                            // Desktop Category Scroll Down Arrow
-                                            if (isDesktop && _isHoveringCategories && _canScrollCatDown)
-                                              Positioned(
-                                                bottom: 6,
-                                                left: 0,
-                                                right: 0,
-                                                child: Center(
-                                                  child: _VerticalScrollButton(
-                                                    icon: Icons.keyboard_arrow_down_rounded,
-                                                    onTap: () => _scrollCategories(240),
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
+                                        // Desktop Content Scroll Down Arrow
+                                        if (_isHoveringContent && _canScrollContentDown)
+                                          Positioned(
+                                            bottom: 14,
+                                            right: 28,
+                                            child: _VerticalScrollButton(
+                                              icon: Icons.keyboard_arrow_down_rounded,
+                                              onTap: () => _scrollContent(450),
+                                            ),
+                                          ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-
-                            // ── RIGHT CONTENT PANEL ──
-                            Expanded(
-                              child: MouseRegion(
-                                onEnter: (_) => setState(() => _isHoveringContent = true),
-                                onExit: (_) => setState(() => _isHoveringContent = false),
-                                child: Stack(
-                                  children: [
-                                    _buildMainContent(),
-
-                                    // Desktop Content Scroll Up Arrow
-                                    if (isDesktop && _isHoveringContent && _canScrollContentUp)
-                                      Positioned(
-                                        top: 14,
-                                        right: 28,
-                                        child: _VerticalScrollButton(
-                                          icon: Icons.keyboard_arrow_up_rounded,
-                                          onTap: () => _scrollContent(-450),
-                                        ),
-                                      ),
-
-                                    // Desktop Content Scroll Down Arrow
-                                    if (isDesktop && _isHoveringContent && _canScrollContentDown)
-                                      Positioned(
-                                        bottom: 14,
-                                        right: 28,
-                                        child: _VerticalScrollButton(
-                                          icon: Icons.keyboard_arrow_down_rounded,
-                                          onTap: () => _scrollContent(450),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                              ],
+                            )
+                          : _buildMainContent(),
             ),
           ],
         ),
@@ -878,6 +1176,8 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
       );
     }
 
+    final isDesktop = _isDesktop(context);
+
     if (_activeSection == IptvSection.live) {
       // ── LIVE CHANNELS HIGH-PERFORMANCE VIRTUALIZED LIST VIEW (itemExtent O(1)) ──
       return ListView.builder(
@@ -886,7 +1186,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
         cacheExtent: 400.0,
         addAutomaticKeepAlives: false,
         addRepaintBoundaries: true,
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
+        padding: EdgeInsets.fromLTRB(isDesktop ? 20 : 10, 12, isDesktop ? 20 : 10, 30),
         physics: const BouncingScrollPhysics(),
         itemCount: streams.length,
         itemBuilder: (context, index) {
@@ -911,14 +1211,19 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
       );
     } else {
       // ── MOVIES & SERIES GRID VIEW ──
-      final width = MediaQuery.sizeOf(context).width - 290;
-      int crossAxisCount = 3;
+      final screenW = MediaQuery.sizeOf(context).width;
+      final width = isDesktop ? (screenW - 280) : screenW;
+      int crossAxisCount = 2;
       if (width > 1200) {
         crossAxisCount = 6;
       } else if (width > 900) {
         crossAxisCount = 5;
       } else if (width > 650) {
         crossAxisCount = 4;
+      } else if (width > 420) {
+        crossAxisCount = 3;
+      } else {
+        crossAxisCount = 2;
       }
 
       return GridView.builder(
@@ -926,13 +1231,13 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
         cacheExtent: 400.0,
         addAutomaticKeepAlives: false,
         addRepaintBoundaries: true,
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
+        padding: EdgeInsets.fromLTRB(isDesktop ? 20 : 10, 12, isDesktop ? 20 : 10, 30),
         physics: const BouncingScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
           childAspectRatio: 0.68,
-          crossAxisSpacing: 14,
-          mainAxisSpacing: 14,
+          crossAxisSpacing: isDesktop ? 14 : 10,
+          mainAxisSpacing: isDesktop ? 14 : 10,
         ),
         itemCount: streams.length,
         itemBuilder: (context, index) {
@@ -1120,6 +1425,8 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
     final indexFormatted = widget.index.toString().padLeft(3, '0');
     final currentEpg = _cachedEpg?.isNotEmpty == true ? _cachedEpg!.first : null;
     final nextEpg = _cachedEpg != null && _cachedEpg!.length > 1 ? _cachedEpg![1] : null;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isVerySmall = screenW < 440;
 
     return RepaintBoundary(
       child: MouseRegion(
@@ -1133,7 +1440,7 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
           onTap: widget.onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: EdgeInsets.symmetric(horizontal: isVerySmall ? 8 : 14, vertical: 8),
             decoration: BoxDecoration(
               color: _hovered ? const Color(0xFF161A28) : const Color(0xFF0E111A),
               borderRadius: BorderRadius.circular(10),
@@ -1154,25 +1461,26 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
             child: Row(
               children: [
                 // Index
-                SizedBox(
-                  width: 32,
-                  child: Text(
-                    indexFormatted,
-                    style: const TextStyle(
-                      color: Colors.white24,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'monospace',
+                if (!isVerySmall) ...[
+                  SizedBox(
+                    width: 30,
+                    child: Text(
+                      indexFormatted,
+                      style: const TextStyle(
+                        color: Colors.white24,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
-                ),
-
-                const SizedBox(width: 8),
+                  const SizedBox(width: 6),
+                ],
 
                 // ── BIG PROMINENT CHANNEL LOGO BAY ──
                 Container(
-                  width: 64,
-                  height: 46,
+                  width: isVerySmall ? 52 : 64,
+                  height: isVerySmall ? 40 : 46,
                   padding: const EdgeInsets.all(3),
                   decoration: BoxDecoration(
                     color: const Color(0xFF080A10),
@@ -1192,7 +1500,7 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
                       : const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 20),
                 ),
 
-                const SizedBox(width: 14),
+                SizedBox(width: isVerySmall ? 8 : 12),
 
                 // Channel Title & EPG Info
                 Expanded(
@@ -1244,7 +1552,7 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
                       // Program Guide (EPG)
                       if (currentEpg != null) ...[
                         Text(
-                          'NOW: ${currentEpg.title}${nextEpg != null ? "  |  NEXT: " + nextEpg.title : ""}',
+                          'NOW: ${currentEpg.title}${nextEpg != null ? "  |  NEXT: ${nextEpg.title}" : ""}',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 11),

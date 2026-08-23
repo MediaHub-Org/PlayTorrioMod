@@ -16,7 +16,6 @@ import '../manga/manga_page.dart';
 import '../music/music_page.dart';
 import '../iptv/iptv_page.dart';
 import '../my_list/my_list_page.dart';
-import '../search/search_page.dart';
 import '../settings/settings_page.dart';
 import 'anime_details_page.dart';
 import 'anime_stream_sheet.dart';
@@ -116,7 +115,7 @@ class _AnimePageState extends State<AnimePage> {
     }
   }
 
-  void _playEpisode(AnimeMedia anime, int episodeNumber, [bool isDub = false]) {
+  void _playEpisode(AnimeMedia anime, int episodeNumber) {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -298,7 +297,7 @@ class _AnimePageState extends State<AnimePage> {
                   onAnimeTap: _openDetails,
                 ),
 
-                const SizedBox(height: 90),
+                SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom),
               ],
             ),
           ),
@@ -328,7 +327,7 @@ class _AnimePageState extends State<AnimePage> {
 
       // Liquid Dock Navbar (Home Page Style)
       Positioned(
-        bottom: 24,
+        bottom: 12.0 + MediaQuery.paddingOf(context).bottom,
         left: 0,
         right: 0,
         child: Center(
@@ -494,10 +493,10 @@ class _AnimeGlassAppBar extends StatelessWidget {
           right: 8,
         ),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: const [Color(0xF5080A0F), Color(0xE6080A0F)],
+            colors: [Color(0xF5080A0F), Color(0xE6080A0F)],
           ),
           border: Border(
             bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
@@ -557,9 +556,7 @@ class _AnimeGlassAppBar extends StatelessWidget {
                   ),
                   onPressed: () {
                     final box = context.findRenderObject() as RenderBox?;
-                    final offset = box != null
-                        ? box.localToGlobal(box.size.center(Offset.zero))
-                        : null;
+                    final offset = box?.localToGlobal(box.size.center(Offset.zero));
                     onSearchTap(offset);
                   },
                 );
@@ -577,9 +574,7 @@ class _AnimeGlassAppBar extends StatelessWidget {
                   ),
                   onPressed: () {
                     final box = context.findRenderObject() as RenderBox?;
-                    final offset = box != null
-                        ? box.localToGlobal(box.size.center(Offset.zero))
-                        : null;
+                    final offset = box?.localToGlobal(box.size.center(Offset.zero));
                     onSettingsTap(offset);
                   },
                 );
@@ -1051,9 +1046,9 @@ class _AnimeHeroSlide extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF7C5CFF),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 28,
-                            vertical: 16,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isCompact ? 18 : 28,
+                            vertical: isCompact ? 12 : 16,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
@@ -1062,26 +1057,26 @@ class _AnimeHeroSlide extends StatelessWidget {
                           shadowColor: const Color(0xFF7C5CFF).withValues(alpha: 0.45),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: isCompact ? 8 : 12),
                       OutlinedButton.icon(
                         onPressed: onDetailsTap,
                         icon: Icon(
                           Icons.info_outline_rounded,
-                          size: 21,
+                          size: isCompact ? 18 : 21,
                           color: Colors.white.withValues(alpha: 0.80),
                         ),
                         label: Text(
                           'Details',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 15.5,
+                            fontSize: isCompact ? 14 : 15.5,
                             color: Colors.white.withValues(alpha: 0.80),
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 16,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isCompact ? 16 : 24,
+                            vertical: isCompact ? 12 : 16,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),

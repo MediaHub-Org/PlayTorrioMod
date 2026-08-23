@@ -195,12 +195,17 @@ class _MyListPageState extends State<MyListPage> {
                       child: displayedItems.isEmpty
                           ? _buildEmptyState(allItems.isEmpty)
                           : GridView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              padding: EdgeInsets.fromLTRB(
+                                16,
+                                12,
+                                16,
+                                24 + MediaQuery.paddingOf(context).bottom,
+                              ),
                               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: _getCrossAxisCount(context),
                                 childAspectRatio: 0.65,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 18,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 16,
                               ),
                               itemCount: displayedItems.length,
                               itemBuilder: (context, index) {
@@ -225,9 +230,10 @@ class _MyListPageState extends State<MyListPage> {
 
   Widget _buildHeader(BuildContext context, int totalCount) {
     final auth = TraktAuthService();
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFF0D1017).withValues(alpha: 0.8),
         border: Border(
@@ -246,29 +252,33 @@ class _MyListPageState extends State<MyListPage> {
               padding: const EdgeInsets.all(8),
             ),
           ),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'My List',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'My List',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-              ),
-              Text(
-                '$totalCount saved ${totalCount == 1 ? 'title' : 'titles'}',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.45),
-                  fontSize: 12,
+                Text(
+                  '$totalCount saved ${totalCount == 1 ? 'title' : 'titles'}',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
 
           // ── Trakt Sync Status & Refresh Button ──
           ValueListenableBuilder<bool>(
@@ -336,43 +346,47 @@ class _MyListPageState extends State<MyListPage> {
 
   Widget _buildFilterToolbar(int totalCount, int movieCount, int seriesCount) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         children: [
-          Row(
-            children: [
-              // Filter Tabs
-              _buildFilterPill('all', 'All', totalCount),
-              const SizedBox(width: 8),
-              _buildFilterPill('movie', 'Movies', movieCount),
-              const SizedBox(width: 8),
-              _buildFilterPill('series', 'TV Shows', seriesCount),
-              const Spacer(),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                // Filter Tabs
+                _buildFilterPill('all', 'All', totalCount),
+                const SizedBox(width: 8),
+                _buildFilterPill('movie', 'Movies', movieCount),
+                const SizedBox(width: 8),
+                _buildFilterPill('series', 'TV Shows', seriesCount),
+                const SizedBox(width: 16),
 
-              // Sort Dropdown
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _sortBy,
-                    dropdownColor: const Color(0xFF151822),
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                    icon: const Icon(Icons.sort_rounded, color: Color(0xFF7C5CFF), size: 16),
-                    items: const [
-                      DropdownMenuItem(value: 'recent', child: Text('Recently Added')),
-                      DropdownMenuItem(value: 'title', child: Text('Alphabetical')),
-                      DropdownMenuItem(value: 'year', child: Text('Release Year')),
-                    ],
-                    onChanged: (v) => setState(() => _sortBy = v!),
+                // Sort Dropdown
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _sortBy,
+                      dropdownColor: const Color(0xFF151822),
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      icon: const Icon(Icons.sort_rounded, color: Color(0xFF7C5CFF), size: 16),
+                      items: const [
+                        DropdownMenuItem(value: 'recent', child: Text('Recently Added')),
+                        DropdownMenuItem(value: 'title', child: Text('Alphabetical')),
+                        DropdownMenuItem(value: 'year', child: Text('Release Year')),
+                      ],
+                      onChanged: (v) => setState(() => _sortBy = v!),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 10),
 

@@ -114,8 +114,8 @@ class TmdbHelper {
                       return id;
                     }
                   }
-                } else if (bestMatchId == null) {
-                  bestMatchId = item['id'] as int?;
+                } else {
+                  bestMatchId ??= item['id'] as int?;
                 }
               }
             }

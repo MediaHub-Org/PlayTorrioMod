@@ -1,11 +1,9 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
 import '../../models/music/music_track.dart';
 import '../../services/music/music_service.dart';
@@ -750,7 +748,7 @@ class _MusicPageState extends State<MusicPage> {
               Positioned(
                 left: isDesktop ? 260 : 12,
                 right: 12,
-                bottom: isDesktop ? 16 : 76,
+                bottom: isDesktop ? 16 : (64.0 + MediaQuery.paddingOf(context).bottom + 10.0),
                 child: _MusicBottomPlayerBar(
                   playerController: _playerController,
                   isSaved: _libraryService.isTrackLiked(
@@ -2189,13 +2187,23 @@ class _MusicTopHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final topInset = MediaQuery.paddingOf(context).top;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isMobile = screenW < 600;
+    final isVeryNarrow = screenW < 400;
+
     return PerformanceLiquidLens(
       style: PerformanceGlassStyles.dock,
       child: Container(
-        height: 68,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        height: isDesktop ? 68.0 : (58.0 + topInset),
+        padding: EdgeInsets.fromLTRB(
+          isMobile ? 10 : 20,
+          isDesktop ? 0 : topInset,
+          isMobile ? 10 : 20,
+          0,
+        ),
         decoration: BoxDecoration(
-          color: const Color(0xFF080A0F).withValues(alpha: 0.75),
+          color: const Color(0xFF080A0F).withValues(alpha: 0.85),
           border: Border(
             bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
           ),
@@ -2206,41 +2214,43 @@ class _MusicTopHeader extends StatelessWidget {
               scaleFactor: 1.08,
               child: IconButton(
                 tooltip: 'Back to Home (Esc)',
-                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
                 style: IconButton.styleFrom(
                   backgroundColor: Colors.white.withValues(alpha: 0.08),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                     side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
                   ),
-                  padding: const EdgeInsets.all(10),
+                  padding: const EdgeInsets.all(8),
                 ),
                 onPressed: () => Navigator.maybePop(context),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: isMobile ? 8 : 12),
             Expanded(
               child: Container(
-                height: 44,
+                height: 40,
                 decoration: BoxDecoration(
                   color: const Color(0xFF13151F),
-                  borderRadius: BorderRadius.circular(22),
+                  borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+                padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 16),
                 child: Row(
                   children: [
-                    const Icon(Icons.search_rounded, color: Colors.white54, size: 20),
-                    const SizedBox(width: 10),
+                    Icon(Icons.search_rounded, color: Colors.white54, size: isMobile ? 18 : 20),
+                    const SizedBox(width: 8),
                     Expanded(
                       child: TextField(
                         controller: searchController,
                         focusNode: searchFocusNode,
                         onChanged: onSearchChanged,
-                        style: const TextStyle(color: Colors.white, fontSize: 14),
-                        decoration: const InputDecoration(
-                          hintText: 'Search songs, artists, albums, playlists...',
-                          hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
+                        style: TextStyle(color: Colors.white, fontSize: isMobile ? 13 : 14),
+                        decoration: InputDecoration(
+                          hintText: isVeryNarrow
+                              ? 'Search…'
+                              : (isMobile ? 'Search music…' : 'Search songs, artists, albums, playlists...'),
+                          hintStyle: TextStyle(color: Colors.white38, fontSize: isMobile ? 12 : 13),
                           border: InputBorder.none,
                           isDense: true,
                         ),
@@ -2248,20 +2258,22 @@ class _MusicTopHeader extends StatelessWidget {
                     ),
                     if (searchController.text.isNotEmpty)
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 18),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
                         onPressed: onClearSearch,
                       ),
                   ],
                 ),
               ),
             ),
-            const SizedBox(width: 12),
+            SizedBox(width: isMobile ? 6 : 12),
             const _AudioSourceSelectorButton(),
-            const SizedBox(width: 8),
+            SizedBox(width: isMobile ? 4 : 8),
             _MusicHoverable(
               scaleFactor: 1.1,
               child: IconButton(
-                icon: const Icon(Icons.settings_rounded, color: Colors.white70),
+                icon: const Icon(Icons.settings_rounded, color: Colors.white70, size: 20),
                 onPressed: onSettingsTap,
               ),
             ),
@@ -2537,10 +2549,13 @@ class _MusicMobileBottomNav extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+
     return PerformanceLiquidLens(
       style: PerformanceGlassStyles.dock,
       child: Container(
-        height: 64,
+        height: 60 + bottomInset,
+        padding: EdgeInsets.only(bottom: bottomInset),
         decoration: BoxDecoration(
           color: const Color(0xFF0C0E17).withValues(alpha: 0.95),
           border: Border(
@@ -3191,7 +3206,8 @@ class _MusicCardSizing {
   factory _MusicCardSizing.fromWidth(double width) {
     if (width >= 1200) return const _MusicCardSizing(170, 240);
     if (width >= 800) return const _MusicCardSizing(150, 215);
-    return const _MusicCardSizing(140, 200);
+    if (width >= 450) return const _MusicCardSizing(140, 200);
+    return const _MusicCardSizing(125, 185);
   }
 }
 
@@ -3660,7 +3676,7 @@ class _MusicArtistDetailModal extends StatelessWidget {
                         fit: BoxFit.cover,
                       ),
                     ),
-                    Positioned.fill(
+                    const Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -3668,7 +3684,7 @@ class _MusicArtistDetailModal extends StatelessWidget {
                             end: Alignment.bottomCenter,
                             colors: [
                               Colors.transparent,
-                              const Color(0xFF0F121C),
+                              Color(0xFF0F121C),
                             ],
                           ),
                         ),

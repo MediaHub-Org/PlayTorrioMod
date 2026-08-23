@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../models/iptv/iptv_models.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 
@@ -73,6 +74,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
   @override
   void initState() {
     super.initState();
+    WakelockPlus.enable();
     _activeHitIndex = widget.initialHitIndex.clamp(0, widget.hits.length - 1);
     _sourcesScrollController = ScrollController();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
@@ -89,6 +91,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
 
   @override
   void dispose() {
+    WakelockPlus.disable();
     _hideControlsTimer?.cancel();
     _watchdogTimer?.cancel();
     _volumeHudTimer?.cancel();
@@ -977,13 +980,13 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
 }
 
 String _formatDuration(Duration duration) {
-  String twoDigits(int n) => n.toString().padLeft(2, "0");
+  String twoDigits(int n) => n.toString().padLeft(2, '0');
   String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
   String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
   if (duration.inHours > 0) {
-    return "${duration.inHours}:$twoDigitMinutes:$twoDigitSeconds";
+    return '${duration.inHours}:$twoDigitMinutes:$twoDigitSeconds';
   }
-  return "$twoDigitMinutes:$twoDigitSeconds";
+  return '$twoDigitMinutes:$twoDigitSeconds';
 }
 
 class _IptvCustomProgressBar extends StatefulWidget {

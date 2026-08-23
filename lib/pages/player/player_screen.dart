@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
-import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 import 'package:playtorrio/models/movie/video.dart';
 import 'package:playtorrio/models/movie/movie_detail.dart';
 import 'package:playtorrio/models/subtitle/subtitle_model.dart';
@@ -11,10 +10,12 @@ import 'package:playtorrio/services/subtitles/subtitle_service.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
 import '../../models/stream/stream_model.dart';
+import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
 import '../../services/glass_settings.dart';
 import '../../widgets/common/performance_liquid_lens.dart';
 import 'package:fvp/fvp.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 class PlayerScreen extends StatefulWidget {
   final StreamSource source;
@@ -58,6 +59,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void initState() {
     super.initState();
+    WakelockPlus.enable();
     _logoAnimController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -81,27 +83,64 @@ class _PlayerScreenState extends State<PlayerScreen>
     print('[PlayerScreen]   Raw URL: ${widget.source.url}');
 
     try {
-      if (widget.source.url != null && widget.source.url!.isNotEmpty) {
-        // Direct URL
-        streamUrl = widget.source.url;
-      } else if (widget.source.infoHash != null) {
-        // Torrent
-        setState(() => _statusMessage = 'Gathering metadata & peers...');
+      final rawUrl = widget.source.url;
+      final infoHash = widget.source.infoHash;
+      final isMagnetUrl = rawUrl != null && rawUrl.startsWith('magnet:');
+      final isTorrent = (infoHash != null && infoHash.isNotEmpty) || isMagnetUrl;
 
-        String magnet = 'magnet:?xt=urn:btih:${widget.source.infoHash!}';
-        if (widget.source.sources != null) {
-          for (final source in widget.source.sources!) {
-            if (source.startsWith('tracker:')) {
-              final trackerUrl = source.replaceFirst('tracker:', '');
-              magnet += '&tr=${Uri.encodeComponent(trackerUrl)}';
+      if (isTorrent) {
+        // Construct standard magnet URI
+        String magnet;
+        if (isMagnetUrl) {
+          magnet = rawUrl;
+        } else {
+          magnet = 'magnet:?xt=urn:btih:$infoHash';
+          if (widget.source.sources != null) {
+            for (final source in widget.source.sources!) {
+              if (source.startsWith('tracker:')) {
+                final trackerUrl = source.replaceFirst('tracker:', '');
+                magnet += '&tr=${Uri.encodeComponent(trackerUrl)}';
+              }
             }
           }
         }
 
-        streamUrl = await TorrentStreamService().streamTorrent(
-          magnet,
-          fileIdx: widget.source.fileIdx,
-        );
+        final useDebrid = await DebridService().isDebridActiveForStreams();
+        if (useDebrid) {
+          final activeService = await DebridService().getSelectedService();
+          if (!mounted) return;
+          setState(() => _statusMessage = 'Resolving via $activeService cloud...');
+
+          final seasonNum = widget.episode?.season;
+          final episodeNum = widget.episode?.episode;
+
+          final debridFiles = await DebridService().resolveMagnet(
+            magnet: magnet,
+            fileIndex: widget.source.fileIdx,
+            filename: widget.title,
+            season: seasonNum,
+            episode: episodeNum,
+          );
+
+          if (debridFiles.isEmpty || debridFiles.first.downloadUrl.isEmpty) {
+            throw Exception('$activeService returned no direct stream links.');
+          }
+
+          streamUrl = debridFiles.first.downloadUrl;
+          print('[PlayerScreen] Debrid resolved stream URL: $streamUrl');
+        } else {
+          // Regular Torrent Engine (TorrServer)
+          if (!mounted) return;
+          setState(() => _statusMessage = 'Gathering metadata & peers...');
+
+          streamUrl = await TorrentStreamService().streamTorrent(
+            magnet,
+            fileIdx: widget.source.fileIdx,
+          );
+        }
+      } else if (rawUrl != null && rawUrl.isNotEmpty) {
+        // Direct URL (HTTP/HLS/MP4)
+        streamUrl = rawUrl;
       } else {
         throw Exception('No valid stream source found.');
       }
@@ -341,12 +380,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                               onChangeEnd: (value) {
                                 final controller = _controller;
                                 if (controller != null) {
-                                  // fvp exposes amplification beyond video_player's 1.0 clamp through the platform layer.
-                                  VideoPlayerPlatform.instance.setVolume(
-                                    // ignore: invalid_use_of_visible_for_testing_member
-                                    controller.playerId,
-                                    value,
-                                  );
+                                  controller.setVolume(value);
                                 }
                               },
                             ),
@@ -654,6 +688,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   void dispose() {
+    WakelockPlus.disable();
     _hideTimer?.cancel();
     SystemChrome.setPreferredOrientations([
       DeviceOrientation.portraitUp,
@@ -1182,13 +1217,13 @@ class _CustomProgressBarState extends State<_CustomProgressBar> {
   Duration? _dragPosition;
 
   String _formatDuration(Duration duration) {
-    String twoDigits(int n) => n.toString().padLeft(2, "0");
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
     String twoDigitMinutes = twoDigits(duration.inMinutes.remainder(60));
     String twoDigitSeconds = twoDigits(duration.inSeconds.remainder(60));
     if (duration.inHours > 0) {
-      return "${duration.inHours}:$twoDigitMinutes:$twoDigitSeconds";
+      return '${duration.inHours}:$twoDigitMinutes:$twoDigitSeconds';
     }
-    return "$twoDigitMinutes:$twoDigitSeconds";
+    return '$twoDigitMinutes:$twoDigitSeconds';
   }
 
   void _seekTo(double x, double width, Duration totalDuration) {

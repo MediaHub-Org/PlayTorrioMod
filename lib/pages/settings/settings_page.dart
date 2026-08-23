@@ -3,6 +3,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../models/addon/addon.dart';
 import '../../services/addon/addon_manager.dart';
+import '../../services/debrid/debrid_service.dart';
 import '../../services/glass_settings.dart';
 import '../../services/app_updater_service.dart';
 import '../../services/trakt/trakt_auth_service.dart';
@@ -163,6 +164,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final addons = _manager.addons;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
       backgroundColor: const Color(0xFF080A0F),
@@ -178,12 +180,15 @@ class _SettingsPageState extends State<SettingsPage> {
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
         ),
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        children: [
-          ValueListenableBuilder<bool>(
-            valueListenable: GlassSettings.enabled,
-            builder: (context, enabled, _) {
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: ListView(
+            padding: EdgeInsets.fromLTRB(16, 20, 16, 32 + bottomInset),
+            children: [
+              ValueListenableBuilder<bool>(
+                valueListenable: GlassSettings.enabled,
+                builder: (context, enabled, _) {
               return Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -253,6 +258,10 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildTraktSection(),
           const SizedBox(height: 28),
 
+          // ── Debrid section ──
+          const _DebridSettingsCard(),
+          const SizedBox(height: 28),
+
           // ── Section title ──
           Row(
             children: [
@@ -314,8 +323,10 @@ class _SettingsPageState extends State<SettingsPage> {
           _AddAddonButton(isLoading: _isAdding, onTap: _addAddon),
         ],
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 
   // ── Trakt section ──────────────────────────────────────────────────────
 
@@ -412,15 +423,14 @@ class _SettingsPageState extends State<SettingsPage> {
                       child: ElevatedButton.icon(
                         onPressed: () async {
                           await TraktSyncService.syncDown();
-                          if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Synced with Trakt'),
-                                behavior: SnackBarBehavior.floating,
-                                backgroundColor: Color(0xFF1E8E3E),
-                              ),
-                            );
-                          }
+                          if (!context.mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Synced with Trakt'),
+                              behavior: SnackBarBehavior.floating,
+                              backgroundColor: Color(0xFF1E8E3E),
+                            ),
+                          );
                         },
                         icon: const Icon(Icons.sync_rounded, size: 18),
                         label: const Text('Sync Now'),
@@ -814,6 +824,467 @@ class _AddAddonButton extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Debrid Settings Card
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DebridSettingsCard extends StatefulWidget {
+  const _DebridSettingsCard();
+
+  @override
+  State<_DebridSettingsCard> createState() => _DebridSettingsCardState();
+}
+
+class _DebridSettingsCardState extends State<_DebridSettingsCard> {
+  final _debrid = DebridService();
+  bool _useDebrid = false;
+  String _selectedService = 'None';
+  String? _rdUser;
+
+  final _rdKeyCtrl = TextEditingController();
+  final _torboxKeyCtrl = TextEditingController();
+  final _alldebridKeyCtrl = TextEditingController();
+  final _premiumizeKeyCtrl = TextEditingController();
+  final _debridlinkKeyCtrl = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSettings();
+  }
+
+  Future<void> _loadSettings() async {
+    final useDebrid = await _debrid.getUseDebridForStreams();
+    final service = await _debrid.getSelectedService();
+    final rd = await _debrid.realDebrid.getToken() ?? '';
+    final tb = await _debrid.torBox.getKey() ?? '';
+    final ad = await _debrid.allDebrid.getKey() ?? '';
+    final pm = await _debrid.premiumize.getKey() ?? '';
+    final dl = await _debrid.debridLink.getKey() ?? '';
+
+    _rdKeyCtrl.text = rd;
+    _torboxKeyCtrl.text = tb;
+    _alldebridKeyCtrl.text = ad;
+    _premiumizeKeyCtrl.text = pm;
+    _debridlinkKeyCtrl.text = dl;
+
+    if (rd.isNotEmpty) {
+      final user = await _debrid.realDebrid.verifyToken(rd);
+      if (user != null) {
+        _rdUser = user['username'] as String?;
+      }
+    }
+
+    if (mounted) {
+      setState(() {
+        _useDebrid = useDebrid;
+        _selectedService = service;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _rdKeyCtrl.dispose();
+    _torboxKeyCtrl.dispose();
+    _alldebridKeyCtrl.dispose();
+    _premiumizeKeyCtrl.dispose();
+    _debridlinkKeyCtrl.dispose();
+    super.dispose();
+  }
+
+  void _showSnack(String msg, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msg),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: isError ? Colors.red.shade700 : const Color(0xFF7C5CFF),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    const services = [
+      'None',
+      'Real-Debrid',
+      'TorBox',
+      'AllDebrid',
+      'Premiumize',
+      'Debrid-Link',
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12151E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _useDebrid
+              ? const Color(0xFF00E5FF).withValues(alpha: 0.25)
+              : Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00E5FF).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.cloud_download_rounded,
+                  color: Color(0xFF00E5FF),
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Debrid Services',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    SizedBox(height: 4),
+                    Text(
+                      'Stream magnet links and torrents via high-speed cloud servers.',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 12.5,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+
+          // Use Debrid for streams Toggle
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.03),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: _useDebrid
+                    ? const Color(0xFF00E5FF).withValues(alpha: 0.3)
+                    : Colors.white.withValues(alpha: 0.06),
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Use Debrid for streams',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'When enabled, all torrents from PlayTorrio and Stremio addons are resolved exclusively through your active Debrid provider without touching the torrent engine.',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.45),
+                          fontSize: 11.5,
+                          height: 1.3,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Switch.adaptive(
+                  value: _useDebrid,
+                  activeColor: const Color(0xFF00E5FF),
+                  onChanged: (val) async {
+                    setState(() => _useDebrid = val);
+                    await _debrid.saveUseDebridForStreams(val);
+                    if (val) {
+                      final service = _selectedService;
+                      if (service == 'None') {
+                        _showSnack(
+                          'Select an active Debrid provider and save your API key below.',
+                          isError: true,
+                        );
+                      } else {
+                        final hasKey = await _debrid.hasKeyForService(service);
+                        if (!hasKey) {
+                          _showSnack(
+                            '$service has no API key saved. Please enter and save your key below.',
+                            isError: true,
+                          );
+                        } else {
+                          _showSnack('Debrid streaming activated via $service');
+                        }
+                      }
+                    } else {
+                      _showSnack('Debrid streaming disabled. Using local engine.');
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          Divider(color: Colors.white.withValues(alpha: 0.06)),
+          const SizedBox(height: 12),
+
+          // Active Provider Dropdown
+          Text(
+            'Active Debrid Provider',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: services.contains(_selectedService) ? _selectedService : 'None',
+            dropdownColor: const Color(0xFF151822),
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: const Color(0xFF0D1017),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(10),
+                borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+            ),
+            style: const TextStyle(color: Colors.white, fontSize: 13.5),
+            items: services.map((s) {
+              return DropdownMenuItem<String>(
+                value: s,
+                child: Text(s),
+              );
+            }).toList(),
+            onChanged: (val) async {
+              if (val != null) {
+                setState(() => _selectedService = val);
+                await _debrid.saveSelectedService(val);
+                if (val != 'None') {
+                  final hasKey = await _debrid.hasKeyForService(val);
+                  if (!hasKey) {
+                    _showSnack(
+                      '$val selected, but has no API key saved yet. Please enter and save your key below.',
+                    );
+                    return;
+                  }
+                }
+                _showSnack('Active Debrid service set to $val');
+              }
+            },
+          ),
+          const SizedBox(height: 16),
+          Divider(color: Colors.white.withValues(alpha: 0.06)),
+          const SizedBox(height: 12),
+
+          // Real-Debrid Field
+          _buildKeyTile(
+            title: 'Real-Debrid API Token',
+            subtitle: _rdUser != null
+                ? 'Logged in as $_rdUser'
+                : 'Get token from real-debrid.com/apitoken',
+            controller: _rdKeyCtrl,
+            onSave: () async {
+              final key = _rdKeyCtrl.text.trim();
+              await _debrid.realDebrid.saveToken(key);
+              if (key.isNotEmpty) {
+                if (_selectedService == 'None') {
+                  setState(() => _selectedService = 'Real-Debrid');
+                  await _debrid.saveSelectedService('Real-Debrid');
+                }
+                final user = await _debrid.realDebrid.verifyToken(key);
+                setState(() => _rdUser = user?['username'] as String?);
+                if (user != null) {
+                  _showSnack('Real-Debrid verified: Logged in as ${user['username']}');
+                } else {
+                  _showSnack('Real-Debrid token saved.');
+                }
+              } else {
+                setState(() => _rdUser = null);
+                _showSnack('Real-Debrid token cleared.');
+              }
+            },
+          ),
+          const SizedBox(height: 14),
+
+          // TorBox Field
+          _buildKeyTile(
+            title: 'TorBox API Key',
+            subtitle: 'Get key from torbox.app/settings',
+            controller: _torboxKeyCtrl,
+            onSave: () async {
+              final key = _torboxKeyCtrl.text.trim();
+              await _debrid.torBox.saveKey(key);
+              if (key.isNotEmpty && _selectedService == 'None') {
+                setState(() => _selectedService = 'TorBox');
+                await _debrid.saveSelectedService('TorBox');
+              }
+              _showSnack(
+                key.isNotEmpty ? 'TorBox API key saved and activated' : 'TorBox API key cleared',
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+
+          // AllDebrid Field
+          _buildKeyTile(
+            title: 'AllDebrid API Key',
+            subtitle: 'Get key from alldebrid.com/apikeys',
+            controller: _alldebridKeyCtrl,
+            onSave: () async {
+              final key = _alldebridKeyCtrl.text.trim();
+              await _debrid.allDebrid.saveKey(key);
+              if (key.isNotEmpty && _selectedService == 'None') {
+                setState(() => _selectedService = 'AllDebrid');
+                await _debrid.saveSelectedService('AllDebrid');
+              }
+              _showSnack(
+                key.isNotEmpty ? 'AllDebrid API key saved and activated' : 'AllDebrid API key cleared',
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+
+          // Premiumize Field
+          _buildKeyTile(
+            title: 'Premiumize API Key',
+            subtitle: 'Get key from premiumize.me/account',
+            controller: _premiumizeKeyCtrl,
+            onSave: () async {
+              final key = _premiumizeKeyCtrl.text.trim();
+              await _debrid.premiumize.saveKey(key);
+              if (key.isNotEmpty && _selectedService == 'None') {
+                setState(() => _selectedService = 'Premiumize');
+                await _debrid.saveSelectedService('Premiumize');
+              }
+              _showSnack(
+                key.isNotEmpty ? 'Premiumize API key saved and activated' : 'Premiumize API key cleared',
+              );
+            },
+          ),
+          const SizedBox(height: 14),
+
+          // Debrid-Link Field
+          _buildKeyTile(
+            title: 'Debrid-Link API Key',
+            subtitle: 'Get key from debrid-link.com/webapp/apikey',
+            controller: _debridlinkKeyCtrl,
+            onSave: () async {
+              final key = _debridlinkKeyCtrl.text.trim();
+              await _debrid.debridLink.saveKey(key);
+              if (key.isNotEmpty && _selectedService == 'None') {
+                setState(() => _selectedService = 'Debrid-Link');
+                await _debrid.saveSelectedService('Debrid-Link');
+              }
+              _showSnack(
+                key.isNotEmpty ? 'Debrid-Link API key saved and activated' : 'Debrid-Link API key cleared',
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKeyTile({
+    required String title,
+    required String subtitle,
+    required TextEditingController controller,
+    required VoidCallback onSave,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          style: TextStyle(
+            color: Colors.white.withValues(alpha: 0.45),
+            fontSize: 11,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                obscureText: true,
+                style: const TextStyle(color: Colors.white, fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'Paste API Key / Token',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.25),
+                    fontSize: 12,
+                  ),
+                  filled: true,
+                  fillColor: const Color(0xFF0D1017),
+                  isDense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed: onSave,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF7C5CFF),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                elevation: 0,
+              ),
+              child: const Text(
+                'Save',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 }

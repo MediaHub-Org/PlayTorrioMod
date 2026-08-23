@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../models/audiobook/audiobook_model.dart';
 import '../../services/audiobook/audiobook_progress_service.dart';
+import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
 
 class AudiobookPlayerScreen extends StatefulWidget {
@@ -118,11 +118,30 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
 
     try {
       if (chapter.isTorrent) {
-        setState(() => _statusMessage = 'Fetching torrent metadata & peers...');
-        streamUrl = await TorrentStreamService().streamTorrent(
-          chapter.url,
-          fileIdx: chapter.torrentFileIndex,
-        );
+        final useDebrid = await DebridService().isDebridActiveForStreams();
+        if (useDebrid) {
+          final activeService = await DebridService().getSelectedService();
+          if (!mounted) return;
+          setState(() => _statusMessage = 'Resolving audio via $activeService cloud...');
+
+          final debridFiles = await DebridService().resolveMagnet(
+            magnet: chapter.url,
+            fileIndex: chapter.torrentFileIndex,
+            filename: chapter.title,
+          );
+
+          if (debridFiles.isEmpty || debridFiles.first.downloadUrl.isEmpty) {
+            throw Exception('$activeService could not resolve audio stream.');
+          }
+
+          streamUrl = debridFiles.first.downloadUrl;
+        } else {
+          setState(() => _statusMessage = 'Fetching torrent metadata & peers...');
+          streamUrl = await TorrentStreamService().streamTorrent(
+            chapter.url,
+            fileIdx: chapter.torrentFileIndex,
+          );
+        }
       } else {
         streamUrl = chapter.url;
       }
@@ -963,10 +982,10 @@ class _VolumeButtonState extends State<_VolumeButton> {
           SizedBox(
             width: 90,
             child: SliderTheme(
-              data: SliderThemeData(
+              data: const SliderThemeData(
                 trackHeight: 3,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                activeTrackColor: const Color(0xFF7C5CFF),
+                thumbShape: RoundSliderThumbShape(enabledThumbRadius: 5),
+                activeTrackColor: Color(0xFF7C5CFF),
                 inactiveTrackColor: Colors.white24,
                 thumbColor: Colors.white,
               ),

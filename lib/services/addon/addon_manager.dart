@@ -310,7 +310,7 @@ class AddonManager {
             if (movies.isEmpty) return null;
 
             return MovieSection(
-              title: _catalogDisplayName(catalog) + ' - ' + genre,
+              title: '${_catalogDisplayName(catalog)} - $genre',
               subtitle: addon.manifest.name,
               contentType: catalog.type,
               addonBaseUrl: addon.baseUrl,

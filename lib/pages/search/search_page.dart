@@ -2,10 +2,6 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 
-import '../../models/movie/movie.dart';
-import '../../models/movie/link.dart';
-import '../../models/movie/video.dart';
-import '../../models/movie/movie_detail.dart';
 import '../../models/movie/movie_section.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../widgets/movie/movie_slider_section.dart';
@@ -207,7 +203,7 @@ class _SearchPageState extends State<SearchPage> {
               clipBehavior: Clip.none,
               padding: EdgeInsets.only(
                 top: topPadding + kToolbarHeight + 40,
-                bottom: 40,
+                bottom: 40 + MediaQuery.paddingOf(context).bottom,
               ),
               physics: const BouncingScrollPhysics(),
               itemCount: _results.length,

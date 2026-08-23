@@ -115,6 +115,11 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
 
   @override
   Widget build(BuildContext context) {
+    final topInset = MediaQuery.paddingOf(context).top;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isMobile = screenW < 600;
+
     return Scaffold(
       backgroundColor: const Color(0xFF080A0F),
       body: Stack(
@@ -158,7 +163,12 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
               // Top Header Bar
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 48, 24, 16),
+                  padding: EdgeInsets.fromLTRB(
+                    isMobile ? 16 : 24,
+                    topInset + 12,
+                    isMobile ? 16 : 24,
+                    12,
+                  ),
                   child: Row(
                     children: [
                       // Back to Home
@@ -197,26 +207,30 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
                       ),
                       const SizedBox(width: 14),
                       // Title
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Audiobooks',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Audiobooks',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
                             ),
-                          ),
-                          Text(
-                            'Listen to thousands of free stories & books',
-                            style: TextStyle(
-                              color: Colors.white.withOpacity(0.6),
-                              fontSize: 12,
+                            Text(
+                              'Listen to thousands of free stories & books',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.6),
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -226,7 +240,7 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
               // Search Bar
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                  padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: 8),
                   child: Container(
                     decoration: BoxDecoration(
                       color: const Color(0xFF12151E).withValues(alpha: 0.8),
@@ -304,13 +318,18 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
                 )
               else
                 SliverPadding(
-                  padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+                  padding: EdgeInsets.fromLTRB(
+                    isMobile ? 16 : 24,
+                    8,
+                    isMobile ? 16 : 24,
+                    32 + bottomInset,
+                  ),
                   sliver: SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                      maxCrossAxisExtent: 180,
-                      childAspectRatio: 0.62,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
+                    gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                      maxCrossAxisExtent: isMobile ? 150 : 180,
+                      childAspectRatio: 0.60,
+                      crossAxisSpacing: isMobile ? 12 : 16,
+                      mainAxisSpacing: isMobile ? 12 : 16,
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
@@ -335,8 +354,16 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
   }
 
   Widget _buildContinueListeningSection() {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isMobile = screenW < 600;
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 12),
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : 24,
+        16,
+        isMobile ? 16 : 24,
+        12,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

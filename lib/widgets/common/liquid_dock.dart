@@ -116,22 +116,34 @@ class _LiquidDockState extends State<LiquidDock> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.sizeOf(context).width;
-    final effectiveMaxWidth = math.min(widget.maxWidth, screenWidth * 0.88);
+    final isMobile = screenWidth < 600;
+    final effectiveMaxWidth = math.min(
+      widget.maxWidth,
+      isMobile ? screenWidth * 0.94 : screenWidth * 0.88,
+    );
     final itemExtent = widget.baseItemSize + 10;
     final contentWidth = widget.items.length * itemExtent + 32;
     final needsScrolling = contentWidth > effectiveMaxWidth;
+    final scrollAreaWidth = needsScrolling
+        ? math.max(60.0, effectiveMaxWidth - 68.0)
+        : contentWidth;
 
     final dockContent = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         if (needsScrolling)
-          IconButton(
-            icon: const Icon(Icons.chevron_left_rounded, color: Colors.white70),
-            onPressed: () => _scrollBy(-200),
+          SizedBox(
+            width: 30,
+            height: 44,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              icon: const Icon(Icons.chevron_left_rounded, color: Colors.white70, size: 20),
+              onPressed: () => _scrollBy(-180),
+            ),
           ),
         ConstrainedBox(
           constraints: BoxConstraints(
-            maxWidth: needsScrolling ? effectiveMaxWidth : contentWidth,
+            maxWidth: scrollAreaWidth,
           ),
           child: ScrollConfiguration(
             behavior: const MaterialScrollBehavior().copyWith(
@@ -141,17 +153,17 @@ class _LiquidDockState extends State<LiquidDock> {
             child: SingleChildScrollView(
               controller: _scrollController,
               scrollDirection: Axis.horizontal,
-              physics: const ClampingScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              physics: const BouncingScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: List.generate(widget.items.length, (index) {
                   double proximity = 0;
                   if (_dockHovered && _mouseX != null) {
-                    final arrowOffset = needsScrolling ? 48.0 : 0.0;
+                    final arrowOffset = needsScrolling ? 30.0 : 0.0;
                     final center =
                         arrowOffset +
-                        16 +
+                        8 +
                         index * itemExtent +
                         itemExtent / 2 -
                         (_scrollController.hasClients
@@ -167,11 +179,11 @@ class _LiquidDockState extends State<LiquidDock> {
                   }
 
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 5),
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: _DockItemWidget(
                       item: widget.items[index],
-                      size: widget.baseItemSize,
-                      hoverSize: widget.maxItemSize,
+                      size: isMobile ? math.min(widget.baseItemSize, 42.0) : widget.baseItemSize,
+                      hoverSize: isMobile ? math.min(widget.maxItemSize, 56.0) : widget.maxItemSize,
                       proximity: proximity,
                     ),
                   );
@@ -181,12 +193,18 @@ class _LiquidDockState extends State<LiquidDock> {
           ),
         ),
         if (needsScrolling)
-          IconButton(
-            icon: const Icon(
-              Icons.chevron_right_rounded,
-              color: Colors.white70,
+          SizedBox(
+            width: 30,
+            height: 44,
+            child: IconButton(
+              padding: EdgeInsets.zero,
+              icon: const Icon(
+                Icons.chevron_right_rounded,
+                color: Colors.white70,
+                size: 20,
+              ),
+              onPressed: () => _scrollBy(180),
             ),
-            onPressed: () => _scrollBy(200),
           ),
       ],
     );

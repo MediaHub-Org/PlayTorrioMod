@@ -25,8 +25,6 @@ import '../iptv/iptv_page.dart';
 import '../my_list/my_list_page.dart';
 
 import '../../widgets/common/liquid_dock.dart';
-import '../../services/app_updater_service.dart';
-import '../../widgets/update_dialog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -40,7 +38,7 @@ class _HomePageState extends State<HomePage> {
   final ScrollController _scrollController = ScrollController();
 
   bool _loading = true;
-  List<MovieSection> _sections = [];
+  final List<MovieSection> _sections = [];
   String? _error;
 
   List<Movie> _featuredMovies = [];
@@ -198,7 +196,7 @@ class _HomePageState extends State<HomePage> {
                   return _HeroCarousel(movies: _featuredMovies);
                 }
                 if (index == _sections.length + 1) {
-                  return const SizedBox(height: 50);
+                  return SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom);
                 }
                 return MovieSliderSection(section: _sections[index - 1]);
               },
@@ -220,6 +218,7 @@ class _HomePageState extends State<HomePage> {
     double topPadding,
     BuildContext context,
   ) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
     final overlayChildren = <Widget>[
       // ── Floating glass app bar ──
       Positioned(
@@ -243,7 +242,7 @@ class _HomePageState extends State<HomePage> {
 
       // ── Liquid Dock Navbar ──
       Positioned(
-        bottom: 24,
+        bottom: 12.0 + bottomInset,
         left: 0,
         right: 0,
         child: Center(
@@ -478,10 +477,10 @@ class _GlassAppBar extends StatelessWidget {
           right: 8,
         ),
         decoration: BoxDecoration(
-          gradient: LinearGradient(
+          gradient: const LinearGradient(
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
-            colors: const [Color(0xF5080A0F), Color(0xE6080A0F)],
+            colors: [Color(0xF5080A0F), Color(0xE6080A0F)],
           ),
           border: Border(
             bottom: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
@@ -518,9 +517,7 @@ class _GlassAppBar extends StatelessWidget {
                   ),
                   onPressed: () {
                     final box = context.findRenderObject() as RenderBox?;
-                    final offset = box != null
-                        ? box.localToGlobal(box.size.center(Offset.zero))
-                        : null;
+                    final offset = box?.localToGlobal(box.size.center(Offset.zero));
                     onSearchTap(offset);
                   },
                 );
@@ -537,9 +534,7 @@ class _GlassAppBar extends StatelessWidget {
                   ),
                   onPressed: () {
                     final box = context.findRenderObject() as RenderBox?;
-                    final offset = box != null
-                        ? box.localToGlobal(box.size.center(Offset.zero))
-                        : null;
+                    final offset = box?.localToGlobal(box.size.center(Offset.zero));
                     onSettingsTap(offset);
                   },
                 );
@@ -848,9 +843,7 @@ class _HeroSlide extends StatelessWidget {
 
   void _openDetails(BuildContext context) {
     final box = context.findRenderObject() as RenderBox?;
-    final offset = box != null
-        ? box.localToGlobal(box.size.center(Offset.zero))
-        : null;
+    final offset = box?.localToGlobal(box.size.center(Offset.zero));
     Navigator.push(
       context,
       LiquidRevealRoute(
@@ -1106,9 +1099,9 @@ class _HeroSlide extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF7C5CFF),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 28,
-                            vertical: 16,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isCompact ? 18 : 28,
+                            vertical: isCompact ? 12 : 16,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
@@ -1121,28 +1114,28 @@ class _HeroSlide extends StatelessWidget {
                       );
                     },
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: isCompact ? 8 : 12),
                   Builder(
                     builder: (context) {
                       return OutlinedButton.icon(
                         onPressed: () => _openDetails(context),
                         icon: Icon(
                           Icons.info_outline_rounded,
-                          size: 21,
+                          size: isCompact ? 18 : 21,
                           color: Colors.white.withValues(alpha: 0.80),
                         ),
                         label: Text(
                           'Details',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 15.5,
+                            fontSize: isCompact ? 14 : 15.5,
                             color: Colors.white.withValues(alpha: 0.80),
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 16,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isCompact ? 16 : 24,
+                            vertical: isCompact ? 12 : 16,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),

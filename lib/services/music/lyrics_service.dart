@@ -37,9 +37,7 @@ class LyricsService {
       );
 
       // 3. Fallback to LRCLIB search
-      if (result == null) {
-        result = await _searchLrcLib(track.id, '$cleanArtist $cleanTitle');
-      }
+      result ??= await _searchLrcLib(track.id, '$cleanArtist $cleanTitle');
 
       if (result != null) {
         _cache[track.id] = result;
