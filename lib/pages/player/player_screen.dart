@@ -209,7 +209,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           widget.episode?.id ?? widget.detail!.id,
         );
         if (historyItem != null && historyItem.position.inSeconds > 10) {
-          _controller!.seekTo(historyItem.position);
+          await _controller!.seekTo(historyItem.position);
         }
       }
 

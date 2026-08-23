@@ -161,16 +161,9 @@ class _HubPageState extends State<HubPage> {
                 bottom: isDesktop ? 16 : 76,
                 left: 12,
                 right: 12,
-                child: ListenableBuilder(
-                  listenable: HubController.instance,
-                  builder: (context, _) {
-                    // The play bar only applies to the Listen hub.
-                    if (HubController.instance.currentHub != AppHub.music) {
-                      return const SizedBox.shrink();
-                    }
-                    return const UniversalPlayBar();
-                  },
-                ),
+                // UniversalPlayBar hides itself when nothing is playing, so
+                // it stays visible across every hub, not just Listen.
+                child: const UniversalPlayBar(),
               ),
             // Intro Splash Screen
             Positioned.fill(child: _buildIntroOverlay(context)),
