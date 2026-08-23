@@ -39,10 +39,7 @@ dependencies:
   cached_network_image: ^3.4.1
   shared_preferences: ^2.3.3
   url_launcher: ^6.3.2
-  libtorrent_flutter:
-    git:
-      url: https://github.com/RyanYuuki/AnymeXExtensionRuntimeBridge.git
-      path: packages/libtorrent_flutter
+  torrserver_flutter: ^0.0.3
   fvp: ^0.37.3
   video_player: ^2.11.1
   archive: ^4.0.9

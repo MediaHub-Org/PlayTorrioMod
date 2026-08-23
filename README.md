@@ -958,10 +958,10 @@ PlayTorrioV3/
 | Package | Version | Purpose |
 |:--------|:--------|:--------|
 | `flutter` | SDK | Core Flutter framework |
-| `libtorrent_flutter` | ^1.8.4 | Native BitTorrent client bindings |
+| `torrserver_flutter` | ^0.0.1 | Embedded TorrServer engine & HTTP streaming client |
 | `fvp` | ^0.37.3 | FFmpeg-based video player with broad codec support |
 | `video_player` | ^2.11.1 | Standard video playback widget |
-| `liquid_glass_easy` | ^3.4.0 | GPU-accelerated glassmorphism shader effects |
+| `liquid_glass_easy` | ^4.1.1 | GPU-accelerated glassmorphism shader effects |
 | `cached_network_image` | ^3.4.1 | Image caching with placeholder and error states |
 | `http` | ^1.2.2 | HTTP client for all API and scraper requests |
 | `html` | ^0.15.5 | Server-side DOM parsing for web scrapers |

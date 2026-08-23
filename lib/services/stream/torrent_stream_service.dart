@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:libtorrent_flutter/libtorrent_flutter.dart';
+import 'package:torrserver_flutter/torrserver_flutter.dart';
 
 import '../../utils/parse_torrent_title.dart';
 
@@ -37,53 +37,67 @@ class TorrentStats {
 /// Engine lifecycle states.
 enum EngineState { stopped, starting, ready, error }
 
-/// Drop-in replacement for TorrServerService using libtorrent_flutter.
+/// Production-grade TorrentStreamService powered by torrserver_flutter.
 ///
-/// Same public API:
-///   start(), streamTorrent(), removeTorrent(), getTorrentStats(),
-///   statsStream(), stop(), cleanup()
+/// Provides high performance HTTP streaming with automatic free-port allocation,
+/// cross-platform subprocess / FFI management, intelligent file selection
+/// (via ParseTorrentTitle), and real-time swarm statistics.
 class TorrentStreamService {
   // ── Singleton ──────────────────────────────────────────────────────────────
   static final TorrentStreamService _instance = TorrentStreamService._internal();
   factory TorrentStreamService() => _instance;
   TorrentStreamService._internal();
 
-  // ── State ──────────────────────────────────────────────────────────────────
+  // ── Controller & State ─────────────────────────────────────────────────────
+  final TorrServerController _controller = createTorrServerController();
+  TorrServerController get controller => _controller;
+
   EngineState _state = EngineState.stopped;
   EngineState get state => _state;
 
   void Function(EngineState state)? onStateChanged;
   void Function(String line)? onLogLine;
 
-  /// Active torrent IDs keyed by info-hash for cleanup.
-  final Map<String, int> _activeTorrents = {};
+  /// Active torrent hashes tracked by the service.
+  final Set<String> _activeTorrents = {};
 
-  /// Active stream IDs keyed by info-hash for cleanup.
-  final Map<String, int> _activeStreams = {};
+  /// Latest torrent update snapshots keyed by infohash.
+  final Map<String, TorrentInfo> _latestUpdates = {};
 
-  /// Track disposed torrent/stream IDs to prevent double-dispose native crash.
-  final Set<int> _disposedTorrentIds = {};
-  final Set<int> _disposedStreamIds = {};
+  final ParseTorrentTitle _ptt = ParseTorrentTitle();
 
-  StreamSubscription? _torrentUpdatesSub;
-
-  /// Latest torrent update snapshots keyed by torrent ID.
-  final Map<int, TorrentInfo> _latestUpdates = {};
-
-
+  /// Optimal high-speed streaming settings for TorrServer.
+  static const TorrServerSettings fastestSettings = TorrServerSettings(
+    cacheSize: 200 * 1024 * 1024, // 200 MB sliding RAM cache
+    readerReadAHead: 95, // 95% aggressive pre-buffer ahead of playhead
+    preloadCache: 15, // 15% quick start (starts playback in 1-3 seconds)
+    useDisk: false, // RAM-only streaming (zero disk I/O / flash wear)
+    removeCacheOnDrop: true, // Free RAM immediately when closing stream
+    connectionsLimit: 60, // Optimal peer connections for high throughput without router choking
+    downloadRateLimit: 0, // 0 = Unlimited max download speed
+    uploadRateLimit: 100, // 100 KB/s cap protects downstream TCP ACK bandwidth
+    disableDHT: false, // DHT enabled for trackerless discovery
+    disablePEX: false, // Peer Exchange enabled for fast swarm expansion
+    disableUTP: false, // uTP enabled for latency/ISP resilience
+    disableTCP: false, // TCP enabled
+    disableUPNP: false, // UPnP enabled for automatic port forwarding
+    enableLPD: true, // Local Peer Discovery enabled
+    retrackersMode: 1, // Add public retrackers automatically
+    torrentDisconnectTimeout: 20, // Quick disconnect of stale peers
+    responsiveMode: true, // Prioritize instant playback responsiveness
+  );
 
   // ─────────────────────────────────────────────────────────────────────────
   // Lifecycle
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// Initialises the libtorrent engine. Safe to call multiple times.
+  /// Starts the TorrServer engine. Safe to call multiple times.
   Future<bool> start() async {
-    if (_state == EngineState.ready) return true;
+    if (_controller.isRunning && _state == EngineState.ready) return true;
     if (_state == EngineState.starting) {
-      // Wait for init to finish
-      for (int i = 0; i < 50; i++) {
+      for (int i = 0; i < 60; i++) {
         await Future.delayed(const Duration(milliseconds: 100));
-        if (_state == EngineState.ready) return true;
+        if (_controller.isRunning && _state == EngineState.ready) return true;
         if (_state == EngineState.error) return false;
       }
       return false;
@@ -91,40 +105,23 @@ class TorrentStreamService {
 
     _setState(EngineState.starting);
     try {
-      await LibtorrentFlutter.init(
-        fetchTrackers: true,
-        pollInterval: const Duration(milliseconds: 200),
-      );
-
+      _log('Starting TorrServer engine with fastest streaming settings...');
+      await _controller.start(settings: fastestSettings);
+      final version = await _controller.echo();
       try {
-        final engine = LibtorrentFlutter.instance;
-        final connLimit = 200;
-        engine.configureSession(engine.getDefaultConfig().copyWith(
-          connectionsLimit: connLimit,
-          forceEncrypt: false,
-          disableDht: false,
-          downloadRateLimit: 0,
-          uploadRateLimit: 0,
-        ));
-        _log('Session configured: conns=$connLimit');
+        await _controller.setSettings(fastestSettings);
       } catch (e) {
-        _log('configureSession failed (non-fatal): $e');
+        _log('setSettings non-fatal: $e');
       }
-
-      _torrentUpdatesSub = LibtorrentFlutter.instance.torrentUpdates.listen((updates) {
-        _latestUpdates.addAll(updates);
-      });
       _setState(EngineState.ready);
-      _log('Engine ready (libtorrent_flutter)');
+      _log('TorrServer ready at ${_controller.baseUrl} (version: $version, cache: 200MB RAM, preload: 15%)');
       return true;
     } catch (e, st) {
-      _log('Failed to start engine: $e\n$st');
+      _log('Failed to start TorrServer: $e\n$st');
       _setState(EngineState.error);
       return false;
     }
   }
-
-
 
   // ─────────────────────────────────────────────────────────────────────────
   // Stream a torrent — main entry point
@@ -132,94 +129,78 @@ class TorrentStreamService {
 
   /// Adds a magnet, waits for metadata, selects the right file, starts an
   /// HTTP stream, and returns the stream URL.
-  ///
-  /// Matches the old TorrServerService.streamTorrent() signature exactly.
   Future<String?> streamTorrent(
     String magnetLink, {
     int? season,
     int? episode,
     int? fileIdx,
   }) async {
-    if (_state != EngineState.ready) {
+    if (!_controller.isRunning || _state != EngineState.ready) {
       final started = await start();
       if (!started) {
-        _log('Cannot stream: engine failed to start.');
+        _log('Cannot stream: TorrServer engine failed to start.');
         return null;
       }
     }
 
-    final hash = _extractHash(magnetLink);
+    final rawHash = _extractHash(magnetLink);
+    final formattedMagnet = (rawHash != null && !magnetLink.startsWith('magnet:?'))
+        ? 'magnet:?xt=urn:btih:$rawHash'
+        : magnetLink;
 
-    // Dispose previous torrent with same hash if any
-    if (hash != null && _activeTorrents.containsKey(hash)) {
-      try {
-        final oldId = _activeTorrents[hash]!;
-        if (_activeStreams.containsKey(hash)) {
-          _safeStopStream(_activeStreams[hash]!);
-          _activeStreams.remove(hash);
-        }
-        _safeDisposeTorrent(oldId);
-        _activeTorrents.remove(hash);
-      } catch (e) {
-        _log('Cleanup old torrent error: $e');
-      }
-    }
+    final displayName = _extractDisplayName(formattedMagnet);
 
     try {
-      // Step 1: Read cache settings
-      final cacheType = 'ram';
-      final ramCacheMb = 256;
-      final saveToRam = cacheType == 'ram';
-
-      // Step 2: Add the magnet
-      final torrentId = LibtorrentFlutter.instance.addMagnet(magnetLink, null, saveToRam);
-      if (hash != null) {
-        _activeTorrents[hash] = torrentId;
-      }
-      _log('Added magnet, torrentId=$torrentId');
-
-      // Step 3: Wait for metadata
-      final files = await _waitForMetadata(torrentId);
-      if (files == null || files.isEmpty) {
-        _log('No files found in torrent');
-        return null;
-      }
-
-      // Step 4: Select the right file
-      final selectedIndex = _selectFile(files, season: season, episode: episode, preferredIdx: fileIdx);
-      if (selectedIndex == null) {
-        _log('No suitable video file found');
-        return null;
-      }
-
-      _log('Selected file index $selectedIndex: ${files.firstWhere((f) => f.index == selectedIndex).name}');
-
-      // Step 5: Start the stream.
-      // maxCacheBytes controls the sliding RAM window — pass the user's
-      // configured value when using RAM cache, otherwise let the engine
-      // use its default (0 = engine default ~128MB).
-      final maxCacheBytes = saveToRam ? (ramCacheMb * 1024 * 1024) : 0;
-      final streamInfo = LibtorrentFlutter.instance.startStream(
-        torrentId,
-        fileIndex: selectedIndex,
-        maxCacheBytes: maxCacheBytes,
+      _log('Adding torrent to TorrServer...');
+      final added = await _controller.addTorrent(
+        magnet: formattedMagnet,
+        title: displayName.isNotEmpty ? displayName : null,
+        saveToDb: false,
       );
 
-      if (hash != null) {
-        _activeStreams[hash] = streamInfo.id;
+      final hash = added.hash.isNotEmpty
+          ? added.hash.toLowerCase()
+          : (rawHash ?? '').toLowerCase();
+
+      if (hash.isNotEmpty) {
+        _activeTorrents.add(hash);
+        _latestUpdates[hash] = added;
       }
 
-      // Preload initial stream pieces for immediate playback start
-      try {
-        LibtorrentFlutter.instance.preloadStream(streamInfo.id);
-      } catch (e) {
-        _log('preloadStream error (non-fatal): $e');
+      _log('Torrent added: $hash ($displayName). Waiting for metadata...');
+
+      // Wait for torrent metadata / file list
+      final files = await _waitForMetadata(hash);
+      if (files == null || files.isEmpty) {
+        _log('No files found in torrent metadata');
+        return null;
       }
 
-      _log('Stream started: ${streamInfo.url}');
-      return streamInfo.url;
-    } catch (e) {
-      _log('streamTorrent error: $e');
+      // Auto file picker
+      final selectedFileId = _selectFile(
+        files,
+        season: season,
+        episode: episode,
+        preferredIdx: fileIdx,
+      );
+
+      if (selectedFileId == null) {
+        _log('No suitable media file found in torrent');
+        return null;
+      }
+
+      final selectedFile = files.firstWhere(
+        (f) => f.id == selectedFileId,
+        orElse: () => files.first,
+      );
+      _log('Selected file #${selectedFile.id}: "${selectedFile.path}" (${_formatBytes(selectedFile.length)})');
+
+      final streamUri = _controller.streamUrl(hash, fileIndex: selectedFile.id);
+      _log('HTTP Stream URL generated: $streamUri');
+
+      return streamUri.toString();
+    } catch (e, st) {
+      _log('streamTorrent error: $e\n$st');
       return null;
     }
   }
@@ -228,50 +209,32 @@ class TorrentStreamService {
   // Metadata polling
   // ─────────────────────────────────────────────────────────────────────────
 
-  Future<List<FileInfo>?> _waitForMetadata(int torrentId, {Duration timeout = const Duration(seconds: 30)}) async {
-    final completer = Completer<List<FileInfo>?>();
-    StreamSubscription? sub;
+  Future<List<TorrentFileStat>?> _waitForMetadata(
+    String hash, {
+    Duration timeout = const Duration(seconds: 45),
+    Duration pollInterval = const Duration(milliseconds: 300),
+  }) async {
+    final stopwatch = Stopwatch()..start();
 
-    final timer = Timer(timeout, () {
-      if (!completer.isCompleted) {
-        _log('Metadata timeout after ${timeout.inSeconds}s');
-        sub?.cancel();
-        completer.complete(null);
-      }
-    });
-
-    sub = LibtorrentFlutter.instance.torrentUpdates.listen((updates) {
-      if (completer.isCompleted) return;
-      if (updates.containsKey(torrentId)) {
-        final info = updates[torrentId]!;
-        if (info.hasMetadata) {
-          timer.cancel();
-          sub?.cancel();
-          final files = LibtorrentFlutter.instance.getFiles(torrentId);
-          completer.complete(files);
+    while (stopwatch.elapsed < timeout) {
+      try {
+        final info = await _controller.getTorrent(hash);
+        _latestUpdates[hash] = info;
+        if (info.fileStats.isNotEmpty) {
+          return info.fileStats;
         }
+      } catch (e) {
+        _log('Polling metadata error: $e');
       }
-    });
-
-    // Also check if metadata is already available
-    try {
-      final files = LibtorrentFlutter.instance.getFiles(torrentId);
-      if (files.isNotEmpty) {
-        timer.cancel();
-        sub.cancel();
-        if (!completer.isCompleted) {
-          completer.complete(files);
-        }
-      }
-    } catch (_) {
-      // Not ready yet, wait for updates
+      await Future.delayed(pollInterval);
     }
 
-    return completer.future;
+    _log('Metadata timeout after ${timeout.inSeconds}s for hash $hash');
+    return null;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // File selection — same logic as old TorrServerService
+  // File selection — intelligent auto file picker
   // ─────────────────────────────────────────────────────────────────────────
 
   bool _isMediaFile(String name) {
@@ -293,8 +256,6 @@ class TorrentStreamService {
         lower.endsWith('.wav');
   }
 
-  final _ptt = ParseTorrentTitle();
-
   bool _isFileMatch(String name, int targetSeason, int targetEpisode) {
     final result = _ptt.parse(name);
     final parsedSeason = result['season'] as int?;
@@ -303,7 +264,7 @@ class TorrentStreamService {
     if (parsedSeason != null && parsedEpisode != null) {
       return parsedSeason == targetSeason && parsedEpisode == targetEpisode;
     }
-    
+
     // If season is missing but episode matches (common for anime and single-season packs)
     if (parsedSeason == null && parsedEpisode != null) {
       return parsedEpisode == targetEpisode;
@@ -312,91 +273,87 @@ class TorrentStreamService {
     return false;
   }
 
-  int? _selectFile(List<FileInfo> files, {int? season, int? episode, int? preferredIdx}) {
+  int? _selectFile(
+    List<TorrentFileStat> files, {
+    int? season,
+    int? episode,
+    int? preferredIdx,
+  }) {
+    if (files.isEmpty) return null;
+
     // 1. Preferred index from caller (e.g. Audiobook chapter index)
     if (preferredIdx != null) {
-      final match = files.where((f) => f.index == preferredIdx).toList();
+      final match = files.where((f) => f.id == preferredIdx).toList();
       if (match.isNotEmpty) {
-        return match.first.index;
+        return match.first.id;
       }
     }
 
-    // Filter to streamable media files (video + audio)
-    final mediaFiles = files.where((f) => f.isStreamable && _isMediaFile(f.name)).toList();
+    // Filter to media files (video + audio)
+    final mediaFiles = files.where((f) => _isMediaFile(f.path)).toList();
     if (mediaFiles.isEmpty) {
-      // Fallback: any streamable file
-      final streamable = files.where((f) => f.isStreamable).toList();
-      if (streamable.isEmpty) return null;
-      streamable.sort((a, b) => b.size.compareTo(a.size));
-      return streamable.first.index;
+      // Fallback: largest file among all
+      final sorted = List<TorrentFileStat>.from(files)
+        ..sort((a, b) => b.length.compareTo(a.length));
+      return sorted.first.id;
     }
 
     // 2. Season/episode match
     if (season != null && episode != null) {
       final episodeMatches = mediaFiles
-          .where((f) => _isFileMatch(f.name, season, episode))
+          .where((f) => _isFileMatch(f.path, season, episode))
           .toList();
       if (episodeMatches.isNotEmpty) {
-        episodeMatches.sort((a, b) => b.size.compareTo(a.size));
-        return episodeMatches.first.index;
+        episodeMatches.sort((a, b) => b.length.compareTo(a.length));
+        return episodeMatches.first.id;
       }
     }
 
     // 3. Largest media file
-    mediaFiles.sort((a, b) => b.size.compareTo(a.size));
-    return mediaFiles.first.index;
+    final sorted = List<TorrentFileStat>.from(mediaFiles)
+      ..sort((a, b) => b.length.compareTo(a.length));
+    return sorted.first.id;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // Torrent management
+  // Torrent management & Statistics
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// Removes/disposes a torrent and stops its streams.
-  void removeTorrent(String magnetOrHash) {
-    final hash = _extractHash(magnetOrHash);
-    final key = hash ?? magnetOrHash;
-
-    // Stop stream
-    if (_activeStreams.containsKey(key)) {
-      _safeStopStream(_activeStreams[key]!);
-      _activeStreams.remove(key);
-    }
-
-    // Dispose torrent
-    if (_activeTorrents.containsKey(key)) {
-      final torrentId = _activeTorrents[key]!;
-      _safeDisposeTorrent(torrentId);
-      _activeTorrents.remove(key);
-      _latestUpdates.remove(torrentId);
-      _log('Removed torrent $key');
+  /// Removes a torrent from TorrServer.
+  Future<void> removeTorrent(String magnetOrHash) async {
+    final hash = _extractHash(magnetOrHash) ?? magnetOrHash.toLowerCase();
+    _activeTorrents.remove(hash);
+    _latestUpdates.remove(hash);
+    if (_controller.isRunning) {
+      try {
+        await _controller.removeTorrent(hash);
+        _log('Removed torrent $hash from TorrServer');
+      } catch (e) {
+        _log('Error removing torrent $hash: $e');
+      }
     }
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // Statistics
-  // ─────────────────────────────────────────────────────────────────────────
-
-  /// Returns stats for a torrent, or null if unavailable.
+  /// Returns latest cached or live stats for a torrent.
   TorrentStats? getTorrentStats(String magnetOrHash) {
-    final hash = _extractHash(magnetOrHash);
-    final key = hash ?? magnetOrHash;
-    final torrentId = _activeTorrents[key];
-    if (torrentId == null) return null;
-
-    final info = _latestUpdates[torrentId];
+    final hash = _extractHash(magnetOrHash) ?? magnetOrHash.toLowerCase();
+    final info = _latestUpdates[hash];
     if (info == null) return null;
 
-    final speedMbps = info.downloadRate / 1024 / 1024;
+    final speedMbps = info.downloadSpeed / 1024 / 1024;
+    final total = info.torrentSize;
+    final loaded = info.loadedSize;
+    final percent = total > 0 ? (loaded / total) * 100 : 0.0;
 
     return TorrentStats(
       speedMbps: speedMbps,
-      activePeers: info.numPeers,
-      totalPeers: info.numPeers,
-      cachePercent: info.progress * 100,
-      loadedBytes: info.totalDone,
-      totalBytes: info.totalWanted,
-      hash: key,
-      isConnected: info.numPeers > 0,
+      activePeers: info.activePeers,
+      totalPeers: info.totalPeers,
+      cachePercent: percent,
+      loadedBytes: loaded,
+      totalBytes: total,
+      hash: hash,
+      isConnected: info.activePeers > 0 || info.downloadSpeed > 0,
     );
   }
 
@@ -405,86 +362,96 @@ class TorrentStreamService {
     String magnetOrHash, {
     Duration interval = const Duration(seconds: 1),
   }) {
-    final controller = StreamController<TorrentStats>();
+    final hash = _extractHash(magnetOrHash) ?? magnetOrHash.toLowerCase();
+    final streamController = StreamController<TorrentStats>();
     Timer? timer;
 
-    controller.onListen = () {
-      timer = Timer.periodic(interval, (_) {
-        final stats = getTorrentStats(magnetOrHash);
-        if (stats != null && !controller.isClosed) {
-          controller.add(stats);
-        }
+    streamController.onListen = () {
+      timer = Timer.periodic(interval, (_) async {
+        if (!_controller.isRunning || streamController.isClosed) return;
+        try {
+          final info = await _controller.getTorrent(hash);
+          _latestUpdates[hash] = info;
+          final stats = getTorrentStats(hash);
+          if (stats != null && !streamController.isClosed) {
+            streamController.add(stats);
+          }
+        } catch (_) {}
       });
     };
 
-    controller.onCancel = () {
+    streamController.onCancel = () {
       timer?.cancel();
-      controller.close();
+      streamController.close();
     };
 
-    return controller.stream;
+    return streamController.stream;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Stop / cleanup
   // ─────────────────────────────────────────────────────────────────────────
 
-  Future<void> stop() async {
-    for (final streamId in _activeStreams.values) {
-      _safeStopStream(streamId);
-    }
-    _activeStreams.clear();
-
-    for (final torrentId in _activeTorrents.values) {
-      _safeDisposeTorrent(torrentId);
+  /// Drops active torrents from RAM to free resources when closing player.
+  Future<void> cleanup() async {
+    for (final hash in List<String>.from(_activeTorrents)) {
+      try {
+        if (_controller.isRunning) {
+          await _controller.dropTorrent(hash);
+        }
+      } catch (_) {}
     }
     _activeTorrents.clear();
     _latestUpdates.clear();
-
-    _log('All torrents stopped.');
+    _log('TorrentStreamService cleanup completed.');
   }
 
-  Future<void> cleanup() async {
-    await stop();
-    _torrentUpdatesSub?.cancel();
-    _torrentUpdatesSub = null;
-    _disposedTorrentIds.clear();
-    _disposedStreamIds.clear();
+  /// Completely stops the TorrServer engine process.
+  Future<void> stop() async {
+    if (_controller.isRunning) {
+      try {
+        await _controller.stop();
+        _log('TorrServer stopped.');
+      } catch (e) {
+        _log('Error stopping TorrServer: $e');
+      }
+    }
+    _activeTorrents.clear();
+    _latestUpdates.clear();
     _setState(EngineState.stopped);
-    _log('Engine cleaned up.');
   }
 
   // ─────────────────────────────────────────────────────────────────────────
   // Helpers
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// Safely stop a stream, preventing double-stop native crash.
-  void _safeStopStream(int streamId) {
-    if (_disposedStreamIds.contains(streamId)) return;
-    _disposedStreamIds.add(streamId);
-    try {
-      LibtorrentFlutter.instance.stopStream(streamId);
-    } catch (e) {
-      _log('Stop stream error: $e');
-    }
-  }
-
-  /// Safely dispose a torrent, preventing double-dispose native crash.
-  void _safeDisposeTorrent(int torrentId) {
-    if (_disposedTorrentIds.contains(torrentId)) return;
-    _disposedTorrentIds.add(torrentId);
-    try {
-      LibtorrentFlutter.instance.disposeTorrent(torrentId);
-    } catch (e) {
-      _log('Dispose torrent error: $e');
-    }
-  }
-
   static final _hashRegExp = RegExp(r'[0-9a-fA-F]{40}');
 
   String? _extractHash(String magnetOrHash) {
     final match = _hashRegExp.firstMatch(magnetOrHash);
     return match?.group(0)?.toLowerCase();
+  }
+
+  String _extractDisplayName(String magnet) {
+    try {
+      final match = RegExp(r'[?&]dn=([^&]+)').firstMatch(magnet);
+      if (match != null && match.group(1) != null) {
+        return Uri.decodeComponent(match.group(1)!.replaceAll('+', ' '));
+      }
+    } catch (_) {}
+    return '';
+  }
+
+  String _formatBytes(num bytes) {
+    if (bytes <= 0) return '0 B';
+    const suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    int i = 0;
+    double count = bytes.toDouble();
+    while (count >= 1024 && i < suffixes.length - 1) {
+      count /= 1024;
+      i++;
+    }
+    return '${count.toStringAsFixed(i == 0 ? 0 : 2)} ${suffixes[i]}';
   }
 
   void _setState(EngineState s) {
