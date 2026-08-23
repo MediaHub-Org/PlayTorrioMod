@@ -48,12 +48,12 @@ class TopBar extends StatelessWidget {
               return Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  for (final h in _hubs) _hubPill(context, h, current),
+                  for (final h in _hubs) _hubTab(context, h, current),
                 ],
               );
             },
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 20),
           if (onSettingsTap != null)
             _settingsButton(onTap: onSettingsTap!),
         ],
@@ -73,45 +73,50 @@ class TopBar extends StatelessWidget {
     );
   }
 
-  Widget _hubPill(
+  /// A top-level "you are here" tab: label + icon with an animated underline,
+  /// no fill or border — sits visually above the section chip bar beneath it.
+  Widget _hubTab(
     BuildContext context,
     ({AppHub hub, String label, IconData icon}) h,
     AppHub current,
   ) {
     final selected = current == h.hub;
-    final color = selected ? const Color(0xFF7C5CFF) : Colors.white60;
+    final color = selected ? Colors.white : Colors.white54;
     return Padding(
-      padding: const EdgeInsets.only(left: 6),
+      padding: const EdgeInsets.only(left: 22),
       child: InkWell(
         onTap: () => HubController.instance.setHub(h.hub),
-        borderRadius: BorderRadius.circular(10),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: selected
-                ? const Color(0xFF7C5CFF).withValues(alpha: 0.18)
-                : Colors.white.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(10),
-            border: selected
-                ? Border.all(
-                    color: const Color(0xFF7C5CFF).withValues(alpha: 0.4))
-                : null,
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(h.icon, color: color, size: 18),
-              const SizedBox(width: 6),
-              Text(
-                h.label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 13,
-                  fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+        borderRadius: BorderRadius.circular(6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(h.icon, color: color, size: 17),
+                const SizedBox(width: 6),
+                Text(
+                  h.label,
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+                  ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOut,
+              height: 2,
+              width: selected ? 22 : 0,
+              decoration: const BoxDecoration(
+                color: Color(0xFF7C5CFF),
+                borderRadius: BorderRadius.all(Radius.circular(1)),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

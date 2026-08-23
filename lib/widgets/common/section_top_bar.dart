@@ -14,7 +14,7 @@ class SectionTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 56,
+      height: 44,
       decoration: const BoxDecoration(
         color: Color(0xFF0C0E17),
         border: Border(bottom: BorderSide(color: Colors.white10)),
@@ -26,9 +26,9 @@ class SectionTopBar extends StatelessWidget {
           final activeId = HubController.instance.currentSectionId;
           return ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
             itemCount: sections.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, __) => const SizedBox(width: 6),
             itemBuilder: (context, index) {
               final section = sections[index];
               final isSelected = section.id == activeId;
@@ -64,16 +64,21 @@ class _Chip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF7C5CFF).withValues(alpha: 0.2)
-              : Colors.white.withValues(alpha: 0.05),
-          borderRadius: BorderRadius.circular(14),
-          border: selected
-              ? Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.4))
+          color: selected ? const Color(0xFF7C5CFF) : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFF7C5CFF).withValues(alpha: 0.35),
+                    blurRadius: 10,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
               : null,
         ),
         child: Row(
@@ -81,15 +86,15 @@ class _Chip extends StatelessWidget {
           children: [
             Icon(
               icon,
-              color: selected ? const Color(0xFF7C5CFF) : Colors.white60,
-              size: 18,
+              color: selected ? Colors.white : Colors.white38,
+              size: 16,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Text(
               label,
               style: TextStyle(
-                color: selected ? Colors.white : Colors.white70,
-                fontSize: 13,
+                color: selected ? Colors.white : Colors.white54,
+                fontSize: 12,
                 fontWeight: selected ? FontWeight.bold : FontWeight.w500,
               ),
             ),
