@@ -112,13 +112,20 @@ class _HubPageState extends State<HubPage> {
               right: 0,
               child: TopBar(
                 height: _topBarHeight,
-                onSettingsTap: () => Navigator.push(
-                  context,
-                  LiquidRevealRoute(
-                    page: const SettingsPage(),
-                    tapPosition: null,
-                  ),
-                ),
+                onSettingsTap: () async {
+                  await Navigator.push(
+                    context,
+                    LiquidRevealRoute(
+                      page: const SettingsPage(),
+                      tapPosition: null,
+                    ),
+                  );
+                  // Addons may have changed in Settings — drop the cached
+                  // hubs so each rebuilds and refetches on next show.
+                  if (mounted) {
+                    setState(() => _built.fillRange(0, _built.length, null));
+                  }
+                },
               ),
             ),
             // Content box: each hub renders its own left sidebar, so this

@@ -293,8 +293,9 @@ class AddonManager {
       final searchCatalogs = addon.manifest.catalogs
           .where((c) =>
               c.supportsSearch &&
-              (c.type == 'movie' || c.type == 'series' || c.type == 'anime') &&
-              (contentType == null || c.type == contentType))
+              (contentType != null
+                  ? c.type == contentType
+                  : (c.type == 'movie' || c.type == 'series' || c.type == 'anime')))
           .toList();
 
       for (final catalog in searchCatalogs) {

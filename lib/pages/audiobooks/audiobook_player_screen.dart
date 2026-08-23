@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../models/audiobook/audiobook_model.dart';
+import '../../services/audiobook/audiobook_player_controller.dart';
 import '../../services/audiobook/audiobook_progress_service.dart';
 import '../../services/playback_coordinator.dart';
 import '../../services/stream/torrent_stream_service.dart';
@@ -97,6 +98,20 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
 
   Future<void> _initChapter(int index) async {
     if (index < 0 || index >= widget.chapters.length) return;
+
+    // This screen builds its own playback engine for the fullscreen view,
+    // separate from the background AudiobookPlayerController the play bar
+    // drives. If that controller is already playing this same audiobook
+    // (the common "tap the play bar to expand" path), stop it first —
+    // otherwise PlaybackCoordinator.activate() below is a no-op for a
+    // repeated source id, leaving the background engine playing
+    // unsupervised (a second, overlapping audio stream) after this screen
+    // takes over.
+    if (AudiobookPlayerController.instance.hasAudiobook &&
+        AudiobookPlayerController.instance.audiobook?.uuid ==
+            widget.audiobook.uuid) {
+      await AudiobookPlayerController.instance.stop();
+    }
 
     // Ensure only one source plays app-wide: stop any other active source.
     final sourceId = 'audiobook:${widget.audiobook.uuid}:$index';
