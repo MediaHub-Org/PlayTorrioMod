@@ -236,6 +236,28 @@ class _MusicPageState extends State<MusicPage> {
         (HardwareKeyboard.instance.isShiftPressed &&
             key == LogicalKeyboardKey.slash)) {
       setState(() => _showShortcutsModal = !_showShortcutsModal);
+    } else if (key == LogicalKeyboardKey.escape) {
+      if (_isPlayerExpanded) {
+        setState(() => _isPlayerExpanded = false);
+      } else if (_showQueueDrawer) {
+        setState(() => _showQueueDrawer = false);
+      } else if (_showLyricsDrawer) {
+        setState(() => _showLyricsDrawer = false);
+      } else if (_showShortcutsModal) {
+        setState(() => _showShortcutsModal = false);
+      } else if (_activeArtistModal != null ||
+          _activeAlbumModal != null ||
+          _activeCuratedPlaylistModal != null ||
+          _activeUserPlaylistModal != null) {
+        setState(() {
+          _activeArtistModal = null;
+          _activeAlbumModal = null;
+          _activeCuratedPlaylistModal = null;
+          _activeUserPlaylistModal = null;
+        });
+      } else {
+        Navigator.maybePop(context);
+      }
     }
   }
 
@@ -1877,9 +1899,26 @@ class _MusicSidebar extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 16),
             child: Row(
               children: [
+                _MusicHoverable(
+                  scaleFactor: 1.08,
+                  child: IconButton(
+                    tooltip: 'Back to Home (Esc)',
+                    icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.white.withValues(alpha: 0.08),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                      ),
+                      padding: const EdgeInsets.all(10),
+                    ),
+                    onPressed: () => Navigator.maybePop(context),
+                  ),
+                ),
+                const SizedBox(width: 10),
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
@@ -1892,13 +1931,13 @@ class _MusicSidebar extends StatelessWidget {
                     size: 20,
                   ),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: 10),
                 const Text(
                   'MUSIC',
                   style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w900,
-                    fontSize: 20,
+                    fontSize: 18,
                     letterSpacing: 0.5,
                   ),
                 ),
@@ -1906,11 +1945,31 @@ class _MusicSidebar extends StatelessWidget {
             ),
           ),
           const Divider(color: Colors.white10),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+          _sidebarActionItem(
+            'Exit Music',
+            Icons.logout_rounded,
+            () => Navigator.maybePop(context),
+          ),
+          const SizedBox(height: 4),
           _sidebarItem('Home', Icons.home_rounded),
           _sidebarItem('Browse', Icons.explore_rounded),
           _sidebarItem('Radio', Icons.radio_rounded),
           _sidebarItem('Library', Icons.library_music_rounded),
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Text(
+              'AUDIO SOURCE',
+              style: TextStyle(
+                color: Colors.white38,
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ),
+          _sidebarAudioSourceSelector(),
           const Spacer(),
           Padding(
             padding: const EdgeInsets.all(16.0),
@@ -1937,6 +1996,129 @@ class _MusicSidebar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _sidebarAudioSourceSelector() {
+    final player = MusicPlayerController.instance;
+    return ListenableBuilder(
+      listenable: player,
+      builder: (context, _) {
+        final isFlac = player.audioSource == MusicAudioSource.flac;
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          child: Container(
+            padding: const EdgeInsets.all(4),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: InkWell(
+                    onTap: () => player.setAudioSource(MusicAudioSource.flac),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isFlac ? const Color(0xFF00D2EF).withValues(alpha: 0.2) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: isFlac ? Border.all(color: const Color(0xFF00D2EF).withValues(alpha: 0.4)) : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.diamond_rounded, size: 14, color: isFlac ? const Color(0xFF00D2EF) : Colors.white54),
+                          const SizedBox(width: 4),
+                          Text(
+                            'FLAC',
+                            style: TextStyle(
+                              color: isFlac ? Colors.white : Colors.white60,
+                              fontSize: 11,
+                              fontWeight: isFlac ? FontWeight.bold : FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: InkWell(
+                    onTap: () => player.setAudioSource(MusicAudioSource.youtube),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: !isFlac ? const Color(0xFFFF3366).withValues(alpha: 0.2) : Colors.transparent,
+                        borderRadius: BorderRadius.circular(10),
+                        border: !isFlac ? Border.all(color: const Color(0xFFFF3366).withValues(alpha: 0.4)) : null,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.play_circle_fill_rounded, size: 14, color: !isFlac ? const Color(0xFFFF3366) : Colors.white54),
+                          const SizedBox(width: 4),
+                          Text(
+                            'YouTube',
+                            style: TextStyle(
+                              color: !isFlac ? Colors.white : Colors.white60,
+                              fontSize: 11,
+                              fontWeight: !isFlac ? FontWeight.bold : FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _sidebarActionItem(String label, IconData icon, VoidCallback onTap) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: _MusicHoverable(
+        scaleFactor: 1.02,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  icon,
+                  color: const Color(0xFF00D2EF),
+                  size: 20,
+                ),
+                const SizedBox(width: 14),
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -2020,13 +2202,23 @@ class _MusicTopHeader extends StatelessWidget {
         ),
         child: Row(
           children: [
-            if (!isDesktop) ...[
-              IconButton(
-                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
+            _MusicHoverable(
+              scaleFactor: 1.08,
+              child: IconButton(
+                tooltip: 'Back to Home (Esc)',
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+                style: IconButton.styleFrom(
+                  backgroundColor: Colors.white.withValues(alpha: 0.08),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                  ),
+                  padding: const EdgeInsets.all(10),
+                ),
+                onPressed: () => Navigator.maybePop(context),
               ),
-              const SizedBox(width: 8),
-            ],
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Container(
                 height: 44,
@@ -2063,7 +2255,9 @@ class _MusicTopHeader extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: 14),
+            const SizedBox(width: 12),
+            const _AudioSourceSelectorButton(),
+            const SizedBox(width: 8),
             _MusicHoverable(
               scaleFactor: 1.1,
               child: IconButton(
@@ -2072,6 +2266,260 @@ class _MusicTopHeader extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AudioSourceSelectorButton extends StatelessWidget {
+  const _AudioSourceSelectorButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final player = MusicPlayerController.instance;
+
+    return ListenableBuilder(
+      listenable: player,
+      builder: (context, _) {
+        final isFlac = player.audioSource == MusicAudioSource.flac;
+
+        return _MusicHoverable(
+          scaleFactor: 1.05,
+          child: InkWell(
+            onTap: () => _showAudioSourceDialog(context),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: isFlac
+                    ? const Color(0xFF00D2EF).withValues(alpha: 0.12)
+                    : const Color(0xFFFF3366).withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isFlac
+                      ? const Color(0xFF00D2EF).withValues(alpha: 0.4)
+                      : const Color(0xFFFF3366).withValues(alpha: 0.4),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    isFlac ? Icons.diamond_rounded : Icons.play_circle_fill_rounded,
+                    color: isFlac ? const Color(0xFF00D2EF) : const Color(0xFFFF3366),
+                    size: 16,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    isFlac ? 'FLAC' : 'YouTube',
+                    style: TextStyle(
+                      color: isFlac ? const Color(0xFF00D2EF) : const Color(0xFFFF6688),
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    Icons.arrow_drop_down_rounded,
+                    color: isFlac ? const Color(0xFF00D2EF) : const Color(0xFFFF6688),
+                    size: 18,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  static void _showAudioSourceDialog(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final player = MusicPlayerController.instance;
+
+        return ListenableBuilder(
+          listenable: player,
+          builder: (context, _) {
+            final isFlac = player.audioSource == MusicAudioSource.flac;
+
+            return PerformanceLiquidLens(
+              style: PerformanceGlassStyles.sheet,
+              child: Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F111D).withValues(alpha: 0.95),
+                  borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(Icons.tune_rounded, color: Color(0xFF7C5CFF), size: 22),
+                        ),
+                        const SizedBox(width: 14),
+                        const Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Audio Source & Quality',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Choose your preferred music extraction engine',
+                              style: TextStyle(color: Colors.white54, fontSize: 12),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 20),
+                    _sourceOptionCard(
+                      title: 'FLAC Lossless (Qobuz Hi-Res)',
+                      subtitle: 'Studio master quality up to 24-bit/192kHz with zero compression',
+                      icon: Icons.diamond_rounded,
+                      iconColor: const Color(0xFF00D2EF),
+                      isSelected: isFlac,
+                      badge: 'LOSSLESS',
+                      badgeColor: const Color(0xFF00D2EF),
+                      onTap: () {
+                        player.setAudioSource(MusicAudioSource.flac);
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    _sourceOptionCard(
+                      title: 'YouTube Audio',
+                      subtitle: 'High-speed audio extraction with intelligent track & duration matching',
+                      icon: Icons.play_circle_fill_rounded,
+                      iconColor: const Color(0xFFFF3366),
+                      isSelected: !isFlac,
+                      badge: 'FAST',
+                      badgeColor: const Color(0xFFFF3366),
+                      onTap: () {
+                        player.setAudioSource(MusicAudioSource.youtube);
+                        Navigator.pop(ctx);
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  static Widget _sourceOptionCard({
+    required String title,
+    required String subtitle,
+    required IconData icon,
+    required Color iconColor,
+    required bool isSelected,
+    required String badge,
+    required Color badgeColor,
+    required VoidCallback onTap,
+  }) {
+    return _MusicHoverable(
+      scaleFactor: 1.02,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(18),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? iconColor.withValues(alpha: 0.12)
+                : Colors.white.withValues(alpha: 0.04),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: isSelected
+                  ? iconColor.withValues(alpha: 0.5)
+                  : Colors.white.withValues(alpha: 0.08),
+              width: isSelected ? 1.5 : 1.0,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: iconColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: iconColor, size: 24),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 15,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: badgeColor.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+                          ),
+                          child: Text(
+                            badge,
+                            style: TextStyle(
+                              color: badgeColor,
+                              fontSize: 9,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(color: Colors.white54, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              if (isSelected)
+                Icon(Icons.check_circle_rounded, color: iconColor, size: 22)
+              else
+                const Icon(Icons.radio_button_unchecked_rounded, color: Colors.white30, size: 22),
+            ],
+          ),
         ),
       ),
     );
@@ -2824,11 +3272,42 @@ class _MusicBottomPlayerBar extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    Text(
-                      track.artist,
-                      style: const TextStyle(color: Colors.white54, fontSize: 11),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            track.artist,
+                            style: const TextStyle(color: Colors.white54, fontSize: 11),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                          decoration: BoxDecoration(
+                            color: playerController.isCurrentTrackLossless
+                                ? const Color(0xFF00D2EF).withValues(alpha: 0.15)
+                                : const Color(0xFFFF3366).withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(
+                              color: playerController.isCurrentTrackLossless
+                                  ? const Color(0xFF00D2EF).withValues(alpha: 0.35)
+                                  : const Color(0xFFFF3366).withValues(alpha: 0.35),
+                            ),
+                          ),
+                          child: Text(
+                            playerController.currentQualityLabel,
+                            style: TextStyle(
+                              color: playerController.isCurrentTrackLossless
+                                  ? const Color(0xFF00D2EF)
+                                  : const Color(0xFFFF6688),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -3746,13 +4225,56 @@ class _MusicExpandedPlayer extends StatelessWidget {
                     onPressed: onCollapse,
                   ),
                   const Spacer(),
-                  const Text(
-                    'PLAYING FROM DEEZER & YOUTUBE',
-                    style: TextStyle(
-                      color: Colors.white54,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 1.0,
+                  InkWell(
+                    onTap: () => _AudioSourceSelectorButton._showAudioSourceDialog(context),
+                    borderRadius: BorderRadius.circular(12),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: playerController.isCurrentTrackLossless
+                            ? const Color(0xFF00D2EF).withValues(alpha: 0.15)
+                            : const Color(0xFFFF3366).withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: playerController.isCurrentTrackLossless
+                              ? const Color(0xFF00D2EF).withValues(alpha: 0.4)
+                              : const Color(0xFFFF3366).withValues(alpha: 0.4),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            playerController.isCurrentTrackLossless
+                                ? Icons.diamond_rounded
+                                : Icons.play_circle_fill_rounded,
+                            size: 13,
+                            color: playerController.isCurrentTrackLossless
+                                ? const Color(0xFF00D2EF)
+                                : const Color(0xFFFF6688),
+                          ),
+                          const SizedBox(width: 5),
+                          Text(
+                            playerController.currentQualityLabel.toUpperCase(),
+                            style: TextStyle(
+                              color: playerController.isCurrentTrackLossless
+                                  ? const Color(0xFF00D2EF)
+                                  : const Color(0xFFFF6688),
+                              fontSize: 10,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.8,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.arrow_drop_down_rounded,
+                            size: 16,
+                            color: playerController.isCurrentTrackLossless
+                                ? const Color(0xFF00D2EF)
+                                : const Color(0xFFFF6688),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const Spacer(),
