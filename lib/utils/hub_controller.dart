@@ -65,6 +65,7 @@ class HubController extends ChangeNotifier {
           HubSection(id: 'series', label: 'Series', icon: Icons.live_tv_rounded),
           HubSection(id: 'anime', label: 'Anime', icon: Icons.animation_rounded),
           HubSection(id: 'genres', label: 'Genres', icon: Icons.category_rounded),
+          HubSection(id: 'iptv', label: 'Live TV', icon: Icons.live_tv_rounded),
           HubSection(id: 'collection', label: 'Library', icon: Icons.video_library_rounded),
         ];
       case AppHub.books:
