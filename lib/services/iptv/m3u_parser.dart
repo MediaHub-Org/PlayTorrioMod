@@ -64,6 +64,9 @@ class M3uParser {
 
       final url = line;
       if (!_looksLikeUrl(url)) {
+        // Not a URL we recognize — discard whatever EXTINF metadata was
+        // pending so it doesn't leak onto an unrelated line further down.
+        resetPending();
         continue;
       }
 

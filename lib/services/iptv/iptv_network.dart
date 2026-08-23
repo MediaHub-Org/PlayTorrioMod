@@ -35,7 +35,7 @@ class IptvClient {
       final info = (root['user_info'] as Map<String, dynamic>?) ?? root;
       final auth = info['auth']?.toString();
       final status = (info['status']?.toString() ?? '').toLowerCase();
-      final ok = auth == '1' || status == 'active' || root.containsKey('user_info');
+      final ok = auth == '1' || status == 'active';
       if (!ok) return null;
       return info;
     } catch (_) {
@@ -421,7 +421,20 @@ class IptvAliveChecker {
       final code = resp.statusCode;
       if (code != 206 && (code < 200 || code >= 300)) return false;
       final ct = (resp.headers['content-type'] ?? '').toLowerCase();
-      final cl = int.tryParse(resp.headers['content-length'] ?? '') ?? -1;
+      // On a 206 partial response, Content-Length is the size of the
+      // returned chunk (bounded by our own Range request), not the full
+      // resource — so it's always small and useless for a "is this a tiny
+      // file" check. Read the real total from Content-Range instead; a 200
+      // response (server ignored our Range) can use Content-Length as-is.
+      int? totalSize;
+      if (code == 206) {
+        final cr = resp.headers['content-range'];
+        final match = cr == null ? null : RegExp(r'/(\d+)$').firstMatch(cr);
+        totalSize = match == null ? null : int.tryParse(match.group(1)!);
+      } else {
+        final cl = int.tryParse(resp.headers['content-length'] ?? '');
+        totalSize = cl != null && cl >= 0 ? cl : null;
+      }
       if (_isDeadContentType(ct)) return false;
 
       final buf = <int>[];
@@ -448,7 +461,9 @@ class IptvAliveChecker {
         return headStr.contains('#EXTM3U');
       }
       if (ended && buf.length < _minBytes) return false;
-      if (cl >= 1 && cl <= 5000000) return false;
+      if (totalSize != null && totalSize >= 1 && totalSize <= 5000000) {
+        return false;
+      }
 
       // MPEG-TS sync byte (0x47)
       if (buf.isNotEmpty && buf[0] == 0x47) {

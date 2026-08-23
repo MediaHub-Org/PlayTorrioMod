@@ -115,7 +115,10 @@ class VuflixScraper extends StreamScraper {
     };
 
     if (rawUrl.isEmpty) return _UnwrappedUrl(url: '', headers: defaultH);
-    if (!rawUrl.contains('v-relay?t=') && !rawUrl.contains('a-relay?t=')) {
+    // Detect by path only — the actual 't' param is extracted below via
+    // Uri.queryParameters, which doesn't care where 't' sits in the query
+    // string, so the gate shouldn't require it to be the first param either.
+    if (!rawUrl.contains('v-relay') && !rawUrl.contains('a-relay')) {
       return _UnwrappedUrl(url: rawUrl, headers: defaultH);
     }
 

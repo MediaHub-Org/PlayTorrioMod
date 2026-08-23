@@ -60,6 +60,7 @@ class AudiobookPlayerController extends ChangeNotifier {
       coverUrl: audiobook.coverImage,
       onTogglePlayPause: togglePlayPause,
       onExpand: _onExpandRequested,
+      onSeek: seekTo,
     );
 
     await _loadChapter(chapterIndex, initialPosition: initialPosition);
@@ -127,7 +128,9 @@ class AudiobookPlayerController extends ChangeNotifier {
   void _onPlayerStateChanged() {
     final c = _controller;
     if (c == null) return;
-    final playing = c.value.isPlaying;
+    final value = c.value;
+    PlaybackCoordinator.setProgress(value.position, value.duration);
+    final playing = value.isPlaying;
     if (playing != _isPlaying) {
       _isPlaying = playing;
       PlaybackCoordinator.setPlaying(playing);
@@ -142,6 +145,10 @@ class AudiobookPlayerController extends ChangeNotifier {
     } else {
       await _controller!.play();
     }
+  }
+
+  Future<void> seekTo(Duration position) async {
+    await _controller?.seekTo(position);
   }
 
   Future<void> stop() async {

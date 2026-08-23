@@ -122,6 +122,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           _controller!.play();
         }
       },
+      onSeek: (position) => _controller?.seekTo(position),
     );
 
     print('[PlayerScreen] Initializing playback:');
@@ -240,6 +241,14 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   void _onPlaybackUpdate() {
     if (_controller == null || !_controller!.value.isInitialized) return;
+
+    // Keep the universal play bar's progress/play-pause state in sync —
+    // covers every way playback can toggle (in-player controls, the play
+    // bar itself, auto-play), since this listener fires on any controller
+    // value change.
+    final value = _controller!.value;
+    PlaybackCoordinator.setProgress(value.position, value.duration);
+    PlaybackCoordinator.setPlaying(value.isPlaying);
 
     // ── Auto-next episode: detect end-of-credits ──
     if (widget.episode != null &&
