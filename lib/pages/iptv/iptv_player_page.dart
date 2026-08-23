@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
 import '../../models/iptv/iptv_models.dart';
 import '../../services/iptv/hardcoded_channels.dart';
+import '../../services/playback_coordinator.dart';
 
 class IptvPlayerPage extends StatefulWidget {
   final HardcodedChannel channel;
@@ -93,10 +94,19 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
     _watchdogTimer?.cancel();
     _volumeHudTimer?.cancel();
     _sourcesScrollController.dispose();
+    PlaybackCoordinator.release('iptv:${widget.channel.id}');
+    _controller?.removeListener(_onPlaybackUpdate);
     _controller?.dispose();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();
+  }
+
+  void _onPlaybackUpdate() {
+    final value = _controller?.value;
+    if (value == null || !value.isInitialized) return;
+    PlaybackCoordinator.setProgress(value.position, value.duration);
+    PlaybackCoordinator.setPlaying(value.isPlaying);
   }
 
   Future<void> _initPlayer() async {
@@ -117,6 +127,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
     });
 
     try {
+      _controller?.removeListener(_onPlaybackUpdate);
       await _controller?.dispose();
       _controller = null;
 
@@ -130,9 +141,32 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
         },
       );
 
+      // Ensure only one source plays app-wide: stop any other active source.
+      // Keyed by channel (not by hit/source), so switching sources or
+      // reconnecting the same channel doesn't re-register with the
+      // coordinator.
+      PlaybackCoordinator.activate(
+        'iptv:${widget.channel.id}',
+        () => _controller?.pause(),
+        kind: 'video',
+        title: widget.channel.name,
+        subtitle: widget.categoryTitle ?? widget.channel.category,
+        coverUrl: widget.channel.iconUrl ?? widget.channel.backdropUrl,
+        onTogglePlayPause: () {
+          if (_controller == null) return;
+          if (_controller!.value.isPlaying) {
+            _controller!.pause();
+          } else {
+            _controller!.play();
+          }
+        },
+        onSeek: (position) => _controller?.seekTo(position),
+      );
+
       await _controller!.initialize();
       await _controller!.setVolume(_isMuted ? 0.0 : _volume);
       await _controller!.play();
+      _controller!.addListener(_onPlaybackUpdate);
 
       if (!mounted) return;
       setState(() {
