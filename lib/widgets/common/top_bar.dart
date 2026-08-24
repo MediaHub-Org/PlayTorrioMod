@@ -37,25 +37,29 @@ class TopBar extends StatelessWidget {
         ),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
+      child: Stack(
+        alignment: Alignment.center,
         children: [
-          const SidebarLogo(),
-          const Spacer(),
-          ListenableBuilder(
-            listenable: HubController.instance,
-            builder: (context, _) {
-              final current = HubController.instance.currentHub;
-              return Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final h in _hubs) _hubTab(context, h, current),
-                ],
-              );
-            },
+          const Align(alignment: Alignment.centerLeft, child: SidebarLogo()),
+          Center(
+            child: ListenableBuilder(
+              listenable: HubController.instance,
+              builder: (context, _) {
+                final current = HubController.instance.currentHub;
+                return Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    for (final h in _hubs) _hubTab(context, h, current),
+                  ],
+                );
+              },
+            ),
           ),
-          const SizedBox(width: 20),
           if (onSettingsTap != null)
-            _settingsButton(onTap: onSettingsTap!),
+            Align(
+              alignment: Alignment.centerRight,
+              child: _settingsButton(onTap: onSettingsTap!),
+            ),
         ],
       ),
     );
