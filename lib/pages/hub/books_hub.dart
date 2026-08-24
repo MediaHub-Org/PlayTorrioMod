@@ -3,11 +3,12 @@ import 'package:flutter/material.dart';
 import '../../widgets/common/section_top_bar.dart';
 import '../../utils/hub_controller.dart';
 import '../../utils/search_scope.dart';
+import '../audiobooks/audiobooks_page.dart';
 import '../manga/manga_page.dart';
 import '../collection/books_library_page.dart';
 import '../catalog/comics_page.dart';
 
-/// Read hub: Manga, Comics, and the user's reading collection.
+/// Read hub: Manga, Comics, Audiobooks, and the user's reading collection.
 ///
 /// Sections are switched via the [SectionTopBar] chip bar. The active section
 /// is driven by the shared [HubController] so navigation stays in sync.
@@ -22,6 +23,9 @@ class BooksHub extends StatelessWidget {
       case 'comics':
         SearchScope.set(null, label: 'Comics');
         return const ComicsPage();
+      case 'audiobooks':
+        SearchScope.set('audiobook', label: 'Audiobooks');
+        return const AudiobooksPage();
       case 'collection':
         SearchScope.set(null, label: 'Library');
         return const BooksLibraryPage();

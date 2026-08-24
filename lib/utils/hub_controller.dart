@@ -72,6 +72,7 @@ class HubController extends ChangeNotifier {
         return const [
           HubSection(id: 'manga', label: 'Manga', icon: Icons.auto_stories_rounded),
           HubSection(id: 'comics', label: 'Comics', icon: Icons.menu_book_rounded),
+          HubSection(id: 'audiobooks', label: 'Audiobooks', icon: Icons.headphones_rounded),
           HubSection(id: 'collection', label: 'Library', icon: Icons.collections_bookmark_rounded),
         ];
       case AppHub.music:
@@ -79,7 +80,6 @@ class HubController extends ChangeNotifier {
           HubSection(id: 'Music', label: 'Music', icon: Icons.music_note_rounded),
           HubSection(id: 'Genres', label: 'Genres', icon: Icons.category_rounded),
           HubSection(id: 'Radio', label: 'Radio', icon: Icons.radio_rounded),
-          HubSection(id: 'Audiobooks', label: 'Audiobooks', icon: Icons.headphones_rounded),
           HubSection(id: 'Library', label: 'Library', icon: Icons.library_music_rounded),
         ];
     }
