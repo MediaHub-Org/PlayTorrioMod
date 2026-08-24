@@ -23,6 +23,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 - Added a **decade filter + sort dropdown** (Title A–Z/Z–A, Newest, Oldest) to the Movies and Series catalogs (`TypeCatalogPage`, shared by both). Decade options are derived from whichever years are actually present in the loaded catalog, so the dropdown never offers an empty result.
 - Added a **genre filter to Anime**: picking a genre swaps the curated homepage rows for a single filtered grid (via `AnilistService.fetchByGenre`); picking "All Genres" reverts to the curated rows untouched. Extracted the filter dropdown button into a shared `lib/widgets/common/filter_dropdown.dart` used by both Movies/Series and Anime.
 
+### Architecture
+- `CollectionPage` now builds on the shared `LibraryTabs`/`LibraryEmptyState` widgets instead of hand-rolling its own `TabController`/`Scaffold`/`AppBar`/`TabBar` and empty-state layout, matching `BooksLibraryPage`. Also removed a dead leftover back button (`HubNavigator.goHome()`) from before the navigation restructure -- it re-selected the hub the page was already embedded in, a functional no-op, and no other Watch hub section has one.
+
 ### Navigation — global top bar + section chip bar
 - Added a slim global **TopBar** (logo + **Watch / Listen / Read** hub switcher + a **Settings** button) pinned to the top of the window, so the app icon stays visible on every hub.
 - **Removed the per-hub left sidebars** (Media, Books, Music) — they duplicated the section chip bar. Section switching is now done entirely by the **Section top bar** (horizontal chips) under the TopBar.
