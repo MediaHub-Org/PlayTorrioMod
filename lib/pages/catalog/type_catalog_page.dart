@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../models/movie/movie.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/page_search_button.dart';
 import '../../widgets/movie/movie_card.dart';
 
@@ -154,7 +155,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                   const SizedBox(height: 14),
                   Row(
                     children: [
-                      _FilterDropdown<int?>(
+                      FilterDropdown<int?>(
                         label: _decadeFilter == null ? 'All decades' : '${_decadeFilter}s',
                         icon: Icons.calendar_today_rounded,
                         items: [
@@ -165,7 +166,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                         onSelected: (v) => setState(() => _decadeFilter = v),
                       ),
                       const SizedBox(width: 10),
-                      _FilterDropdown<_CatalogSort>(
+                      FilterDropdown<_CatalogSort>(
                         label: switch (_sort) {
                           _CatalogSort.titleAsc => 'Title A–Z',
                           _CatalogSort.titleDesc => 'Title Z–A',
@@ -217,50 +218,6 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
             ),
           ),
       ],
-    );
-  }
-}
-
-class _FilterDropdown<T> extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final List<PopupMenuEntry<T>> items;
-  final ValueChanged<T?> onSelected;
-
-  const _FilterDropdown({
-    required this.label,
-    required this.icon,
-    required this.items,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return PopupMenuButton<T>(
-      itemBuilder: (context) => items,
-      onSelected: onSelected,
-      color: const Color(0xFF151822),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 15, color: Colors.white70),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
-            ),
-            const Icon(Icons.arrow_drop_down_rounded, color: Colors.white54, size: 18),
-          ],
-        ),
-      ),
     );
   }
 }

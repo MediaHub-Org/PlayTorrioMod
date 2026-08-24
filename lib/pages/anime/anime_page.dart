@@ -8,11 +8,19 @@ import '../../services/anime/anilist_service.dart';
 import '../../services/anime/anime_library_service.dart';
 import '../../services/glass_settings.dart';
 import '../../utils/route_transitions.dart';
+import '../../widgets/anime/anime_card.dart';
 import '../../widgets/anime/anime_slider_section.dart';
 import '../../widgets/common/custom_scroll_track.dart';
+import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/page_search_button.dart';
 import 'anime_details_page.dart';
 import 'anime_stream_sheet.dart';
+
+const _kAnimeGenres = [
+  'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror',
+  'Mystery', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports',
+  'Supernatural', 'Thriller',
+];
 
 class AnimePage extends StatefulWidget {
   const AnimePage({super.key});
@@ -37,6 +45,10 @@ class _AnimePageState extends State<AnimePage> {
   List<AnimeMedia> _romanceAnime = [];
   List<AnimeMedia> _fantasyAnime = [];
   List<AnimeMedia> _sciFiAnime = [];
+
+  String? _genreFilter;
+  List<AnimeMedia> _genreResults = [];
+  bool _genreLoading = false;
 
   @override
   void initState() {
@@ -99,6 +111,32 @@ class _AnimePageState extends State<AnimePage> {
     });
   }
 
+  /// Selecting a genre swaps the curated rows for a single filtered grid
+  /// fetched from AniList; picking "All Genres" (null) reverts to curated
+  /// rows. Purely additive over the homepage -- doesn't touch _trending/etc.
+  Future<void> _selectGenre(String? genre) async {
+    setState(() {
+      _genreFilter = genre;
+      _genreLoading = genre != null;
+    });
+    if (genre == null) return;
+    try {
+      final results = await _anilistService.fetchByGenre(genre, perPage: 30);
+      if (!mounted || _genreFilter != genre) return;
+      setState(() {
+        _genreResults = results;
+        _genreLoading = false;
+      });
+    } catch (e) {
+      debugPrint('Error loading Anime genre "$genre": $e');
+      if (!mounted || _genreFilter != genre) return;
+      setState(() {
+        _genreResults = [];
+        _genreLoading = false;
+      });
+    }
+  }
+
   void _playEpisode(AnimeMedia anime, int episodeNumber) {
     showModalBottomSheet(
       context: context,
@@ -108,6 +146,39 @@ class _AnimePageState extends State<AnimePage> {
         anime: anime,
         episodeNumber: episodeNumber,
         autoPlay: false,
+      ),
+    );
+  }
+
+  Widget _buildGenreGrid() {
+    if (_genreResults.isEmpty) {
+      return Center(
+        child: Text(
+          'No $_genreFilter anime found.',
+          style: const TextStyle(color: Colors.white54, fontSize: 16),
+        ),
+      );
+    }
+    final width = MediaQuery.sizeOf(context).width;
+    final crossAxisCount = width < 600
+        ? 3
+        : width < 900
+            ? 4
+            : width < 1200
+                ? 5
+                : 6;
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(24, 80, 24, 120),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        mainAxisSpacing: 20,
+        crossAxisSpacing: 16,
+        childAspectRatio: 0.62,
+      ),
+      itemCount: _genreResults.length,
+      itemBuilder: (context, index) => AnimeCard(
+        anime: _genreResults[index],
+        onTap: () => _openDetails(_genreResults[index]),
       ),
     );
   }
@@ -152,7 +223,13 @@ class _AnimePageState extends State<AnimePage> {
         ),
 
         // Main scrollable content
-        if (_loading && _trending.isEmpty)
+        if (_genreFilter != null)
+          _genreLoading
+              ? const Center(
+                  child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
+                )
+              : _buildGenreGrid()
+        else if (_loading && _trending.isEmpty)
           const Center(
             child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
           )
@@ -277,12 +354,27 @@ class _AnimePageState extends State<AnimePage> {
       Positioned(
         top: 16,
         right: 16,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.35),
-            shape: BoxShape.circle,
-          ),
-          child: const PageSearchButton(),
+        child: Row(
+          children: [
+            FilterDropdown<String?>(
+              label: _genreFilter ?? 'All Genres',
+              icon: Icons.filter_list_rounded,
+              items: [
+                const PopupMenuItem(value: null, child: Text('All Genres')),
+                for (final g in _kAnimeGenres)
+                  PopupMenuItem(value: g, child: Text(g)),
+              ],
+              onSelected: _selectGenre,
+            ),
+            const SizedBox(width: 10),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.35),
+                shape: BoxShape.circle,
+              ),
+              child: const PageSearchButton(),
+            ),
+          ],
         ),
       ),
     ];
