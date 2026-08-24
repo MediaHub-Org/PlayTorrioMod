@@ -26,6 +26,10 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 ### Architecture
 - `CollectionPage` now builds on the shared `LibraryTabs`/`LibraryEmptyState` widgets instead of hand-rolling its own `TabController`/`Scaffold`/`AppBar`/`TabBar` and empty-state layout, matching `BooksLibraryPage`. Also removed a dead leftover back button (`HubNavigator.goHome()`) from before the navigation restructure -- it re-selected the hub the page was already embedded in, a functional no-op, and no other Watch hub section has one.
 - Extracted `_MusicModalShell` (the dimmed-backdrop + glass panel wrapper) out of all four music detail modals (Artist/Album/Curated Playlist/User Playlist) -- they were hand-duplicating that ~15-line shell exactly. Left each modal's actual header/body alone since the Artist modal's banner header is genuinely different from the other three's row header, rather than forcing all four into one over-parameterized widget.
+
+### Player
+- Trimmed the player down to standard controls: removed the Stop button from the bottom play bar and the Shuffle toggle from the expanded music player, added a volume slider (there was previously no volume UI at all, only a keyboard mute shortcut) in Shuffle's old spot. Previous/Play-Pause/Next/Repeat unchanged.
+- True-centered the Watch/Listen/Read tabs in the top bar (`Stack` with the logo pinned left, tabs centered via `Center()`, Settings pinned right) -- they previously sat wherever a `Spacer()` pushed them, off-center relative to the window.
 - **Search integrated into Music** instead of sitting as its own chip among content categories in the Listen hub's section bar. Music's search stays inline (its own tab/text field, not a pushed page like other hubs) -- only how you reach it changed, via a search icon next to the section bar.
 
 ### Navigation — global top bar + section chip bar
