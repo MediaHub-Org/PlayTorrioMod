@@ -25,6 +25,7 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ### Architecture
 - `CollectionPage` now builds on the shared `LibraryTabs`/`LibraryEmptyState` widgets instead of hand-rolling its own `TabController`/`Scaffold`/`AppBar`/`TabBar` and empty-state layout, matching `BooksLibraryPage`. Also removed a dead leftover back button (`HubNavigator.goHome()`) from before the navigation restructure -- it re-selected the hub the page was already embedded in, a functional no-op, and no other Watch hub section has one.
+- **Search integrated into Music** instead of sitting as its own chip among content categories in the Listen hub's section bar. Music's search stays inline (its own tab/text field, not a pushed page like other hubs) -- only how you reach it changed, via a search icon next to the section bar.
 
 ### Navigation — global top bar + section chip bar
 - Added a slim global **TopBar** (logo + **Watch / Listen / Read** hub switcher + a **Settings** button) pinned to the top of the window, so the app icon stays visible on every hub.
