@@ -10,8 +10,8 @@ import '../../services/my_list/my_list_service.dart';
 import '../../services/playback/playback_history_service.dart';
 import '../../services/trakt/trakt_auth_service.dart';
 import '../../services/trakt/trakt_sync_service.dart';
-import '../../utils/hub_navigator.dart';
 import '../../utils/route_transitions.dart';
+import '../../widgets/common/library_tabs.dart';
 import '../details/details_page.dart';
 
 class CollectionPage extends StatefulWidget {
@@ -26,9 +26,7 @@ class CollectionPage extends StatefulWidget {
   State<CollectionPage> createState() => _CollectionPageState();
 }
 
-class _CollectionPageState extends State<CollectionPage>
-    with SingleTickerProviderStateMixin {
-  late TabController _tabController;
+class _CollectionPageState extends State<CollectionPage> {
   final TextEditingController _searchController = TextEditingController();
 
   String _filterType = 'all'; // 'all', 'movie', 'series', 'anime'
@@ -36,18 +34,7 @@ class _CollectionPageState extends State<CollectionPage>
   String _searchQuery = '';
 
   @override
-  void initState() {
-    super.initState();
-    _tabController = TabController(
-      length: 4,
-      vsync: this,
-      initialIndex: widget.initialTabIndex,
-    );
-  }
-
-  @override
   void dispose() {
-    _tabController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -151,79 +138,61 @@ class _CollectionPageState extends State<CollectionPage>
   Widget build(BuildContext context) {
     final traktAuth = TraktAuthService();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF080A0F),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0D1017),
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
-          onPressed: () => HubNavigator.goHome(),
-        ),
-        title: const Text(
-          'Library',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
-        ),
-        actions: [
-          ValueListenableBuilder<bool>(
-            valueListenable: traktAuth.isLoggedIn,
-            builder: (context, loggedIn, _) {
-              if (!loggedIn) return const SizedBox.shrink();
-              return ValueListenableBuilder<bool>(
-                valueListenable: TraktSyncService.isSyncing,
-                builder: (context, syncing, _) {
-                  return IconButton(
-                    tooltip: 'Sync with Trakt',
-                    icon: syncing
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Color(0xFFED1C24),
-                            ),
-                          )
-                        : const Icon(
-                            Icons.sync_rounded,
-                            color: Color(0xFFED1C24),
-                            size: 22,
-                          ),
-                    onPressed: syncing ? null : () => TraktSyncService.manualSync(),
-                  );
-                },
+    return LibraryTabs(
+      title: 'Library',
+      titleIcon: Icons.video_library_rounded,
+      initialIndex: widget.initialTabIndex,
+      trailing: ValueListenableBuilder<bool>(
+        valueListenable: traktAuth.isLoggedIn,
+        builder: (context, loggedIn, _) {
+          if (!loggedIn) return const SizedBox.shrink();
+          return ValueListenableBuilder<bool>(
+            valueListenable: TraktSyncService.isSyncing,
+            builder: (context, syncing, _) {
+              return IconButton(
+                tooltip: 'Sync with Trakt',
+                icon: syncing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Color(0xFFED1C24),
+                        ),
+                      )
+                    : const Icon(
+                        Icons.sync_rounded,
+                        color: Color(0xFFED1C24),
+                        size: 22,
+                      ),
+                onPressed: syncing ? null : () => TraktSyncService.manualSync(),
               );
             },
-          ),
-          const SizedBox(width: 8),
-        ],
-        bottom: TabBar(
-          controller: _tabController,
-          indicatorColor: const Color(0xFF7C5CFF),
-          indicatorWeight: 3,
-          labelColor: Colors.white,
-          unselectedLabelColor: Colors.white54,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
-          tabs: const [
-            Tab(icon: Icon(Icons.favorite_rounded, size: 17), text: 'My List'),
-            Tab(icon: Icon(Icons.bookmark_rounded, size: 17), text: 'Watchlist'),
-            Tab(icon: Icon(Icons.history_rounded, size: 17), text: 'History'),
-            Tab(icon: Icon(Icons.download_rounded, size: 17), text: 'Downloads'),
-          ],
+          );
+        },
+      ),
+      tabs: [
+        LibraryTab(
+          label: 'My List',
+          icon: Icons.favorite_rounded,
+          builder: (context) => _buildMyListTab(),
         ),
-      ),
-      body: Stack(
-        children: [
-          TabBarView(
-            controller: _tabController,
-            children: [
-              _buildMyListTab(),
-              _buildWatchlistTab(),
-              _buildHistoryTab(),
-              _buildDownloadsTab(),
-            ],
-          ),
-        ],
-      ),
+        LibraryTab(
+          label: 'Watchlist',
+          icon: Icons.bookmark_rounded,
+          builder: (context) => _buildWatchlistTab(),
+        ),
+        LibraryTab(
+          label: 'History',
+          icon: Icons.history_rounded,
+          builder: (context) => _buildHistoryTab(),
+        ),
+        LibraryTab(
+          label: 'Downloads',
+          icon: Icons.download_rounded,
+          builder: (context) => _buildDownloadsTab(),
+        ),
+      ],
     );
   }
 
@@ -238,7 +207,7 @@ class _CollectionPageState extends State<CollectionPage>
             _buildFilterAndSearchBar(allItems.length),
             Expanded(
               child: items.isEmpty
-                  ? _buildEmptyState(
+                  ? LibraryEmptyState(
                       icon: Icons.video_library_rounded,
                       title: allItems.isEmpty
                           ? 'Your list is empty'
@@ -267,7 +236,7 @@ class _CollectionPageState extends State<CollectionPage>
             _buildFilterAndSearchBar(watchlist.length),
             Expanded(
               child: items.isEmpty
-                  ? _buildEmptyState(
+                  ? LibraryEmptyState(
                       icon: Icons.bookmark_border_rounded,
                       title: watchlist.isEmpty
                           ? 'Watchlist is empty'
@@ -289,7 +258,7 @@ class _CollectionPageState extends State<CollectionPage>
       valueListenable: PlaybackHistoryService.history,
       builder: (context, historyItems, _) {
         if (historyItems.isEmpty) {
-          return _buildEmptyState(
+          return LibraryEmptyState(
             icon: Icons.history_rounded,
             title: 'No Playback History',
             subtitle: 'Movies and episodes you watch will appear here so you can continue where you left off.',
@@ -388,7 +357,7 @@ class _CollectionPageState extends State<CollectionPage>
       valueListenable: DownloadService.downloads,
       builder: (context, downloads, _) {
         if (downloads.isEmpty) {
-          return _buildEmptyState(
+          return LibraryEmptyState(
             icon: Icons.download_done_rounded,
             title: 'No Downloads',
             subtitle: 'Downloaded movies and episodes will appear here for offline viewing.',
@@ -665,29 +634,4 @@ class _CollectionPageState extends State<CollectionPage>
     );
   }
 
-  Widget _buildEmptyState({
-    required IconData icon,
-    required String title,
-    required String subtitle,
-  }) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 48, color: Colors.white24),
-          const SizedBox(height: 12),
-          Text(title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Colors.white)),
-          const SizedBox(height: 6),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              subtitle,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: Colors.white54),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
