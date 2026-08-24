@@ -23,6 +23,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 - Added a **decade filter + sort dropdown** (Title A–Z/Z–A, Newest, Oldest) to the Movies and Series catalogs (`TypeCatalogPage`, shared by both). Decade options are derived from whichever years are actually present in the loaded catalog, so the dropdown never offers an empty result.
 - Added a **genre filter to Anime**: picking a genre swaps the curated homepage rows for a single filtered grid (via `AnilistService.fetchByGenre`); picking "All Genres" reverts to the curated rows untouched. Extracted the filter dropdown button into a shared `lib/widgets/common/filter_dropdown.dart` used by both Movies/Series and Anime.
 
+### Navigation
+- **Moved Audiobooks from Listen to Read.** `AppHub`'s own doc comment already said Audiobooks belonged in the Read hub -- it had just drifted into Music's section list during the restructure. Now a real Read hub section (Manga, Comics, Audiobooks, Library) instead of nested inside the Music page's own tab switch.
+
 ### Architecture
 - `CollectionPage` now builds on the shared `LibraryTabs`/`LibraryEmptyState` widgets instead of hand-rolling its own `TabController`/`Scaffold`/`AppBar`/`TabBar` and empty-state layout, matching `BooksLibraryPage`. Also removed a dead leftover back button (`HubNavigator.goHome()`) from before the navigation restructure -- it re-selected the hub the page was already embedded in, a functional no-op, and no other Watch hub section has one.
 - Extracted `_MusicModalShell` (the dimmed-backdrop + glass panel wrapper) out of all four music detail modals (Artist/Album/Curated Playlist/User Playlist) -- they were hand-duplicating that ~15-line shell exactly. Left each modal's actual header/body alone since the Artist modal's banner header is genuinely different from the other three's row header, rather than forcing all four into one over-parameterized widget.
