@@ -2655,6 +2655,42 @@ class _MusicQueueDrawer extends StatelessWidget {
   }
 }
 
+/// Shared full-screen dimmed-backdrop + glass panel shell used by every
+/// music detail modal (artist/album/curated playlist/user playlist) --
+/// identical across all four, only the content inside differs.
+class _MusicModalShell extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+
+  const _MusicModalShell({required this.child, this.padding});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    final isMobile = size.width < 700;
+
+    return Container(
+      color: Colors.black.withValues(alpha: 0.85),
+      child: Center(
+        child: PerformanceLiquidLens(
+          style: PerformanceGlassStyles.sheet,
+          child: Container(
+            width: isMobile ? size.width - 24 : 720,
+            height: isMobile ? size.height * 0.85 : 640,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F121C),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+            ),
+            padding: padding,
+            child: child,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MusicArtistDetailModal extends StatelessWidget {
   final MusicArtistDetails details;
   final MusicPlayerController playerController;
@@ -2675,34 +2711,20 @@ class _MusicArtistDetailModal extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final artist = details.artist;
-    final size = MediaQuery.sizeOf(context);
-    final isMobile = size.width < 700;
 
-    return Container(
-      color: Colors.black.withValues(alpha: 0.85),
-      child: Center(
-        child: PerformanceLiquidLens(
-          style: PerformanceGlassStyles.sheet,
-          child: Container(
-            width: isMobile ? size.width - 24 : 720,
-            height: isMobile ? size.height * 0.85 : 640,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F121C),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-            ),
-            child: Column(
-              children: [
-                Stack(
-                  children: [
-                    SizedBox(
-                      height: 200,
-                      width: double.infinity,
-                      child: CachedNetworkImage(
-                        imageUrl: artist.pictureUrl,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
+    return _MusicModalShell(
+      child: Column(
+        children: [
+          Stack(
+            children: [
+              SizedBox(
+                height: 200,
+                width: double.infinity,
+                child: CachedNetworkImage(
+                  imageUrl: artist.pictureUrl,
+                  fit: BoxFit.cover,
+                ),
+              ),
                     Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
@@ -2841,9 +2863,6 @@ class _MusicArtistDetailModal extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -2870,30 +2889,18 @@ class _MusicAlbumDetailModal extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     final isMobile = size.width < 700;
 
-    return Container(
-      color: Colors.black.withValues(alpha: 0.85),
-      child: Center(
-        child: PerformanceLiquidLens(
-          style: PerformanceGlassStyles.sheet,
-          child: Container(
-            width: isMobile ? size.width - 24 : 720,
-            height: isMobile ? size.height * 0.85 : 640,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F121C),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-            ),
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: CachedNetworkImage(
-                        imageUrl: album.coverUrl,
+    return _MusicModalShell(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: CachedNetworkImage(
+                  imageUrl: album.coverUrl,
                         width: isMobile ? 80 : 120,
                         height: isMobile ? 80 : 120,
                         fit: BoxFit.cover,
@@ -3001,9 +3008,6 @@ class _MusicAlbumDetailModal extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -3030,28 +3034,16 @@ class _MusicCuratedPlaylistDetailModal extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     final isMobile = size.width < 700;
 
-    return Container(
-      color: Colors.black.withValues(alpha: 0.85),
-      child: Center(
-        child: PerformanceLiquidLens(
-          style: PerformanceGlassStyles.sheet,
-          child: Container(
-            width: isMobile ? size.width - 24 : 720,
-            height: isMobile ? size.height * 0.85 : 640,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F121C),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-            ),
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
+    return _MusicModalShell(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(16),
                       child: CachedNetworkImage(
                         imageUrl: playlist.coverUrl,
                         width: isMobile ? 80 : 120,
@@ -3148,9 +3140,6 @@ class _MusicCuratedPlaylistDetailModal extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -3176,28 +3165,16 @@ class _MusicUserPlaylistDetailModal extends StatelessWidget {
     final size = MediaQuery.sizeOf(context);
     final isMobile = size.width < 700;
 
-    return Container(
-      color: Colors.black.withValues(alpha: 0.85),
-      child: Center(
-        child: PerformanceLiquidLens(
-          style: PerformanceGlassStyles.sheet,
-          child: Container(
-            width: isMobile ? size.width - 24 : 720,
-            height: isMobile ? size.height * 0.85 : 640,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F121C),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-            ),
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      width: isMobile ? 70 : 100,
+    return _MusicModalShell(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: isMobile ? 70 : 100,
                       height: isMobile ? 70 : 100,
                       decoration: BoxDecoration(
                         color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
@@ -3332,9 +3309,6 @@ class _MusicUserPlaylistDetailModal extends StatelessWidget {
                 ),
               ],
             ),
-          ),
-        ),
-      ),
     );
   }
 }
