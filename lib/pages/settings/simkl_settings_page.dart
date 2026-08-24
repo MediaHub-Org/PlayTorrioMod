@@ -2,23 +2,23 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
-import '../../services/trakt/trakt_service.dart';
+import '../../services/simkl/simkl_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 
-class TraktSettingsPage extends StatefulWidget {
-  const TraktSettingsPage({super.key});
+class SimklSettingsPage extends StatefulWidget {
+  const SimklSettingsPage({super.key});
 
   @override
-  State<TraktSettingsPage> createState() => _TraktSettingsPageState();
+  State<SimklSettingsPage> createState() => _SimklSettingsPageState();
 }
 
-class _TraktSettingsPageState extends State<TraktSettingsPage> {
+class _SimklSettingsPageState extends State<SimklSettingsPage> {
   bool _isAuthed = false;
   bool _isLoading = true;
   String? _username;
 
-  // Device Code Pairing
+  // PIN Flow Pairing
   bool _pairing = false;
   String? _userCode;
   Timer? _pollTimer;
@@ -37,10 +37,10 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
 
   Future<void> _checkStatus() async {
     setState(() => _isLoading = true);
-    final authed = await TraktService.instance.isAuthenticated();
+    final authed = await SimklService.instance.isAuthenticated();
     String? user;
     if (authed) {
-      user = await TraktService.instance.getUsername();
+      user = await SimklService.instance.getUsername();
     }
     if (mounted) {
       setState(() {
@@ -57,19 +57,18 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
       _userCode = null;
     });
 
-    final res = await TraktService.instance.requestDeviceCode();
+    final res = await SimklService.instance.requestPin();
     if (!mounted) return;
     if (res == null) {
       setState(() => _pairing = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Failed to request Trakt pairing code.')),
+        const SnackBar(content: Text('Failed to request Simkl PIN code.')),
       );
       return;
     }
 
     final userCode = res['user_code'] as String? ?? '';
-    final deviceCode = res['device_code'] as String? ?? '';
-    final verifyUrl = res['verification_url'] as String? ?? 'https://trakt.tv/activate';
+    final verifyUrl = res['verification_url'] as String? ?? 'https://simkl.com/pin';
     final interval = (res['interval'] as int? ?? 5).clamp(2, 30);
 
     setState(() {
@@ -87,7 +86,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
     // Start Polling
     _pollTimer?.cancel();
     _pollTimer = Timer.periodic(Duration(seconds: interval), (t) async {
-      final status = await TraktService.instance.pollDeviceToken(deviceCode);
+      final status = await SimklService.instance.pollPin(userCode);
       if (status == null) {
         // Success!
         t.cancel();
@@ -111,7 +110,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
 
   Future<void> _logout() async {
     _pollTimer?.cancel();
-    await TraktService.instance.logout();
+    await SimklService.instance.logout();
     await _checkStatus();
   }
 
@@ -127,7 +126,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Trakt.tv Synchronization',
+          'Simkl Synchronization',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
         ),
       ),
@@ -140,7 +139,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 20),
                 child: Text(
-                  'Connect your Trakt.tv account to seamlessly synchronize your watch history, watchlist, continue watching progress, and ratings across all your devices.',
+                  'Connect your Simkl account to synchronize Movies, TV Shows, and Anime watchlists, continue watching progress, and custom lists.',
                   style: TextStyle(
                     fontSize: 13.5,
                     color: Colors.white.withValues(alpha: 0.5),
@@ -157,7 +156,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(
                     color: _isAuthed
-                        ? const Color(0xFFED1C24).withValues(alpha: 0.35)
+                        ? const Color(0xFF00ADFF).withValues(alpha: 0.35)
                         : Colors.white.withValues(alpha: 0.08),
                   ),
                 ),
@@ -170,10 +169,10 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                           width: 44,
                           height: 44,
                           decoration: BoxDecoration(
-                            color: const Color(0xFFED1C24).withValues(alpha: 0.12),
+                            color: const Color(0xFF00ADFF).withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: const Icon(Icons.movie_filter_rounded, color: Color(0xFFED1C24), size: 24),
+                          child: const Icon(Icons.tv_rounded, color: Color(0xFF00ADFF), size: 24),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -183,7 +182,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                               Row(
                                 children: [
                                   const Text(
-                                    'Trakt.tv',
+                                    'Simkl',
                                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
                                   ),
                                   const SizedBox(width: 8),
@@ -210,8 +209,8 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                                 _isLoading
                                     ? 'Checking credentials...'
                                     : _isAuthed
-                                        ? 'Logged in as ${_username ?? 'Trakt User'}'
-                                        : 'Sign in to activate two-way cloud sync',
+                                        ? 'Logged in as ${_username ?? 'Simkl User'}'
+                                        : 'Sign in with PIN to activate Simkl cloud sync',
                                 style: TextStyle(
                                   fontSize: 13,
                                   color: Colors.white.withValues(alpha: 0.5),
@@ -234,14 +233,14 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                         else if (!_pairing)
                           ElevatedButton.icon(
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFED1C24),
+                              backgroundColor: const Color(0xFF00ADFF),
                               foregroundColor: Colors.white,
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                             ),
                             onPressed: _startPairing,
-                            icon: const Icon(Icons.qr_code_rounded, size: 18),
-                            label: const Text('Connect Trakt', style: TextStyle(fontWeight: FontWeight.bold)),
+                            icon: const Icon(Icons.pin_rounded, size: 18),
+                            label: const Text('Connect Simkl', style: TextStyle(fontWeight: FontWeight.bold)),
                           ),
                       ],
                     ),
@@ -254,7 +253,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                         child: Column(
                           children: [
                             const Text(
-                              'Enter this activation code at trakt.tv/activate:',
+                              'Enter this PIN code at simkl.com/pin:',
                               style: TextStyle(fontSize: 13, color: Colors.white70),
                             ),
                             const SizedBox(height: 12),
@@ -262,7 +261,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                               onTap: () {
                                 Clipboard.setData(ClipboardData(text: _userCode!));
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Code copied to clipboard!')),
+                                  const SnackBar(content: Text('PIN copied to clipboard!')),
                                 );
                               },
                               borderRadius: BorderRadius.circular(12),
@@ -271,7 +270,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                                 decoration: BoxDecoration(
                                   color: Colors.black45,
                                   borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFFED1C24).withValues(alpha: 0.5)),
+                                  border: Border.all(color: const Color(0xFF00ADFF).withValues(alpha: 0.5)),
                                 ),
                                 child: Row(
                                   mainAxisSize: MainAxisSize.min,
@@ -298,11 +297,11 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                                 const SizedBox(
                                   width: 16,
                                   height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFED1C24)),
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF00ADFF)),
                                 ),
                                 const SizedBox(width: 10),
                                 Text(
-                                  'Waiting for authorization on trakt.tv...',
+                                  'Waiting for authorization on simkl.com...',
                                   style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
                                 ),
                               ],
@@ -330,13 +329,13 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                     borderRadius: BorderRadius.circular(12),
                     side: BorderSide(color: Colors.white.withValues(alpha: 0.06)),
                   ),
-                  leading: const Icon(Icons.sync_rounded, color: Color(0xFF7C5CFF)),
-                  title: const Text('Sync Watchlist & Continue Watching Now', style: TextStyle(color: Colors.white, fontSize: 14)),
-                  subtitle: const Text('Manually triggers an immediate pull from Trakt', style: TextStyle(color: Colors.white54, fontSize: 12)),
+                  leading: const Icon(Icons.sync_rounded, color: Color(0xFF00ADFF)),
+                  title: const Text('Sync Simkl Watchlist & Continue Watching', style: TextStyle(color: Colors.white, fontSize: 14)),
+                  subtitle: const Text('Manually triggers an immediate pull from Simkl', style: TextStyle(color: Colors.white54, fontSize: 12)),
                   trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.white38),
                   onTap: () async {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Syncing with Trakt.tv...')),
+                      const SnackBar(content: Text('Syncing with Simkl...')),
                     );
                     await Future.wait([
                       MyListService.syncAll(),
@@ -344,7 +343,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                     ]);
                     if (context.mounted) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Trakt sync complete!')),
+                        const SnackBar(content: Text('Simkl sync complete!')),
                       );
                     }
                   },

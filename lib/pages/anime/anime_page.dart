@@ -11,6 +11,7 @@ import '../../utils/route_transitions.dart';
 import '../../widgets/anime/anime_slider_section.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/common/liquid_dock.dart';
+import '../../widgets/home/continue_watching_slider.dart';
 import '../audiobooks/audiobooks_page.dart';
 import '../manga/manga_page.dart';
 import '../music/music_page.dart';
@@ -245,9 +246,17 @@ class _AnimePageState extends State<AnimePage> {
                     onDetailsTap: _openDetails,
                   ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-                // 2. Sliders with Desktop Scroll Arrows
+                // 2. Anime Continue Watching Slider
+                const ContinueWatchingSlider(
+                  typeFilter: 'anime',
+                  title: 'Continue Watching',
+                ),
+
+                const SizedBox(height: 8),
+
+                // 3. Sliders with Desktop Scroll Arrows
                 AnimeSliderSection(
                   title: '🔥 Trending Anime',
                   subtitle: 'Top popular and trending series',

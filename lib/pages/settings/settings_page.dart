@@ -5,12 +5,14 @@ import '../../services/addon/addon_manager.dart';
 import '../../services/app_theme_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/glass_settings.dart';
-import '../../services/trakt/trakt_auth_service.dart';
+import '../../services/trakt/trakt_service.dart';
+import '../../services/simkl/simkl_service.dart';
 
 import 'appearance_settings_page.dart';
 import 'debrid_settings_page.dart';
 import 'addons_settings_page.dart';
 import 'trakt_settings_page.dart';
+import 'simkl_settings_page.dart';
 import 'updates_settings_page.dart';
 import 'about_settings_page.dart';
 
@@ -26,6 +28,8 @@ class _SettingsPageState extends State<SettingsPage> {
   bool _useDebrid = false;
   String _debridProvider = 'None';
   String? _appVersion;
+  bool _traktConnected = false;
+  bool _simklConnected = false;
 
   @override
   void initState() {
@@ -36,6 +40,8 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _loadOverviewState() async {
     final useDebrid = await _debrid.getUseDebridForStreams();
     final provider = await _debrid.getSelectedService();
+    final traktAuth = await TraktService.instance.isAuthenticated();
+    final simklAuth = await SimklService.instance.isAuthenticated();
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
           appName: 'PlayTorrio',
           packageName: 'com.playtorrio',
@@ -48,6 +54,8 @@ class _SettingsPageState extends State<SettingsPage> {
         _useDebrid = useDebrid;
         _debridProvider = provider;
         _appVersion = pkg.version;
+        _traktConnected = traktAuth;
+        _simklConnected = simklAuth;
       });
     }
   }
@@ -64,7 +72,6 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final addonCount = AddonManager.instance.addons.length;
-    final traktAuth = TraktAuthService();
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
@@ -213,20 +220,28 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // 4. Account & Trakt Sync
-              ValueListenableBuilder<bool>(
-                valueListenable: traktAuth.isLoggedIn,
-                builder: (context, loggedIn, _) {
-                  return _SettingsCategoryTile(
-                    icon: Icons.sync_rounded,
-                    iconColor: const Color(0xFFED1C24),
-                    title: 'Account & Trakt Sync',
-                    subtitle: 'Cross-device watchlist & playback synchronization',
-                    badgeText: loggedIn ? 'Connected' : 'Offline',
-                    badgeColor: loggedIn ? const Color(0xFFED1C24) : Colors.white38,
-                    onTap: () => _navigateTo(const TraktSettingsPage()),
-                  );
-                },
+              // 4. Trakt Sync
+              _SettingsCategoryTile(
+                icon: Icons.movie_filter_rounded,
+                iconColor: const Color(0xFFED1C24),
+                title: 'Trakt.tv Sync',
+                subtitle: 'Cross-device watchlist, history & playback synchronization',
+                badgeText: _traktConnected ? 'Connected' : 'Offline',
+                badgeColor: _traktConnected ? const Color(0xFFED1C24) : Colors.white38,
+                onTap: () => _navigateTo(const TraktSettingsPage()),
+              ),
+
+              const SizedBox(height: 12),
+
+              // 5. Simkl Sync
+              _SettingsCategoryTile(
+                icon: Icons.tv_rounded,
+                iconColor: const Color(0xFF00ADFF),
+                title: 'Simkl Sync',
+                subtitle: 'Cross-device Movies, TV & Anime synchronization',
+                badgeText: _simklConnected ? 'Connected' : 'Offline',
+                badgeColor: _simklConnected ? const Color(0xFF00ADFF) : Colors.white38,
+                onTap: () => _navigateTo(const SimklSettingsPage()),
               ),
 
               const SizedBox(height: 12),

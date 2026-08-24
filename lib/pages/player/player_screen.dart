@@ -10,6 +10,7 @@ import 'package:playtorrio/services/subtitles/subtitle_service.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
 import '../../models/stream/stream_model.dart';
+import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
 import '../../services/glass_settings.dart';
@@ -24,6 +25,7 @@ class PlayerScreen extends StatefulWidget {
   final String? logoUrl;
   final MovieDetail? detail;
   final Video? episode;
+  final Duration? initialPosition;
 
   const PlayerScreen({
     super.key,
@@ -33,6 +35,7 @@ class PlayerScreen extends StatefulWidget {
     this.logoUrl,
     this.detail,
     this.episode,
+    this.initialPosition,
   });
 
   @override
@@ -47,6 +50,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   bool _showControls = true;
   bool _isHoveringUI = false;
   Timer? _hideTimer;
+  Timer? _progressSaveTimer;
   DateTime? _lastPointerTimerReset;
   late AnimationController _logoAnimController;
 
@@ -175,6 +179,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       _controller!.addListener(_onControllerError);
       await _controller!.initialize();
 
+      if (widget.initialPosition != null && widget.initialPosition! > Duration.zero) {
+        print('[PlayerScreen] Seeking to saved position: ${widget.initialPosition}');
+        await _controller!.seekTo(widget.initialPosition!);
+      }
+
       print(
         '[PlayerScreen SUCCESS] Video controller initialized successfully for $streamUrl',
       );
@@ -186,6 +195,11 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       _controller!.play();
       _startHideControlsTimer();
+
+      _progressSaveTimer?.cancel();
+      _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+        _savePlaybackProgress();
+      });
     } catch (e, stackTrace) {
       print(
         '[PlayerScreen ERROR] Failed to initialize stream URL: "$streamUrl"',
@@ -686,8 +700,27 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  void _savePlaybackProgress() {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    if (widget.detail == null) return;
+
+    final pos = _controller!.value.position.inSeconds;
+    final dur = _controller!.value.duration.inSeconds;
+    if (dur <= 0) return;
+
+    ContinueWatchingService.saveProgress(
+      detail: widget.detail!,
+      episode: widget.episode,
+      source: widget.source,
+      positionSeconds: pos,
+      totalDurationSeconds: dur,
+    );
+  }
+
   @override
   void dispose() {
+    _progressSaveTimer?.cancel();
+    _savePlaybackProgress();
     WakelockPlus.disable();
     _hideTimer?.cancel();
     SystemChrome.setPreferredOrientations([

@@ -2,14 +2,15 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/my_list/my_list_item.dart';
-import '../trakt/trakt_auth_service.dart';
-import '../trakt/trakt_sync_service.dart';
+import '../trakt/trakt_service.dart';
+import '../simkl/simkl_service.dart';
 
 abstract final class MyListService {
   static const _storageKey = 'my_list_v1';
   static const int maxItems = 500;
 
   static final ValueNotifier<List<MyListItem>> items = ValueNotifier<List<MyListItem>>([]);
+  static final ValueNotifier<bool> isSyncing = ValueNotifier<bool>(false);
 
   static Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
@@ -23,6 +24,76 @@ abstract final class MyListService {
       } catch (_) {
         items.value = [];
       }
+    }
+    syncAll();
+  }
+
+  static Future<void> syncAll() async {
+    if (isSyncing.value) return;
+    isSyncing.value = true;
+    try {
+      await Future.wait([
+        syncWithTrakt(),
+        syncWithSimkl(),
+      ]);
+    } finally {
+      isSyncing.value = false;
+    }
+  }
+
+  static Future<void> syncWithTrakt() async {
+    try {
+      if (!await TraktService.instance.isAuthenticated()) return;
+      final movieItems = await TraktService.instance.fetchList('watchlist', 'movies');
+      final showItems = await TraktService.instance.fetchList('watchlist', 'shows');
+
+      final combined = [...movieItems, ...showItems];
+      if (combined.isEmpty) return;
+
+      final current = List<MyListItem>.from(items.value);
+      for (final raw in combined) {
+        if (raw is! Map<String, dynamic>) continue;
+        final item = MyListItem.fromTraktJson(raw);
+        final idx = current.indexWhere((i) => i.uniqueKey == item.uniqueKey);
+        if (idx == -1) {
+          current.insert(0, item);
+        }
+      }
+      current.sort((a, b) => b.addedAt.compareTo(a.addedAt));
+      items.value = current.take(maxItems).toList();
+      await _persist();
+    } catch (e) {
+      debugPrint('MyListService: Trakt sync error: $e');
+    }
+  }
+
+  static Future<void> syncWithSimkl() async {
+    try {
+      if (!await SimklService.instance.isAuthenticated()) return;
+      final lib = await SimklService.instance.fetchLibrarySnapshotOrNull();
+      if (lib == null) return;
+
+      final current = List<MyListItem>.from(items.value);
+      for (final bucket in ['movies', 'shows', 'anime']) {
+        final list = lib[bucket];
+        if (list is! List) continue;
+        for (final raw in list) {
+          if (raw is! Map<String, dynamic>) continue;
+          final status = raw['status'];
+          if (status == 'plantowatch' || status == 'watching') {
+            final item = MyListItem.fromSimklJson(raw);
+            final idx = current.indexWhere((i) => i.uniqueKey == item.uniqueKey);
+            if (idx == -1) {
+              current.insert(0, item);
+            }
+          }
+        }
+      }
+      current.sort((a, b) => b.addedAt.compareTo(a.addedAt));
+      items.value = current.take(maxItems).toList();
+      await _persist();
+    } catch (e) {
+      debugPrint('MyListService: Simkl sync error: $e');
     }
   }
 
@@ -49,25 +120,37 @@ abstract final class MyListService {
     items.value = newList;
     _persist();
 
-    // Push to Trakt if logged in (only for new local items, fire-and-forget)
-    if (TraktAuthService().isLoggedIn.value && item.source == MyListSource.local) {
-      TraktSyncService.syncUp(item);
-    }
+    // Push to cloud services if logged in
+    _syncCloudAdd(item);
   }
 
-  static void markSynced(MyListItem oldItem, MyListItem newItem) {
-    final list = List<MyListItem>.from(items.value);
-    final idx = list.indexWhere((i) => i.uniqueKey == oldItem.uniqueKey);
-    if (idx != -1) {
-      list[idx] = newItem;
-      items.value = list;
-      _persist();
+  static void _syncCloudAdd(MyListItem item) async {
+    if (item.imdbId == null || item.imdbId!.isEmpty) return;
+
+    if (await TraktService.instance.isAuthenticated()) {
+      TraktService.instance.addToWatchlist(item.imdbId!, item.type);
+    }
+    if (await SimklService.instance.isAuthenticated()) {
+      SimklService.instance.addToList(item.imdbId!, item.type, 'plantowatch');
     }
   }
 
   static void remove(MyListItem item) {
     items.value = items.value.where((i) => i.uniqueKey != item.uniqueKey).toList();
     _persist();
+
+    _syncCloudRemove(item);
+  }
+
+  static void _syncCloudRemove(MyListItem item) async {
+    if (item.imdbId == null || item.imdbId!.isEmpty) return;
+
+    if (await TraktService.instance.isAuthenticated()) {
+      TraktService.instance.removeFromWatchlist(item.imdbId!, item.type);
+    }
+    if (await SimklService.instance.isAuthenticated()) {
+      SimklService.instance.addToList(item.imdbId!, item.type, 'dropped');
+    }
   }
 
   static void toggle(MyListItem item) {

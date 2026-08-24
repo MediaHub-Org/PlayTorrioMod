@@ -18,6 +18,7 @@ import '../../services/my_list/my_list_service.dart';
 import '../../utils/route_transitions.dart';
 import '../../widgets/common/animated_ambient_background.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/home/continue_watching_slider.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../search/search_page.dart';
 import '../settings/settings_page.dart';
@@ -79,7 +80,9 @@ class _HomePageState extends State<HomePage> {
   void _onSettingsChanged() {
     if (!mounted) return;
     _refreshSimilarSection();
-    setState(() {});
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
   }
 
   Future<void> _refreshSimilarSection() async {
@@ -261,7 +264,7 @@ class _HomePageState extends State<HomePage> {
                 physics: const BouncingScrollPhysics(
                   parent: AlwaysScrollableScrollPhysics(),
                 ),
-                itemCount: _sections.length + 2,
+                itemCount: _sections.length + 3,
                 itemBuilder: (context, index) {
                   if (index == 0) {
                     if (!HomePageSettings.enableSpotlight.value) {
@@ -269,10 +272,13 @@ class _HomePageState extends State<HomePage> {
                     }
                     return _HeroCarousel(movies: _featuredMovies);
                   }
-                  if (index == _sections.length + 1) {
+                  if (index == 1) {
+                    return const ContinueWatchingSlider(typeFilter: 'main');
+                  }
+                  if (index == _sections.length + 2) {
                     return SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom);
                   }
-                  return MovieSliderSection(section: _sections[index - 1]);
+                  return MovieSliderSection(section: _sections[index - 2]);
                 },
               ),
             ),

@@ -49,12 +49,14 @@ class WatchScreen extends StatefulWidget {
   final MovieDetail detail;
   final Video? selectedEpisode;
   final String type;
+  final Duration? initialPosition;
 
   const WatchScreen({
     super.key,
     required this.detail,
     this.selectedEpisode,
     required this.type,
+    this.initialPosition,
   });
 
   @override
@@ -414,6 +416,7 @@ class _WatchScreenState extends State<WatchScreen>
                         logoUrl: widget.detail.logo,
                         detail: widget.detail,
                         episode: widget.selectedEpisode,
+                        initialPosition: widget.initialPosition,
                       ),
                     );
                   },
@@ -944,6 +947,7 @@ class _WatchScreenState extends State<WatchScreen>
           logoUrl: widget.detail.logo,
           detail: widget.detail,
           episode: widget.selectedEpisode,
+          initialPosition: widget.initialPosition,
         );
       },
     );
@@ -1195,6 +1199,7 @@ class _SourceCard extends StatefulWidget {
   final String? logoUrl;
   final MovieDetail detail;
   final Video? episode;
+  final Duration? initialPosition;
 
   const _SourceCard({
     required this.source,
@@ -1202,6 +1207,7 @@ class _SourceCard extends StatefulWidget {
     this.logoUrl,
     required this.detail,
     this.episode,
+    this.initialPosition,
   });
 
   @override
@@ -1297,6 +1303,7 @@ class _SourceCardState extends State<_SourceCard> {
                     logoUrl: widget.logoUrl,
                     detail: widget.detail,
                     episode: widget.episode,
+                    initialPosition: widget.initialPosition,
                   ),
                 ),
               );

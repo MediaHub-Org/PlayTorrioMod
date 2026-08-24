@@ -8,6 +8,7 @@ import './pages/home/home_page.dart';
 import './services/addon/addon_manager.dart';
 import './services/app_theme_service.dart';
 import './services/app_updater_service.dart';
+import './services/continue_watching/continue_watching_service.dart';
 import './services/glass_settings.dart';
 import './services/audiobook/audiobook_settings.dart';
 import './services/home_page_settings.dart';
@@ -17,8 +18,7 @@ import './services/manga/manga_settings.dart';
 import './services/music/music_settings.dart';
 import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
-import './services/trakt/trakt_auth_service.dart';
-import './services/trakt/trakt_sync_service.dart';
+import './services/env_service.dart';
 import './widgets/update_dialog.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -26,6 +26,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  await EnvService.initialize();
   fvp.registerWith(options: {
     'platforms': ['windows', 'linux', 'macos', 'android', 'ios'],
     'video.decoders': Platform.isWindows
@@ -48,6 +49,7 @@ void main() async {
     AddonManager.instance.initialize(),
     AppThemeService.initialize(),
     AudiobookSettings.initialize(),
+    ContinueWatchingService.initialize(),
     GlassSettings.initialize(),
     HomePageSettings.initialize(),
     IptvController.instance.init(),
@@ -56,8 +58,6 @@ void main() async {
     MusicSettings.initialize(),
     QobuzMusicService.instance.initialize(),
     MyListService.initialize(),
-    TraktAuthService().initialize(),
-    TraktSyncService.initialize(),
   ]);
   runApp(const PlayTorrioApp());
 }
