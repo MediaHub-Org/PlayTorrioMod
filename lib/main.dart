@@ -6,9 +6,16 @@ import 'package:fvp/fvp.dart' as fvp;
 
 import './pages/home/home_page.dart';
 import './services/addon/addon_manager.dart';
+import './services/app_theme_service.dart';
 import './services/app_updater_service.dart';
 import './services/glass_settings.dart';
+import './services/audiobook/audiobook_settings.dart';
+import './services/home_page_settings.dart';
 import './services/iptv/iptv_controller.dart';
+import './services/iptv/iptv_settings.dart';
+import './services/manga/manga_settings.dart';
+import './services/music/music_settings.dart';
+import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
 import './services/trakt/trakt_auth_service.dart';
 import './services/trakt/trakt_sync_service.dart';
@@ -39,8 +46,15 @@ void main() async {
   });
   await Future.wait([
     AddonManager.instance.initialize(),
+    AppThemeService.initialize(),
+    AudiobookSettings.initialize(),
     GlassSettings.initialize(),
+    HomePageSettings.initialize(),
     IptvController.instance.init(),
+    IptvSettings.initialize(),
+    MangaSettings.initialize(),
+    MusicSettings.initialize(),
+    QobuzMusicService.instance.initialize(),
     MyListService.initialize(),
     TraktAuthService().initialize(),
     TraktSyncService.initialize(),
@@ -109,20 +123,20 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      navigatorKey: navigatorKey,
-      title: 'PlayTorrio',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF080A0F),
-        useMaterial3: true,
-        colorSchemeSeed: const Color(0xFF7C5CFF),
-      ),
-      scrollBehavior: const MaterialScrollBehavior().copyWith(
-        overscroll: false,
-      ),
-      home: const HomePage(),
+    return ValueListenableBuilder<AppThemePalette>(
+      valueListenable: AppThemeService.currentPalette,
+      builder: (context, palette, _) {
+        return MaterialApp(
+          navigatorKey: navigatorKey,
+          title: 'PlayTorrio',
+          debugShowCheckedModeBanner: false,
+          theme: AppThemeService.createThemeData(palette),
+          scrollBehavior: const MaterialScrollBehavior().copyWith(
+            overscroll: false,
+          ),
+          home: const HomePage(),
+        );
+      },
     );
   }
 }

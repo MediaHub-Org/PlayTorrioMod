@@ -5,10 +5,14 @@ import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
+import '../../services/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
+import '../../services/manga/manga_settings.dart';
+import '../../widgets/common/animated_ambient_background.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/common/slider_arrow.dart';
 import '../../widgets/manga/manga_card.dart';
+import '../settings/appearance/manga_settings_page.dart';
 import 'manga_reader_page.dart';
 
 class MangaPage extends StatefulWidget {
@@ -47,12 +51,15 @@ class _MangaPageState extends State<MangaPage> {
     _scrollController = ScrollController(initialScrollOffset: _cachedScrollOffset);
     _searchController.text = _cachedSearchQuery;
     
+    MangaSettings.changeNotifier.addListener(_onSettingsChanged);
+    AppThemeService.currentPalette.addListener(_onSettingsChanged);
+
     if (_cachedMangaList != null && _cachedReadingHistory != null) {
       _mangaList = _cachedMangaList!;
       _readingHistory = _cachedReadingHistory!;
       _currentPage = _cachedCurrentPage;
       _searchQuery = _cachedSearchQuery;
-      // We still want to refresh reading history in background silently just in case it changed
+      // Refresh reading history in background silently
       _mangaService.getReadingHistory().then((history) {
         if (mounted) {
           setState(() {
@@ -70,8 +77,15 @@ class _MangaPageState extends State<MangaPage> {
     _scrollController.addListener(_onScroll);
   }
 
+  void _onSettingsChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
   @override
   void dispose() {
+    MangaSettings.changeNotifier.removeListener(_onSettingsChanged);
+    AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     MangaService.readingHistoryRevision.removeListener(_loadHistory);
     _scrollController.dispose();
     _searchController.dispose();
@@ -174,36 +188,208 @@ class _MangaPageState extends State<MangaPage> {
     );
   }
 
+  void _showMangaCustomizer(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: const Color(0xFF10131C),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.tune_rounded, color: palette.primaryColor, size: 20),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Customize Manga Section',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(color: Colors.white.withValues(alpha: 0.08)),
+                  const SizedBox(height: 12),
+
+                  const Text(
+                    'Poster Card Density',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<MangaCardDensity>(
+                    valueListenable: MangaSettings.cardDensity,
+                    builder: (context, density, _) {
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: MangaCardDensity.values.map((d) {
+                          final isSelected = d == density;
+                          return ChoiceChip(
+                            label: Text(d.label),
+                            selected: isSelected,
+                            selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                            backgroundColor: const Color(0xFF0D1017),
+                            labelStyle: TextStyle(
+                              color: isSelected ? palette.primaryColor : Colors.white70,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? palette.primaryColor.withValues(alpha: 0.6)
+                                  : Colors.white.withValues(alpha: 0.08),
+                            ),
+                            onSelected: (selected) {
+                              if (selected) MangaSettings.setCardDensity(d);
+                            },
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: MangaSettings.enableAmbientLights,
+                    builder: (context, enabled, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Moving Ambient Background Glow', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: enabled,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => MangaSettings.setEnableAmbientLights(val),
+                      );
+                    },
+                  ),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: MangaSettings.showContinueReading,
+                    builder: (context, show, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show "Continue Reading" Slider', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: show,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => MangaSettings.setShowContinueReading(val),
+                      );
+                    },
+                  ),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: MangaSettings.showContentTypeBadge,
+                    builder: (context, show, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show Content Type Badge on Posters', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: show,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => MangaSettings.setShowContentTypeBadge(val),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 12),
+                  Divider(color: Colors.white.withValues(alpha: 0.08)),
+                  const SizedBox(height: 12),
+
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: palette.primaryColor.withValues(alpha: 0.15),
+                        foregroundColor: palette.primaryColor,
+                        side: BorderSide(color: palette.primaryColor.withValues(alpha: 0.4)),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                      icon: const Icon(Icons.settings_rounded, size: 18),
+                      label: const Text('More Appearance & Reader Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      onPressed: () {
+                        Navigator.pop(ctx);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const MangaSettingsPage()),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     _screenWidth = MediaQuery.sizeOf(context).width;
-    
+    final palette = AppThemeService.currentPalette.value;
+    final ambientEnabled = MangaSettings.enableAmbientLights.value;
+    final showScrollTrack = MangaSettings.showScrollTrack.value;
+
     return Scaffold(
       backgroundColor: const Color(0xFF080A0F),
-      body: LiquidGlassView(
-        pixelRatio: 0.25,
-        refreshRate: LiquidGlassRefreshRate.low,
-        backgroundWidget: _buildScrollableContent(),
-        child: Stack(
-          children: [
-            // Top App Bar / Search
-            _buildAppBar(),
-            
-            // Custom Scroll Track (Desktop only)
-            if (_screenWidth > 800)
-              Positioned(
-                right: 24,
-                bottom: 40,
-                child: CustomScrollTrack(controller: _scrollController),
-              ),
-          ],
-        ),
+      body: Stack(
+        children: [
+          // ── Moving Ambient Background ──
+          if (ambientEnabled)
+            const Positioned.fill(child: AnimatedAmbientBackground())
+          else
+            Positioned.fill(
+              child: Container(color: palette.scaffoldBackgroundColor),
+            ),
+
+          LiquidGlassView(
+            pixelRatio: 0.25,
+            refreshRate: LiquidGlassRefreshRate.low,
+            backgroundWidget: _buildScrollableContent(),
+            child: Stack(
+              children: [
+                // Top App Bar / Search / Customize
+                _buildAppBar(),
+                
+                // Custom Scroll Track (Desktop only)
+                if (_screenWidth > 800 && showScrollTrack)
+                  Positioned(
+                    right: 24,
+                    bottom: 40,
+                    child: CustomScrollTrack(controller: _scrollController),
+                  ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
 
   Widget _buildScrollableContent() {
-    final sizing = MangaCardSizing.fromWidth(_screenWidth);
+    final density = MangaSettings.cardDensity.value;
+    final sizing = MangaCardSizing.fromWidth(_screenWidth, density: density);
+    final showContinue = MangaSettings.showContinueReading.value;
     final isMobile = _screenWidth < 600;
     final topInset = MediaQuery.paddingOf(context).top;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
@@ -217,7 +403,7 @@ class _MangaPageState extends State<MangaPage> {
         ),
         
         // ── Continue Reading ──
-        if (_readingHistory.isNotEmpty && _searchQuery.isEmpty) ...[
+        if (showContinue && _readingHistory.isNotEmpty && _searchQuery.isEmpty) ...[
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.symmetric(
@@ -256,7 +442,7 @@ class _MangaPageState extends State<MangaPage> {
               vertical: isMobile ? 12.0 : 16.0,
             ),
             child: Text(
-              _searchQuery.isNotEmpty ? 'Search Results' : 'Discover',
+              _searchQuery.isNotEmpty ? 'Search Results' : 'Discover Manga',
               style: TextStyle(
                 color: Colors.white,
                 fontSize: isMobile ? 22 : 28,
@@ -321,6 +507,7 @@ class _MangaPageState extends State<MangaPage> {
   Widget _buildAppBar() {
     final topInset = MediaQuery.paddingOf(context).top;
     final isMobile = _screenWidth < 600;
+    final palette = AppThemeService.currentPalette.value;
 
     return Positioned(
       top: 12.0 + topInset,
@@ -350,7 +537,7 @@ class _MangaPageState extends State<MangaPage> {
               ),
             ),
           ),
-          const SizedBox(width: 16),
+          const SizedBox(width: 12),
           
           // Search Bar
           Expanded(
@@ -363,7 +550,7 @@ class _MangaPageState extends State<MangaPage> {
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.05),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: _searchQuery.isNotEmpty ? palette.primaryColor : Colors.white.withValues(alpha: 0.1),
                       width: 1.5,
                     ),
                     borderRadius: BorderRadius.circular(24),
@@ -373,9 +560,9 @@ class _MangaPageState extends State<MangaPage> {
                     onSubmitted: _onSearchChanged,
                     style: const TextStyle(color: Colors.white, fontSize: 16),
                     decoration: InputDecoration(
-                      hintText: 'Search Manga...',
+                      hintText: 'Search Manga, Manhwa, Manhua...',
                       hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-                      prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54),
+                      prefixIcon: Icon(Icons.search_rounded, color: palette.primaryColor),
                       border: InputBorder.none,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                       suffixIcon: _searchQuery.isNotEmpty
@@ -393,9 +580,35 @@ class _MangaPageState extends State<MangaPage> {
               ),
             ),
           ),
+
+          const SizedBox(width: 12),
+
+          // Quick Customize Button
+          ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: BackdropFilter(
+              filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.05),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.1),
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: IconButton(
+                  icon: const Icon(Icons.tune_rounded, color: Colors.white70),
+                  tooltip: 'Customize Manga Section',
+                  onPressed: () => _showMangaCustomizer(context),
+                  splashRadius: 20,
+                ),
+              ),
+            ),
+          ),
           
-          // Spacer so search bar doesn't touch the right edge
-          if (_screenWidth > 800) const SizedBox(width: 120),
+          // Spacer so search bar doesn't touch the right edge on wide desktop screens
+          if (_screenWidth > 800) const SizedBox(width: 80),
         ],
       ),
     );
@@ -535,6 +748,7 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
   }
 
   Widget _buildHistoryCard(Map<String, dynamic> entry) {
+    final palette = AppThemeService.currentPalette.value;
     final mangaJson = entry['manga'];
     final title = mangaJson['title'] ?? 'Unknown';
     final coverUrl = mangaJson['cover_normal'] ?? mangaJson['cover_small'] ?? '';
@@ -619,7 +833,7 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                const Icon(Icons.menu_book_rounded, color: Colors.blueAccent, size: 16),
+                                Icon(Icons.menu_book_rounded, color: palette.primaryColor, size: 16),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -647,7 +861,7 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
                   child: Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blueAccent.withValues(alpha: 0.8),
+                      color: palette.primaryColor.withValues(alpha: 0.85),
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(

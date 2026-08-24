@@ -5,7 +5,9 @@ import 'package:flutter/services.dart';
 
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
+import '../../services/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
+import '../../services/manga/manga_settings.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 
 class MangaReaderPage extends StatefulWidget {
@@ -36,10 +38,13 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
   List<String> _pageUrls = [];
   bool _isLoading = true;
   bool _showOverlay = true;
-  bool _isHorizontalMode = true; // Default to Horizontal Page Flip
+  bool _showDeckDrawer = false;
+
+  late MangaReadingMode _readingMode;
 
   PageController? _pageController;
   final ScrollController _verticalScrollController = ScrollController();
+  final ScrollController _deckScrollController = ScrollController();
   final TransformationController _transformationController = TransformationController();
 
   double _currentZoom = 1.0;
@@ -49,9 +54,13 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
     super.initState();
     _currentChapterIndex = widget.currentChapterIndex;
     _currentPageIndex = widget.resumePageIndex;
-    _pageController = PageController(initialPage: _currentPageIndex);
+    _readingMode = MangaSettings.defaultReadingMode.value;
 
+    _initPageController();
     _verticalScrollController.addListener(_onVerticalScroll);
+    MangaSettings.changeNotifier.addListener(_onSettingsChanged);
+    AppThemeService.currentPalette.addListener(_onSettingsChanged);
+
     _loadChapter();
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -59,11 +68,24 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
     });
   }
 
+  void _onSettingsChanged() {
+    if (!mounted) return;
+    setState(() {});
+  }
+
+  void _initPageController() {
+    _pageController?.dispose();
+    _pageController = PageController(initialPage: _currentPageIndex);
+  }
+
   @override
   void dispose() {
+    MangaSettings.changeNotifier.removeListener(_onSettingsChanged);
+    AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     _focusNode.dispose();
     _pageController?.dispose();
     _verticalScrollController.dispose();
+    _deckScrollController.dispose();
     _transformationController.dispose();
     super.dispose();
   }
@@ -134,10 +156,11 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
       if (_pageController?.hasClients ?? false) {
         _pageController!.jumpToPage(_currentPageIndex);
       } else {
-        _pageController = PageController(initialPage: _currentPageIndex);
+        _initPageController();
       }
 
       _saveProgress();
+      _scrollToCurrentPageInDeck();
     }
   }
 
@@ -150,35 +173,77 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
     );
   }
 
+  void _scrollToCurrentPageInDeck() {
+    if (!_showDeckDrawer || !_deckScrollController.hasClients || _pageUrls.isEmpty) return;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isMobile = screenW < 600;
+    final isVerySmall = screenW < 420;
+    final cardW = (isVerySmall ? 52.0 : (isMobile ? 60.0 : 74.0)) + 8.0;
+    final target = (_currentPageIndex * cardW) - (screenW / 2) + (cardW / 2);
+    _deckScrollController.animateTo(
+      target.clamp(0.0, _deckScrollController.position.maxScrollExtent),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   void _onVerticalScroll() {
-    if (_isHorizontalMode || _pageUrls.isEmpty) return;
+    if (_readingMode != MangaReadingMode.webtoon || _pageUrls.isEmpty) return;
 
     final offset = _verticalScrollController.offset;
-    final estimatedIndex = (offset / 1000).floor().clamp(0, _pageUrls.length - 1);
+    final estimatedIndex = (offset / 900).floor().clamp(0, _pageUrls.length - 1);
 
     if (estimatedIndex != _currentPageIndex) {
       setState(() => _currentPageIndex = estimatedIndex);
       _saveProgress();
+      _scrollToCurrentPageInDeck();
     }
   }
 
   void _onPageChanged(int index) {
     setState(() => _currentPageIndex = index);
     _saveProgress();
+    _scrollToCurrentPageInDeck();
   }
 
-  void _toggleMode() {
-    _resetZoom();
-    setState(() {
-      _isHorizontalMode = !_isHorizontalMode;
-      if (_isHorizontalMode) {
-        _pageController = PageController(initialPage: _currentPageIndex);
+  void _jumpToPage(int pageIndex) {
+    if (pageIndex < 0 || pageIndex >= _pageUrls.length) return;
+    setState(() => _currentPageIndex = pageIndex);
+
+    if (_readingMode == MangaReadingMode.webtoon) {
+      if (_verticalScrollController.hasClients) {
+        final targetOffset = pageIndex * 900.0;
+        _verticalScrollController.animateTo(
+          targetOffset.clamp(0.0, _verticalScrollController.position.maxScrollExtent),
+          duration: const Duration(milliseconds: 350),
+          curve: Curves.easeInOut,
+        );
       }
-    });
+    } else {
+      if (_pageController?.hasClients ?? false) {
+        _pageController!.jumpToPage(pageIndex);
+      }
+    }
+    _saveProgress();
+    _scrollToCurrentPageInDeck();
   }
 
   void _toggleOverlay() {
-    setState(() => _showOverlay = !_showOverlay);
+    setState(() {
+      _showOverlay = !_showOverlay;
+      if (!_showOverlay) _showDeckDrawer = false;
+    });
+  }
+
+  void _toggleDeckDrawer() {
+    setState(() {
+      _showDeckDrawer = !_showDeckDrawer;
+    });
+    if (_showDeckDrawer) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollToCurrentPageInDeck();
+      });
+    }
   }
 
   void _nextChapter() {
@@ -209,28 +274,224 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
       return;
     }
 
-    if (_isHorizontalMode) {
+    if (_readingMode == MangaReadingMode.horizontalLtr) {
       if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
           event.logicalKey == LogicalKeyboardKey.space) {
         if (_currentPageIndex < _pageUrls.length - 1) {
-          _pageController?.nextPage(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-          );
+          _pageController?.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
         } else {
           _nextChapter();
         }
       } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
         if (_currentPageIndex > 0) {
-          _pageController?.previousPage(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeInOut,
-          );
+          _pageController?.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
+        } else {
+          _prevChapter();
+        }
+      }
+    } else if (_readingMode == MangaReadingMode.horizontalRtl) {
+      if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+          event.logicalKey == LogicalKeyboardKey.space) {
+        if (_currentPageIndex < _pageUrls.length - 1) {
+          _pageController?.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
+        } else {
+          _nextChapter();
+        }
+      } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
+        if (_currentPageIndex > 0) {
+          _pageController?.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
         } else {
           _prevChapter();
         }
       }
     }
+  }
+
+  void _showReaderCustomizer(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: const Color(0xFF10131C),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 490),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.tune_rounded, color: palette.primaryColor, size: 20),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Reader Settings & Layout',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(color: Colors.white.withValues(alpha: 0.08)),
+                  const SizedBox(height: 12),
+
+                  const Text('Reading Orientation Mode', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: MangaReadingMode.values.map((m) {
+                      final isSelected = m == _readingMode;
+                      return ChoiceChip(
+                        label: Text(m.label),
+                        selected: isSelected,
+                        selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                        backgroundColor: const Color(0xFF0D1017),
+                        labelStyle: TextStyle(
+                          color: isSelected ? palette.primaryColor : Colors.white70,
+                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                          fontSize: 12,
+                        ),
+                        side: BorderSide(
+                          color: isSelected ? palette.primaryColor.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.08),
+                        ),
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() => _readingMode = m);
+                            MangaSettings.setDefaultReadingMode(m);
+                            _initPageController();
+                          }
+                        },
+                      );
+                    }).toList(),
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  const Text('Page Reading Width Constraint', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<MangaReaderMaxWidth>(
+                    valueListenable: MangaSettings.readerMaxWidth,
+                    builder: (context, width, _) {
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: MangaReaderMaxWidth.values.map((w) {
+                          final isSelected = w == width;
+                          return ChoiceChip(
+                            label: Text(w.label),
+                            selected: isSelected,
+                            selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                            backgroundColor: const Color(0xFF0D1017),
+                            labelStyle: TextStyle(
+                              color: isSelected ? palette.primaryColor : Colors.white70,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                            side: BorderSide(
+                              color: isSelected ? palette.primaryColor.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.08),
+                            ),
+                            onSelected: (selected) {
+                              if (selected) MangaSettings.setReaderMaxWidth(w);
+                            },
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  const Text('Reader Background Atmosphere', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<MangaReaderBackground>(
+                    valueListenable: MangaSettings.readerBackground,
+                    builder: (context, bg, _) {
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: MangaReaderBackground.values.map((b) {
+                          final isSelected = b == bg;
+                          return ChoiceChip(
+                            avatar: Container(
+                              width: 14,
+                              height: 14,
+                              decoration: BoxDecoration(
+                                color: b.color,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white30),
+                              ),
+                            ),
+                            label: Text(b.label),
+                            selected: isSelected,
+                            selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                            backgroundColor: const Color(0xFF0D1017),
+                            labelStyle: TextStyle(
+                              color: isSelected ? palette.primaryColor : Colors.white70,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                            side: BorderSide(
+                              color: isSelected ? palette.primaryColor.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.08),
+                            ),
+                            onSelected: (selected) {
+                              if (selected) MangaSettings.setReaderBackground(b);
+                            },
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: MangaSettings.showPageDeck,
+                    builder: (context, showDeck, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show Page Deck Previews Drawer', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: showDeck,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => MangaSettings.setShowPageDeck(val),
+                      );
+                    },
+                  ),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: MangaSettings.enableNextChapterDeck,
+                    builder: (context, showNext, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show Next Chapter Deck Card', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: showNext,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => MangaSettings.setEnableNextChapterDeck(val),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -239,19 +500,22 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
         ? widget.chapters[_currentChapterIndex].name
         : 'Chapter ${widget.chapters[_currentChapterIndex].number}';
 
+    final readerBg = MangaSettings.readerBackground.value.color;
+    final palette = AppThemeService.currentPalette.value;
+
     return KeyboardListener(
       focusNode: _focusNode,
       onKeyEvent: _handleKeyEvent,
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: readerBg,
         body: Stack(
           children: [
-            // Main Interactive Zoom & Pan Reader Container (Works in both Horizontal and Vertical modes)
+            // Main Interactive Zoom & Pan Reader Container
             GestureDetector(
               onTap: _toggleOverlay,
               child: _isLoading
-                  ? const Center(
-                      child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
+                  ? Center(
+                      child: CircularProgressIndicator(color: palette.primaryColor),
                     )
                   : _pageUrls.isEmpty
                       ? const Center(
@@ -264,7 +528,7 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                           transformationController: _transformationController,
                           minScale: 0.25,
                           maxScale: 5.0,
-                          panEnabled: true, // Enables click & drag panning in both Horizontal & Vertical modes when zoomed!
+                          panEnabled: true,
                           scaleEnabled: true,
                           clipBehavior: Clip.none,
                           onInteractionUpdate: (_) {
@@ -273,14 +537,14 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                               setState(() => _currentZoom = s);
                             }
                           },
-                          child: _isHorizontalMode
-                              ? _buildHorizontalPageView()
-                              : _buildVerticalWebtoonReader(),
+                          child: _readingMode == MangaReadingMode.webtoon
+                              ? _buildVerticalWebtoonReader()
+                              : _buildHorizontalPageView(),
                         ),
             ),
 
             // Custom Vertical Scroller for Webtoon Mode
-            if (!_isHorizontalMode && !_isLoading && _pageUrls.isNotEmpty)
+            if (_readingMode == MangaReadingMode.webtoon && !_isLoading && _pageUrls.isNotEmpty && MangaSettings.showScrollTrack.value)
               Positioned(
                 right: 20,
                 top: 100,
@@ -303,7 +567,7 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                 child: _buildTopBar(chapterTitle),
               ),
 
-            // Bottom Navigation & Controls Overlay
+            // Bottom Navigation & Controls Overlay (Cohesive & Fully Responsive with Page Deck above slider)
             if (_showOverlay)
               Positioned(
                 bottom: 0,
@@ -317,79 +581,30 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
     );
   }
 
-  // 1. Horizontal Reading Mode with PageView (Supports Center Zoom & Click-and-Drag Pan)
+  // 1. Horizontal Reading Mode (LTR & RTL)
   Widget _buildHorizontalPageView() {
-    return PageView.builder(
+    final maxWidth = MangaSettings.readerMaxWidth.value.width;
+    final isRtl = _readingMode == MangaReadingMode.horizontalRtl;
+
+    Widget pageView = PageView.builder(
       controller: _pageController,
+      reverse: isRtl,
       physics: _currentZoom > 1.05
-          ? const NeverScrollableScrollPhysics() // When zoomed in, allow mouse drag to pan around the page without triggering page swipe
+          ? const NeverScrollableScrollPhysics()
           : const BouncingScrollPhysics(),
       itemCount: _pageUrls.length,
       onPageChanged: _onPageChanged,
       itemBuilder: (context, index) {
-        return Container(
-          color: Colors.black,
-          alignment: Alignment.center,
-          child: CachedNetworkImage(
-            imageUrl: _pageUrls[index],
-            fit: BoxFit.contain,
-            placeholder: (context, url) => const Center(
-              child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
-            ),
-            errorWidget: (context, url, error) => const Center(
-              child: Icon(Icons.broken_image_rounded, color: Colors.white38, size: 48),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  // 2. Vertical Webtoon Continuous Scroll Mode
-  Widget _buildVerticalWebtoonReader() {
-    return ListView.builder(
-      controller: _verticalScrollController,
-      physics: _currentZoom > 1.05
-          ? const NeverScrollableScrollPhysics() // When zoomed in, allow mouse drag to pan around the page
-          : const BouncingScrollPhysics(),
-      itemCount: _pageUrls.length + 1,
-      itemBuilder: (context, index) {
-        if (index == _pageUrls.length) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 48.0),
-            child: Center(
-              child: ElevatedButton.icon(
-                onPressed: _currentChapterIndex > 0 ? _nextChapter : null,
-                icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
-                label: const Text(
-                  'Next Chapter',
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF7C5CFF),
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-              ),
-            ),
-          );
-        }
-
-        return Container(
-          color: Colors.black,
-          margin: const EdgeInsets.only(bottom: 4),
-          child: CachedNetworkImage(
-            imageUrl: _pageUrls[index],
-            fit: BoxFit.fitWidth,
-            placeholder: (context, url) => const SizedBox(
-              height: 350,
-              child: Center(
+        return Center(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
+            child: CachedNetworkImage(
+              imageUrl: _pageUrls[index],
+              fit: BoxFit.contain,
+              placeholder: (context, url) => const Center(
                 child: CircularProgressIndicator(color: Colors.white24),
               ),
-            ),
-            errorWidget: (context, url, error) => const SizedBox(
-              height: 200,
-              child: Center(
+              errorWidget: (context, url, error) => const Center(
                 child: Icon(Icons.broken_image_rounded, color: Colors.white38, size: 48),
               ),
             ),
@@ -397,15 +612,307 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
         );
       },
     );
+
+    return pageView;
+  }
+
+  // 2. Vertical Webtoon Continuous Scroll Mode
+  Widget _buildVerticalWebtoonReader() {
+    final maxWidth = MangaSettings.readerMaxWidth.value.width;
+    final pageGap = MangaSettings.pageGap.value;
+    final showNextDeck = MangaSettings.enableNextChapterDeck.value;
+
+    return Center(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth ?? double.infinity),
+        child: ListView.builder(
+          controller: _verticalScrollController,
+          physics: _currentZoom > 1.05
+              ? const NeverScrollableScrollPhysics()
+              : const BouncingScrollPhysics(),
+          itemCount: _pageUrls.length + 1,
+          itemBuilder: (context, index) {
+            if (index == _pageUrls.length) {
+              if (!showNextDeck) {
+                return const SizedBox(height: 80);
+              }
+              return _buildNextChapterDeckCard();
+            }
+
+            return Container(
+              margin: EdgeInsets.only(bottom: pageGap),
+              child: CachedNetworkImage(
+                imageUrl: _pageUrls[index],
+                fit: BoxFit.fitWidth,
+                placeholder: (context, url) => const SizedBox(
+                  height: 350,
+                  child: Center(
+                    child: CircularProgressIndicator(color: Colors.white24),
+                  ),
+                ),
+                errorWidget: (context, url, error) => const SizedBox(
+                  height: 200,
+                  child: Center(
+                    child: Icon(Icons.broken_image_rounded, color: Colors.white38, size: 48),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  // 3. Next Chapter Preview Deck Card (at the end of Webtoon)
+  Widget _buildNextChapterDeckCard() {
+    final palette = AppThemeService.currentPalette.value;
+    final hasNext = _currentChapterIndex > 0;
+    final nextChapter = hasNext ? widget.chapters[_currentChapterIndex - 1] : null;
+    final nextTitle = nextChapter != null
+        ? (nextChapter.name.isNotEmpty ? nextChapter.name : 'Chapter ${nextChapter.number}')
+        : 'You are all caught up!';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 48),
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: const Color(0xFF10131D).withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.5),
+            blurRadius: 24,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: palette.primaryColor.withValues(alpha: 0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              hasNext ? 'UP NEXT' : 'CHAPTER FINISHED',
+              style: TextStyle(color: palette.primaryColor, fontSize: 11, fontWeight: FontWeight.w900),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            nextTitle,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            widget.manga.title,
+            style: const TextStyle(color: Colors.white54, fontSize: 13),
+          ),
+          const SizedBox(height: 20),
+          if (hasNext)
+            ElevatedButton.icon(
+              onPressed: _nextChapter,
+              icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 20),
+              label: const Text(
+                'Read Next Chapter',
+                style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: palette.primaryColor,
+                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+            )
+          else
+            OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).pop(),
+              icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.greenAccent),
+              label: const Text('Back to Manga Details', style: TextStyle(color: Colors.white)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Colors.white24),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // 4. Page Deck Preview Section (Placed DIRECTLY ABOVE the slider)
+  Widget _buildPageDeckSection(bool isMobile, bool isVerySmall, AppThemePalette palette) {
+    final cardWidth = isVerySmall ? 54.0 : (isMobile ? 62.0 : 74.0);
+    final cardHeight = isVerySmall ? 78.0 : (isMobile ? 88.0 : 104.0);
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 8 : 14,
+        vertical: 8,
+      ),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0C0F17).withValues(alpha: 0.85),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.view_carousel_rounded, color: palette.primaryColor, size: 14),
+                    const SizedBox(width: 6),
+                    const Text(
+                      'Page Deck Preview',
+                      style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+                    ),
+                  ],
+                ),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: palette.primaryColor.withValues(alpha: 0.18),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: palette.primaryColor.withValues(alpha: 0.4)),
+                  ),
+                  child: Text(
+                    'Page ${_currentPageIndex + 1} of ${_pageUrls.length}',
+                    style: TextStyle(color: palette.primaryColor, fontSize: 10.5, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: cardHeight,
+            child: ListView.builder(
+              controller: _deckScrollController,
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              itemCount: _pageUrls.length,
+              itemBuilder: (context, index) {
+                final isCurrent = index == _currentPageIndex;
+                return GestureDetector(
+                  onTap: () => _jumpToPage(index),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: cardWidth,
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF131722),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: isCurrent ? palette.primaryColor : Colors.white.withValues(alpha: 0.12),
+                        width: isCurrent ? 2.2 : 1.0,
+                      ),
+                      boxShadow: isCurrent
+                          ? [
+                              BoxShadow(
+                                color: palette.primaryColor.withValues(alpha: 0.45),
+                                blurRadius: 10,
+                                offset: const Offset(0, 2),
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CachedNetworkImage(
+                            imageUrl: _pageUrls[index],
+                            fit: BoxFit.cover,
+                            memCacheWidth: 140,
+                            placeholder: (_, __) => Container(color: const Color(0xFF161A24)),
+                            errorWidget: (_, __, ___) => const Center(
+                              child: Icon(Icons.broken_image_rounded, color: Colors.white24, size: 18),
+                            ),
+                          ),
+                          // Bottom gradient overlay
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            bottom: 0,
+                            height: 26,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topCenter,
+                                  end: Alignment.bottomCenter,
+                                  colors: [
+                                    Colors.transparent,
+                                    Colors.black.withValues(alpha: 0.85),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          // Page number indicator badge
+                          Positioned(
+                            bottom: 3,
+                            left: 0,
+                            right: 0,
+                            child: Center(
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: isCurrent ? palette.primaryColor : Colors.black.withValues(alpha: 0.7),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  '${index + 1}',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // Top Glass Bar
   Widget _buildTopBar(String title) {
+    final palette = AppThemeService.currentPalette.value;
+    final topInset = MediaQuery.paddingOf(context).top;
+
     return ClipRRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
         child: Container(
-          padding: const EdgeInsets.only(top: 40, bottom: 12, left: 16, right: 16),
+          padding: EdgeInsets.only(top: 12 + topInset, bottom: 12, left: 16, right: 16),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.65),
             border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
@@ -442,12 +949,9 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                 ),
               ),
               IconButton(
-                tooltip: _isHorizontalMode ? 'Switch to Vertical Webtoon Mode' : 'Switch to Horizontal Flip Mode',
-                icon: Icon(
-                  _isHorizontalMode ? Icons.view_day_rounded : Icons.view_carousel_rounded,
-                  color: const Color(0xFFA78BFA),
-                ),
-                onPressed: _toggleMode,
+                tooltip: 'Reader Customization',
+                icon: Icon(Icons.tune_rounded, color: palette.primaryColor, size: 22),
+                onPressed: () => _showReaderCustomizer(context),
               ),
             ],
           ),
@@ -456,42 +960,70 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
     );
   }
 
-  // Bottom Glass Control Bar with Page Counter, Navigation & Button Zoom Controls
+  // Bottom Glass Control Bar with Integrated Page Deck (above slider), Navigation & Zoom
   Widget _buildBottomBar() {
+    final palette = AppThemeService.currentPalette.value;
+    final showScrubber = MangaSettings.showPageScrubber.value;
+    final showDeckToggle = MangaSettings.showPageDeck.value;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isMobile = screenW < 600;
+    final isVerySmall = screenW < 420;
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+
     return ClipRRect(
       child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
+        filter: ImageFilter.blur(sigmaX: 18.0, sigmaY: 18.0),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          padding: EdgeInsets.fromLTRB(
+            isMobile ? 12 : 24,
+            12,
+            isMobile ? 12 : 24,
+            12 + bottomInset,
+          ),
           decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: 0.65),
+            color: const Color(0xFF090B10).withValues(alpha: 0.90),
             border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.7),
+                blurRadius: 24,
+                offset: const Offset(0, -6),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (_isHorizontalMode && _pageUrls.isNotEmpty)
-                SliderTheme(
-                  data: SliderThemeData(
-                    activeTrackColor: const Color(0xFF7C5CFF),
-                    inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
-                    thumbColor: const Color(0xFF7C5CFF),
-                    overlayColor: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
-                    trackHeight: 3,
-                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                  ),
-                  child: Slider(
-                    value: _currentPageIndex.toDouble().clamp(0.0, (_pageUrls.length - 1).toDouble()),
-                    min: 0.0,
-                    max: (_pageUrls.length - 1).toDouble(),
-                    divisions: _pageUrls.length > 1 ? _pageUrls.length - 1 : 1,
-                    onChanged: (val) {
-                      final targetPage = val.round();
-                      _pageController?.jumpToPage(targetPage);
-                      _onPageChanged(targetPage);
-                    },
+              // ── 1. Page Deck Thumbnail Strip (DIRECTLY ABOVE THE SLIDER) ──
+              if (_showDeckDrawer && _pageUrls.isNotEmpty)
+                _buildPageDeckSection(isMobile, isVerySmall, palette),
+
+              // ── 2. Page Scrubber Slider ──
+              if (showScrubber && _pageUrls.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: SliderTheme(
+                    data: SliderThemeData(
+                      activeTrackColor: palette.primaryColor,
+                      inactiveTrackColor: Colors.white.withValues(alpha: 0.2),
+                      thumbColor: palette.primaryColor,
+                      overlayColor: palette.primaryColor.withValues(alpha: 0.2),
+                      trackHeight: 3.5,
+                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.5),
+                    ),
+                    child: Slider(
+                      value: _currentPageIndex.toDouble().clamp(0.0, (_pageUrls.length - 1).toDouble()),
+                      min: 0.0,
+                      max: (_pageUrls.length - 1).toDouble(),
+                      divisions: _pageUrls.length > 1 ? _pageUrls.length - 1 : 1,
+                      onChanged: (val) {
+                        _jumpToPage(val.round());
+                      },
+                    ),
                   ),
                 ),
+
+              // ── 3. Bottom Actions & Responsive Navigation Row ──
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -500,74 +1032,107 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                     icon: const Icon(Icons.skip_previous_rounded, color: Colors.white),
                     onPressed: _currentChapterIndex < widget.chapters.length - 1 ? _prevChapter : null,
                     tooltip: 'Previous Chapter',
+                    splashRadius: 20,
                   ),
 
-                  // Interactive Zoom Control Cluster (Button Zoom + Center Alignment)
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.08),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  // Center Cluster: Zoom Controls + Page Badge
+                  Flexible(
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        IconButton(
-                          icon: const Icon(Icons.zoom_out_rounded, color: Colors.white, size: 20),
-                          onPressed: _currentZoom > 0.26 ? _zoomOut : null,
-                          tooltip: 'Zoom Out (-)',
-                          padding: const EdgeInsets.all(6),
-                          constraints: const BoxConstraints(),
-                        ),
-                        InkWell(
-                          onTap: _resetZoom,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            child: Text(
-                              '${(_currentZoom * 100).round()}%',
-                              style: TextStyle(
-                                color: (_currentZoom - 1.0).abs() > 0.03 ? const Color(0xFFA78BFA) : Colors.white70,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
+                        // Interactive Zoom Control Cluster (Desktop / Tablet / Standard)
+                        if (!isVerySmall)
+                          Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                            ),
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.zoom_out_rounded, color: Colors.white, size: 18),
+                                  onPressed: _currentZoom > 0.26 ? _zoomOut : null,
+                                  tooltip: 'Zoom Out (-)',
+                                  padding: const EdgeInsets.all(5),
+                                  constraints: const BoxConstraints(),
+                                ),
+                                InkWell(
+                                  onTap: _resetZoom,
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    child: Text(
+                                      '${(_currentZoom * 100).round()}%',
+                                      style: TextStyle(
+                                        color: (_currentZoom - 1.0).abs() > 0.03 ? palette.primaryColor : Colors.white70,
+                                        fontSize: 11.5,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 18),
+                                  onPressed: _currentZoom < 4.9 ? _zoomIn : null,
+                                  tooltip: 'Zoom In (+)',
+                                  padding: const EdgeInsets.all(5),
+                                  constraints: const BoxConstraints(),
+                                ),
+                              ],
                             ),
                           ),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 20),
-                          onPressed: _currentZoom < 4.9 ? _zoomIn : null,
-                          tooltip: 'Zoom In (+)',
-                          padding: const EdgeInsets.all(6),
-                          constraints: const BoxConstraints(),
+
+                        if (!isVerySmall) const SizedBox(width: 8),
+
+                        // Page Counter Badge
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isMobile ? 8 : 12,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            'Page ${_currentPageIndex + 1} / ${_pageUrls.isNotEmpty ? _pageUrls.length : "?"}',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: isVerySmall ? 11 : 12.5,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                         ),
                       ],
                     ),
                   ),
 
-                  // Page Counter Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Page ${_currentPageIndex + 1} / ${_pageUrls.isNotEmpty ? _pageUrls.length : "?"}',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                  // Right Cluster: Deck Toggle + Next Chapter Button
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (showDeckToggle)
+                        IconButton(
+                          tooltip: 'Toggle Page Deck',
+                          icon: Icon(
+                            Icons.view_carousel_rounded,
+                            color: _showDeckDrawer ? palette.primaryColor : Colors.white70,
+                            size: 20,
+                          ),
+                          onPressed: _toggleDeckDrawer,
+                          splashRadius: 20,
+                        ),
 
-                  // Next Chapter Button
-                  IconButton(
-                    icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
-                    onPressed: _currentChapterIndex > 0 ? _nextChapter : null,
-                    tooltip: 'Next Chapter',
+                      IconButton(
+                        icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
+                        onPressed: _currentChapterIndex > 0 ? _nextChapter : null,
+                        tooltip: 'Next Chapter',
+                        splashRadius: 20,
+                      ),
+                    ],
                   ),
                 ],
               ),

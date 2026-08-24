@@ -1,0 +1,1053 @@
+import 'package:flutter/material.dart';
+import '../../../services/app_theme_service.dart';
+import '../../../services/home_page_settings.dart';
+import '../../../services/my_list/my_list_service.dart';
+import '../../../widgets/common/animated_ambient_background.dart';
+
+class HomeUiSettingsPage extends StatefulWidget {
+  const HomeUiSettingsPage({super.key});
+
+  @override
+  State<HomeUiSettingsPage> createState() => _HomeUiSettingsPageState();
+}
+
+class _HomeUiSettingsPageState extends State<HomeUiSettingsPage> {
+  @override
+  Widget build(BuildContext context) {
+    final myListCount = MyListService.items.value.length;
+
+    return Scaffold(
+      backgroundColor: const Color(0xFF080A0F),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0D1017),
+        surfaceTintColor: Colors.transparent,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text(
+          'Home Page UI & Themes',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
+        ),
+      ),
+      body: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 800),
+          child: ListView(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+            children: [
+              // ── 1. Color Schemes & Themes ──
+              Text(
+                'COLOR THEMES & ACCENTS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.35),
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildThemesGrid(),
+
+              const SizedBox(height: 28),
+
+              // ── 2. Ambient Background Lighting & Moving Glows ──
+              Text(
+                'AMBIENT BACKGROUND LIGHTING & MOVING GLOWS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.35),
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildAmbientLightsCard(),
+
+              const SizedBox(height: 28),
+
+              // ── 3. "Because you have on your list" Section ──
+              Text(
+                'SMART RECOMMENDATIONS ("BECAUSE YOU HAVE ON YOUR LIST")',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.35),
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildSimilarRecommendationsCard(myListCount),
+
+              const SizedBox(height: 28),
+
+              // ── 4. Hero Carousel & Spotlight ──
+              Text(
+                'HERO BANNER & SPOTLIGHT',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.35),
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildHeroControlsCard(),
+
+              const SizedBox(height: 28),
+
+              // ── 5. Card Layout & Poster Density ──
+              Text(
+                'POSTER CARDS & DENSITY',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.35),
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildCardDensityCard(),
+
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildThemesGrid() {
+    return ValueListenableBuilder<AppThemePalette>(
+      valueListenable: AppThemeService.currentPalette,
+      builder: (context, current, _) {
+        return GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 2,
+            childAspectRatio: 2.3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+          ),
+          itemCount: AppThemeService.palettes.length,
+          itemBuilder: (context, index) {
+            final palette = AppThemeService.palettes[index];
+            final isSelected = palette.id == current.id;
+
+            return InkWell(
+              onTap: () async {
+                await AppThemeService.setPalette(palette);
+                setState(() {});
+              },
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF12151E),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: isSelected
+                        ? palette.primaryColor
+                        : Colors.white.withValues(alpha: 0.08),
+                    width: isSelected ? 2 : 1,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    // Swatch circles
+                    Container(
+                      width: 28,
+                      height: 28,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        gradient: LinearGradient(
+                          colors: [palette.primaryColor, palette.accentColor],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        boxShadow: [
+                          if (isSelected)
+                            BoxShadow(
+                              color: palette.primaryColor.withValues(alpha: 0.4),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                        ],
+                      ),
+                      child: isSelected
+                          ? const Icon(Icons.check_rounded, color: Colors.white, size: 16)
+                          : null,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text(
+                            palette.name,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
+                              color: isSelected ? Colors.white : Colors.white70,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            isSelected ? 'Active Theme' : 'Tap to apply',
+                            style: TextStyle(
+                              fontSize: 10.5,
+                              color: isSelected
+                                  ? palette.primaryColor
+                                  : Colors.white.withValues(alpha: 0.35),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAmbientLightsCard() {
+    final palette = AppThemeService.currentPalette.value;
+
+    return ValueListenableBuilder<bool>(
+      valueListenable: HomePageSettings.enableAmbientLights,
+      builder: (context, enabled, _) {
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF12151E),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: enabled
+                  ? palette.primaryColor.withValues(alpha: 0.35)
+                  : Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Live Interactive Mini Preview
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: SizedBox(
+                  height: 90,
+                  width: double.infinity,
+                  child: Stack(
+                    children: [
+                      const Positioned.fill(
+                        child: AnimatedAmbientBackground(),
+                      ),
+                      Positioned(
+                        left: 14,
+                        bottom: 12,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.55),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.white.withOpacity(0.12)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.auto_awesome_motion_rounded, size: 14, color: palette.primaryColor),
+                              const SizedBox(width: 6),
+                              Text(
+                                'LIVE LIGHTING ENGINE PREVIEW',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white.withOpacity(0.85),
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Master Switch
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: palette.primaryColor.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.blur_linear_rounded,
+                      color: palette.primaryColor,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Moving Ambient Lights & Glows',
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Drifting faded light waves & floating color orbs in background',
+                          style: TextStyle(fontSize: 11.5, color: Colors.white54),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: enabled,
+                    activeColor: palette.primaryColor,
+                    onChanged: (val) {
+                      HomePageSettings.setEnableAmbientLights(val);
+                      setState(() {});
+                    },
+                  ),
+                ],
+              ),
+
+              if (enabled) ...[
+                const SizedBox(height: 16),
+                Divider(color: Colors.white.withValues(alpha: 0.06)),
+                const SizedBox(height: 12),
+
+                // Lighting Pattern / Position
+                Text(
+                  'Lighting Pattern & Position',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ValueListenableBuilder<AmbientLightPattern>(
+                  valueListenable: HomePageSettings.ambientLightPattern,
+                  builder: (context, currentPattern, _) {
+                    return Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: AmbientLightPattern.values.map((pat) {
+                        final isSelected = pat == currentPattern;
+                        return ChoiceChip(
+                          label: Text(pat.label),
+                          selected: isSelected,
+                          selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                          backgroundColor: const Color(0xFF0D1017),
+                          labelStyle: TextStyle(
+                            color: isSelected ? palette.primaryColor : Colors.white70,
+                            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                            fontSize: 12,
+                          ),
+                          side: BorderSide(
+                            color: isSelected
+                                ? palette.primaryColor.withValues(alpha: 0.6)
+                                : Colors.white.withValues(alpha: 0.08),
+                          ),
+                          onSelected: (selected) {
+                            if (selected) {
+                              HomePageSettings.setAmbientLightPattern(pat);
+                              setState(() {});
+                            }
+                          },
+                        );
+                      }).toList(),
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 16),
+                Divider(color: Colors.white.withValues(alpha: 0.06)),
+                const SizedBox(height: 12),
+
+                // Strength / Intensity Slider
+                ValueListenableBuilder<double>(
+                  valueListenable: HomePageSettings.ambientLightIntensity,
+                  builder: (context, intensity, _) {
+                    final percent = (intensity * 200).round();
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Glow Strength / Intensity',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
+                            ),
+                            Text(
+                              '$percent%',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: palette.primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            activeTrackColor: palette.primaryColor,
+                            inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
+                            thumbColor: palette.primaryColor,
+                            trackHeight: 3,
+                          ),
+                          child: Slider(
+                            value: intensity,
+                            min: 0.05,
+                            max: 0.50,
+                            divisions: 18,
+                            onChanged: (val) => HomePageSettings.setAmbientLightIntensity(val),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+
+                const SizedBox(height: 12),
+
+                // Motion Speed Slider
+                ValueListenableBuilder<double>(
+                  valueListenable: HomePageSettings.ambientLightSpeed,
+                  builder: (context, speed, _) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Motion Flow Speed',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white.withValues(alpha: 0.8),
+                              ),
+                            ),
+                            Text(
+                              '${speed.toStringAsFixed(1)}x',
+                              style: TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: palette.primaryColor,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        SliderTheme(
+                          data: SliderTheme.of(context).copyWith(
+                            activeTrackColor: palette.primaryColor,
+                            inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
+                            thumbColor: palette.primaryColor,
+                            trackHeight: 3,
+                          ),
+                          child: Slider(
+                            value: speed,
+                            min: 0.4,
+                            max: 2.5,
+                            divisions: 21,
+                            onChanged: (val) => HomePageSettings.setAmbientLightSpeed(val),
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildSimilarRecommendationsCard(int myListCount) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: HomePageSettings.enableSimilar,
+      builder: (context, enabled, _) {
+        return Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF12151E),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: enabled
+                  ? const Color(0xFF7C5CFF).withValues(alpha: 0.35)
+                  : Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7C5CFF).withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Color(0xFF7C5CFF),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '"Because You Have..." Slider',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w800,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Powered by BestSimilar scraper & your My List items',
+                          style: TextStyle(fontSize: 12, color: Colors.white54),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: enabled,
+                    activeColor: const Color(0xFF7C5CFF),
+                    onChanged: (val) {
+                      HomePageSettings.setEnableSimilar(val);
+                      setState(() {});
+                    },
+                  ),
+                ],
+              ),
+
+              if (myListCount == 0) ...[
+                const SizedBox(height: 14),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.amber.withValues(alpha: 0.2)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Your "My List" is empty! Add movies/series to My List to generate personalized recommendations.',
+                          style: TextStyle(
+                            fontSize: 11.5,
+                            color: Colors.amber.shade200,
+                            height: 1.3,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              if (enabled) ...[
+                const SizedBox(height: 16),
+                Divider(color: Colors.white.withValues(alpha: 0.06)),
+                const SizedBox(height: 12),
+
+                // Position Dropdown
+                Text(
+                  'Slider Position on Home Page',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white.withValues(alpha: 0.8),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                ValueListenableBuilder<SimilarSectionPosition>(
+                  valueListenable: HomePageSettings.similarPosition,
+                  builder: (context, pos, _) {
+                    return DropdownButtonFormField<SimilarSectionPosition>(
+                      value: pos,
+                      dropdownColor: const Color(0xFF151822),
+                      decoration: InputDecoration(
+                        filled: true,
+                        fillColor: const Color(0xFF0D1017),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                        ),
+                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600),
+                      items: SimilarSectionPosition.values.map((p) {
+                        return DropdownMenuItem(
+                          value: p,
+                          child: Text(p.label),
+                        );
+                      }).toList(),
+                      onChanged: (newPos) {
+                        if (newPos != null) {
+                          HomePageSettings.setSimilarPosition(newPos);
+                          setState(() {});
+                        }
+                      },
+                    );
+                  },
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildHeroControlsCard() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12151E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Master Spotlight Switch
+          ValueListenableBuilder<bool>(
+            valueListenable: HomePageSettings.enableSpotlight,
+            builder: (context, enabled, _) {
+              return Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF7C5CFF).withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.movie_filter_rounded,
+                      color: Color(0xFF7C5CFF),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Show Hero Spotlight Banner',
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Featured rotation banner at the top of the home page',
+                          style: TextStyle(fontSize: 11.5, color: Colors.white54),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: enabled,
+                    activeColor: const Color(0xFF7C5CFF),
+                    onChanged: (val) {
+                      HomePageSettings.setEnableSpotlight(val);
+                      setState(() {});
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+
+          ValueListenableBuilder<bool>(
+            valueListenable: HomePageSettings.enableSpotlight,
+            builder: (context, enabled, _) {
+              if (!enabled) {
+                return const SizedBox.shrink();
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 16),
+                  Divider(color: Colors.white.withValues(alpha: 0.06)),
+                  const SizedBox(height: 12),
+
+                  // Hero Style Selector
+                  Text(
+                    'Spotlight Style',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white.withValues(alpha: 0.8),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<HeroStyle>(
+                    valueListenable: HomePageSettings.heroStyle,
+                    builder: (context, currentStyle, _) {
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: HeroStyle.values.map((style) {
+                          final isSelected = style == currentStyle;
+                          return ChoiceChip(
+                            label: Text(style.label),
+                            selected: isSelected,
+                            selectedColor: const Color(0xFF7C5CFF).withValues(alpha: 0.25),
+                            backgroundColor: const Color(0xFF0D1017),
+                            labelStyle: TextStyle(
+                              color: isSelected ? const Color(0xFF7C5CFF) : Colors.white70,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? const Color(0xFF7C5CFF).withValues(alpha: 0.6)
+                                  : Colors.white.withValues(alpha: 0.08),
+                            ),
+                            onSelected: (selected) {
+                              if (selected) {
+                                HomePageSettings.setHeroStyle(style);
+                                setState(() {});
+                              }
+                            },
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+
+          // Auto-Rotate Switch & Interval
+          ValueListenableBuilder<bool>(
+            valueListenable: HomePageSettings.heroAutoRotate,
+            builder: (context, autoRotate, _) {
+              return Column(
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Auto-Rotate Spotlight',
+                              style: TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                              ),
+                            ),
+                            SizedBox(height: 2),
+                            Text(
+                              'Cycles through featured titles automatically',
+                              style: TextStyle(fontSize: 11.5, color: Colors.white54),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Switch.adaptive(
+                        value: autoRotate,
+                        activeColor: const Color(0xFF7C5CFF),
+                        onChanged: (val) {
+                          HomePageSettings.setHeroAutoRotate(val);
+                          setState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                  if (autoRotate) ...[
+                    const SizedBox(height: 10),
+                    ValueListenableBuilder<int>(
+                      valueListenable: HomePageSettings.heroRotateSeconds,
+                      builder: (context, seconds, _) {
+                        return Row(
+                          children: [
+                            Text(
+                              'Interval: ${seconds}s',
+                              style: const TextStyle(fontSize: 12, color: Colors.white70),
+                            ),
+                            Expanded(
+                              child: SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  activeTrackColor: const Color(0xFF7C5CFF),
+                                  inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
+                                  thumbColor: const Color(0xFF7C5CFF),
+                                  trackHeight: 3,
+                                ),
+                                child: Slider(
+                                  value: seconds.toDouble(),
+                                  min: 3,
+                                  max: 15,
+                                  divisions: 12,
+                                  onChanged: (val) =>
+                                      HomePageSettings.setHeroRotateSeconds(val.round()),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ],
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 12),
+          Divider(color: Colors.white.withValues(alpha: 0.06)),
+          const SizedBox(height: 12),
+
+          // Ambient Glow Switch
+          ValueListenableBuilder<bool>(
+            valueListenable: HomePageSettings.ambientGlow,
+            builder: (context, glow, _) {
+              return Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ambient Backdrop Lighting',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Soft diffused color glow behind active hero poster',
+                          style: TextStyle(fontSize: 11.5, color: Colors.white54),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: glow,
+                    activeColor: const Color(0xFF7C5CFF),
+                    onChanged: (val) {
+                      HomePageSettings.setAmbientGlow(val);
+                      setState(() {});
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCardDensityCard() {
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12151E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Poster Size & Grid Density',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.8),
+            ),
+          ),
+          const SizedBox(height: 8),
+          ValueListenableBuilder<CardDensity>(
+            valueListenable: HomePageSettings.cardDensity,
+            builder: (context, currentDensity, _) {
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: CardDensity.values.map((density) {
+                  final isSelected = density == currentDensity;
+                  return ChoiceChip(
+                    label: Text(density.label),
+                    selected: isSelected,
+                    selectedColor: const Color(0xFF7C5CFF).withValues(alpha: 0.25),
+                    backgroundColor: const Color(0xFF0D1017),
+                    labelStyle: TextStyle(
+                      color: isSelected ? const Color(0xFF7C5CFF) : Colors.white70,
+                      fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                      fontSize: 12,
+                    ),
+                    side: BorderSide(
+                      color: isSelected
+                          ? const Color(0xFF7C5CFF).withValues(alpha: 0.6)
+                          : Colors.white.withValues(alpha: 0.08),
+                    ),
+                    onSelected: (selected) {
+                      if (selected) {
+                        HomePageSettings.setCardDensity(density);
+                        setState(() {});
+                      }
+                    },
+                  );
+                }).toList(),
+              );
+            },
+          ),
+
+          const SizedBox(height: 16),
+          Divider(color: Colors.white.withValues(alpha: 0.06)),
+          const SizedBox(height: 12),
+
+          // Rating Badges Switch
+          ValueListenableBuilder<bool>(
+            valueListenable: HomePageSettings.showRating,
+            builder: (context, showRating, _) {
+              return Row(
+                children: [
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Show IMDB Rating Badges',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Display rating star pill on poster corners',
+                          style: TextStyle(fontSize: 11.5, color: Colors.white54),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: showRating,
+                    activeColor: const Color(0xFF7C5CFF),
+                    onChanged: (val) {
+                      HomePageSettings.setShowRating(val);
+                      setState(() {});
+                    },
+                  ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 12),
+          Divider(color: Colors.white.withValues(alpha: 0.06)),
+          const SizedBox(height: 12),
+
+          // Card Hover Zoom Strength
+          ValueListenableBuilder<double>(
+            valueListenable: HomePageSettings.cardHoverZoom,
+            builder: (context, zoom, _) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Poster Hover Zoom Scale',
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${zoom.toStringAsFixed(2)}x',
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF7C5CFF),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  SliderTheme(
+                    data: SliderTheme.of(context).copyWith(
+                      activeTrackColor: const Color(0xFF7C5CFF),
+                      inactiveTrackColor: Colors.white.withValues(alpha: 0.08),
+                      thumbColor: const Color(0xFF7C5CFF),
+                      trackHeight: 3,
+                    ),
+                    child: Slider(
+                      value: zoom,
+                      min: 1.00,
+                      max: 1.15,
+                      divisions: 15,
+                      onChanged: (val) => HomePageSettings.setCardHoverZoom(val),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}

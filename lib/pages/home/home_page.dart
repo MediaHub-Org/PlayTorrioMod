@@ -12,7 +12,11 @@ import '../details/details_page.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/glass_settings.dart';
+import '../../services/home_page_settings.dart';
+import '../../services/app_theme_service.dart';
+import '../../services/my_list/my_list_service.dart';
 import '../../utils/route_transitions.dart';
+import '../../widgets/common/animated_ambient_background.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../search/search_page.dart';
@@ -47,22 +51,62 @@ class _HomePageState extends State<HomePage> {
   late bool _showIntro;
 
   @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
   void initState() {
     super.initState();
     _showIntro = !_hasShownIntro;
     _hasShownIntro = true;
+
+    HomePageSettings.changeNotifier.addListener(_onSettingsChanged);
+    AppThemeService.currentPalette.addListener(_onSettingsChanged);
+    MyListService.items.addListener(_onSettingsChanged);
 
     if (_showIntro) {
       _playIntro();
     }
 
     _loadHome();
+  }
+
+  @override
+  void dispose() {
+    HomePageSettings.changeNotifier.removeListener(_onSettingsChanged);
+    AppThemeService.currentPalette.removeListener(_onSettingsChanged);
+    MyListService.items.removeListener(_onSettingsChanged);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    if (!mounted) return;
+    _refreshSimilarSection();
+    setState(() {});
+  }
+
+  Future<void> _refreshSimilarSection() async {
+    if (!mounted) return;
+    final similarSection = await HomePageSettings.fetchBestSimilarSection(forceRefresh: true);
+    if (!mounted) return;
+    setState(() {
+      _sections.removeWhere((s) => s.catalog.id == 'bestsimilar');
+      if (similarSection != null && HomePageSettings.enableSimilar.value) {
+        switch (HomePageSettings.similarPosition.value) {
+          case SimilarSectionPosition.top:
+            _sections.insert(0, similarSection);
+            break;
+          case SimilarSectionPosition.underCinemeta:
+            final insertIdx = _sections.length > 1 ? 1 : _sections.length;
+            _sections.insert(insertIdx, similarSection);
+            break;
+          case SimilarSectionPosition.middle:
+            final insertIdx = _sections.length ~/ 2;
+            _sections.insert(insertIdx, similarSection);
+            break;
+          case SimilarSectionPosition.bottom:
+            _sections.add(similarSection);
+            break;
+        }
+      }
+    });
   }
 
   Future<void> _playIntro() async {
@@ -89,6 +133,8 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
+      final similarFuture = HomePageSettings.fetchBestSimilarSection();
+
       await for (final section in _manager.streamHomeSections()) {
         if (!mounted) return;
 
@@ -101,6 +147,29 @@ class _HomePageState extends State<HomePage> {
           // Stop full-page loading as soon as we have enough to show the hero
           if (_loading && _featuredMovies.isNotEmpty) {
             _loading = false;
+          }
+        });
+      }
+
+      // Inject BestSimilar "Because you have on your list" section if available
+      final similarSection = await similarFuture;
+      if (similarSection != null && mounted) {
+        setState(() {
+          switch (HomePageSettings.similarPosition.value) {
+            case SimilarSectionPosition.top:
+              _sections.insert(0, similarSection);
+              break;
+            case SimilarSectionPosition.underCinemeta:
+              final insertIdx = _sections.length > 1 ? 1 : _sections.length;
+              _sections.insert(insertIdx, similarSection);
+              break;
+            case SimilarSectionPosition.middle:
+              final insertIdx = _sections.length ~/ 2;
+              _sections.insert(insertIdx, similarSection);
+              break;
+            case SimilarSectionPosition.bottom:
+              _sections.add(similarSection);
+              break;
           }
         });
       }
@@ -168,45 +237,51 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
+    final palette = AppThemeService.currentPalette.value;
 
-    final backgroundContent = Stack(
-      children: [
-        // ── Main scrollable content ──
-        if (_loading && !_showIntro && _sections.isEmpty)
-          const Center(
-            child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
-          )
-        else if (_error != null && _sections.isEmpty)
-          ErrorView(error: _error, onRetry: _loadHome)
-        else
-          RefreshIndicator(
-            color: const Color(0xFF7C5CFF),
-            backgroundColor: const Color(0xFF151822),
-            onRefresh: _loadHome,
-            child: ListView.builder(
-              controller: _scrollController,
-              clipBehavior: Clip.none,
-              padding: EdgeInsets.zero,
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
+    final backgroundContent = AnimatedAmbientBackground(
+      child: Stack(
+        children: [
+          // ── Main scrollable content ──
+          if (_loading && !_showIntro && _sections.isEmpty)
+            Center(
+              child: CircularProgressIndicator(color: palette.primaryColor),
+            )
+          else if (_error != null && _sections.isEmpty)
+            ErrorView(error: _error, onRetry: _loadHome)
+          else
+            RefreshIndicator(
+              color: palette.primaryColor,
+              backgroundColor: palette.cardBackgroundColor,
+              onRefresh: _loadHome,
+              child: ListView.builder(
+                controller: _scrollController,
+                clipBehavior: Clip.none,
+                padding: EdgeInsets.zero,
+                physics: const BouncingScrollPhysics(
+                  parent: AlwaysScrollableScrollPhysics(),
+                ),
+                itemCount: _sections.length + 2,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    if (!HomePageSettings.enableSpotlight.value) {
+                      return SizedBox(height: topPadding + 76);
+                    }
+                    return _HeroCarousel(movies: _featuredMovies);
+                  }
+                  if (index == _sections.length + 1) {
+                    return SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom);
+                  }
+                  return MovieSliderSection(section: _sections[index - 1]);
+                },
               ),
-              itemCount: _sections.length + 2,
-              itemBuilder: (context, index) {
-                if (index == 0) {
-                  return _HeroCarousel(movies: _featuredMovies);
-                }
-                if (index == _sections.length + 1) {
-                  return SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom);
-                }
-                return MovieSliderSection(section: _sections[index - 1]);
-              },
             ),
-          ),
-      ],
+        ],
+      ),
     );
 
     return Scaffold(
-      backgroundColor: const Color(0xFF080A0F),
+      backgroundColor: palette.scaffoldBackgroundColor,
       body: _buildBody(backgroundContent, topPadding, context),
     );
   }
@@ -561,8 +636,6 @@ class _HeroCarousel extends StatefulWidget {
 }
 
 class _HeroCarouselState extends State<_HeroCarousel> {
-  static const _rotateEvery = Duration(seconds: 8);
-
   final PageController _pageController = PageController();
   final Map<String, MovieDetail?> _detailsCache = {};
 
@@ -573,10 +646,19 @@ class _HeroCarouselState extends State<_HeroCarousel> {
   @override
   void initState() {
     super.initState();
+    HomePageSettings.changeNotifier.addListener(_onSettingsChanged);
+    AppThemeService.currentPalette.addListener(_onSettingsChanged);
+
     if (widget.movies.isNotEmpty) {
       _fetchDetail(widget.movies.first);
       if (widget.movies.length > 1) _fetchDetail(widget.movies[1]);
     }
+    _startTimer();
+  }
+
+  void _onSettingsChanged() {
+    if (!mounted) return;
+    setState(() {});
     _startTimer();
   }
 
@@ -596,6 +678,8 @@ class _HeroCarouselState extends State<_HeroCarousel> {
 
   @override
   void dispose() {
+    HomePageSettings.changeNotifier.removeListener(_onSettingsChanged);
+    AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     _timer?.cancel();
     _pageController.dispose();
     super.dispose();
@@ -603,8 +687,10 @@ class _HeroCarouselState extends State<_HeroCarousel> {
 
   void _startTimer() {
     _timer?.cancel();
+    if (!HomePageSettings.heroAutoRotate.value) return;
     if (widget.movies.length < 2) return;
-    _timer = Timer.periodic(_rotateEvery, (_) {
+    final interval = Duration(seconds: HomePageSettings.heroRotateSeconds.value);
+    _timer = Timer.periodic(interval, (_) {
       if (!mounted || !_pageController.hasClients) return;
       final next = (_index + 1) % widget.movies.length;
       _pageController.animateToPage(
@@ -651,13 +737,32 @@ class _HeroCarouselState extends State<_HeroCarousel> {
   }
 
   double _heroHeight(double screenWidth, double screenHeight) {
+    final style = HomePageSettings.heroStyle.value;
+    if (style == HeroStyle.compact) {
+      if (screenWidth < 600) {
+        return 340.0;
+      } else if (screenWidth < 1100) {
+        return 400.0;
+      } else {
+        return 450.0;
+      }
+    } else if (style == HeroStyle.minimalist) {
+      if (screenWidth < 600) {
+        return 220.0;
+      } else if (screenWidth < 1100) {
+        return 260.0;
+      } else {
+        return 280.0;
+      }
+    }
+
+    // Default: Immersive
     if (screenWidth < 600) {
       return (screenHeight * 0.68).clamp(460.0, 640.0);
     } else if (screenWidth < 1100) {
       return (screenHeight * 0.70).clamp(520.0, 740.0);
     } else {
-      // Maximized / Widescreen Desktop: give generous height (up to 85% of viewport)
-      // so 16:9 backdrops don't get aggressively cropped or squished into narrow strips.
+      // Maximized / Widescreen Desktop: generous height
       final targetHeight = screenHeight * 0.85;
       return targetHeight.clamp(680.0, 920.0);
     }
@@ -668,6 +773,7 @@ class _HeroCarouselState extends State<_HeroCarousel> {
     final screenWidth = MediaQuery.sizeOf(context).width;
     final screenHeight = MediaQuery.sizeOf(context).height;
     final heroHeight = _heroHeight(screenWidth, screenHeight);
+    final primaryColor = AppThemeService.currentPalette.value.primaryColor;
 
     if (widget.movies.isEmpty) {
       return SizedBox(height: heroHeight);
@@ -724,14 +830,12 @@ class _HeroCarouselState extends State<_HeroCarousel> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(4),
                           color: active
-                              ? const Color(0xFF7C5CFF)
+                              ? primaryColor
                               : Colors.white.withValues(alpha: 0.30),
                           boxShadow: active
                               ? [
                                   BoxShadow(
-                                    color: const Color(
-                                      0xFF7C5CFF,
-                                    ).withValues(alpha: 0.55),
+                                    color: primaryColor.withValues(alpha: 0.55),
                                     blurRadius: 8,
                                   ),
                                 ]
@@ -856,6 +960,8 @@ class _HeroSlide extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isCompact = screenWidth < 600;
+    final palette = AppThemeService.currentPalette.value;
+    final heroStyle = HomePageSettings.heroStyle.value;
 
     final imageUrl = detail?.background ?? movie.poster;
     final year = detail?.year ?? movie.year;
@@ -891,8 +997,8 @@ class _HeroSlide extends StatelessWidget {
                 end: Alignment.centerRight,
                 stops: const [0.0, 0.38, 0.85],
                 colors: [
-                  const Color(0xFF080A0F).withValues(alpha: 0.95),
-                  const Color(0xFF080A0F).withValues(alpha: 0.70),
+                  palette.scaffoldBackgroundColor.withValues(alpha: 0.95),
+                  palette.scaffoldBackgroundColor.withValues(alpha: 0.70),
                   Colors.transparent,
                 ],
               ),
@@ -908,7 +1014,7 @@ class _HeroSlide extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.center,
                 colors: [
-                  const Color(0xFF080A0F).withValues(alpha: 0.75),
+                  palette.scaffoldBackgroundColor.withValues(alpha: 0.85),
                   Colors.transparent,
                 ],
               ),
@@ -916,17 +1022,17 @@ class _HeroSlide extends StatelessWidget {
           ),
         ),
 
-        // Bottom gradient
+        // Bottom gradient (fades seamlessly into the body background)
         Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.bottomCenter,
                 end: Alignment.topCenter,
-                stops: const [0.0, 0.30, 0.75],
+                stops: const [0.0, 0.28, 0.70],
                 colors: [
-                  const Color(0xFF080A0F),
-                  const Color(0xFF080A0F).withValues(alpha: 0.80),
+                  palette.scaffoldBackgroundColor,
+                  palette.scaffoldBackgroundColor.withValues(alpha: 0.85),
                   Colors.transparent,
                 ],
               ),
@@ -938,7 +1044,9 @@ class _HeroSlide extends StatelessWidget {
         Positioned(
           left: isCompact ? 20 : 48,
           right: isCompact ? 20 : 48,
-          bottom: isCompact ? 36 : 56,
+          bottom: isCompact
+              ? (heroStyle == HeroStyle.minimalist ? 18 : 32)
+              : (heroStyle == HeroStyle.minimalist ? 28 : 50),
           child: Align(
             alignment: Alignment.bottomLeft,
             child: ConstrainedBox(
@@ -949,214 +1057,214 @@ class _HeroSlide extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-              // Rating + year + runtime
-              Row(
-                children: [
-                  if (rating != null && rating.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 11,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFFFD700).withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(9),
-                        border: Border.all(
-                          color: const Color(
-                            0xFFFFD700,
-                          ).withValues(alpha: 0.28),
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.star_rounded,
-                            size: 17,
-                            color: Color(0xFFFFD700),
+                  // Rating + year + runtime
+                  Row(
+                    children: [
+                      if (rating != null && rating.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
                           ),
-                          const SizedBox(width: 4),
-                          Text(
-                            rating,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFFFFD700),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFFD700).withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(9),
+                            border: Border.all(
+                              color: const Color(0xFFFFD700).withValues(alpha: 0.28),
                             ),
                           ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                  ],
-                  if (year != null && year.isNotEmpty)
-                    Text(
-                      year,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  if (detail?.runtime != null) ...[
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Icon(
-                        Icons.circle,
-                        size: 4,
-                        color: Colors.white.withValues(alpha: 0.25),
-                      ),
-                    ),
-                    Text(
-                      detail!.runtime!,
-                      style: TextStyle(
-                        fontSize: 15,
-                        color: Colors.white.withValues(alpha: 0.55),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-
-              const SizedBox(height: 16),
-
-              // Title / clearlogo
-              _HeroTitle(
-                title: movie.name,
-                logoUrl: logo,
-                isCompact: isCompact,
-              ),
-
-              // Description
-              if (description != null && description.isNotEmpty) ...[
-                SizedBox(height: isCompact ? 12 : 16),
-                ConstrainedBox(
-                  constraints: BoxConstraints(
-                    maxWidth: isCompact ? double.infinity : 560,
-                  ),
-                  child: Text(
-                    description,
-                    maxLines: isCompact ? 2 : 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: isCompact ? 14.5 : 15.5,
-                      color: Colors.white.withValues(alpha: 0.65),
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ],
-
-              // Genre chips
-              if (genres.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: genres.take(4).map((genre) {
-                    return Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 13,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.12),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 16,
+                                color: Color(0xFFFFD700),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                rating,
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFFFD700),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
+                        const SizedBox(width: 10),
+                      ],
+                      if (year != null && year.isNotEmpty)
+                        Text(
+                          year,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            color: Colors.white.withValues(alpha: 0.55),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      if (detail?.runtime != null) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Icon(
+                            Icons.circle,
+                            size: 4,
+                            color: Colors.white.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        Text(
+                          detail!.runtime!,
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            color: Colors.white.withValues(alpha: 0.55),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+
+                  SizedBox(height: heroStyle == HeroStyle.minimalist ? 8 : 14),
+
+                  // Title / clearlogo
+                  _HeroTitle(
+                    title: movie.name,
+                    logoUrl: logo,
+                    isCompact: isCompact || heroStyle == HeroStyle.minimalist,
+                  ),
+
+                  // Description (Hidden in Minimalist, 1-line in Compact, 3-line in Immersive)
+                  if (heroStyle != HeroStyle.minimalist &&
+                      description != null &&
+                      description.isNotEmpty) ...[
+                    SizedBox(height: isCompact ? 10 : 14),
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: isCompact ? double.infinity : 560,
                       ),
                       child: Text(
-                        genre,
+                        description,
+                        maxLines: heroStyle == HeroStyle.compact ? 1 : (isCompact ? 2 : 3),
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.white.withValues(alpha: 0.70),
-                          fontWeight: FontWeight.w600,
+                          fontSize: isCompact ? 14.0 : 15.0,
+                          color: Colors.white.withValues(alpha: 0.65),
+                          height: 1.45,
                         ),
                       ),
-                    );
-                  }).toList(),
-                ),
-              ],
+                    ),
+                  ],
 
-              // Action buttons
-              SizedBox(height: isCompact ? 22 : 26),
-              Row(
-                children: [
-                  Builder(
-                    builder: (context) {
-                      return ElevatedButton.icon(
-                        onPressed: () => _openDetails(context),
-                        icon: const Icon(Icons.play_arrow_rounded, size: 24),
-                        label: const Text(
-                          'Watch Now',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15.5,
+                  // Genre chips (Immersive only)
+                  if (heroStyle == HeroStyle.immersive && genres.isNotEmpty) ...[
+                    const SizedBox(height: 14),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 6,
+                      children: genres.take(4).map((genre) {
+                        return Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 5,
                           ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.08),
+                            borderRadius: BorderRadius.circular(20),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.12),
+                            ),
+                          ),
+                          child: Text(
+                            genre,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.70),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+
+                  // Action buttons
+                  SizedBox(height: heroStyle == HeroStyle.minimalist ? 12 : (isCompact ? 18 : 24)),
+                  Row(
+                    children: [
+                      Builder(
+                        builder: (context) {
+                          return ElevatedButton.icon(
+                            onPressed: () => _openDetails(context),
+                            icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                            label: const Text(
+                              'Watch Now',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w700,
+                                fontSize: 15,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: palette.primaryColor,
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isCompact ? 16 : 24,
+                                vertical: isCompact ? 10 : 14,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              elevation: 4,
+                              shadowColor: Colors.black.withValues(alpha: 0.35),
+                            ),
+                          );
+                        },
+                      ),
+                      if (heroStyle != HeroStyle.minimalist) ...[
+                        SizedBox(width: isCompact ? 8 : 12),
+                        Builder(
+                          builder: (context) {
+                            return OutlinedButton.icon(
+                              onPressed: () => _openDetails(context),
+                              icon: Icon(
+                                Icons.info_outline_rounded,
+                                size: isCompact ? 18 : 20,
+                                color: Colors.white.withValues(alpha: 0.80),
+                              ),
+                              label: Text(
+                                'Details',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: isCompact ? 13.5 : 15,
+                                  color: Colors.white.withValues(alpha: 0.80),
+                                ),
+                              ),
+                              style: OutlinedButton.styleFrom(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: isCompact ? 14 : 20,
+                                  vertical: isCompact ? 10 : 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                side: BorderSide(
+                                  color: Colors.white.withValues(alpha: 0.18),
+                                  width: 1.2,
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF7C5CFF),
-                          foregroundColor: Colors.white,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isCompact ? 18 : 28,
-                            vertical: isCompact ? 12 : 16,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          elevation: 12,
-                          shadowColor: const Color(
-                            0xFF7C5CFF,
-                          ).withValues(alpha: 0.45),
-                        ),
-                      );
-                    },
-                  ),
-                  SizedBox(width: isCompact ? 8 : 12),
-                  Builder(
-                    builder: (context) {
-                      return OutlinedButton.icon(
-                        onPressed: () => _openDetails(context),
-                        icon: Icon(
-                          Icons.info_outline_rounded,
-                          size: isCompact ? 18 : 21,
-                          color: Colors.white.withValues(alpha: 0.80),
-                        ),
-                        label: Text(
-                          'Details',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: isCompact ? 14 : 15.5,
-                            color: Colors.white.withValues(alpha: 0.80),
-                          ),
-                        ),
-                        style: OutlinedButton.styleFrom(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: isCompact ? 16 : 24,
-                            vertical: isCompact ? 12 : 16,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.18),
-                            width: 1.2,
-                          ),
-                        ),
-                      );
-                    },
+                      ],
+                    ],
                   ),
                 ],
               ),
-            ],
+            ),
           ),
         ),
-      ),
-    ),
-  ],
-);
+      ],
+    );
   }
 }
 
@@ -1340,13 +1448,11 @@ class _CustomScrollTrackState extends State<_CustomScrollTrack> {
                           child: Container(
                             height: _thumbHeight,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF7C5CFF),
+                              color: AppThemeService.currentPalette.value.primaryColor,
                               borderRadius: BorderRadius.circular(10),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(
-                                    0xFF7C5CFF,
-                                  ).withOpacity(0.6),
+                                  color: AppThemeService.currentPalette.value.primaryColor.withOpacity(0.6),
                                   blurRadius: 12,
                                   spreadRadius: 2,
                                 ),
@@ -1387,6 +1493,8 @@ class _HoverArrowState extends State<_HoverArrow> {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = AppThemeService.currentPalette.value.primaryColor;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovering = true),
       onExit: (_) => setState(() => _isHovering = false),
@@ -1405,7 +1513,7 @@ class _HoverArrowState extends State<_HoverArrow> {
           ),
           child: Icon(
             widget.icon,
-            color: _isHovering ? const Color(0xFF7C5CFF) : Colors.white70,
+            color: _isHovering ? primaryColor : Colors.white70,
             size: 22,
           ),
         ),

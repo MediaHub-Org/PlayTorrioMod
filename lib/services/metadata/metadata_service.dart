@@ -172,4 +172,56 @@ class MetadataService {
       return null;
     }
   }
+
+  /// Searches active addons (or Cinemeta fallback) to resolve a title into a real Movie
+  static Future<Movie?> findMovieByTitle({
+    required String title,
+    String? type,
+    int? year,
+    String? preferredBaseUrl,
+  }) async {
+    final effectiveType = (type == 'series' || type == 'tv' || type == 'anime') ? 'series' : 'movie';
+    final query = title.trim();
+    if (query.isEmpty) return null;
+
+    final targetBaseUrl = (preferredBaseUrl != null && preferredBaseUrl.startsWith('http') && !preferredBaseUrl.contains('bestsimilar'))
+        ? preferredBaseUrl
+        : 'https://v3-cinemeta.strem.io';
+
+    try {
+      final results = await search(
+        baseUrl: targetBaseUrl,
+        type: effectiveType,
+        catalogId: 'top',
+        query: query,
+      );
+
+      for (final r in results) {
+        final nameMatch = r.name.toLowerCase().trim() == query.toLowerCase();
+        final yearMatch = year == null || r.year == null || r.year == '$year' || r.year == '$year-';
+        if (nameMatch && yearMatch) return r;
+      }
+
+      if (results.isNotEmpty) {
+        final exact = results.where((r) => r.name.toLowerCase().trim() == query.toLowerCase()).firstOrNull;
+        return exact ?? results.first;
+      }
+    } catch (_) {}
+
+    // Fallback: search the opposite type (series <-> movie)
+    try {
+      final altType = effectiveType == 'series' ? 'movie' : 'series';
+      final altResults = await search(
+        baseUrl: targetBaseUrl,
+        type: altType,
+        catalogId: 'top',
+        query: query,
+      );
+      if (altResults.isNotEmpty) {
+        return altResults.first;
+      }
+    } catch (_) {}
+
+    return null;
+  }
 }

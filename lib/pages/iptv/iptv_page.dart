@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
+import '../../services/app_theme_service.dart';
 import '../../services/glass_settings.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_controller.dart';
+import '../../services/iptv/iptv_settings.dart';
 import '../../utils/route_transitions.dart';
+import '../../widgets/common/animated_ambient_background.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/common/liquid_dock.dart';
 import '../../widgets/iptv/iptv_hero_carousel.dart';
@@ -44,14 +47,23 @@ class _IptvPageState extends State<IptvPage> {
   @override
   void initState() {
     super.initState();
+    IptvSettings.changeNotifier.addListener(_onSettingsChanged);
+    AppThemeService.currentPalette.addListener(_onSettingsChanged);
     _ctrl.init();
     _loadSections();
   }
 
   @override
   void dispose() {
+    IptvSettings.changeNotifier.removeListener(_onSettingsChanged);
+    AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onSettingsChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   void _loadSections() {
@@ -114,10 +126,52 @@ class _IptvPageState extends State<IptvPage> {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
+    final palette = AppThemeService.currentPalette.value;
+    final spotlightEnabled = IptvSettings.enableSpotlight.value;
+    final visibleCategories = IptvSettings.visibleCategories.value;
 
-    final backgroundContent = RefreshIndicator(
-      color: const Color(0xFF7C5CFF),
-      backgroundColor: const Color(0xFF151822),
+    final Map<String, (String, List<HardcodedChannel>)> categoryMap = {
+      'Premier Live Broadcasts': (
+        'Top worldwide sporting events and championship channels',
+        _featured,
+      ),
+      'Global Football & Soccer': (
+        'UEFA Champions League, Premier League, La Liga, Serie A & more',
+        _sports,
+      ),
+      'Combat & Martial Arts': (
+        'UFC Fight Pass, WWE, AEW, World Boxing & PPV',
+        _combat,
+      ),
+      'Motorsport & Racing': (
+        'Formula 1, MotoGP, NASCAR Cup, IndyCar & Rally WRC',
+        _racing,
+      ),
+      'Movies & Premium Networks': (
+        'HBO, Showtime, Starz, Cinemax, Paramount & AMC',
+        _movies,
+      ),
+      '24/7 Global News Networks': (
+        'CNN, BBC World, Fox News, Sky News, Al Jazeera & Bloomberg',
+        _news,
+      ),
+      'Arabic & Regional Hub': (
+        'MBC, Rotana, OSN, Abu Dhabi TV, Dubai TV & Al Arabiya',
+        _arabic,
+      ),
+      'Discovery & Documentaries': (
+        'National Geographic, Discovery Channel, History & Animal Planet',
+        _discovery,
+      ),
+      'Kids & Family': (
+        'Cartoon Network, Disney Channel, Nickelodeon & Spacetoon',
+        _kids,
+      ),
+    };
+
+    final listContent = RefreshIndicator(
+      color: palette.primaryColor,
+      backgroundColor: palette.cardBackgroundColor,
       onRefresh: () async {
         _ctrl.scrape();
       },
@@ -130,82 +184,38 @@ class _IptvPageState extends State<IptvPage> {
         ),
         children: [
           // 1. Full Bleed Spotlight Hero Carousel
-          IptvHeroCarousel(
-            channels: _featured,
-            onWatchNow: _watchChannelNow,
-            onSourcesTap: _openChannel,
-          ),
+          if (spotlightEnabled)
+            IptvHeroCarousel(
+              channels: _featured,
+              onWatchNow: _watchChannelNow,
+              onSourcesTap: _openChannel,
+            )
+          else
+            SizedBox(height: topPadding + 76),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
 
-          // 2. Curated Slider Sections with Desktop Scroll Arrows
-          IptvSliderSection(
-            title: 'Premier Live Broadcasts',
-            subtitle: 'Top worldwide sporting events and championship channels',
-            channels: _featured,
-            onChannelTap: _openChannel,
-          ),
-
-          IptvSliderSection(
-            title: 'Global Football & Soccer',
-            subtitle: 'UEFA Champions League, Premier League, La Liga, Serie A & more',
-            channels: _sports,
-            onChannelTap: _openChannel,
-          ),
-
-          IptvSliderSection(
-            title: 'Combat & Martial Arts',
-            subtitle: 'UFC Fight Pass, WWE, AEW, World Boxing & PPV',
-            channels: _combat,
-            onChannelTap: _openChannel,
-          ),
-
-          IptvSliderSection(
-            title: 'Motorsport & Racing',
-            subtitle: 'Formula 1, MotoGP, NASCAR Cup, IndyCar & Rally WRC',
-            channels: _racing,
-            onChannelTap: _openChannel,
-          ),
-
-          IptvSliderSection(
-            title: 'Movies & Premium Networks',
-            subtitle: 'HBO, Showtime, Starz, Cinemax, Paramount & AMC',
-            channels: _movies,
-            onChannelTap: _openChannel,
-          ),
-
-          IptvSliderSection(
-            title: '24/7 Global News Networks',
-            subtitle: 'CNN, BBC World, Fox News, Sky News, Al Jazeera & Bloomberg',
-            channels: _news,
-            onChannelTap: _openChannel,
-          ),
-
-          IptvSliderSection(
-            title: 'Arabic & Regional Hub',
-            subtitle: 'MBC, Rotana, OSN, Abu Dhabi TV, Dubai TV & Al Arabiya',
-            channels: _arabic,
-            onChannelTap: _openChannel,
-          ),
-
-          IptvSliderSection(
-            title: 'Discovery & Documentaries',
-            subtitle: 'National Geographic, Discovery Channel, History & Animal Planet',
-            channels: _discovery,
-            onChannelTap: _openChannel,
-          ),
-
-          IptvSliderSection(
-            title: 'Kids & Family',
-            subtitle: 'Cartoon Network, Disney Channel, Nickelodeon & Spacetoon',
-            channels: _kids,
-            onChannelTap: _openChannel,
-          ),
+          // 2. Curated Slider Sections (driven by user-customized category visibility and order)
+          for (final catName in visibleCategories)
+            if (categoryMap.containsKey(catName) && categoryMap[catName]!.$2.isNotEmpty)
+              IptvSliderSection(
+                title: catName,
+                subtitle: categoryMap[catName]!.$1,
+                channels: categoryMap[catName]!.$2,
+                onChannelTap: _openChannel,
+              ),
 
           const SizedBox(height: 90),
         ],
       ),
     );
+
+    final backgroundContent = IptvSettings.enableAmbientLights.value
+        ? AnimatedAmbientBackground(child: listContent)
+        : Container(
+            color: palette.scaffoldBackgroundColor,
+            child: listContent,
+          );
 
     final overlayChildren = <Widget>[
       // Floating Glass App Bar (Home & Anime Page Style)

@@ -231,18 +231,53 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
   Future<void> _fetchDetails() async {
-    final meta = await MetadataService.fetchMeta(
-      baseUrl: widget.movie.addonBaseUrl,
-      type: widget.movie.type,
-      imdbId: widget.movie.id,
+    String effectiveBaseUrl = widget.movie.addonBaseUrl;
+    String effectiveType = widget.movie.type;
+    String effectiveId = widget.movie.id;
+
+    if (effectiveId.startsWith('bestsimilar_') || effectiveBaseUrl.contains('bestsimilar')) {
+      final yearNum = widget.movie.year != null ? int.tryParse(widget.movie.year!.replaceAll(RegExp(r'[^0-9]'), '')) : null;
+      final resolved = await MetadataService.findMovieByTitle(
+        title: widget.movie.name,
+        type: widget.movie.type,
+        year: yearNum,
+      );
+      if (resolved != null) {
+        effectiveBaseUrl = resolved.addonBaseUrl;
+        effectiveType = resolved.type;
+        effectiveId = resolved.id;
+      }
+    }
+
+    var meta = await MetadataService.fetchMeta(
+      baseUrl: effectiveBaseUrl,
+      type: effectiveType,
+      imdbId: effectiveId,
     );
+
+    // If fetchMeta failed, try fallback search to resolve
+    if (meta == null && !effectiveId.startsWith('tt')) {
+      final yearNum = widget.movie.year != null ? int.tryParse(widget.movie.year!.replaceAll(RegExp(r'[^0-9]'), '')) : null;
+      final resolved = await MetadataService.findMovieByTitle(
+        title: widget.movie.name,
+        type: widget.movie.type,
+        year: yearNum,
+      );
+      if (resolved != null) {
+        meta = await MetadataService.fetchMeta(
+          baseUrl: resolved.addonBaseUrl,
+          type: resolved.type,
+          imdbId: resolved.id,
+        );
+      }
+    }
 
     if (mounted) {
       setState(() {
         _detail = meta;
         _isLoading = false;
 
-        if (meta != null && (widget.movie.type == 'series' || widget.movie.type == 'anime') && meta.videos.isNotEmpty) {
+        if (meta != null && (effectiveType == 'series' || effectiveType == 'anime') && meta.videos.isNotEmpty) {
           final seasons = meta.videos.map((v) => v.season).where((s) => s != null).toSet().toList();
           seasons.sort();
           if (seasons.isNotEmpty) {

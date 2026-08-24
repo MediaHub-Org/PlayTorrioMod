@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/movie/movie.dart';
 import '../../pages/details/details_page.dart';
+import '../../services/app_theme_service.dart';
+import '../../services/home_page_settings.dart';
 import '../../utils/route_transitions.dart';
 import '../common/poster_skeleton.dart';
 
@@ -47,6 +49,13 @@ class MovieCardSizing {
       cardWidth = 190;
     } else {
       cardWidth = 205;
+    }
+
+    final density = HomePageSettings.cardDensity.value;
+    if (density == CardDensity.compact) {
+      cardWidth *= 0.85;
+    } else if (density == CardDensity.cinematic) {
+      cardWidth *= 1.20;
     }
 
     final posterHeight = cardWidth * 1.48;
@@ -130,7 +139,7 @@ class _MovieCardState extends State<MovieCard> {
         child: AnimatedScale(
           duration: const Duration(milliseconds: 170),
           curve: Curves.easeOutCubic,
-          scale: _pressed ? 0.97 : (_hovered ? 1.045 : 1.0),
+          scale: _pressed ? 0.97 : (_hovered ? HomePageSettings.cardHoverZoom.value : 1.0),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 170),
             curve: Curves.easeOutCubic,
@@ -144,6 +153,7 @@ class _MovieCardState extends State<MovieCard> {
                     posterUrl: movie.poster,
                     hovered: _hovered,
                     contentType: movie.type,
+                    imdbRating: movie.imdbRating,
                   ),
                 ),
 
@@ -213,16 +223,19 @@ class _PosterFrame extends StatelessWidget {
   final String? posterUrl;
   final bool hovered;
   final String contentType;
+  final String? imdbRating;
 
   const _PosterFrame({
     required this.posterUrl,
     required this.hovered,
     required this.contentType,
+    this.imdbRating,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasPoster = posterUrl != null && posterUrl!.isNotEmpty;
+    final palette = AppThemeService.currentPalette.value;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 170),
@@ -237,7 +250,7 @@ class _PosterFrame extends StatelessWidget {
           ),
           if (hovered)
             BoxShadow(
-              color: const Color(0xFF7C5CFF).withOpacity(0.24),
+              color: palette.primaryColor.withOpacity(0.35),
               blurRadius: 34,
               spreadRadius: 1,
               offset: const Offset(0, 8),
@@ -315,8 +328,8 @@ class _PosterFrame extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: (contentType == 'series' || contentType == 'anime')
-                        ? const Color(0xFF00D4FF).withOpacity(0.85)
-                        : const Color(0xFF7C5CFF).withOpacity(0.85),
+                        ? palette.accentColor.withOpacity(0.90)
+                        : palette.primaryColor.withOpacity(0.90),
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: [
                       BoxShadow(
@@ -337,6 +350,44 @@ class _PosterFrame extends StatelessWidget {
                 ),
               ),
             ),
+
+            // Rating badge (top-right)
+            if (imdbRating != null && imdbRating!.isNotEmpty)
+              ValueListenableBuilder<bool>(
+                valueListenable: HomePageSettings.showRating,
+                builder: (context, showRating, _) {
+                  if (!showRating) return const SizedBox.shrink();
+                  final parsed = double.tryParse(imdbRating!);
+                  final displayRating = parsed != null ? (parsed % 1 == 0 ? parsed.toInt().toString() : parsed.toStringAsFixed(1)) : imdbRating!;
+                  return Positioned(
+                    right: 9,
+                    top: 9,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xE6080A0F),
+                        borderRadius: BorderRadius.circular(7),
+                        border: Border.all(color: Colors.white.withOpacity(0.15)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.star_rounded, color: Color(0xFFFFB800), size: 12),
+                          const SizedBox(width: 3),
+                          Text(
+                            displayRating,
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w800,
+                              color: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
 
             // Border glow on hover
             Positioned.fill(

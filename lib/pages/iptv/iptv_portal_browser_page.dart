@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../../models/iptv/iptv_models.dart';
 import '../../models/iptv/m3u_models.dart';
+import '../../services/app_theme_service.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_network.dart';
+import '../../services/iptv/iptv_settings.dart';
 import '../../services/iptv/iptv_storage.dart';
 import '../../utils/route_transitions.dart';
 import 'iptv_player_page.dart';
@@ -78,8 +80,15 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
     super.initState();
     _categoryScrollController.addListener(_updateCategoryScrollState);
     _contentScrollController.addListener(_updateContentScrollState);
+    IptvSettings.changeNotifier.addListener(_onSettingsChanged);
+    AppThemeService.currentPalette.addListener(_onSettingsChanged);
     _loadFavorites();
     _loadSectionData();
+  }
+
+  void _onSettingsChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   Future<void> _loadFavorites() async {
@@ -107,6 +116,8 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
   @override
   void dispose() {
     _cancelAlive = true;
+    IptvSettings.changeNotifier.removeListener(_onSettingsChanged);
+    AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     _categoryScrollController.removeListener(_updateCategoryScrollState);
     _contentScrollController.removeListener(_updateContentScrollState);
     _categoryScrollController.dispose();
@@ -114,6 +125,174 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
     _searchCtrl.dispose();
     _catSearchCtrl.dispose();
     super.dispose();
+  }
+
+  void _showBrowserCustomizer(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: const Color(0xFF10131C),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.tune_rounded, color: palette.primaryColor, size: 20),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Customize Portal Browser',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(color: Colors.white.withValues(alpha: 0.08)),
+                  const SizedBox(height: 12),
+
+                  const Text(
+                    'Channel Stream Layout Mode',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<PortalBrowserLayout>(
+                    valueListenable: IptvSettings.browserLayout,
+                    builder: (context, layout, _) {
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: PortalBrowserLayout.values.map((l) {
+                          final isSelected = l == layout;
+                          return ChoiceChip(
+                            label: Text(l.label),
+                            selected: isSelected,
+                            selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                            backgroundColor: const Color(0xFF0D1017),
+                            labelStyle: TextStyle(
+                              color: isSelected ? palette.primaryColor : Colors.white70,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? palette.primaryColor.withValues(alpha: 0.6)
+                                  : Colors.white.withValues(alpha: 0.08),
+                            ),
+                            onSelected: (selected) {
+                              if (selected) IptvSettings.setBrowserLayout(l);
+                            },
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  ValueListenableBuilder<PortalBrowserLayout>(
+                    valueListenable: IptvSettings.browserLayout,
+                    builder: (context, layout, _) {
+                      if (layout != PortalBrowserLayout.grid) return const SizedBox.shrink();
+                      return ValueListenableBuilder<int>(
+                        valueListenable: IptvSettings.browserGridColumns,
+                        builder: (context, cols, _) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Grid Stream Columns', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                                  Text('$cols Cols', style: TextStyle(color: palette.primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  activeTrackColor: palette.primaryColor,
+                                  inactiveTrackColor: Colors.white12,
+                                  thumbColor: palette.primaryColor,
+                                  trackHeight: 3,
+                                ),
+                                child: Slider(
+                                  value: cols.toDouble(),
+                                  min: 2,
+                                  max: 6,
+                                  divisions: 4,
+                                  onChanged: (val) => IptvSettings.setBrowserGridColumns(val.round()),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  ),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: IptvSettings.showStreamLogos,
+                    builder: (context, showLogos, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show Channel Stream Logos', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: showLogos,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => IptvSettings.setShowStreamLogos(val),
+                      );
+                    },
+                  ),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: IptvSettings.showEpgSnippet,
+                    builder: (context, showEpg, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show EPG "Now Playing" Snippet', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: showEpg,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => IptvSettings.setShowEpgSnippet(val),
+                      );
+                    },
+                  ),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: IptvSettings.showCategoryCount,
+                    builder: (context, showCount, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show Category Stream Counts', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: showCount,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => IptvSettings.setShowCategoryCount(val),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _updateCategoryScrollState() {
@@ -579,6 +758,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
     final title = widget.portal?.name.isNotEmpty == true
         ? widget.portal!.name
         : (widget.m3uPlaylist?.name ?? 'IPTV Portal');
@@ -613,11 +793,11 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
+                        color: palette.primaryColor.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.4)),
+                        border: Border.all(color: palette.primaryColor.withValues(alpha: 0.4)),
                       ),
-                      child: const Icon(Icons.settings_input_antenna_rounded, color: Color(0xFF7C5CFF), size: 20),
+                      child: Icon(Icons.settings_input_antenna_rounded, color: palette.primaryColor, size: 20),
                     ),
                     const SizedBox(width: 12),
 
@@ -694,7 +874,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
                         decoration: InputDecoration(
                           hintText: 'Search channels…',
                           hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12.5),
-                          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF7C5CFF), size: 18),
+                          prefixIcon: Icon(Icons.search_rounded, color: palette.primaryColor, size: 18),
                           suffixIcon: _searchQuery.isNotEmpty
                               ? IconButton(
                                   icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
@@ -713,7 +893,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(10),
-                            borderSide: const BorderSide(color: Color(0xFF7C5CFF), width: 1.4),
+                            borderSide: BorderSide(color: palette.primaryColor, width: 1.4),
                           ),
                         ),
                         onChanged: (v) => setState(() => _searchQuery = v),
@@ -725,7 +905,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
                       const SizedBox(width: 12),
                       ElevatedButton.icon(
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: _isCheckingAlive ? const Color(0xFFB91C1C) : const Color(0xFF7C5CFF),
+                          backgroundColor: _isCheckingAlive ? const Color(0xFFB91C1C) : palette.primaryColor,
                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                         ),
@@ -743,6 +923,14 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
                         onPressed: _isCheckingAlive ? () => setState(() => _cancelAlive = true) : _startAliveCheck,
                       ),
                     ],
+
+                    const SizedBox(width: 8),
+
+                    IconButton(
+                      icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
+                      tooltip: 'Customize Portal Browser Layout',
+                      onPressed: () => _showBrowserCustomizer(context),
+                    ),
                   ],
                 ),
               )
@@ -769,11 +957,11 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
                         Container(
                           padding: const EdgeInsets.all(6),
                           decoration: BoxDecoration(
-                            color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
+                            color: palette.primaryColor.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.4)),
+                            border: Border.all(color: palette.primaryColor.withValues(alpha: 0.4)),
                           ),
-                          child: const Icon(Icons.settings_input_antenna_rounded, color: Color(0xFF7C5CFF), size: 16),
+                          child: Icon(Icons.settings_input_antenna_rounded, color: palette.primaryColor, size: 16),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
@@ -813,6 +1001,11 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
                                 : const Icon(Icons.speed_rounded, color: Color(0xFF00D2EF), size: 20),
                             onPressed: _isCheckingAlive ? () => setState(() => _cancelAlive = true) : _startAliveCheck,
                           ),
+                        IconButton(
+                          icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
+                          tooltip: 'Customize',
+                          onPressed: () => _showBrowserCustomizer(context),
+                        ),
                       ],
                     ),
 
@@ -930,7 +1123,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
                               children: [
                                 // ── LEFT CATEGORIES PANEL ──
                                 SizedBox(
-                                  width: 280,
+                                  width: IptvSettings.sidebarWidth.value,
                                   child: Container(
                                     decoration: const BoxDecoration(
                                       color: Color(0xFF0A0D14),
@@ -1087,6 +1280,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
   }
 
   Widget _buildSectionTab(String label, IconData icon, IptvSection section) {
+    final palette = AppThemeService.currentPalette.value;
     final isSelected = _activeSection == section;
 
     return MouseRegion(
@@ -1102,7 +1296,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF7C5CFF) : Colors.transparent,
+            color: isSelected ? palette.primaryColor : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -1179,24 +1373,35 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
     final isDesktop = _isDesktop(context);
 
     if (_activeSection == IptvSection.live) {
-      // ── LIVE CHANNELS HIGH-PERFORMANCE VIRTUALIZED LIST VIEW (itemExtent O(1)) ──
-      return ListView.builder(
-        controller: _contentScrollController,
-        itemExtent: 78.0,
-        cacheExtent: 400.0,
-        addAutomaticKeepAlives: false,
-        addRepaintBoundaries: true,
-        padding: EdgeInsets.fromLTRB(isDesktop ? 20 : 10, 12, isDesktop ? 20 : 10, 30),
-        physics: const BouncingScrollPhysics(),
-        itemCount: streams.length,
-        itemBuilder: (context, index) {
-          final stream = streams[index];
-          final isAlive = _aliveStreamIds.contains(stream.streamId);
-          final isFav = _favoriteStreamIds.contains(stream.streamId);
+      final layout = IptvSettings.browserLayout.value;
 
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _LiveChannelListRow(
+      if (layout == PortalBrowserLayout.grid) {
+        final screenW = MediaQuery.sizeOf(context).width;
+        int gridCols = IptvSettings.browserGridColumns.value;
+        if (!isDesktop) {
+          gridCols = screenW > 600 ? 3 : 2;
+        }
+
+        return GridView.builder(
+          controller: _contentScrollController,
+          cacheExtent: 400.0,
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: true,
+          padding: EdgeInsets.fromLTRB(isDesktop ? 20 : 10, 12, isDesktop ? 20 : 10, 30),
+          physics: const BouncingScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: gridCols,
+            childAspectRatio: 1.25,
+            crossAxisSpacing: isDesktop ? 14 : 10,
+            mainAxisSpacing: isDesktop ? 14 : 10,
+          ),
+          itemCount: streams.length,
+          itemBuilder: (context, index) {
+            final stream = streams[index];
+            final isAlive = _aliveStreamIds.contains(stream.streamId);
+            final isFav = _favoriteStreamIds.contains(stream.streamId);
+
+            return _LiveChannelGridCard(
               key: ValueKey(stream.streamId),
               index: index + 1,
               stream: stream,
@@ -1205,14 +1410,76 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
               isFavorite: isFav,
               onToggleFavorite: () => _toggleFavoriteStream(stream.streamId),
               onTap: () => _playStream(stream),
-            ),
-          );
-        },
-      );
+            );
+          },
+        );
+      } else if (layout == PortalBrowserLayout.compactList) {
+        return ListView.builder(
+          controller: _contentScrollController,
+          itemExtent: 52.0,
+          cacheExtent: 400.0,
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: true,
+          padding: EdgeInsets.fromLTRB(isDesktop ? 20 : 10, 12, isDesktop ? 20 : 10, 30),
+          physics: const BouncingScrollPhysics(),
+          itemCount: streams.length,
+          itemBuilder: (context, index) {
+            final stream = streams[index];
+            final isAlive = _aliveStreamIds.contains(stream.streamId);
+            final isFav = _favoriteStreamIds.contains(stream.streamId);
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: _LiveChannelCompactListRow(
+                key: ValueKey(stream.streamId),
+                index: index + 1,
+                stream: stream,
+                portal: widget.portal,
+                isAlive: isAlive,
+                isFavorite: isFav,
+                onToggleFavorite: () => _toggleFavoriteStream(stream.streamId),
+                onTap: () => _playStream(stream),
+              ),
+            );
+          },
+        );
+      } else {
+        // Detailed List view
+        return ListView.builder(
+          controller: _contentScrollController,
+          itemExtent: 78.0,
+          cacheExtent: 400.0,
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: true,
+          padding: EdgeInsets.fromLTRB(isDesktop ? 20 : 10, 12, isDesktop ? 20 : 10, 30),
+          physics: const BouncingScrollPhysics(),
+          itemCount: streams.length,
+          itemBuilder: (context, index) {
+            final stream = streams[index];
+            final isAlive = _aliveStreamIds.contains(stream.streamId);
+            final isFav = _favoriteStreamIds.contains(stream.streamId);
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _LiveChannelListRow(
+                key: ValueKey(stream.streamId),
+                index: index + 1,
+                stream: stream,
+                portal: widget.portal,
+                isAlive: isAlive,
+                isFavorite: isFav,
+                onToggleFavorite: () => _toggleFavoriteStream(stream.streamId),
+                onTap: () => _playStream(stream),
+              ),
+            );
+          },
+        );
+      }
     } else {
       // ── MOVIES & SERIES GRID VIEW ──
       final screenW = MediaQuery.sizeOf(context).width;
-      final width = isDesktop ? (screenW - 280) : screenW;
+      final sidebarW = isDesktop ? IptvSettings.sidebarWidth.value : 0.0;
+      final width = isDesktop ? (screenW - sidebarW) : screenW;
       int crossAxisCount = 2;
       if (width > 1200) {
         crossAxisCount = 6;
@@ -1291,7 +1558,9 @@ class _CategoryListRowState extends State<_CategoryListRow> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
     final isFavCategory = widget.category.id == _IptvPortalBrowserPageState.favoritesCategoryId;
+    final showCount = IptvSettings.showCategoryCount.value;
 
     return RepaintBoundary(
       child: MouseRegion(
@@ -1305,12 +1574,12 @@ class _CategoryListRowState extends State<_CategoryListRow> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: widget.isSelected
-                  ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.15) : const Color(0xFF1E2235))
+                  ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.15) : palette.primaryColor.withValues(alpha: 0.15))
                   : (_hovered ? const Color(0xFF141724) : Colors.transparent),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: widget.isSelected
-                    ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.6) : const Color(0xFF7C5CFF).withValues(alpha: 0.5))
+                    ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.6) : palette.primaryColor.withValues(alpha: 0.6))
                     : Colors.transparent,
               ),
             ),
@@ -1321,7 +1590,7 @@ class _CategoryListRowState extends State<_CategoryListRow> {
                   height: 16,
                   decoration: BoxDecoration(
                     color: widget.isSelected
-                        ? (isFavCategory ? const Color(0xFFFFC107) : const Color(0xFF7C5CFF))
+                        ? (isFavCategory ? const Color(0xFFFFC107) : palette.primaryColor)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(2),
                   ),
@@ -1345,26 +1614,28 @@ class _CategoryListRowState extends State<_CategoryListRow> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: widget.isSelected
-                        ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.3) : const Color(0xFF7C5CFF).withValues(alpha: 0.3))
-                        : (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.06)),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '${widget.count}',
-                    style: TextStyle(
-                      color: isFavCategory
-                          ? const Color(0xFFFFC107)
-                          : (widget.isSelected ? const Color(0xFF9D4EDD) : Colors.white38),
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
+                if (showCount) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: widget.isSelected
+                          ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.3) : palette.primaryColor.withValues(alpha: 0.3))
+                          : (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.06)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${widget.count}',
+                      style: TextStyle(
+                        color: isFavCategory
+                            ? const Color(0xFFFFC107)
+                            : (widget.isSelected ? palette.primaryColor : Colors.white38),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -1409,6 +1680,7 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
   }
 
   void _loadEpg() async {
+    if (!IptvSettings.showEpgSnippet.value) return;
     if (_cachedEpg != null || widget.portal == null || widget.stream.streamId.isEmpty) return;
     try {
       final entries = await IptvClient.shortEpg(widget.portal!.portal, widget.stream.streamId, limit: 2);
@@ -1421,12 +1693,15 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
     final s = widget.stream;
     final indexFormatted = widget.index.toString().padLeft(3, '0');
     final currentEpg = _cachedEpg?.isNotEmpty == true ? _cachedEpg!.first : null;
     final nextEpg = _cachedEpg != null && _cachedEpg!.length > 1 ? _cachedEpg![1] : null;
     final screenW = MediaQuery.sizeOf(context).width;
     final isVerySmall = screenW < 440;
+    final showLogo = IptvSettings.showStreamLogos.value;
+    final showEpg = IptvSettings.showEpgSnippet.value;
 
     return RepaintBoundary(
       child: MouseRegion(
@@ -1445,13 +1720,13 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
               color: _hovered ? const Color(0xFF161A28) : const Color(0xFF0E111A),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: _hovered ? const Color(0xFF7C5CFF).withValues(alpha: 0.7) : const Color(0xFF1B2030),
+                color: _hovered ? palette.primaryColor.withValues(alpha: 0.7) : const Color(0xFF1B2030),
                 width: _hovered ? 1.4 : 1.0,
               ),
               boxShadow: _hovered
                   ? [
                       BoxShadow(
-                        color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
+                        color: palette.primaryColor.withValues(alpha: 0.2),
                         blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
@@ -1477,30 +1752,31 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
                   const SizedBox(width: 6),
                 ],
 
-                // ── BIG PROMINENT CHANNEL LOGO BAY ──
-                Container(
-                  width: isVerySmall ? 52 : 64,
-                  height: isVerySmall ? 40 : 46,
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF080A10),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFF1E2336)),
+                // ── CHANNEL LOGO BAY ──
+                if (showLogo) ...[
+                  Container(
+                    width: isVerySmall ? 52 : 64,
+                    height: isVerySmall ? 40 : 46,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF080A10),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF1E2336)),
+                    ),
+                    child: s.icon.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(5),
+                            child: CachedNetworkImage(
+                              imageUrl: s.icon,
+                              fit: BoxFit.contain,
+                              memCacheWidth: 128,
+                              errorWidget: (_, _, _) => const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 20),
+                            ),
+                          )
+                        : const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 20),
                   ),
-                  child: s.icon.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(5),
-                          child: CachedNetworkImage(
-                            imageUrl: s.icon,
-                            fit: BoxFit.contain,
-                            memCacheWidth: 128,
-                            errorWidget: (_, _, _) => const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 20),
-                          ),
-                        )
-                      : const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 20),
-                ),
-
-                SizedBox(width: isVerySmall ? 8 : 12),
+                  SizedBox(width: isVerySmall ? 8 : 12),
+                ],
 
                 // Channel Title & EPG Info
                 Expanded(
@@ -1547,21 +1823,21 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
                         ],
                       ),
 
-                      const SizedBox(height: 2),
-
-                      // Program Guide (EPG)
-                      if (currentEpg != null) ...[
-                        Text(
-                          'NOW: ${currentEpg.title}${nextEpg != null ? "  |  NEXT: ${nextEpg.title}" : ""}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 11),
-                        ),
-                      ] else ...[
-                        Text(
-                          'Live Stream Feed',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
-                        ),
+                      if (showEpg) ...[
+                        const SizedBox(height: 2),
+                        if (currentEpg != null) ...[
+                          Text(
+                            'NOW: ${currentEpg.title}${nextEpg != null ? "  |  NEXT: ${nextEpg.title}" : ""}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 11),
+                          ),
+                        ] else ...[
+                          Text(
+                            'Live Stream Feed',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
+                          ),
+                        ],
                       ],
                     ],
                   ),
@@ -1604,7 +1880,7 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: _hovered ? const Color(0xFF7C5CFF) : Colors.white.withValues(alpha: 0.06),
+                    color: _hovered ? palette.primaryColor : Colors.white.withValues(alpha: 0.06),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -1612,6 +1888,306 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
                     color: Colors.white,
                     size: 20,
                   ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveChannelGridCard extends StatefulWidget {
+  final int index;
+  final IptvStream stream;
+  final VerifiedPortal? portal;
+  final bool isAlive;
+  final bool isFavorite;
+  final VoidCallback onToggleFavorite;
+  final VoidCallback onTap;
+
+  const _LiveChannelGridCard({
+    super.key,
+    required this.index,
+    required this.stream,
+    this.portal,
+    required this.isAlive,
+    required this.isFavorite,
+    required this.onToggleFavorite,
+    required this.onTap,
+  });
+
+  @override
+  State<_LiveChannelGridCard> createState() => _LiveChannelGridCardState();
+}
+
+class _LiveChannelGridCardState extends State<_LiveChannelGridCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
+    final s = widget.stream;
+    final showLogo = IptvSettings.showStreamLogos.value;
+
+    return RepaintBoundary(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _hovered ? const Color(0xFF161A28) : const Color(0xFF0E111A),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _hovered ? palette.primaryColor.withValues(alpha: 0.8) : const Color(0xFF1B2030),
+                width: _hovered ? 1.5 : 1.0,
+              ),
+              boxShadow: _hovered
+                  ? [
+                      BoxShadow(
+                        color: palette.primaryColor.withValues(alpha: 0.22),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top row: logo/index + live badge + star
+                Row(
+                  children: [
+                    if (showLogo && s.icon.isNotEmpty)
+                      Container(
+                        width: 44,
+                        height: 32,
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF080A10),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF1E2336)),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: CachedNetworkImage(
+                            imageUrl: s.icon,
+                            fit: BoxFit.contain,
+                            memCacheWidth: 100,
+                            errorWidget: (_, _, _) => const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 16),
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '#${widget.index}',
+                          style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+
+                    const Spacer(),
+
+                    if (widget.isAlive)
+                      Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: Colors.greenAccent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                        ),
+                        child: const Text('LIVE', style: TextStyle(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.w900)),
+                      ),
+
+                    GestureDetector(
+                      onTap: widget.onToggleFavorite,
+                      child: Icon(
+                        widget.isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                        color: widget.isFavorite ? const Color(0xFFFFC107) : Colors.white30,
+                        size: 19,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const Spacer(),
+
+                // Channel Title
+                Text(
+                  s.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                // Bottom row: format tag + Play Icon
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141824),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: const Color(0xFF22283A)),
+                      ),
+                      child: Text(
+                        s.containerExt.toUpperCase(),
+                        style: const TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 120),
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: _hovered ? palette.primaryColor : Colors.white.withValues(alpha: 0.06),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveChannelCompactListRow extends StatefulWidget {
+  final int index;
+  final IptvStream stream;
+  final VerifiedPortal? portal;
+  final bool isAlive;
+  final bool isFavorite;
+  final VoidCallback onToggleFavorite;
+  final VoidCallback onTap;
+
+  const _LiveChannelCompactListRow({
+    super.key,
+    required this.index,
+    required this.stream,
+    this.portal,
+    required this.isAlive,
+    required this.isFavorite,
+    required this.onToggleFavorite,
+    required this.onTap,
+  });
+
+  @override
+  State<_LiveChannelCompactListRow> createState() => _LiveChannelCompactListRowState();
+}
+
+class _LiveChannelCompactListRowState extends State<_LiveChannelCompactListRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
+    final s = widget.stream;
+    final showLogo = IptvSettings.showStreamLogos.value;
+
+    return RepaintBoundary(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: _hovered ? const Color(0xFF161A28) : const Color(0xFF0E111A),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _hovered ? palette.primaryColor.withValues(alpha: 0.7) : const Color(0xFF1B2030),
+              ),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 28,
+                  child: Text(
+                    widget.index.toString().padLeft(3, '0'),
+                    style: const TextStyle(color: Colors.white24, fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (showLogo && s.icon.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 32,
+                    height: 24,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: CachedNetworkImage(
+                        imageUrl: s.icon,
+                        fit: BoxFit.contain,
+                        memCacheWidth: 64,
+                        errorWidget: (_, _, _) => const Icon(Icons.live_tv_rounded, color: Colors.white24, size: 14),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    s.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (widget.isAlive) ...[
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text('LIVE', style: TextStyle(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.w900)),
+                  ),
+                ],
+                GestureDetector(
+                  onTap: widget.onToggleFavorite,
+                  child: Icon(
+                    widget.isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                    color: widget.isFavorite ? const Color(0xFFFFC107) : Colors.white30,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.play_arrow_rounded,
+                  color: _hovered ? palette.primaryColor : Colors.white38,
+                  size: 18,
                 ),
               ],
             ),

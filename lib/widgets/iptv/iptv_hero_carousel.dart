@@ -2,7 +2,10 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../services/app_theme_service.dart';
+import '../../services/home_page_settings.dart';
 import '../../services/iptv/hardcoded_channels.dart';
+import '../../services/iptv/iptv_settings.dart';
 
 class IptvHeroCarousel extends StatefulWidget {
   final List<HardcodedChannel> channels;
@@ -30,11 +33,21 @@ class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    IptvSettings.changeNotifier.addListener(_onSettingsChanged);
+    AppThemeService.currentPalette.addListener(_onSettingsChanged);
+    _startTimer();
+  }
+
+  void _onSettingsChanged() {
+    if (!mounted) return;
+    setState(() {});
     _startTimer();
   }
 
   @override
   void dispose() {
+    IptvSettings.changeNotifier.removeListener(_onSettingsChanged);
+    AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     _timer?.cancel();
     _pageController.dispose();
     super.dispose();
@@ -42,8 +55,11 @@ class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
 
   void _startTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 7), (_) {
-      if (!mounted || widget.channels.length <= 1 || _isHovering) return;
+    if (!IptvSettings.heroAutoRotate.value) return;
+    if (widget.channels.length <= 1) return;
+    final interval = Duration(seconds: IptvSettings.heroRotateSeconds.value);
+    _timer = Timer.periodic(interval, (_) {
+      if (!mounted || _isHovering || !_pageController.hasClients) return;
       final next = (_currentIndex + 1) % widget.channels.length;
       _pageController.animateToPage(
         next,
@@ -60,14 +76,26 @@ class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
         defaultTargetPlatform == TargetPlatform.linux;
   }
 
+  double _heroHeight(double screenWidth, double screenHeight) {
+    final style = IptvSettings.heroStyle.value;
+    if (style == HeroStyle.compact) {
+      return (screenHeight * 0.38).clamp(300.0, 400.0);
+    } else if (style == HeroStyle.minimalist) {
+      return (screenHeight * 0.28).clamp(210.0, 260.0);
+    }
+    // Default Immersive
+    return (screenHeight * 0.52).clamp(380.0, 560.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.channels.isEmpty) return const SizedBox.shrink();
 
     final screenWidth = MediaQuery.sizeOf(context).width;
     final screenHeight = MediaQuery.sizeOf(context).height;
-    final heroHeight = (screenHeight * 0.52).clamp(380.0, 560.0);
+    final heroHeight = _heroHeight(screenWidth, screenHeight);
     final isDesktop = _isDesktop();
+    final primaryColor = AppThemeService.currentPalette.value.primaryColor;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovering = true),
@@ -163,13 +191,13 @@ class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
                             height: 7,
                             decoration: BoxDecoration(
                               color: _currentIndex == index
-                                  ? const Color(0xFF7C5CFF)
+                                  ? primaryColor
                                   : Colors.white.withValues(alpha: 0.25),
                               borderRadius: BorderRadius.circular(4),
                               boxShadow: _currentIndex == index
                                   ? [
-                                      const BoxShadow(
-                                        color: Color(0xFF7C5CFF),
+                                      BoxShadow(
+                                        color: primaryColor.withValues(alpha: 0.6),
                                         blurRadius: 8,
                                         spreadRadius: 1,
                                       )
@@ -203,10 +231,11 @@ class _IptvHeroSlide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
     final primaryColor =
-        channel.gradient.isNotEmpty ? channel.gradient.first : const Color(0xFF7C5CFF);
+        channel.gradient.isNotEmpty ? channel.gradient.first : palette.primaryColor;
     final secondaryColor =
-        channel.gradient.length > 1 ? channel.gradient.last : const Color(0xFF00D2EF);
+        channel.gradient.length > 1 ? channel.gradient.last : palette.accentColor;
 
     return Stack(
       fit: StackFit.expand,
@@ -220,7 +249,7 @@ class _IptvHeroSlide extends StatelessWidget {
               colors: [
                 primaryColor.withValues(alpha: 0.45),
                 secondaryColor.withValues(alpha: 0.20),
-                const Color(0xFF080A0F),
+                palette.scaffoldBackgroundColor,
               ],
               stops: const [0.0, 0.4, 0.9],
             ),
@@ -247,10 +276,10 @@ class _IptvHeroSlide extends StatelessWidget {
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  const Color(0xFF080A0F).withValues(alpha: 0.25),
-                  const Color(0xFF080A0F).withValues(alpha: 0.60),
-                  const Color(0xFF080A0F).withValues(alpha: 0.92),
-                  const Color(0xFF080A0F),
+                  palette.scaffoldBackgroundColor.withValues(alpha: 0.25),
+                  palette.scaffoldBackgroundColor.withValues(alpha: 0.60),
+                  palette.scaffoldBackgroundColor.withValues(alpha: 0.92),
+                  palette.scaffoldBackgroundColor,
                 ],
                 stops: const [0.0, 0.42, 0.82, 1.0],
               ),
@@ -266,8 +295,8 @@ class _IptvHeroSlide extends StatelessWidget {
                 begin: Alignment.centerLeft,
                 end: Alignment.centerRight,
                 colors: [
-                  const Color(0xFF080A0F).withValues(alpha: 0.88),
-                  const Color(0xFF080A0F).withValues(alpha: 0.45),
+                  palette.scaffoldBackgroundColor.withValues(alpha: 0.88),
+                  palette.scaffoldBackgroundColor.withValues(alpha: 0.45),
                   Colors.transparent,
                 ],
                 stops: const [0.0, 0.50, 1.0],
@@ -405,12 +434,12 @@ class _IptvHeroSlide extends StatelessWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(14),
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF7C5CFF), Color(0xFF9D4EDD)],
+                          gradient: LinearGradient(
+                            colors: [palette.primaryColor, palette.accentColor],
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: const Color(0xFF7C5CFF).withValues(alpha: 0.5),
+                              color: palette.primaryColor.withValues(alpha: 0.5),
                               blurRadius: 16,
                               offset: const Offset(0, 4),
                             ),

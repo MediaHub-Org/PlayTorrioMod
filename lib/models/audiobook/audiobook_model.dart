@@ -12,10 +12,10 @@ class Audiobook {
     required this.audioBookId,
     required this.dynamicSlugId,
     required this.title,
-    required this.coverImage,
+    required String coverImage,
     required this.source,
     required this.pageUrl,
-  });
+  }) : coverImage = coverImage.trim();
 
   Map<String, dynamic> toJson() => {
         'uuid': uuid,
@@ -28,13 +28,13 @@ class Audiobook {
       };
 
   factory Audiobook.fromJson(Map<String, dynamic> json) => Audiobook(
-        uuid: json['uuid'] ?? '',
-        audioBookId: json['audioBookId'] ?? '',
-        dynamicSlugId: json['dynamicSlugId'] ?? '',
-        title: json['title'] ?? '',
-        coverImage: json['coverImage'] ?? '',
-        source: json['source'] ?? '',
-        pageUrl: json['pageUrl'] ?? '',
+        uuid: (json['uuid'] ?? '').toString(),
+        audioBookId: (json['audioBookId'] ?? '').toString(),
+        dynamicSlugId: (json['dynamicSlugId'] ?? '').toString(),
+        title: (json['title'] ?? '').toString(),
+        coverImage: (json['coverImage'] ?? '').toString().trim(),
+        source: (json['source'] ?? '').toString(),
+        pageUrl: (json['pageUrl'] ?? '').toString(),
       );
 }
 

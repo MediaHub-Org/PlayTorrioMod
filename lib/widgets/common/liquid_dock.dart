@@ -170,7 +170,7 @@ class _LiquidDockState extends State<LiquidDock> {
                             ? _scrollController.offset
                             : 0);
                     final distance = (_mouseX! - center).abs();
-                    final range = widget.baseItemSize * 2.6;
+                    final range = widget.baseItemSize * GlassSettings.hoverProximity.value;
                     if (distance < range) {
                       proximity = math
                           .pow(1 - distance / range, 1.45)
@@ -300,14 +300,19 @@ class _DockItemWidgetState extends State<_DockItemWidget> {
 
   Widget _buildFullLiquid() {
     final hoverAmount = _hovered ? 1.0 : widget.proximity;
+    final scaleMultiplier = GlassSettings.hoverScale.value;
+    final maxHoverSize = widget.size * scaleMultiplier;
     final targetSize =
-        widget.size + (widget.hoverSize - widget.size) * hoverAmount;
+        widget.size + (maxHoverSize - widget.size) * hoverAmount;
+    final wobble = GlassSettings.wobbleIntensity.value;
+    final dynamicStyle = GlassSettings.createButtonGlassStyle();
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) => _setHover(true),
       onExit: (_) => _setHover(false),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 190),
+        duration: Duration(milliseconds: (190 / wobble.clamp(0.5, 2.0)).round()),
         curve: Curves.easeOutBack,
         width: targetSize,
         height: targetSize,
@@ -315,47 +320,13 @@ class _DockItemWidgetState extends State<_DockItemWidget> {
           dimension: targetSize,
           child: LiquidGlassButton(
             padding: EdgeInsets.zero,
-            touch: const LiquidGlassTouch(
-              flex: LiquidGlassFlex.pronounced(),
+            touch: LiquidGlassTouch(
+              flex: wobble > 1.4 ? const LiquidGlassFlex.pronounced() : const LiquidGlassFlex(),
             ),
-            style: const LiquidGlassStyle(
-              shape: LiquidGlassShape.squircle(
-                cornerRadius: 22,
-                clipQuality: LiquidGlassClipQuality.exact,
-                borderWidth: 1.5,
-                lightIntensity: 1.5,
-                lightColor: Color(0xEFFFFFFF),
-                lightDirection: 115,
-                borderType: OpticalBorder(
-                  borderSaturation: 1.6,
-                  ambientIntensity: 1.2,
-                  borderSolidity: 0.2,
-                  lightSpread: 0.72,
-                ),
-              ),
-              appearance: LiquidGlassAppearance(
-                color: Color(0x20FFFFFF),
-                saturation: 1.12,
-                blur: LiquidGlassBlur(sigmaX: 2, sigmaY: 2),
-                shadow: LiquidGlassShadow(
-                  blur: 10,
-                  opacity: 0.35,
-                  color: Color(0xFF000000),
-                ),
-              ),
-              refraction: LiquidGlassRefraction(
-                magnification: 1.05,
-                chromaticAberration: 0.0025,
-                refractionType: OpticalRefraction(
-                  refraction: 1.52,
-                  refractionWidth: 22,
-                  depth: 0.75,
-                ),
-              ),
-            ),
+            style: dynamicStyle,
             onPressed: widget.item.onTap,
             child: AnimatedScale(
-              scale: _hovered ? 1.15 : 1.0,
+              scale: _hovered ? scaleMultiplier : 1.0,
               duration: const Duration(milliseconds: 160),
               curve: Curves.easeOutBack,
               child: _icon(targetSize),

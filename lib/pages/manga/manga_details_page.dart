@@ -4,6 +4,7 @@ import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
+import '../../services/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
 import 'manga_reader_page.dart';
 
@@ -34,11 +35,18 @@ class _MangaDetailsPageState extends State<MangaDetailsPage> {
   @override
   void initState() {
     super.initState();
+    AppThemeService.currentPalette.addListener(_onThemeChanged);
     _loadDetails();
+  }
+
+  void _onThemeChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
   
   @override
   void dispose() {
+    AppThemeService.currentPalette.removeListener(_onThemeChanged);
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -166,6 +174,7 @@ class _MangaDetailsPageState extends State<MangaDetailsPage> {
   }
 
   Widget _buildScrollableContent(Manga manga) {
+    final palette = AppThemeService.currentPalette.value;
     final paginatedList = _paginatedChapters;
     final totalFiltered = _filteredChapters.length;
     final totalPages = (totalFiltered / _chaptersPerPage).ceil();
@@ -252,15 +261,15 @@ class _MangaDetailsPageState extends State<MangaDetailsPage> {
                               _buildActionButton(
                                 icon: Icons.play_arrow_rounded,
                                 label: 'Resume Chapter ${(_chapters != null && _historyEntry!['chapterIndex'] < _chapters!.length) ? _chapters![_historyEntry!['chapterIndex']].number : ''}',
-                                color: Colors.blueAccent,
+                                color: palette.primaryColor,
                                 onTap: () => _startReading(_historyEntry!['chapterIndex'], pageIndex: _historyEntry!['pageIndex']),
                               )
                             else if (_chapters != null && _chapters!.isNotEmpty)
                               _buildActionButton(
                                 icon: Icons.menu_book_rounded,
                                 label: 'Start Reading',
-                                color: Colors.white,
-                                textColor: Colors.black,
+                                color: palette.primaryColor,
+                                textColor: Colors.white,
                                 onTap: () => _startReading(_chapters!.length - 1),
                               ),
                           ],
@@ -338,7 +347,7 @@ class _MangaDetailsPageState extends State<MangaDetailsPage> {
                     decoration: InputDecoration(
                       hintText: 'Search chapters...',
                       hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
-                      prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54, size: 18),
+                      prefixIcon: Icon(Icons.search_rounded, color: palette.primaryColor, size: 18),
                       filled: true,
                       fillColor: Colors.white.withValues(alpha: 0.05),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
@@ -352,7 +361,7 @@ class _MangaDetailsPageState extends State<MangaDetailsPage> {
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(20),
-                        borderSide: const BorderSide(color: Colors.blueAccent),
+                        borderSide: BorderSide(color: palette.primaryColor, width: 1.5),
                       ),
                     ),
                   ),
@@ -396,12 +405,12 @@ class _MangaDetailsPageState extends State<MangaDetailsPage> {
                   child: ListTile(
                     onTap: () => _startReading(originalIndex),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    tileColor: isCurrent ? Colors.blueAccent.withValues(alpha: 0.2) : Colors.white.withValues(alpha: 0.05),
+                    tileColor: isCurrent ? palette.primaryColor.withValues(alpha: 0.22) : Colors.white.withValues(alpha: 0.05),
                     leading: Container(
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.1),
+                        color: isCurrent ? palette.primaryColor.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
                         shape: BoxShape.circle,
                       ),
                       child: Center(
