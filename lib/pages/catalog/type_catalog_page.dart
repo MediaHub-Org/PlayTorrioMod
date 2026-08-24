@@ -6,6 +6,8 @@ import '../../widgets/common/error_view.dart';
 import '../../widgets/common/page_search_button.dart';
 import '../../widgets/movie/movie_card.dart';
 
+enum _CatalogSort { titleAsc, titleDesc, yearNewest, yearOldest }
+
 /// A simple catalog page that shows all content of a given type
 /// (e.g. "movie" or "series") aggregated from the installed addons.
 ///
@@ -29,6 +31,32 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
   List<Movie> _items = [];
   bool _loading = true;
   String? _error;
+  _CatalogSort _sort = _CatalogSort.titleAsc;
+  int? _decadeFilter;
+
+  static int? _decadeOf(Movie m) {
+    final match = RegExp(r'\d{4}').firstMatch(m.year ?? '');
+    if (match == null) return null;
+    return (int.parse(match.group(0)!) ~/ 10) * 10;
+  }
+
+  List<Movie> get _visibleItems {
+    var items = _decadeFilter == null
+        ? _items
+        : _items.where((m) => _decadeOf(m) == _decadeFilter).toList();
+    items = List.of(items);
+    switch (_sort) {
+      case _CatalogSort.titleAsc:
+        items.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      case _CatalogSort.titleDesc:
+        items.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
+      case _CatalogSort.yearNewest:
+        items.sort((a, b) => (_decadeOf(b) ?? -1).compareTo(_decadeOf(a) ?? -1));
+      case _CatalogSort.yearOldest:
+        items.sort((a, b) => (_decadeOf(a) ?? 99999).compareTo(_decadeOf(b) ?? 99999));
+    }
+    return items;
+  }
 
   @override
   void initState() {
@@ -94,37 +122,81 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
             : width < 1200
                 ? 5
                 : 6;
+    final visible = _visibleItems;
+    final decades = _items.map(_decadeOf).whereType<int>().toSet().toList()
+      ..sort((a, b) => b.compareTo(a));
 
     return CustomScrollView(
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           sliver: SliverToBoxAdapter(
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Expanded(
-                  child: Text(
-                    widget.title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
                     ),
-                  ),
+                    const PageSearchButton(),
+                  ],
                 ),
-                const PageSearchButton(),
+                if (decades.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      _FilterDropdown<int?>(
+                        label: _decadeFilter == null ? 'All decades' : '${_decadeFilter}s',
+                        icon: Icons.calendar_today_rounded,
+                        items: [
+                          const PopupMenuItem(value: null, child: Text('All decades')),
+                          for (final d in decades)
+                            PopupMenuItem(value: d, child: Text('${d}s')),
+                        ],
+                        onSelected: (v) => setState(() => _decadeFilter = v),
+                      ),
+                      const SizedBox(width: 10),
+                      _FilterDropdown<_CatalogSort>(
+                        label: switch (_sort) {
+                          _CatalogSort.titleAsc => 'Title A–Z',
+                          _CatalogSort.titleDesc => 'Title Z–A',
+                          _CatalogSort.yearNewest => 'Newest',
+                          _CatalogSort.yearOldest => 'Oldest',
+                        },
+                        icon: Icons.sort_rounded,
+                        items: const [
+                          PopupMenuItem(value: _CatalogSort.titleAsc, child: Text('Title A–Z')),
+                          PopupMenuItem(value: _CatalogSort.titleDesc, child: Text('Title Z–A')),
+                          PopupMenuItem(value: _CatalogSort.yearNewest, child: Text('Newest')),
+                          PopupMenuItem(value: _CatalogSort.yearOldest, child: Text('Oldest')),
+                        ],
+                        onSelected: (v) => setState(() => _sort = v!),
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
         ),
-        if (_items.isEmpty)
-          const SliverFillRemaining(
+        if (visible.isEmpty)
+          SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
               child: Text(
-                'No content found. Install more addons in Settings.',
-                style: TextStyle(color: Colors.white54, fontSize: 16),
+                _items.isEmpty
+                    ? 'No content found. Install more addons in Settings.'
+                    : 'No titles in the ${_decadeFilter}s.',
+                style: const TextStyle(color: Colors.white54, fontSize: 16),
               ),
             ),
           )
@@ -139,12 +211,56 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                 childAspectRatio: 0.62,
               ),
               delegate: SliverChildBuilderDelegate(
-                (context, index) => MovieCard(movie: _items[index]),
-                childCount: _items.length,
+                (context, index) => MovieCard(movie: visible[index]),
+                childCount: visible.length,
               ),
             ),
           ),
       ],
+    );
+  }
+}
+
+class _FilterDropdown<T> extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final List<PopupMenuEntry<T>> items;
+  final ValueChanged<T?> onSelected;
+
+  const _FilterDropdown({
+    required this.label,
+    required this.icon,
+    required this.items,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<T>(
+      itemBuilder: (context) => items,
+      onSelected: onSelected,
+      color: const Color(0xFF151822),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: Colors.white70),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w600),
+            ),
+            const Icon(Icons.arrow_drop_down_rounded, color: Colors.white54, size: 18),
+          ],
+        ),
+      ),
     );
   }
 }
