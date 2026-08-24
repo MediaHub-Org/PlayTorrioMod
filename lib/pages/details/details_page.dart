@@ -6,7 +6,6 @@ import '../../models/movie/movie.dart';
 import '../../models/movie/video.dart';
 import '../../models/movie/movie_detail.dart';
 import '../../models/my_list/my_list_item.dart';
-import '../../services/addon/addon_manager.dart';
 import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/my_list/my_list_service.dart';
@@ -75,6 +74,14 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   // Similar content from BestSimilar
   List<BSItem> _similarItems = [];
   bool _isFetchingSimilar = false;
+
+  String? _resolvedType;
+  String? _resolvedBaseUrl;
+
+  bool get _isSeries {
+    final t = _resolvedType ?? _detail?.type ?? widget.movie.type;
+    return t == 'series' || t == 'tv' || t == 'anime' || (_detail != null && _detail!.videos.isNotEmpty);
+  }
 
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
@@ -155,7 +162,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       CinematicSlideRoute(
         page: WatchScreen(
           detail: _detail!,
-          type: widget.movie.type,
+          type: _resolvedType ?? _detail!.type,
           selectedEpisode: ep,
         ),
       ),
@@ -246,6 +253,8 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         effectiveBaseUrl = resolved.addonBaseUrl;
         effectiveType = resolved.type;
         effectiveId = resolved.id;
+        _resolvedBaseUrl = effectiveBaseUrl;
+        _resolvedType = effectiveType;
       }
     }
 
@@ -264,6 +273,11 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         year: yearNum,
       );
       if (resolved != null) {
+        effectiveBaseUrl = resolved.addonBaseUrl;
+        effectiveType = resolved.type;
+        effectiveId = resolved.id;
+        _resolvedBaseUrl = effectiveBaseUrl;
+        _resolvedType = effectiveType;
         meta = await MetadataService.fetchMeta(
           baseUrl: resolved.addonBaseUrl,
           type: resolved.type,
@@ -272,12 +286,17 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       }
     }
 
+    if (meta != null && meta.type.isNotEmpty) {
+      effectiveType = (meta.type == 'series' || meta.type == 'tv' || meta.type == 'anime' || meta.videos.isNotEmpty) ? 'series' : meta.type;
+      _resolvedType = effectiveType;
+    }
+
     if (mounted) {
       setState(() {
         _detail = meta;
         _isLoading = false;
 
-        if (meta != null && (effectiveType == 'series' || effectiveType == 'anime') && meta.videos.isNotEmpty) {
+        if (meta != null && _isSeries && meta.videos.isNotEmpty) {
           final seasons = meta.videos.map((v) => v.season).where((s) => s != null).toSet().toList();
           seasons.sort();
           if (seasons.isNotEmpty) {
@@ -309,7 +328,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       final title = _detail?.name ?? widget.movie.name;
       final yearStr = _detail?.year ?? widget.movie.year;
       final year = yearStr != null ? int.tryParse(yearStr.replaceAll(RegExp(r'[^0-9]'), '')) : null;
-      final isTv = widget.movie.type == 'series' || widget.movie.type == 'anime';
+      final isTv = _isSeries;
 
       final hit = await BestSimilarScraper.findBest(
         title: title,
@@ -343,56 +362,17 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
   Future<void> _openSimilarItem(BSItem item) async {
-    final type = widget.movie.type;
-    final baseUrl = widget.movie.addonBaseUrl;
+    final resolved = await MetadataService.findMovieByTitle(
+      title: item.title,
+      type: item.isTv ? 'series' : (_resolvedType ?? widget.movie.type),
+      year: item.year,
+      preferredBaseUrl: _resolvedBaseUrl ?? widget.movie.addonBaseUrl,
+    );
 
-    // Find search-capable catalogs on the original addon
-    final manager = AddonManager.instance;
-    final addon = manager.activeAddons.where((a) => a.baseUrl == baseUrl).firstOrNull;
-    if (addon == null) return;
-
-    final searchCatalogs = addon.manifest.catalogs
-        .where((c) => c.supportsSearch && c.type == type)
-        .toList();
-
-    Movie? found;
-    for (final catalog in searchCatalogs) {
-      try {
-        final results = await MetadataService.search(
-          baseUrl: baseUrl,
-          type: type,
-          catalogId: catalog.id,
-          query: item.title,
-        );
-        // Try to match by title and year
-        for (final r in results) {
-          final nameMatch = r.name.toLowerCase().trim() == item.title.toLowerCase().trim();
-          final yearMatch = item.year == null ||
-              r.year == null ||
-              r.year == '${item.year}' ||
-              r.year == '${item.year}-';
-          if (nameMatch && yearMatch) {
-            found = r;
-            break;
-          }
-        }
-        // If exact match not found, take first result with matching name
-        if (found == null) {
-          for (final r in results) {
-            if (r.name.toLowerCase().trim() == item.title.toLowerCase().trim()) {
-              found = r;
-              break;
-            }
-          }
-        }
-        if (found != null) break;
-      } catch (_) {}
-    }
-
-    if (found != null && mounted) {
+    if (resolved != null && mounted) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => DetailsPage(movie: found!)),
+        MaterialPageRoute(builder: (_) => DetailsPage(movie: resolved)),
       );
     }
   }
@@ -491,7 +471,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                             _buildCastRow(meta.cast),
                             const SizedBox(height: _Space.xl),
                           ],
-                          if ((widget.movie.type == 'series' || widget.movie.type == 'anime') && meta.videos.isNotEmpty) ...[
+                          if (_isSeries && meta.videos.isNotEmpty) ...[
                             _buildSeasonSelector(meta),
                             const SizedBox(height: _Space.lg),
                             AnimatedSwitcher(
@@ -863,7 +843,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       items.add(Text(meta.year!, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600)));
     }
 
-    if (widget.movie.type == 'series' || widget.movie.type == 'anime') {
+    if (_isSeries) {
       final seasonCount = meta.videos.map((v) => v.season).where((s) => s != null).toSet().length;
       if (seasonCount > 0) {
         items.add(Text('$seasonCount Season${seasonCount > 1 ? "s" : ""}',
@@ -915,7 +895,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   Widget _buildPlayButton({required bool fullWidth}) {
     return _HoverButton(
       onTap: () => _handlePlayAction(
-        (widget.movie.type == 'series' || widget.movie.type == 'anime') && _currentSeasonEpisodes.isNotEmpty
+        _isSeries && _currentSeasonEpisodes.isNotEmpty
             ? _currentSeasonEpisodes.first
             : null,
       ),
@@ -934,7 +914,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
             const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
             const SizedBox(width: 6),
             Text(
-              (widget.movie.type == 'series' || widget.movie.type == 'anime') ? 'Play Episodes' : 'Play Movie',
+              _isSeries ? 'Play Episodes' : 'Play Movie',
               style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ],

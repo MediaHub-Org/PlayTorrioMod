@@ -14,6 +14,7 @@ import '../../services/metadata/metadata_service.dart';
 import '../../services/glass_settings.dart';
 import '../../services/home_page_settings.dart';
 import '../../services/app_theme_service.dart';
+import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../utils/route_transitions.dart';
 import '../../widgets/common/animated_ambient_background.dart';
@@ -60,6 +61,7 @@ class _HomePageState extends State<HomePage> {
     HomePageSettings.changeNotifier.addListener(_onSettingsChanged);
     AppThemeService.currentPalette.addListener(_onSettingsChanged);
     MyListService.items.addListener(_onSettingsChanged);
+    ContinueWatchingService.activeItems.addListener(_onSettingsChanged);
 
     if (_showIntro) {
       _playIntro();
@@ -73,43 +75,78 @@ class _HomePageState extends State<HomePage> {
     HomePageSettings.changeNotifier.removeListener(_onSettingsChanged);
     AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     MyListService.items.removeListener(_onSettingsChanged);
+    ContinueWatchingService.activeItems.removeListener(_onSettingsChanged);
     _scrollController.dispose();
     super.dispose();
   }
 
   void _onSettingsChanged() {
     if (!mounted) return;
-    _refreshSimilarSection();
+    _refreshSimilarSections();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) setState(() {});
     });
   }
 
-  Future<void> _refreshSimilarSection() async {
-    if (!mounted) return;
-    final similarSection = await HomePageSettings.fetchBestSimilarSection(forceRefresh: true);
+  void _injectSimilarSections({
+    MovieSection? listSection,
+    MovieSection? watchingSection,
+    MovieSection? traktSection,
+    MovieSection? simklSection,
+  }) {
     if (!mounted) return;
     setState(() {
-      _sections.removeWhere((s) => s.catalog.id == 'bestsimilar');
-      if (similarSection != null && HomePageSettings.enableSimilar.value) {
-        switch (HomePageSettings.similarPosition.value) {
-          case SimilarSectionPosition.top:
-            _sections.insert(0, similarSection);
-            break;
-          case SimilarSectionPosition.underCinemeta:
-            final insertIdx = _sections.length > 1 ? 1 : _sections.length;
-            _sections.insert(insertIdx, similarSection);
-            break;
-          case SimilarSectionPosition.middle:
-            final insertIdx = _sections.length ~/ 2;
-            _sections.insert(insertIdx, similarSection);
-            break;
-          case SimilarSectionPosition.bottom:
-            _sections.add(similarSection);
-            break;
-        }
+      // Remove any existing recommendation sections by title or catalog ID so they NEVER duplicate
+      _sections.removeWhere((s) =>
+          s.title.toLowerCase().startsWith('because you') ||
+          s.catalog.id == 'bestsimilar' ||
+          s.catalog.id == 'bestsimilar_list' ||
+          s.catalog.id == 'bestsimilar_watching' ||
+          s.catalog.id == 'trakt_recommendations' ||
+          s.catalog.id == 'simkl_recommendations');
+
+      final toInsert = <MovieSection>[];
+      if (watchingSection != null) toInsert.add(watchingSection);
+      if (listSection != null) toInsert.add(listSection);
+      if (traktSection != null) toInsert.add(traktSection);
+      if (simklSection != null) toInsert.add(simklSection);
+
+      if (toInsert.isEmpty) return;
+
+      switch (HomePageSettings.similarPosition.value) {
+        case SimilarSectionPosition.top:
+          _sections.insertAll(0, toInsert);
+          break;
+        case SimilarSectionPosition.underCinemeta:
+          final insertIdx = _sections.length > 1 ? 1 : _sections.length;
+          _sections.insertAll(insertIdx, toInsert);
+          break;
+        case SimilarSectionPosition.middle:
+          final insertIdx = _sections.length ~/ 2;
+          _sections.insertAll(insertIdx, toInsert);
+          break;
+        case SimilarSectionPosition.bottom:
+          _sections.addAll(toInsert);
+          break;
       }
     });
+  }
+
+  Future<void> _refreshSimilarSections() async {
+    if (!mounted) return;
+    final listFuture = HomePageSettings.fetchBestSimilarSection(forceRefresh: true);
+    final watchingFuture = HomePageSettings.fetchContinueWatchingSimilarSection(forceRefresh: true);
+    final traktFuture = HomePageSettings.fetchTraktRecommendationsSection(forceRefresh: true);
+    final simklFuture = HomePageSettings.fetchSimklRecommendationsSection(forceRefresh: true);
+
+    final results = await Future.wait([listFuture, watchingFuture, traktFuture, simklFuture]);
+    if (!mounted) return;
+    _injectSimilarSections(
+      listSection: results[0],
+      watchingSection: results[1],
+      traktSection: results[2],
+      simklSection: results[3],
+    );
   }
 
   Future<void> _playIntro() async {
@@ -136,7 +173,10 @@ class _HomePageState extends State<HomePage> {
     });
 
     try {
-      final similarFuture = HomePageSettings.fetchBestSimilarSection();
+      final listFuture = HomePageSettings.fetchBestSimilarSection();
+      final watchingFuture = HomePageSettings.fetchContinueWatchingSimilarSection();
+      final traktFuture = HomePageSettings.fetchTraktRecommendationsSection();
+      final simklFuture = HomePageSettings.fetchSimklRecommendationsSection();
 
       await for (final section in _manager.streamHomeSections()) {
         if (!mounted) return;
@@ -154,27 +194,15 @@ class _HomePageState extends State<HomePage> {
         });
       }
 
-      // Inject BestSimilar "Because you have on your list" section if available
-      final similarSection = await similarFuture;
-      if (similarSection != null && mounted) {
-        setState(() {
-          switch (HomePageSettings.similarPosition.value) {
-            case SimilarSectionPosition.top:
-              _sections.insert(0, similarSection);
-              break;
-            case SimilarSectionPosition.underCinemeta:
-              final insertIdx = _sections.length > 1 ? 1 : _sections.length;
-              _sections.insert(insertIdx, similarSection);
-              break;
-            case SimilarSectionPosition.middle:
-              final insertIdx = _sections.length ~/ 2;
-              _sections.insert(insertIdx, similarSection);
-              break;
-            case SimilarSectionPosition.bottom:
-              _sections.add(similarSection);
-              break;
-          }
-        });
+      // Inject recommendation sections (List, Continue Watching, Trakt, Simkl)
+      final results = await Future.wait([listFuture, watchingFuture, traktFuture, simklFuture]);
+      if (mounted) {
+        _injectSimilarSections(
+          listSection: results[0],
+          watchingSection: results[1],
+          traktSection: results[2],
+          simklSection: results[3],
+        );
       }
 
       // If we got through the whole stream and still loading (e.g., no addons worked)

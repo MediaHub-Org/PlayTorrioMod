@@ -45,6 +45,19 @@ class StreamSource {
       fIdx = int.tryParse(json['fileIdx'].toString());
     }
 
+    Map<String, String>? headersMap;
+    if (json['headers'] is Map) {
+      headersMap = (json['headers'] as Map).map((k, v) => MapEntry(k.toString(), v.toString()));
+    } else if (hints != null) {
+      if (hints['proxyHeaders'] is Map && (hints['proxyHeaders'] as Map)['request'] is Map) {
+        headersMap = ((hints['proxyHeaders'] as Map)['request'] as Map)
+            .map((k, v) => MapEntry(k.toString(), v.toString()));
+      } else if (hints['requestHeaders'] is Map) {
+        headersMap = (hints['requestHeaders'] as Map)
+            .map((k, v) => MapEntry(k.toString(), v.toString()));
+      }
+    }
+
     return StreamSource(
       name: json['name']?.toString(),
       title: json['title']?.toString(),
@@ -56,6 +69,7 @@ class StreamSource {
       addonName: addonName,
       behaviorHints: hints,
       sources: srcList,
+      headers: headersMap,
     );
   }
 

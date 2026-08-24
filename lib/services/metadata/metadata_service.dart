@@ -180,48 +180,70 @@ class MetadataService {
     int? year,
     String? preferredBaseUrl,
   }) async {
-    final effectiveType = (type == 'series' || type == 'tv' || type == 'anime') ? 'series' : 'movie';
     final query = title.trim();
     if (query.isEmpty) return null;
 
-    final targetBaseUrl = (preferredBaseUrl != null && preferredBaseUrl.startsWith('http') && !preferredBaseUrl.contains('bestsimilar'))
+    final targetBaseUrl = (preferredBaseUrl != null &&
+            preferredBaseUrl.startsWith('http') &&
+            !preferredBaseUrl.contains('bestsimilar'))
         ? preferredBaseUrl
         : 'https://v3-cinemeta.strem.io';
 
-    try {
-      final results = await search(
-        baseUrl: targetBaseUrl,
-        type: effectiveType,
-        catalogId: 'top',
-        query: query,
-      );
+    final isPreferredTv = (type == 'series' || type == 'tv' || type == 'anime');
+    final firstType = isPreferredTv ? 'series' : 'movie';
+    final secondType = isPreferredTv ? 'movie' : 'series';
 
-      for (final r in results) {
-        final nameMatch = r.name.toLowerCase().trim() == query.toLowerCase();
-        final yearMatch = year == null || r.year == null || r.year == '$year' || r.year == '$year-';
-        if (nameMatch && yearMatch) return r;
+    // Search both types to compare candidates across series and movie catalogs
+    final results = await Future.wait([
+      search(baseUrl: targetBaseUrl, type: firstType, catalogId: 'top', query: query)
+          .catchError((_) => <Movie>[]),
+      search(baseUrl: targetBaseUrl, type: secondType, catalogId: 'top', query: query)
+          .catchError((_) => <Movie>[]),
+    ]);
+
+    final allCandidates = <Movie>[...results[0], ...results[1]];
+    if (allCandidates.isEmpty) return null;
+
+    final qLower = query.toLowerCase();
+
+    // Scoring:
+    // +100 for exact title match
+    // +60 for exact year match (or year in range e.g. 2013-2018)
+    // +20 for matching preferred type
+    // +30 for title startsWith
+    Movie? bestMatch;
+    int highestScore = -1;
+
+    for (final c in allCandidates) {
+      int score = 0;
+      final cName = c.name.toLowerCase().trim();
+      final cYear = (c.year ?? '').trim();
+
+      if (cName == qLower) {
+        score += 100;
+      } else if (cName.startsWith(qLower)) {
+        score += 30;
       }
 
-      if (results.isNotEmpty) {
-        final exact = results.where((r) => r.name.toLowerCase().trim() == query.toLowerCase()).firstOrNull;
-        return exact ?? results.first;
+      if (year != null && cYear.isNotEmpty) {
+        if (cYear.startsWith('$year') || cYear.contains('$year')) {
+          score += 60;
+        }
       }
-    } catch (_) {}
 
-    // Fallback: search the opposite type (series <-> movie)
-    try {
-      final altType = effectiveType == 'series' ? 'movie' : 'series';
-      final altResults = await search(
-        baseUrl: targetBaseUrl,
-        type: altType,
-        catalogId: 'top',
-        query: query,
-      );
-      if (altResults.isNotEmpty) {
-        return altResults.first;
+      if (type != null) {
+        final isCTv = (c.type == 'series' || c.type == 'tv' || c.type == 'anime');
+        if (isCTv == isPreferredTv) {
+          score += 20;
+        }
       }
-    } catch (_) {}
 
-    return null;
+      if (score > highestScore) {
+        highestScore = score;
+        bestMatch = c;
+      }
+    }
+
+    return bestMatch ?? allCandidates.first;
   }
 }

@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../services/app_theme_service.dart';
 import '../../../services/home_page_settings.dart';
 import '../../../services/my_list/my_list_service.dart';
+import '../../../services/simkl/simkl_service.dart';
+import '../../../services/trakt/trakt_service.dart';
 import '../../../widgets/common/animated_ambient_background.dart';
 
 class HomeUiSettingsPage extends StatefulWidget {
@@ -495,149 +498,263 @@ class _HomeUiSettingsPageState extends State<HomeUiSettingsPage> {
   }
 
   Widget _buildSimilarRecommendationsCard(int myListCount) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: HomePageSettings.enableSimilar,
-      builder: (context, enabled, _) {
-        return Container(
-          padding: const EdgeInsets.all(18),
-          decoration: BoxDecoration(
-            color: const Color(0xFF12151E),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: enabled
-                  ? const Color(0xFF7C5CFF).withValues(alpha: 0.35)
-                  : Colors.white.withValues(alpha: 0.08),
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12151E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: const Color(0xFF7C5CFF).withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7C5CFF).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Color(0xFF7C5CFF),
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Smart Recommendations',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w800,
+                        color: Colors.white,
+                      ),
+                    ),
+                    SizedBox(height: 2),
+                    Text(
+                      'Configure personalized & algorithmic recommendation sliders',
+                      style: TextStyle(fontSize: 12, color: Colors.white54),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+          Divider(color: Colors.white.withValues(alpha: 0.06)),
+          const SizedBox(height: 8),
+
+          // 1. Because You Have... (My List)
+          _buildRecommendationToggleRow(
+            title: '"Because You Have..." (My List)',
+            subtitle: 'BestSimilar recommendations based on titles saved in My List',
+            listenable: HomePageSettings.enableSimilar,
+            onChanged: (val) {
+              HomePageSettings.setEnableSimilar(val);
+              setState(() {});
+            },
+          ),
+
+          // 2. Because You're Watching... (Continue Watching)
+          _buildRecommendationToggleRow(
+            title: '"Because You\'re Watching..."',
+            subtitle: 'BestSimilar recommendations based on active Continue Watching titles',
+            listenable: HomePageSettings.enableWatchingSimilar,
+            onChanged: (val) {
+              HomePageSettings.setEnableWatchingSimilar(val);
+              setState(() {});
+            },
+          ),
+
+          // 3. Trakt Recommendations
+          FutureBuilder<bool>(
+            future: TraktService.instance.isAuthenticated(),
+            builder: (context, snapshot) {
+              final isAuthed = snapshot.data ?? false;
+              return _buildRecommendationToggleRow(
+                title: 'Trakt Recommendations',
+                subtitle: isAuthed
+                    ? 'Personalized recommendations computed by Trakt'
+                    : 'Requires Trakt login in Settings -> Trakt',
+                listenable: HomePageSettings.enableTraktRecommendations,
+                trailingExtra: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: (isAuthed ? const Color(0xFFED1C24) : Colors.white12).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: (isAuthed ? const Color(0xFFED1C24) : Colors.white24).withValues(alpha: 0.4),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    isAuthed ? 'CONNECTED' : 'DISCONNECTED',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: isAuthed ? const Color(0xFFFF5252) : Colors.white38,
+                    ),
+                  ),
+                ),
+                onChanged: (val) {
+                  HomePageSettings.setEnableTraktRecommendations(val);
+                  setState(() {});
+                },
+              );
+            },
+          ),
+
+          // 4. Simkl Recommendations
+          FutureBuilder<bool>(
+            future: SimklService.instance.isAuthenticated(),
+            builder: (context, snapshot) {
+              final isAuthed = snapshot.data ?? false;
+              return _buildRecommendationToggleRow(
+                title: 'Simkl Recommendations',
+                subtitle: isAuthed
+                    ? 'Top-rated & personalized suggestions from Simkl'
+                    : 'Requires Simkl login in Settings -> Simkl',
+                listenable: HomePageSettings.enableSimklRecommendations,
+                trailingExtra: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: (isAuthed ? const Color(0xFF00B2FF) : Colors.white12).withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: (isAuthed ? const Color(0xFF00B2FF) : Colors.white24).withValues(alpha: 0.4),
+                      width: 0.8,
+                    ),
+                  ),
+                  child: Text(
+                    isAuthed ? 'CONNECTED' : 'DISCONNECTED',
+                    style: TextStyle(
+                      fontSize: 9.5,
+                      fontWeight: FontWeight.w800,
+                      color: isAuthed ? const Color(0xFF40C4FF) : Colors.white38,
+                    ),
+                  ),
+                ),
+                onChanged: (val) {
+                  HomePageSettings.setEnableSimklRecommendations(val);
+                  setState(() {});
+                },
+              );
+            },
+          ),
+
+          const SizedBox(height: 12),
+          Divider(color: Colors.white.withValues(alpha: 0.06)),
+          const SizedBox(height: 12),
+
+          // Position Dropdown
+          Text(
+            'Recommendation Sliders Position on Home Page',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withValues(alpha: 0.8),
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF7C5CFF).withValues(alpha: 0.14),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.auto_awesome_rounded,
-                      color: Color(0xFF7C5CFF),
-                      size: 22,
-                    ),
+          const SizedBox(height: 6),
+          ValueListenableBuilder<SimilarSectionPosition>(
+            valueListenable: HomePageSettings.similarPosition,
+            builder: (context, pos, _) {
+              return DropdownButtonFormField<SimilarSectionPosition>(
+                value: pos,
+                dropdownColor: const Color(0xFF151822),
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: const Color(0xFF0D1017),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
                   ),
-                  const SizedBox(width: 14),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                  ),
+                ),
+                style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600),
+                items: SimilarSectionPosition.values.map((p) {
+                  return DropdownMenuItem(
+                    value: p,
+                    child: Text(p.label),
+                  );
+                }).toList(),
+                onChanged: (newPos) {
+                  if (newPos != null) {
+                    HomePageSettings.setSimilarPosition(newPos);
+                    setState(() {});
+                  }
+                },
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecommendationToggleRow({
+    required String title,
+    required String subtitle,
+    required ValueListenable<bool> listenable,
+    required ValueChanged<bool> onChanged,
+    Widget? trailingExtra,
+  }) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: listenable,
+      builder: (context, enabled, _) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Text(
-                          '"Because You Have..." Slider',
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                        Flexible(
+                          child: Text(
+                            title,
+                            style: const TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Powered by BestSimilar scraper & your My List items',
-                          style: TextStyle(fontSize: 12, color: Colors.white54),
-                        ),
+                        if (trailingExtra != null) ...[
+                          const SizedBox(width: 8),
+                          trailingExtra,
+                        ],
                       ],
                     ),
-                  ),
-                  Switch.adaptive(
-                    value: enabled,
-                    activeColor: const Color(0xFF7C5CFF),
-                    onChanged: (val) {
-                      HomePageSettings.setEnableSimilar(val);
-                      setState(() {});
-                    },
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(fontSize: 11.5, color: Colors.white54),
+                    ),
+                  ],
+                ),
               ),
-
-              if (myListCount == 0) ...[
-                const SizedBox(height: 14),
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.08),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.amber.withValues(alpha: 0.2)),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 18),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          'Your "My List" is empty! Add movies/series to My List to generate personalized recommendations.',
-                          style: TextStyle(
-                            fontSize: 11.5,
-                            color: Colors.amber.shade200,
-                            height: 1.3,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-
-              if (enabled) ...[
-                const SizedBox(height: 16),
-                Divider(color: Colors.white.withValues(alpha: 0.06)),
-                const SizedBox(height: 12),
-
-                // Position Dropdown
-                Text(
-                  'Slider Position on Home Page',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white.withValues(alpha: 0.8),
-                  ),
-                ),
-                const SizedBox(height: 6),
-                ValueListenableBuilder<SimilarSectionPosition>(
-                  valueListenable: HomePageSettings.similarPosition,
-                  builder: (context, pos, _) {
-                    return DropdownButtonFormField<SimilarSectionPosition>(
-                      value: pos,
-                      dropdownColor: const Color(0xFF151822),
-                      decoration: InputDecoration(
-                        filled: true,
-                        fillColor: const Color(0xFF0D1017),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
-                        ),
-                      ),
-                      style: const TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w600),
-                      items: SimilarSectionPosition.values.map((p) {
-                        return DropdownMenuItem(
-                          value: p,
-                          child: Text(p.label),
-                        );
-                      }).toList(),
-                      onChanged: (newPos) {
-                        if (newPos != null) {
-                          HomePageSettings.setSimilarPosition(newPos);
-                          setState(() {});
-                        }
-                      },
-                    );
-                  },
-                ),
-              ],
+              const SizedBox(width: 12),
+              Switch.adaptive(
+                value: enabled,
+                activeColor: const Color(0xFF7C5CFF),
+                onChanged: onChanged,
+              ),
             ],
           ),
         );

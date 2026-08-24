@@ -13,6 +13,7 @@ import '../../models/stream/stream_model.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
+import '../../services/stream/local_stream_proxy.dart';
 import '../../services/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
@@ -157,11 +158,6 @@ class _PlayerScreenState extends State<PlayerScreen>
       final sanitizedUrlStr = streamUrl.contains('::')
           ? streamUrl.replaceAll('::', '%3A%3A')
           : streamUrl;
-      final cleanUri = Uri.parse(sanitizedUrlStr);
-      print('[PlayerScreen] Attempting to open network stream URL: $cleanUri');
-
-      if (!mounted) return;
-      setState(() => _statusMessage = 'Buffering video...');
 
       final playerHeaders = <String, String>{};
       if (sanitizedUrlStr.contains('hakunaymatata.com')) {
@@ -173,6 +169,18 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (widget.source.headers != null) {
         playerHeaders.addAll(widget.source.headers!);
       }
+
+      // If stream has custom headers (e.g. Vuflix, RiveStream, HakunayMatata), route through loopback proxy
+      // so all segments and variant playlists resolve without 403 Forbidden
+      final resolvedUrlStr = (widget.source.headers != null && widget.source.headers!.isNotEmpty)
+          ? LocalStreamProxy.instance.getProxiedUrl(sanitizedUrlStr, playerHeaders)
+          : sanitizedUrlStr;
+
+      final cleanUri = Uri.parse(resolvedUrlStr);
+      print('[PlayerScreen] Attempting to open network stream URL: $cleanUri');
+
+      if (!mounted) return;
+      setState(() => _statusMessage = 'Buffering video...');
 
       _controller = VideoPlayerController.networkUrl(
         cleanUri,

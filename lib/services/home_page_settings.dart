@@ -1,12 +1,20 @@
+import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/addon/addon.dart';
+import '../models/continue_watching/continue_watching_item.dart';
 import '../models/movie/movie.dart';
 import '../models/movie/movie_section.dart';
 import '../models/my_list/my_list_item.dart';
+import 'continue_watching/continue_watching_service.dart';
 import 'metadata/bestsimilar_scraper.dart';
 import 'my_list/my_list_service.dart';
+import 'simkl/simkl_list_source.dart';
+import 'simkl/simkl_service.dart';
+import 'trakt/trakt_list_source.dart';
+import 'trakt/trakt_service.dart';
 
 enum SimilarSectionPosition {
   top('Top (Below Hero Banner)'),
@@ -49,6 +57,9 @@ enum CardDensity {
 abstract final class HomePageSettings {
   static const _keyEnableSpotlight = 'home_enable_spotlight';
   static const _keyEnableSimilar = 'home_enable_similar';
+  static const _keyEnableWatchingSimilar = 'home_enable_watching_similar';
+  static const _keyEnableTraktRec = 'home_enable_trakt_rec';
+  static const _keyEnableSimklRec = 'home_enable_simkl_rec';
   static const _keySimilarPosition = 'home_similar_position';
   static const _keyHeroStyle = 'home_hero_style';
   static const _keyHeroAutoRotate = 'home_hero_auto_rotate';
@@ -64,6 +75,9 @@ abstract final class HomePageSettings {
 
   static final ValueNotifier<bool> enableSpotlight = ValueNotifier<bool>(true);
   static final ValueNotifier<bool> enableSimilar = ValueNotifier<bool>(true);
+  static final ValueNotifier<bool> enableWatchingSimilar = ValueNotifier<bool>(true);
+  static final ValueNotifier<bool> enableTraktRecommendations = ValueNotifier<bool>(true);
+  static final ValueNotifier<bool> enableSimklRecommendations = ValueNotifier<bool>(true);
   static final ValueNotifier<SimilarSectionPosition> similarPosition =
       ValueNotifier<SimilarSectionPosition>(SimilarSectionPosition.top);
   static final ValueNotifier<HeroStyle> heroStyle =
@@ -85,13 +99,20 @@ abstract final class HomePageSettings {
 
   static final ValueNotifier<int> changeNotifier = ValueNotifier<int>(0);
 
-  // Cached recommendation section to avoid scraping on every scroll
+  // Cached recommendation sections to avoid scraping on every scroll
   static MovieSection? _cachedSimilarSection;
+  static MovieSection? _cachedWatchingSimilarSection;
+  static MovieSection? _cachedTraktSection;
+  static MovieSection? _cachedSimklSection;
+  static String? lastListSourceTitle;
 
   static Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
     enableSpotlight.value = prefs.getBool(_keyEnableSpotlight) ?? true;
     enableSimilar.value = prefs.getBool(_keyEnableSimilar) ?? true;
+    enableWatchingSimilar.value = prefs.getBool(_keyEnableWatchingSimilar) ?? true;
+    enableTraktRecommendations.value = prefs.getBool(_keyEnableTraktRec) ?? true;
+    enableSimklRecommendations.value = prefs.getBool(_keyEnableSimklRec) ?? true;
 
     final posStr = prefs.getString(_keySimilarPosition);
     similarPosition.value = SimilarSectionPosition.values.firstWhere(
@@ -170,6 +191,27 @@ abstract final class HomePageSettings {
     changeNotifier.value++;
   }
 
+  static Future<void> setEnableWatchingSimilar(bool val) async {
+    enableWatchingSimilar.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyEnableWatchingSimilar, val);
+    changeNotifier.value++;
+  }
+
+  static Future<void> setEnableTraktRecommendations(bool val) async {
+    enableTraktRecommendations.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyEnableTraktRec, val);
+    changeNotifier.value++;
+  }
+
+  static Future<void> setEnableSimklRecommendations(bool val) async {
+    enableSimklRecommendations.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyEnableSimklRec, val);
+    changeNotifier.value++;
+  }
+
   static Future<void> setSimilarPosition(SimilarSectionPosition pos) async {
     similarPosition.value = pos;
     final prefs = await SharedPreferences.getInstance();
@@ -226,6 +268,80 @@ abstract final class HomePageSettings {
     changeNotifier.value++;
   }
 
+  /// Shared helper to build a BestSimilar recommendation MovieSection
+  static Future<MovieSection?> _buildBestSimilarSection({
+    required String sourceTitle,
+    required int? year,
+    required String type,
+    required String sectionTitle,
+    required String catalogId,
+  }) async {
+    final isTv = (type == 'series' || type == 'tv');
+    try {
+      final hit = await BestSimilarScraper.findBest(
+        title: sourceTitle,
+        year: year,
+        isTv: isTv,
+      );
+
+      if (hit == null) return null;
+
+      final details = await BestSimilarScraper.fetchDetails(
+        id: hit.id,
+        slug: hit.slug,
+      );
+
+      if (details == null || details.similar.isEmpty) return null;
+
+      // Safety Guard: If source title is live-action, don't allow anime details
+      final isAnimeSource = type == 'anime' || sourceTitle.toLowerCase().contains('anime');
+      final isAnimeMatched = (details.genre?.toLowerCase().contains('animation') == true ||
+              details.genre?.toLowerCase().contains('anime') == true) &&
+          details.plotTags.any((t) =>
+              t.toLowerCase() == 'anime' ||
+              t.toLowerCase() == 'japanese animation' ||
+              t.toLowerCase() == 'manga adaptation');
+
+      if (!isAnimeSource && isAnimeMatched) {
+        debugPrint('[HomePageSettings] Skipping anime match for live-action: $sourceTitle');
+        return null;
+      }
+
+      final movies = <Movie>[];
+      for (final sim in details.similar.take(24)) {
+        movies.add(Movie(
+          id: 'bestsimilar_${sim.id}',
+          type: sim.isTv ? 'series' : 'movie',
+          name: sim.title,
+          poster: sim.thumbUrl,
+          year: sim.year?.toString(),
+          addonBaseUrl: 'https://v3-cinemeta.strem.io',
+        ));
+      }
+
+      if (movies.isEmpty) return null;
+
+      return MovieSection(
+        title: sectionTitle,
+        subtitle: 'Recommendations based on $sourceTitle',
+        contentType: type,
+        addonBaseUrl: 'https://v3-cinemeta.strem.io',
+        catalog: AddonCatalog(
+          type: type,
+          id: catalogId,
+          name: 'Similar to $sourceTitle',
+          genres: const [],
+          supportsSearch: false,
+          supportsSkip: false,
+        ),
+        movies: movies,
+      );
+    } catch (e) {
+      debugPrint('[HomePageSettings] Failed to build similar section for "$sourceTitle": $e');
+      return null;
+    }
+  }
+
   /// Fetches a dynamic "Because you have [Title] on your list" section using BestSimilar
   static Future<MovieSection?> fetchBestSimilarSection({bool forceRefresh = false}) async {
     if (!enableSimilar.value) return null;
@@ -241,74 +357,182 @@ abstract final class HomePageSettings {
     final candidates = List<MyListItem>.from(myList.reversed);
 
     for (final sourceItem in candidates) {
-      try {
-        final hit = await BestSimilarScraper.findBest(
-          title: sourceItem.title,
-          year: sourceItem.year,
-          isTv: sourceItem.type == 'series' || sourceItem.type == 'tv',
-        );
+      final section = await _buildBestSimilarSection(
+        sourceTitle: sourceItem.title,
+        year: sourceItem.year,
+        type: sourceItem.type,
+        sectionTitle: 'Because you have "${sourceItem.title}" on your list',
+        catalogId: 'bestsimilar_list',
+      );
 
-        if (hit == null) continue;
-
-        final details = await BestSimilarScraper.fetchDetails(
-          id: hit.id,
-          slug: hit.slug,
-        );
-
-        if (details == null || details.similar.isEmpty) continue;
-
-        // Safety Guard: If source title is live-action, don't allow anime details
-        final isAnimeSource = sourceItem.type == 'anime' ||
-            sourceItem.title.toLowerCase().contains('anime');
-        final isAnimeMatched = (details.genre?.toLowerCase().contains('animation') == true ||
-                details.genre?.toLowerCase().contains('anime') == true) &&
-            details.plotTags.any((t) =>
-                t.toLowerCase() == 'anime' ||
-                t.toLowerCase() == 'japanese animation' ||
-                t.toLowerCase() == 'manga adaptation');
-
-        if (!isAnimeSource && isAnimeMatched) {
-          debugPrint('[HomePageSettings] Skipping anime match for live-action: ${sourceItem.title}');
-          continue;
-        }
-
-        final movies = <Movie>[];
-        for (final sim in details.similar.take(24)) {
-          movies.add(Movie(
-            id: 'bestsimilar_${sim.id}',
-            type: sim.slug.contains('serial') ? 'series' : 'movie',
-            name: sim.title,
-            poster: sim.thumbUrl,
-            year: sim.year?.toString(),
-            addonBaseUrl: 'https://v3-cinemeta.strem.io',
-          ));
-        }
-
-        if (movies.isEmpty) continue;
-
-        final section = MovieSection(
-          title: 'Because you have "${sourceItem.title}" on your list',
-          subtitle: 'Recommendations based on ${sourceItem.title}',
-          contentType: sourceItem.type,
-          addonBaseUrl: 'https://v3-cinemeta.strem.io',
-          catalog: AddonCatalog(
-            type: sourceItem.type,
-            id: 'bestsimilar',
-            name: 'Similar to ${sourceItem.title}',
-            genres: const [],
-            supportsSearch: false,
-            supportsSkip: false,
-          ),
-          movies: movies,
-        );
-
+      if (section != null) {
         _cachedSimilarSection = section;
+        lastListSourceTitle = sourceItem.title;
         return section;
-      } catch (e) {
-        debugPrint('[HomePageSettings] Candidate ${sourceItem.title} failed: $e');
       }
     }
 
     return null;
+  }
+
+  /// Fetches a dynamic "Because you're watching [Title]" section from Continue Watching using BestSimilar
+  static Future<MovieSection?> fetchContinueWatchingSimilarSection({
+    bool forceRefresh = false,
+    String? excludeTitle,
+  }) async {
+    if (!enableWatchingSimilar.value) return null;
+
+    var active = ContinueWatchingService.activeItems.value;
+    if (active.isEmpty) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        final rawJson = prefs.getString('continue_watching_sessions_v1');
+        if (rawJson != null && rawJson.isNotEmpty) {
+          final list = jsonDecode(rawJson) as List<dynamic>;
+          active = list
+              .whereType<Map<String, dynamic>>()
+              .map((j) => ContinueWatchingItem.fromJson(j))
+              .toList();
+        }
+      } catch (_) {}
+    }
+
+    if (active.isEmpty) return null;
+
+    if (!forceRefresh && _cachedWatchingSimilarSection != null) {
+      return _cachedWatchingSimilarSection;
+    }
+
+    // Pick a random item from Continue Watching
+    final candidates = List<ContinueWatchingItem>.from(active)..shuffle(Random());
+    final excluded = (excludeTitle ?? lastListSourceTitle ?? '').trim().toLowerCase();
+
+    for (final item in candidates) {
+      if (excluded.isNotEmpty && item.title.trim().toLowerCase() == excluded) {
+        continue;
+      }
+
+      final yearInt = item.year != null ? int.tryParse(item.year!) : null;
+      final section = await _buildBestSimilarSection(
+        sourceTitle: item.title,
+        year: yearInt,
+        type: item.type,
+        sectionTitle: 'Because you\'re watching "${item.title}"',
+        catalogId: 'bestsimilar_watching',
+      );
+
+      if (section != null) {
+        _cachedWatchingSimilarSection = section;
+        return section;
+      }
+    }
+
+    return null;
+  }
+
+  /// Fetches Trakt personalized recommendations if Trakt is authenticated and enabled
+  static Future<MovieSection?> fetchTraktRecommendationsSection({bool forceRefresh = false}) async {
+    if (!enableTraktRecommendations.value) return null;
+    if (!await TraktService.instance.isAuthenticated()) return null;
+
+    if (!forceRefresh && _cachedTraktSection != null) {
+      return _cachedTraktSection;
+    }
+
+    try {
+      final res = await TraktListSource.instance.loadList(
+        const TraktListChoice.builtin(TraktSeeAllList.recommendations),
+      );
+
+      if (res.items.isEmpty) return null;
+
+      final movies = <Movie>[];
+      for (final item in res.items.take(24)) {
+        movies.add(Movie(
+          id: item.id,
+          type: item.type,
+          name: item.name,
+          poster: item.poster,
+          year: item.year,
+          addonBaseUrl: 'https://v3-cinemeta.strem.io',
+        ));
+      }
+
+      if (movies.isEmpty) return null;
+
+      final section = MovieSection(
+        title: 'Recommended for You (Trakt)',
+        subtitle: 'Personalized based on your Trakt watch history',
+        contentType: 'mixed',
+        addonBaseUrl: 'https://v3-cinemeta.strem.io',
+        catalog: AddonCatalog(
+          type: 'mixed',
+          id: 'trakt_recommendations',
+          name: 'Trakt Recommendations',
+          genres: const [],
+          supportsSearch: false,
+          supportsSkip: false,
+        ),
+        movies: movies,
+      );
+
+      _cachedTraktSection = section;
+      return section;
+    } catch (e) {
+      debugPrint('[HomePageSettings] Trakt recommendations failed: $e');
+      return null;
+    }
+  }
+
+  /// Fetches Simkl recommendations if Simkl is authenticated and enabled
+  static Future<MovieSection?> fetchSimklRecommendationsSection({bool forceRefresh = false}) async {
+    if (!enableSimklRecommendations.value) return null;
+    if (!await SimklService.instance.isAuthenticated()) return null;
+
+    if (!forceRefresh && _cachedSimklSection != null) {
+      return _cachedSimklSection;
+    }
+
+    try {
+      final res = await SimklListSource.instance.loadList(SimklSeeAllList.topRated);
+
+      if (res.items.isEmpty) return null;
+
+      final movies = <Movie>[];
+      for (final item in res.items.take(24)) {
+        movies.add(Movie(
+          id: item.id,
+          type: item.type,
+          name: item.name,
+          poster: item.poster,
+          year: item.year,
+          addonBaseUrl: 'https://v3-cinemeta.strem.io',
+        ));
+      }
+
+      if (movies.isEmpty) return null;
+
+      final section = MovieSection(
+        title: 'Recommended for You (Simkl)',
+        subtitle: 'Top-rated & personalized suggestions from Simkl',
+        contentType: 'mixed',
+        addonBaseUrl: 'https://v3-cinemeta.strem.io',
+        catalog: AddonCatalog(
+          type: 'mixed',
+          id: 'simkl_recommendations',
+          name: 'Simkl Recommendations',
+          genres: const [],
+          supportsSearch: false,
+          supportsSkip: false,
+        ),
+        movies: movies,
+      );
+
+      _cachedSimklSection = section;
+      return section;
+    } catch (e) {
+      debugPrint('[HomePageSettings] Simkl recommendations failed: $e');
+      return null;
+    }
   }
 }

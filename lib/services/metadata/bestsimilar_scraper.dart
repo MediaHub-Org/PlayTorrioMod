@@ -61,6 +61,14 @@ class BSItem {
   int? tmdbId;
   String? tmdbMediaType;      // 'movie' | 'tv'
 
+  bool get isTv {
+    if (tmdbMediaType == 'tv') return true;
+    if (slug.contains('serial') || slug.contains('tv-series') || slug.contains('series')) return true;
+    final dur = (duration ?? '').toLowerCase();
+    if (dur.contains('eps') || dur.contains('episode') || dur.contains('serial') || dur.contains('season')) return true;
+    return false;
+  }
+
   BSItem({
     required this.id,
     required this.slug,

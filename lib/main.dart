@@ -18,6 +18,7 @@ import './services/manga/manga_settings.dart';
 import './services/music/music_settings.dart';
 import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
+import './services/stream/local_stream_proxy.dart';
 import './services/env_service.dart';
 import './widgets/update_dialog.dart';
 
@@ -58,6 +59,7 @@ void main() async {
     MusicSettings.initialize(),
     QobuzMusicService.instance.initialize(),
     MyListService.initialize(),
+    LocalStreamProxy.instance.start(),
   ]);
   runApp(const PlayTorrioApp());
 }
