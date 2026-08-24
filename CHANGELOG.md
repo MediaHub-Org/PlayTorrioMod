@@ -7,6 +7,11 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 ### Fixed
 - **Black screen on Windows launch**: the bottom play-bar was built by a `ListenableBuilder` sitting directly as a `Stack` child, returning `SizedBox.shrink()` normally but a bare `Positioned` when the Listen hub was active. Flutter's `Stack` doesn't handle a child flipping between Positioned and non-Positioned across rebuilds; it corrupted the whole window's paint — app was fully built underneath (confirmed via widget-tree dump) but rendered solid black. Fixed by wrapping it in a stable outer `Positioned`.
 - Corrupted `scripts/run_windows.bat` (stray characters had mangled `if`/`echo`/`pushd` into invalid batch syntax).
+- **Movies and Series showing identical content**: `TypeCatalogPage` only fetched in `initState()`, and switching the Watch section chip reused the same `State` instead of remounting — `widget.type` changed but the loaded list never refreshed. Gave each instance a `ValueKey(type)`.
+- **Play bar Stop button didn't actually stop playback**: it reused the same "pause because another source took over" callback as the real Stop action, so the bar hid but the underlying music/audiobook controller kept playing in memory. Added a distinct `onFullStop` to `PlaybackCoordinator`, and a real `stop()` on `MusicPlayerController`/`AudiobookPlayerController` that disposes the controller and releases resources.
+- **Anime hub failing to load**: `AnimePage` fetched 8 independent AniList queries through a single all-or-nothing `Future.wait` — any one failure blanked the whole page. Each section now catches its own error and degrades to empty instead of failing the page.
+- **Album play/pause button had no animation**: replaced the instant `Icon` swap with `AnimatedIcons.play_pause` via `TweenAnimationBuilder`.
+- **Gradle build noise on cross-drive setups**: Kotlin's incremental-compilation cache threw "different roots" errors when the project and pub cache live on different drives (harmless — build still completed — but surfaced as a false error in IDE Gradle integrations). Disabled via `kotlin.incremental=false`.
 
 ### Live TV
 - Added **Live TV** as a new section in the Watch hub (`lib/pages/iptv/`), wired through `HubController` alongside Movies/Series/Anime/Genres/Library.
