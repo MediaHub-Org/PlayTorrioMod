@@ -20,10 +20,18 @@ class MediaHub extends StatelessWidget {
     switch (activeSection) {
       case 'movies':
         SearchScope.set('movie', label: 'Movies');
-        return const TypeCatalogPage(type: 'movie', title: 'Movies');
+        return const TypeCatalogPage(
+          key: ValueKey('movie'),
+          type: 'movie',
+          title: 'Movies',
+        );
       case 'series':
         SearchScope.set('series', label: 'Series');
-        return const TypeCatalogPage(type: 'series', title: 'Series');
+        return const TypeCatalogPage(
+          key: ValueKey('series'),
+          type: 'series',
+          title: 'Series',
+        );
       case 'anime':
         SearchScope.set('anime', label: 'Anime');
         return const AnimePage();
@@ -38,7 +46,11 @@ class MediaHub extends StatelessWidget {
         return const CollectionPage();
       default:
         SearchScope.set(null, label: 'Movies');
-        return const TypeCatalogPage(type: 'movie', title: 'Movies');
+        return const TypeCatalogPage(
+          key: ValueKey('movie'),
+          type: 'movie',
+          title: 'Movies',
+        );
     }
   }
 

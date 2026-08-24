@@ -63,49 +63,40 @@ class _AnimePageState extends State<AnimePage> {
       _error = null;
     });
 
-    try {
-      final trendingFut = _anilistService.fetchTrendingAnime(perPage: 18);
-      final seasonFut = _anilistService.fetchPopularThisSeason(perPage: 18);
-      final topRatedFut = _anilistService.fetchTopRated(perPage: 18);
-      final upcomingFut = _anilistService.fetchUpcomingNextSeason(perPage: 18);
-      final actionFut = _anilistService.fetchByGenre('Action', perPage: 18);
-      final romanceFut = _anilistService.fetchByGenre('Romance', perPage: 18);
-      final fantasyFut = _anilistService.fetchByGenre('Fantasy', perPage: 18);
-      final sciFiFut = _anilistService.fetchByGenre('Sci-Fi', perPage: 18);
-
-      final results = await Future.wait([
-        trendingFut,
-        seasonFut,
-        topRatedFut,
-        upcomingFut,
-        actionFut,
-        romanceFut,
-        fantasyFut,
-        sciFiFut,
-      ]);
-
-      if (mounted) {
-        setState(() {
-          _trending = results[0];
-          _popularSeason = results[1];
-          _topRated = results[2];
-          _upcoming = results[3];
-          _actionAnime = results[4];
-          _romanceAnime = results[5];
-          _fantasyAnime = results[6];
-          _sciFiAnime = results[7];
-          _loading = false;
-        });
-      }
-    } catch (e) {
-      debugPrint('Error loading Anime data: $e');
-      if (mounted) {
-        setState(() {
-          _error = 'Failed to load Anime catalog. Check your internet connection.';
-          _loading = false;
-        });
-      }
+    // Each section fetches independently: one bad/rate-limited/timed-out
+    // AniList call shouldn't blank the whole page when the other 7 succeed.
+    Future<List<AnimeMedia>> section(String label, Future<List<AnimeMedia>> future) {
+      return future.catchError((e) {
+        debugPrint('Error loading Anime section "$label": $e');
+        return <AnimeMedia>[];
+      });
     }
+
+    final results = await Future.wait([
+      section('trending', _anilistService.fetchTrendingAnime(perPage: 18)),
+      section('season', _anilistService.fetchPopularThisSeason(perPage: 18)),
+      section('topRated', _anilistService.fetchTopRated(perPage: 18)),
+      section('upcoming', _anilistService.fetchUpcomingNextSeason(perPage: 18)),
+      section('action', _anilistService.fetchByGenre('Action', perPage: 18)),
+      section('romance', _anilistService.fetchByGenre('Romance', perPage: 18)),
+      section('fantasy', _anilistService.fetchByGenre('Fantasy', perPage: 18)),
+      section('sciFi', _anilistService.fetchByGenre('Sci-Fi', perPage: 18)),
+    ]);
+
+    if (!mounted) return;
+    final allEmpty = results.every((r) => r.isEmpty);
+    setState(() {
+      _trending = results[0];
+      _popularSeason = results[1];
+      _topRated = results[2];
+      _upcoming = results[3];
+      _actionAnime = results[4];
+      _romanceAnime = results[5];
+      _fantasyAnime = results[6];
+      _sciFiAnime = results[7];
+      _error = allEmpty ? 'Failed to load Anime catalog. Check your internet connection.' : null;
+      _loading = false;
+    });
   }
 
   void _playEpisode(AnimeMedia anime, int episodeNumber) {

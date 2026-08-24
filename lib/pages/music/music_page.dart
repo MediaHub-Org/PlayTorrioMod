@@ -2922,11 +2922,17 @@ class _MusicAlbumDetailModal extends StatelessWidget {
                                     ),
                                   ),
                                   onPressed: () => onPlayTrack(tracks.first, tracks),
-                                  icon: Icon(
-                                    isAlbumPlaying
-                                        ? Icons.pause_rounded
-                                        : Icons.play_arrow_rounded,
-                                    color: Colors.white,
+                                  icon: TweenAnimationBuilder<double>(
+                                    duration: const Duration(milliseconds: 200),
+                                    tween: Tween<double>(
+                                      begin: 0,
+                                      end: isAlbumPlaying ? 1 : 0,
+                                    ),
+                                    builder: (context, value, _) => AnimatedIcon(
+                                      icon: AnimatedIcons.play_pause,
+                                      progress: AlwaysStoppedAnimation(value),
+                                      color: Colors.white,
+                                    ),
                                   ),
                                   label: Text(
                                     isAlbumPlaying ? 'Pause Album' : 'Play Album',

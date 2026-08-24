@@ -61,6 +61,7 @@ class AudiobookPlayerController extends ChangeNotifier {
       onTogglePlayPause: togglePlayPause,
       onExpand: _onExpandRequested,
       onSeek: seekTo,
+      onFullStop: stop,
     );
 
     await _loadChapter(chapterIndex, initialPosition: initialPosition);

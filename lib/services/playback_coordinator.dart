@@ -13,6 +13,7 @@ abstract final class PlaybackCoordinator {
   static String? _activeSourceId;
   static String? _activeKind;
   static VoidCallback? _onStopActive;
+  static VoidCallback? _onFullStop;
   static VoidCallback? _onTogglePlayPause;
   static VoidCallback? _onExpand;
   static VoidCallback? _onOpenArtist;
@@ -33,7 +34,13 @@ abstract final class PlaybackCoordinator {
   /// [sourceId] uniquely identifies the playback source (e.g. a track id, a
   /// video id, an audiobook id). [kind] is a coarse category ('music',
   /// 'video', 'audiobook') used to decide which global shortcuts apply.
-  /// [onStop] is called if this source is later superseded by another source.
+  /// [onStop] is called if this source is later superseded by another
+  /// source — it should pause, not tear down, so the source can still be
+  /// resumed from where it was.
+  /// [onFullStop] is called when the user explicitly stops playback (the
+  /// play bar's Stop button) — it should fully release the source
+  /// (dispose controllers, free network/torrent resources, clear state),
+  /// not just pause. Falls back to [onStop] if not provided.
   /// [onTogglePlayPause] lets the universal play bar toggle this source.
   /// [onOpenArtist] lets the play bar's artist label open the artist view.
   static void activate(
@@ -47,6 +54,7 @@ abstract final class PlaybackCoordinator {
     VoidCallback? onExpand,
     VoidCallback? onOpenArtist,
     ValueChanged<Duration>? onSeek,
+    VoidCallback? onFullStop,
   }) {
     if (_activeSourceId == sourceId) return;
     // Stop whatever was playing before.
@@ -57,6 +65,7 @@ abstract final class PlaybackCoordinator {
     _subtitle = subtitle;
     _coverUrl = coverUrl;
     _onStopActive = onStop;
+    _onFullStop = onFullStop;
     _onTogglePlayPause = onTogglePlayPause;
     _onExpand = onExpand;
     _onOpenArtist = onOpenArtist;
@@ -77,6 +86,7 @@ abstract final class PlaybackCoordinator {
       _subtitle = null;
       _coverUrl = null;
       _onStopActive = null;
+      _onFullStop = null;
       _onTogglePlayPause = null;
       _onExpand = null;
       _onOpenArtist = null;
@@ -88,15 +98,22 @@ abstract final class PlaybackCoordinator {
     }
   }
 
-  /// Stops the currently active source (if any) without activating a new one.
+  /// Stops the currently active source (if any) without activating a new
+  /// one. Fully releases it via [_onFullStop] when the source provided one;
+  /// otherwise falls back to the pause-only [_onStopActive].
   static void stopActive() {
-    _onStopActive?.call();
+    if (_onFullStop != null) {
+      _onFullStop!.call();
+    } else {
+      _onStopActive?.call();
+    }
     _activeSourceId = null;
     _activeKind = null;
     _title = null;
     _subtitle = null;
     _coverUrl = null;
     _onStopActive = null;
+    _onFullStop = null;
     _onTogglePlayPause = null;
     _onExpand = null;
     _onOpenArtist = null;
@@ -149,6 +166,7 @@ abstract final class PlaybackCoordinator {
     _subtitle = null;
     _coverUrl = null;
     _onStopActive = null;
+    _onFullStop = null;
     _onTogglePlayPause = null;
     _onExpand = null;
     _onOpenArtist = null;

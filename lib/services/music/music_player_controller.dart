@@ -136,6 +136,7 @@ class MusicPlayerController extends ChangeNotifier {
       onExpand: _onExpandRequested,
       onOpenArtist: _onOpenArtistRequested,
       onSeek: seekTo,
+      onFullStop: stop,
     );
 
     if (playlistQueue != null && playlistQueue.isNotEmpty) {
@@ -432,6 +433,23 @@ class MusicPlayerController extends ChangeNotifier {
   void clearQueue() {
     _playlist.clear();
     _currentIndex = 0;
+    notifyListeners();
+  }
+
+  /// Fully stops playback: disposes the underlying controller and clears
+  /// the current track/queue, unlike pausing (which keeps them so playback
+  /// can resume). Called when the user explicitly presses Stop.
+  Future<void> stop() async {
+    if (_currentTrack != null) {
+      PlaybackCoordinator.release('music:${_currentTrack!.id}');
+    }
+    _videoPlayerController?.removeListener(_onPlayerStateChanged);
+    await _videoPlayerController?.dispose();
+    _videoPlayerController = null;
+    _currentTrack = null;
+    _playlist = [];
+    _currentIndex = 0;
+    _isPlaying = false;
     notifyListeners();
   }
 
