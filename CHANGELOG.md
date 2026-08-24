@@ -16,6 +16,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 ### Live TV
 - Added **Live TV** as a new section in the Watch hub (`lib/pages/iptv/`), wired through `HubController` alongside Movies/Series/Anime/Genres/Library.
 
+### Backup & Restore
+- Added **local JSON export/import** for user data (Settings → Backup & Restore): reads/writes the entire `SharedPreferences` store as one flat, versioned JSON file, so no per-service serializer was needed for the ~15 independent services that hold user data. Envelope schema is deliberately transport-agnostic so cloud sync later is a matter of shipping the same JSON elsewhere.
+
 ### Navigation — global top bar + section chip bar
 - Added a slim global **TopBar** (logo + **Watch / Listen / Read** hub switcher + a **Settings** button) pinned to the top of the window, so the app icon stays visible on every hub.
 - **Removed the per-hub left sidebars** (Media, Books, Music) — they duplicated the section chip bar. Section switching is now done entirely by the **Section top bar** (horizontal chips) under the TopBar.
