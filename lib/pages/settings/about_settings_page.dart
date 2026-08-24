@@ -135,7 +135,7 @@ class AboutSettingsPage extends StatelessWidget {
 
               _buildTechTile(
                 title: 'High-Performance Video Engine',
-                subtitle: 'Powered by embedded MPV / Libmpv with hardware-accelerated decoding.',
+                subtitle: 'Powered by embedded libmdk with hardware-accelerated decoding.',
               ),
               const SizedBox(height: 10),
               _buildTechTile(
