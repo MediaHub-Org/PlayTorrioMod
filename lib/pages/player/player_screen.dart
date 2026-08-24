@@ -14,6 +14,8 @@ import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
 import '../../services/glass_settings.dart';
+import '../../services/trakt/trakt_service.dart';
+import '../../services/simkl/simkl_service.dart';
 import '../../widgets/common/performance_liquid_lens.dart';
 import 'package:fvp/fvp.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
@@ -195,6 +197,30 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       _controller!.play();
       _startHideControlsTimer();
+
+      // Cloud Scrobble Start
+      final detail = widget.detail;
+      if (detail != null) {
+        final targetId = detail.id.startsWith('tt') ? detail.id : (detail.tmdbId ?? detail.id);
+        if (targetId.isNotEmpty) {
+          final s = widget.episode?.season;
+          final e = widget.episode?.episode;
+          final initPos = widget.initialPosition?.inSeconds ?? 0;
+          final dur = _controller!.value.duration.inSeconds;
+          final progress = (dur > 0 ? (initPos / dur) * 100.0 : 0.0).clamp(0.0, 100.0);
+
+          TraktService.instance.isAuthenticated().then((authed) {
+            if (authed) {
+              TraktService.instance.scrobbleStart(targetId, progress, season: s, episode: e);
+            }
+          });
+          SimklService.instance.isAuthenticated().then((authed) {
+            if (authed) {
+              SimklService.instance.scrobbleStart(targetId, progress, season: s, episode: e);
+            }
+          });
+        }
+      }
 
       _progressSaveTimer?.cancel();
       _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (_) {

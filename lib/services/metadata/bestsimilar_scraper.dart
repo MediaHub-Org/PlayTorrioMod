@@ -199,26 +199,101 @@ class BestSimilarScraper {
     int? year,
     bool isTv = false,
   }) async {
-    final hits = await autocomplete(title);
-    if (hits.isEmpty) return null;
+    // Generate query terms to search
+    final terms = <String>[];
+    final cleanRaw = title.trim();
+    if (cleanRaw.isNotEmpty) terms.add(cleanRaw);
+
+    // If title has a separator like ":", "-", "–", try variations
+    final separators = [':', ' - ', ' – ', ' — '];
+    for (final sep in separators) {
+      if (cleanRaw.contains(sep)) {
+        final parts = cleanRaw.split(sep);
+        final prefix = parts.first.trim();
+        final suffix = parts.sublist(1).join(sep).trim();
+        if (prefix.isNotEmpty && !terms.contains(prefix)) terms.add(prefix);
+        if (suffix.isNotEmpty && !terms.contains(suffix)) terms.add(suffix);
+      }
+    }
+
+    // Try each query and collect all hits
+    final allHits = <int, BSAutocompleteHit>{};
+    for (final term in terms) {
+      final hits = await autocomplete(term);
+      for (final h in hits) {
+        allHits[h.id] = h;
+      }
+    }
+
+    if (allHits.isEmpty) return null;
+
     final wantTv = isTv;
     BSAutocompleteHit? best;
-    var bestScore = -1.0;
-    for (final h in hits) {
+    var bestScore = -999.0;
+
+    final normTarget = _normalizeTitle(title);
+    final targetWords = normTarget.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toSet();
+
+    for (final h in allHits.values) {
       var score = 0.0;
-      if (h.title.toLowerCase() == title.toLowerCase()) score += 5;
-      if (h.title.toLowerCase().startsWith(title.toLowerCase())) score += 1;
-      if (year != null && h.year == year) score += 4;
-      if (year != null && h.year != null && (h.year! - year).abs() <= 1) {
-        score += 1;
+      final normHit = _normalizeTitle(h.title);
+      final hitWords = normHit.split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toSet();
+
+      // 1. Title match
+      if (normHit == normTarget) {
+        score += 8.0;
+      } else if (normTarget.startsWith(normHit) || normHit.startsWith(normTarget)) {
+        score += 4.0;
+      } else {
+        // Word overlap
+        final intersection = targetWords.intersection(hitWords).length;
+        if (intersection > 0 && targetWords.isNotEmpty) {
+          score += (intersection / targetWords.length) * 4.0;
+        }
       }
-      if (h.isTv == wantTv) score += 1.5;
+
+      // 2. Format Match (Movie vs TV Show)
+      if (h.isTv == wantTv) {
+        score += 3.0;
+      } else {
+        score -= 4.0; // Heavy penalty for wrong media format
+      }
+
+      // 3. Strict Year Scoring & Discrepancy Penalties
+      if (year != null && h.year != null) {
+        final diff = (h.year! - year).abs();
+        if (diff == 0) {
+          score += 6.0;
+        } else if (diff == 1) {
+          score += 3.0;
+        } else if (diff == 2) {
+          score += 1.0;
+        } else if (diff <= 4) {
+          score -= 4.0;
+        } else {
+          // Major year mismatch (>4 years off, e.g. 2004 vs 2024 is 20 years!)
+          score -= 15.0;
+        }
+      } else if (year != null && h.year == null) {
+        score -= 1.0;
+      }
+
       if (score > bestScore) {
         bestScore = score;
         best = h;
       }
     }
-    return bestScore >= 4 ? best : null;
+
+    // Require a healthy positive score (at least 6.0)
+    return bestScore >= 6.0 ? best : null;
+  }
+
+  static String _normalizeTitle(String str) {
+    return str
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^\w\s]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   /// Fetch & parse a movie detail page. Cached per id.

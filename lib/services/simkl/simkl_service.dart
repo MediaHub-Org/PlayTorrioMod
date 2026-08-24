@@ -560,20 +560,40 @@ class SimklService {
   }
 
   /// Move a title into a watchlist status (`plantowatch`/`watching`/`hold`/
-  /// `completed`/`dropped`) via `POST /sync/add-to-list`. Simkl has no
-  /// "remove from list" endpoint — moving is the only operation; there's no
-  /// way to fully delist an item back to "no status".
-  Future<bool> addToList(String imdbId, String type, String status) async {
+  /// `completed`/`dropped`) via `POST /sync/add-to-list`.
+  Future<bool> addToList(
+    String imdbId,
+    String type,
+    String status, {
+    int? tmdbId,
+    int? simklId,
+  }) async {
     final token = await StorageService.getSimklAccessToken();
     if (token == null || token.isEmpty) return false;
     final typeKey = _typeKey(type);
+    final ids = <String, dynamic>{};
+    if (imdbId.isNotEmpty) {
+      if (imdbId.startsWith('tt')) {
+        ids['imdb'] = imdbId;
+      } else if (int.tryParse(imdbId) != null && tmdbId == null) {
+        ids['tmdb'] = int.parse(imdbId);
+      }
+    }
+    if (tmdbId != null) ids['tmdb'] = tmdbId;
+    if (simklId != null) ids['simkl'] = simklId;
+
+    if (ids.isEmpty) {
+      debugPrint('Simkl: Cannot addToList without valid IDs');
+      return false;
+    }
+
     final result = await _postOrNull(
       '/sync/add-to-list',
       {
         typeKey: [
           {
             'to': status,
-            'ids': {'imdb': imdbId},
+            'ids': ids,
           },
         ],
       },
@@ -586,7 +606,7 @@ class SimklService {
     // We do not know the previous status here, so every successful move must
     // invalidate; unlike ratings, any list move can remove an existing tick.
     StorageService.movieFinishedRevision.value++;
-    if (type == 'series') {
+    if (type == 'series' && imdbId.isNotEmpty) {
       EpisodeTrackerSnapshotRevision.invalidateTitle('simkl', imdbId);
     }
     return true;

@@ -288,6 +288,96 @@ class ContinueWatchingService {
     } catch (e) {
       debugPrint('[ContinueWatchingService] Failed to persist session: $e');
     }
+
+    // Push cloud scrobble / history to Trakt and Simkl
+    _syncCloudPlayback(
+      detail: detail,
+      episode: episode,
+      progressPercent: (progress * 100.0).clamp(0.0, 100.0),
+      isFinished: isFinished,
+    );
+  }
+
+  static DateTime? _lastCloudScrobbleTime;
+  static String? _lastCloudScrobbleKey;
+
+  static void _syncCloudPlayback({
+    required MovieDetail detail,
+    Video? episode,
+    required double progressPercent,
+    required bool isFinished,
+  }) async {
+    final imdbId = detail.id.startsWith('tt') ? detail.id : '';
+    final targetId = imdbId.isNotEmpty ? imdbId : (detail.tmdbId ?? detail.id);
+    if (targetId.isEmpty) return;
+
+    final season = episode?.season;
+    final epNum = episode?.episode;
+    final type = detail.type;
+
+    // Rate limit periodic scrobbles to once every 20s unless finished
+    final currentKey = '$targetId:$season:$epNum';
+    final now = DateTime.now();
+    if (!isFinished &&
+        _lastCloudScrobbleKey == currentKey &&
+        _lastCloudScrobbleTime != null &&
+        now.difference(_lastCloudScrobbleTime!) < const Duration(seconds: 20)) {
+      return;
+    }
+    _lastCloudScrobbleTime = now;
+    _lastCloudScrobbleKey = currentKey;
+
+    // 1. Trakt Playback Scrobble / History
+    if (await TraktService.instance.isAuthenticated()) {
+      try {
+        if (isFinished) {
+          await TraktService.instance.scrobbleStop(
+            targetId,
+            100.0,
+            season: season,
+            episode: epNum,
+          );
+          await TraktService.instance.addToHistory(targetId, type);
+        } else {
+          await TraktService.instance.scrobblePause(
+            targetId,
+            progressPercent,
+            season: season,
+            episode: epNum,
+          );
+        }
+      } catch (e) {
+        debugPrint('[ContinueWatchingService] Trakt cloud scrobble error: $e');
+      }
+    }
+
+    // 2. Simkl Playback Scrobble / History
+    if (await SimklService.instance.isAuthenticated()) {
+      try {
+        if (isFinished) {
+          await SimklService.instance.scrobbleStop(
+            targetId,
+            100.0,
+            season: season,
+            episode: epNum,
+          );
+          if (type == 'series' && season != null && epNum != null) {
+            await SimklService.instance.markEpisodeWatched(targetId, season, epNum);
+          } else {
+            await SimklService.instance.markWatched(targetId, type);
+          }
+        } else {
+          await SimklService.instance.scrobblePause(
+            targetId,
+            progressPercent,
+            season: season,
+            episode: epNum,
+          );
+        }
+      } catch (e) {
+        debugPrint('[ContinueWatchingService] Simkl cloud scrobble error: $e');
+      }
+    }
   }
 
   /// Removes an item completely from continue watching.

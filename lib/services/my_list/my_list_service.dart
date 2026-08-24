@@ -54,9 +54,11 @@ abstract final class MyListService {
       for (final raw in combined) {
         if (raw is! Map<String, dynamic>) continue;
         final item = MyListItem.fromTraktJson(raw);
-        final idx = current.indexWhere((i) => i.uniqueKey == item.uniqueKey);
+        final idx = current.indexWhere((i) => i.uniqueKey == item.uniqueKey || i.matches(item));
         if (idx == -1) {
           current.insert(0, item);
+        } else {
+          current[idx] = current[idx].mergeWith(item);
         }
       }
       current.sort((a, b) => b.addedAt.compareTo(a.addedAt));
@@ -82,9 +84,11 @@ abstract final class MyListService {
           final status = raw['status'];
           if (status == 'plantowatch' || status == 'watching') {
             final item = MyListItem.fromSimklJson(raw);
-            final idx = current.indexWhere((i) => i.uniqueKey == item.uniqueKey);
+            final idx = current.indexWhere((i) => i.uniqueKey == item.uniqueKey || i.matches(item));
             if (idx == -1) {
               current.insert(0, item);
+            } else {
+              current[idx] = current[idx].mergeWith(item);
             }
           }
         }
@@ -104,7 +108,7 @@ abstract final class MyListService {
   }
 
   static bool isInList(MyListItem item) {
-    return items.value.any((i) => i.uniqueKey == item.uniqueKey);
+    return items.value.any((i) => i.uniqueKey == item.uniqueKey || i.matches(item));
   }
 
   static void add(MyListItem item) {
@@ -125,31 +129,59 @@ abstract final class MyListService {
   }
 
   static void _syncCloudAdd(MyListItem item) async {
-    if (item.imdbId == null || item.imdbId!.isEmpty) return;
+    final imdb = item.imdbId;
+    final tmdb = item.tmdbId;
+    final trakt = item.traktId;
+    final simkl = item.simklId;
 
     if (await TraktService.instance.isAuthenticated()) {
-      TraktService.instance.addToWatchlist(item.imdbId!, item.type);
+      TraktService.instance.addToWatchlist(
+        imdb ?? '',
+        item.type,
+        tmdbId: tmdb,
+        traktId: trakt,
+      );
     }
     if (await SimklService.instance.isAuthenticated()) {
-      SimklService.instance.addToList(item.imdbId!, item.type, 'plantowatch');
+      SimklService.instance.addToList(
+        imdb ?? '',
+        item.type,
+        'plantowatch',
+        tmdbId: tmdb,
+        simklId: simkl,
+      );
     }
   }
 
   static void remove(MyListItem item) {
-    items.value = items.value.where((i) => i.uniqueKey != item.uniqueKey).toList();
+    items.value = items.value.where((i) => i.uniqueKey != item.uniqueKey && !i.matches(item)).toList();
     _persist();
 
     _syncCloudRemove(item);
   }
 
   static void _syncCloudRemove(MyListItem item) async {
-    if (item.imdbId == null || item.imdbId!.isEmpty) return;
+    final imdb = item.imdbId;
+    final tmdb = item.tmdbId;
+    final trakt = item.traktId;
+    final simkl = item.simklId;
 
     if (await TraktService.instance.isAuthenticated()) {
-      TraktService.instance.removeFromWatchlist(item.imdbId!, item.type);
+      TraktService.instance.removeFromWatchlist(
+        imdb ?? '',
+        item.type,
+        tmdbId: tmdb,
+        traktId: trakt,
+      );
     }
     if (await SimklService.instance.isAuthenticated()) {
-      SimklService.instance.addToList(item.imdbId!, item.type, 'dropped');
+      SimklService.instance.addToList(
+        imdb ?? '',
+        item.type,
+        'dropped',
+        tmdbId: tmdb,
+        simklId: simkl,
+      );
     }
   }
 

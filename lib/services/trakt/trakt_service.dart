@@ -679,11 +679,29 @@ class TraktService {
     String path,
     String imdbId,
     String type, {
+    int? tmdbId,
+    int? traktId,
     Map<String, dynamic>? extraItemFields,
   }) async {
-    final apiKey = type == 'series' ? 'shows' : 'movies';
+    final apiKey = (type == 'series' || type == 'show' || type == 'shows') ? 'shows' : 'movies';
+    final ids = <String, dynamic>{};
+    if (imdbId.isNotEmpty) {
+      if (imdbId.startsWith('tt')) {
+        ids['imdb'] = imdbId;
+      } else if (int.tryParse(imdbId) != null && tmdbId == null) {
+        ids['tmdb'] = int.parse(imdbId);
+      }
+    }
+    if (tmdbId != null) ids['tmdb'] = tmdbId;
+    if (traktId != null) ids['trakt'] = traktId;
+
+    if (ids.isEmpty) {
+      debugPrint('Trakt: Sync action failed — no valid ID provided');
+      return false;
+    }
+
     final item = <String, dynamic>{
-      'ids': {'imdb': imdbId},
+      'ids': ids,
       if (extraItemFields != null) ...extraItemFields,
     };
     final body = {
@@ -699,7 +717,7 @@ class TraktService {
       // stale — drop them so the next title-status lookup reflects it.
       _invalidateLibraryCache();
       if (path == '/sync/history' || path == '/sync/history/remove') {
-        if (type == 'series') {
+        if (apiKey == 'shows' && imdbId.isNotEmpty) {
           EpisodeTrackerSnapshotRevision.invalidateTitle('trakt', imdbId);
         }
         StorageService.movieFinishedRevision.value++;
@@ -708,11 +726,21 @@ class TraktService {
     return ok;
   }
 
-  Future<bool> addToWatchlist(String imdbId, String type) =>
-      _syncAction('/sync/watchlist', imdbId, type);
+  Future<bool> addToWatchlist(
+    String imdbId,
+    String type, {
+    int? tmdbId,
+    int? traktId,
+  }) =>
+      _syncAction('/sync/watchlist', imdbId, type, tmdbId: tmdbId, traktId: traktId);
 
-  Future<bool> removeFromWatchlist(String imdbId, String type) =>
-      _syncAction('/sync/watchlist/remove', imdbId, type);
+  Future<bool> removeFromWatchlist(
+    String imdbId,
+    String type, {
+    int? tmdbId,
+    int? traktId,
+  }) =>
+      _syncAction('/sync/watchlist/remove', imdbId, type, tmdbId: tmdbId, traktId: traktId);
 
   Future<bool> addToCollection(String imdbId, String type) =>
       _syncAction('/sync/collection', imdbId, type);

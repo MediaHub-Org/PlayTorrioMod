@@ -26,11 +26,53 @@ class MyListItem {
   });
 
   String get uniqueKey {
+    if (imdbId != null && imdbId!.isNotEmpty) return 'imdb:$imdbId';
+    if (tmdbId != null) return 'tmdb:$type:$tmdbId';
     if (traktId != null) return 'trakt:$traktId';
     if (simklId != null) return 'simkl:$simklId';
-    if (imdbId != null) return 'imdb:$imdbId';
-    if (tmdbId != null) return 'tmdb:$tmdbId';
-    return 'title:${title.toLowerCase().trim()}:${year ?? 0}';
+    final clean = title.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '').trim();
+    return 'title:$type:$clean:${year ?? 0}';
+  }
+
+  bool matches(MyListItem other) {
+    if (imdbId != null && other.imdbId != null && imdbId!.isNotEmpty && other.imdbId!.isNotEmpty) {
+      return imdbId == other.imdbId;
+    }
+    if (tmdbId != null && other.tmdbId != null) {
+      return tmdbId == other.tmdbId && type == other.type;
+    }
+    if (traktId != null && other.traktId != null) {
+      return traktId == other.traktId;
+    }
+    if (simklId != null && other.simklId != null) {
+      return simklId == other.simklId;
+    }
+
+    // Don't fallback to title if there are conflicting IDs of the same authority
+    final hasConflictingIds = (imdbId != null && other.imdbId != null && imdbId != other.imdbId) ||
+        (tmdbId != null && other.tmdbId != null && tmdbId != other.tmdbId) ||
+        (traktId != null && other.traktId != null && traktId != other.traktId) ||
+        (simklId != null && other.simklId != null && simklId != other.simklId);
+
+    if (hasConflictingIds) return false;
+
+    final cleanA = title.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '').trim();
+    final cleanB = other.title.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '').trim();
+    if (cleanA.isNotEmpty && cleanA == cleanB && (year == null || other.year == null || (year! - other.year!).abs() <= 1)) {
+      return type == other.type;
+    }
+    return false;
+  }
+
+  MyListItem mergeWith(MyListItem other) {
+    return copyWith(
+      traktId: other.traktId ?? traktId,
+      simklId: other.simklId ?? simklId,
+      imdbId: (other.imdbId != null && other.imdbId!.isNotEmpty) ? other.imdbId : imdbId,
+      tmdbId: other.tmdbId ?? tmdbId,
+      poster: poster ?? other.poster,
+      source: other.source != MyListSource.local ? other.source : source,
+    );
   }
 
   factory MyListItem.fromMovie({

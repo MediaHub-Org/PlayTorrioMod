@@ -40,9 +40,9 @@ void main() {
       });
 
       test('adds items with different uniqueKeys', () {
-        MyListService.add(_makeItem(traktId: 1));
-        MyListService.add(_makeItem(imdbId: 'tt2'));
-        MyListService.add(_makeItem(tmdbId: 3));
+        MyListService.add(_makeItem(title: 'Movie 1', traktId: 1));
+        MyListService.add(_makeItem(title: 'Movie 2', imdbId: 'tt2'));
+        MyListService.add(_makeItem(title: 'Movie 3', tmdbId: 3));
         expect(MyListService.items.value.length, 3);
       });
 

@@ -257,6 +257,21 @@ abstract final class HomePageSettings {
 
         if (details == null || details.similar.isEmpty) continue;
 
+        // Safety Guard: If source title is live-action, don't allow anime details
+        final isAnimeSource = sourceItem.type == 'anime' ||
+            sourceItem.title.toLowerCase().contains('anime');
+        final isAnimeMatched = (details.genre?.toLowerCase().contains('animation') == true ||
+                details.genre?.toLowerCase().contains('anime') == true) &&
+            details.plotTags.any((t) =>
+                t.toLowerCase() == 'anime' ||
+                t.toLowerCase() == 'japanese animation' ||
+                t.toLowerCase() == 'manga adaptation');
+
+        if (!isAnimeSource && isAnimeMatched) {
+          debugPrint('[HomePageSettings] Skipping anime match for live-action: ${sourceItem.title}');
+          continue;
+        }
+
         final movies = <Movie>[];
         for (final sim in details.similar.take(24)) {
           movies.add(Movie(
