@@ -132,15 +132,6 @@ class UniversalPlayBar extends StatelessWidget {
                 ),
                 onPressed: PlaybackCoordinator.togglePlayPause,
               ),
-              // Stop
-              IconButton(
-                icon: const Icon(
-                  Icons.stop_circle_outlined,
-                  color: Colors.white60,
-                  size: 26,
-                ),
-                onPressed: PlaybackCoordinator.stopActive,
-              ),
               // Close (dismiss the bar)
               IconButton(
                 tooltip: 'Close',

@@ -3764,14 +3764,9 @@ class _MusicExpandedPlayer extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  IconButton(
-                    icon: Icon(
-                      Icons.shuffle_rounded,
-                      color: playerController.isShuffle
-                          ? const Color(0xFF7C5CFF)
-                          : Colors.white38,
-                    ),
-                    onPressed: playerController.toggleShuffle,
+                  _MusicVolumeControl(
+                    volume: playerController.volume,
+                    onVolumeChanged: playerController.setVolume,
                   ),
                   IconButton(
                     icon: const Icon(Icons.skip_previous_rounded, color: Colors.white, size: 36),
@@ -3824,6 +3819,60 @@ class _MusicExpandedPlayer extends StatelessWidget {
     final mins = d.inMinutes.toString().padLeft(2, '0');
     final secs = (d.inSeconds % 60).toString().padLeft(2, '0');
     return '$mins:$secs';
+  }
+}
+
+class _MusicVolumeControl extends StatefulWidget {
+  final double volume;
+  final ValueChanged<double> onVolumeChanged;
+
+  const _MusicVolumeControl({
+    required this.volume,
+    required this.onVolumeChanged,
+  });
+
+  @override
+  State<_MusicVolumeControl> createState() => _MusicVolumeControlState();
+}
+
+class _MusicVolumeControlState extends State<_MusicVolumeControl> {
+  bool _showSlider = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        IconButton(
+          icon: Icon(
+            widget.volume == 0
+                ? Icons.volume_off_rounded
+                : (widget.volume > 0.5 ? Icons.volume_up_rounded : Icons.volume_down_rounded),
+            color: Colors.white38,
+          ),
+          onPressed: () => setState(() => _showSlider = !_showSlider),
+        ),
+        if (_showSlider)
+          SizedBox(
+            width: 90,
+            child: SliderTheme(
+              data: SliderThemeData(
+                trackHeight: 3,
+                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
+                activeTrackColor: const Color(0xFF7C5CFF),
+                inactiveTrackColor: Colors.white24,
+                thumbColor: Colors.white,
+              ),
+              child: Slider(
+                value: widget.volume,
+                min: 0.0,
+                max: 1.0,
+                onChanged: widget.onVolumeChanged,
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 
