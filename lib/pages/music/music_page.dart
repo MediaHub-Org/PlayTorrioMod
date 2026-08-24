@@ -725,7 +725,30 @@ class _MusicPageState extends State<MusicPage> {
                 Expanded(
                   child: Column(
                     children: [
-                      const SectionTopBar(),
+                      Stack(
+                        children: [
+                          const SectionTopBar(),
+                          // Search lives inline as its own tab (a real text
+                          // field, not a separate pushed page like other
+                          // hubs use PageSearchButton for), so it's reached
+                          // via this icon rather than a section chip.
+                          Positioned(
+                            right: 8,
+                            top: 0,
+                            bottom: 0,
+                            child: IconButton(
+                              tooltip: 'Search',
+                              icon: Icon(
+                                Icons.search_rounded,
+                                color: Colors.white.withValues(alpha: 0.75),
+                                size: 20,
+                              ),
+                              onPressed: () =>
+                                  HubController.instance.setMusicTab('Search'),
+                            ),
+                          ),
+                        ],
+                      ),
                       Expanded(
                         child: Stack(
                           children: [

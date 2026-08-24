@@ -77,7 +77,6 @@ class HubController extends ChangeNotifier {
       case AppHub.music:
         return const [
           HubSection(id: 'Music', label: 'Music', icon: Icons.music_note_rounded),
-          HubSection(id: 'Search', label: 'Search', icon: Icons.search_rounded),
           HubSection(id: 'Genres', label: 'Genres', icon: Icons.category_rounded),
           HubSection(id: 'Radio', label: 'Radio', icon: Icons.radio_rounded),
           HubSection(id: 'Audiobooks', label: 'Audiobooks', icon: Icons.headphones_rounded),
