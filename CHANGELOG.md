@@ -19,6 +19,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 ### Backup & Restore
 - Added **local JSON export/import** for user data (Settings → Backup & Restore): reads/writes the entire `SharedPreferences` store as one flat, versioned JSON file, so no per-service serializer was needed for the ~15 independent services that hold user data. Envelope schema is deliberately transport-agnostic so cloud sync later is a matter of shipping the same JSON elsewhere.
 
+### Filters
+- Added a **decade filter + sort dropdown** (Title A–Z/Z–A, Newest, Oldest) to the Movies and Series catalogs (`TypeCatalogPage`, shared by both). Decade options are derived from whichever years are actually present in the loaded catalog, so the dropdown never offers an empty result.
+
 ### Navigation — global top bar + section chip bar
 - Added a slim global **TopBar** (logo + **Watch / Listen / Read** hub switcher + a **Settings** button) pinned to the top of the window, so the app icon stays visible on every hub.
 - **Removed the per-hub left sidebars** (Media, Books, Music) — they duplicated the section chip bar. Section switching is now done entirely by the **Section top bar** (horizontal chips) under the TopBar.
