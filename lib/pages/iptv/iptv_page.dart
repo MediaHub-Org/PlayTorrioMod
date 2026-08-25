@@ -10,6 +10,7 @@ import '../../widgets/iptv/iptv_hero_carousel.dart';
 import '../../widgets/iptv/iptv_slider_section.dart';
 import '../settings/settings_page.dart';
 import 'iptv_channel_sheet.dart';
+import 'iptv_multiview_page.dart';
 import 'iptv_player_page.dart';
 import 'iptv_portals_modal.dart';
 import 'iptv_search_page.dart';
@@ -102,6 +103,13 @@ class _IptvPageState extends State<IptvPage> {
     Navigator.push(
       context,
       LiquidRevealRoute(page: const IptvSearchPage(), tapPosition: tapPosition),
+    );
+  }
+
+  void _navigateToMultiView() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const IptvMultiViewPage()),
     );
   }
 
@@ -212,6 +220,7 @@ class _IptvPageState extends State<IptvPage> {
           onSearchTap: _navigateToSearch,
           onSettingsTap: _navigateToSettings,
           onSourcesTap: () => IptvPortalsModal.show(context),
+          onMultiViewTap: _navigateToMultiView,
         ),
       ),
 
@@ -263,12 +272,14 @@ class _IptvGlassAppBar extends StatelessWidget {
   final Function(Offset? tapPosition) onSearchTap;
   final Function(Offset? tapPosition) onSettingsTap;
   final VoidCallback onSourcesTap;
+  final VoidCallback onMultiViewTap;
 
   const _IptvGlassAppBar({
     required this.topPadding,
     required this.onSearchTap,
     required this.onSettingsTap,
     required this.onSourcesTap,
+    required this.onMultiViewTap,
   });
 
   @override
@@ -351,6 +362,15 @@ class _IptvGlassAppBar extends StatelessWidget {
             icon: Icons.settings_input_antenna_rounded,
             tooltip: 'Manage Portals & Playlists',
             onTap: onSourcesTap,
+          ),
+
+          const SizedBox(width: 10),
+
+          // Multi-view button
+          _GlassActionButton(
+            icon: Icons.grid_view_rounded,
+            tooltip: 'Multi-View (watch several channels at once)',
+            onTap: onMultiViewTap,
           ),
 
           const SizedBox(width: 10),
