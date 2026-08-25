@@ -26,6 +26,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 ### Navigation
 - **Moved Audiobooks from Listen to Read.** `AppHub`'s own doc comment already said Audiobooks belonged in the Read hub -- it had just drifted into Music's section list during the restructure. Now a real Read hub section (Manga, Comics, Audiobooks, Library) instead of nested inside the Music page's own tab switch.
 
+### Cast
+- Added **TMDB cast enrichment**: photos and character names for movies/series when an addon only supplies plain name strings, using the user's own free TMDB API key (Settings → TMDB). No-ops entirely with no key configured, and skips the network call when the addon's own cast data already has photos.
+
 ### Architecture
 - `CollectionPage` now builds on the shared `LibraryTabs`/`LibraryEmptyState` widgets instead of hand-rolling its own `TabController`/`Scaffold`/`AppBar`/`TabBar` and empty-state layout, matching `BooksLibraryPage`. Also removed a dead leftover back button (`HubNavigator.goHome()`) from before the navigation restructure -- it re-selected the hub the page was already embedded in, a functional no-op, and no other Watch hub section has one.
 - Extracted `_MusicModalShell` (the dimmed-backdrop + glass panel wrapper) out of all four music detail modals (Artist/Album/Curated Playlist/User Playlist) -- they were hand-duplicating that ~15-line shell exactly. Left each modal's actual header/body alone since the Artist modal's banner header is genuinely different from the other three's row header, rather than forcing all four into one over-parameterized widget.
