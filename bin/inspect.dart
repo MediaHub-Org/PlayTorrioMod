@@ -1,3 +1,4 @@
+// ignore_for_file: avoid_print
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
 

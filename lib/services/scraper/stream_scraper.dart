@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import '../../models/stream/stream_model.dart';
+import '../stream/stream_health_checker.dart';
 
 abstract class StreamScraper {
   String get name;
@@ -67,10 +69,18 @@ class ScraperManager {
       return controller.stream;
     }
 
-    print('[ScraperManager] Scraping across ${_scrapers.length} active scrapers (${_scrapers.map((s) => s.runtimeType).join(", ")}) for "$title"...');
+    debugPrint('[ScraperManager] Scraping across ${_scrapers.length} active scrapers (${_scrapers.map((s) => s.runtimeType).join(", ")}) for "$title"...');
 
-    int pending = _scrapers.length;
+    int pendingScrapers = _scrapers.length;
+    int inFlightChecks = 0;
     final seenHashes = <String>{};
+    final seenUrls = <String>{};
+
+    void checkClose() {
+      if (pendingScrapers == 0 && inFlightChecks == 0 && !controller.isClosed) {
+        controller.close();
+      }
+    }
 
     for (final scraper in _scrapers) {
       scraper
@@ -84,21 +94,44 @@ class ScraperManager {
       )
           .listen(
         (source) {
-          if (!controller.isClosed) {
-            if (source.infoHash != null) {
-              final hashLower = source.infoHash!.toLowerCase();
-              if (seenHashes.contains(hashLower)) return;
-              seenHashes.add(hashLower);
-            }
+          if (controller.isClosed) return;
+
+          // Torrent sources pass directly with deduplication
+          if (source.infoHash != null && source.infoHash!.isNotEmpty) {
+            final hashLower = source.infoHash!.toLowerCase();
+            if (seenHashes.contains(hashLower)) return;
+            seenHashes.add(hashLower);
+            controller.add(source);
+            return;
+          }
+
+          final rawUrl = source.url ?? source.externalUrl;
+          if (rawUrl != null && rawUrl.startsWith('http')) {
+            if (seenUrls.contains(rawUrl)) return;
+            seenUrls.add(rawUrl);
+
+            // Automatically check HTTP/HLS stream health in background
+            inFlightChecks++;
+            StreamHealthChecker.isAlive(source).then((alive) {
+              if (alive && !controller.isClosed) {
+                controller.add(source);
+              } else if (!alive) {
+                debugPrint('[PlayTorrioHTTP] Omitted dead stream: ${source.title} ($rawUrl)');
+              }
+            }).catchError((_) {
+              // Silently drop on error
+            }).whenComplete(() {
+              inFlightChecks--;
+              checkClose();
+            });
+          } else {
             controller.add(source);
           }
         },
         onError: (_) {},
         onDone: () {
-          pending--;
-          if (pending == 0 && !controller.isClosed) {
-            controller.close();
-          }
+          pendingScrapers--;
+          checkClose();
         },
       );
     }

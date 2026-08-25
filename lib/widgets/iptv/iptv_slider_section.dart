@@ -3,8 +3,47 @@ import '../../services/iptv/hardcoded_channels.dart';
 import '../common/horizontal_slider_scroll.dart';
 import '../common/section_header.dart';
 import '../common/slider_arrow.dart';
-import '../movie/movie_card.dart';
 import 'iptv_channel_card.dart';
+
+class IptvCardSizing {
+  final double cardWidth;
+  final double posterHeight;
+  final double totalHeight;
+  final double spacing;
+  final double sidePadding;
+
+  const IptvCardSizing({
+    required this.cardWidth,
+    required this.posterHeight,
+    required this.totalHeight,
+    required this.spacing,
+    required this.sidePadding,
+  });
+
+  factory IptvCardSizing.fromWidth(double screenWidth) {
+    double cardWidth;
+    if (screenWidth < 600) {
+      cardWidth = 145;
+    } else if (screenWidth < 1000) {
+      cardWidth = 165;
+    } else if (screenWidth < 1400) {
+      cardWidth = 185;
+    } else {
+      cardWidth = 205;
+    }
+
+    final posterHeight = cardWidth * 1.35;
+    final totalHeight = posterHeight + 66;
+
+    return IptvCardSizing(
+      cardWidth: cardWidth,
+      posterHeight: posterHeight,
+      totalHeight: totalHeight,
+      spacing: 16,
+      sidePadding: 18,
+    );
+  }
+}
 
 class IptvSliderSection extends StatefulWidget {
   final String title;
@@ -34,7 +73,7 @@ class _IptvSliderSectionState extends State<IptvSliderSection>
   Widget build(BuildContext context) {
     if (widget.channels.isEmpty) return const SizedBox.shrink();
 
-    final sizing = MovieCardSizing.fromWidth(MediaQuery.sizeOf(context).width);
+    final sizing = IptvCardSizing.fromWidth(MediaQuery.sizeOf(context).width);
     final isDesktop = isDesktopPlatform();
 
     return Padding(

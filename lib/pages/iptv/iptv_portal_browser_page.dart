@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/iptv/iptv_models.dart';
 import '../../models/iptv/m3u_models.dart';
+import '../../services/app_theme_service.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_network.dart';
+import '../../services/iptv/iptv_settings.dart';
 import '../../services/iptv/iptv_storage.dart';
 import '../../utils/route_transitions.dart';
 import 'iptv_player_page.dart';
@@ -79,8 +80,15 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
     super.initState();
     _categoryScrollController.addListener(_updateCategoryScrollState);
     _contentScrollController.addListener(_updateContentScrollState);
+    IptvSettings.changeNotifier.addListener(_onSettingsChanged);
+    AppThemeService.currentPalette.addListener(_onSettingsChanged);
     _loadFavorites();
     _loadSectionData();
+  }
+
+  void _onSettingsChanged() {
+    if (!mounted) return;
+    setState(() {});
   }
 
   Future<void> _loadFavorites() async {
@@ -108,6 +116,8 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
   @override
   void dispose() {
     _cancelAlive = true;
+    IptvSettings.changeNotifier.removeListener(_onSettingsChanged);
+    AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     _categoryScrollController.removeListener(_updateCategoryScrollState);
     _contentScrollController.removeListener(_updateContentScrollState);
     _categoryScrollController.dispose();
@@ -115,6 +125,174 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
     _searchCtrl.dispose();
     _catSearchCtrl.dispose();
     super.dispose();
+  }
+
+  void _showBrowserCustomizer(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: const Color(0xFF10131C),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.tune_rounded, color: palette.primaryColor, size: 20),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Customize Portal Browser',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.5,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Divider(color: Colors.white.withValues(alpha: 0.08)),
+                  const SizedBox(height: 12),
+
+                  const Text(
+                    'Channel Stream Layout Mode',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<PortalBrowserLayout>(
+                    valueListenable: IptvSettings.browserLayout,
+                    builder: (context, layout, _) {
+                      return Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: PortalBrowserLayout.values.map((l) {
+                          final isSelected = l == layout;
+                          return ChoiceChip(
+                            label: Text(l.label),
+                            selected: isSelected,
+                            selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                            backgroundColor: const Color(0xFF0D1017),
+                            labelStyle: TextStyle(
+                              color: isSelected ? palette.primaryColor : Colors.white70,
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                            side: BorderSide(
+                              color: isSelected
+                                  ? palette.primaryColor.withValues(alpha: 0.6)
+                                  : Colors.white.withValues(alpha: 0.08),
+                            ),
+                            onSelected: (selected) {
+                              if (selected) IptvSettings.setBrowserLayout(l);
+                            },
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+
+                  const SizedBox(height: 14),
+
+                  ValueListenableBuilder<PortalBrowserLayout>(
+                    valueListenable: IptvSettings.browserLayout,
+                    builder: (context, layout, _) {
+                      if (layout != PortalBrowserLayout.grid) return const SizedBox.shrink();
+                      return ValueListenableBuilder<int>(
+                        valueListenable: IptvSettings.browserGridColumns,
+                        builder: (context, cols, _) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Grid Stream Columns', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                                  Text('$cols Cols', style: TextStyle(color: palette.primaryColor, fontSize: 12, fontWeight: FontWeight.bold)),
+                                ],
+                              ),
+                              SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  activeTrackColor: palette.primaryColor,
+                                  inactiveTrackColor: Colors.white12,
+                                  thumbColor: palette.primaryColor,
+                                  trackHeight: 3,
+                                ),
+                                child: Slider(
+                                  value: cols.toDouble(),
+                                  min: 2,
+                                  max: 6,
+                                  divisions: 4,
+                                  onChanged: (val) => IptvSettings.setBrowserGridColumns(val.round()),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                            ],
+                          );
+                        },
+                      );
+                    },
+                  ),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: IptvSettings.showStreamLogos,
+                    builder: (context, showLogos, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show Channel Stream Logos', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: showLogos,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => IptvSettings.setShowStreamLogos(val),
+                      );
+                    },
+                  ),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: IptvSettings.showEpgSnippet,
+                    builder: (context, showEpg, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show EPG "Now Playing" Snippet', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: showEpg,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => IptvSettings.setShowEpgSnippet(val),
+                      );
+                    },
+                  ),
+
+                  ValueListenableBuilder<bool>(
+                    valueListenable: IptvSettings.showCategoryCount,
+                    builder: (context, showCount, _) {
+                      return SwitchListTile.adaptive(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Show Category Stream Counts', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        value: showCount,
+                        activeColor: palette.primaryColor,
+                        onChanged: (val) => IptvSettings.setShowCategoryCount(val),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
   }
 
   void _updateCategoryScrollState() {
@@ -165,11 +343,18 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
     );
   }
 
-  bool _isDesktop() {
-    if (kIsWeb) return true;
-    return defaultTargetPlatform == TargetPlatform.windows ||
-        defaultTargetPlatform == TargetPlatform.macOS ||
-        defaultTargetPlatform == TargetPlatform.linux;
+  bool _isDesktop(BuildContext context) {
+    return MediaQuery.sizeOf(context).width >= 750;
+  }
+
+  String _selectedCategoryName() {
+    if (_selectedCategoryId == favoritesCategoryId) return '⭐ Favorites';
+    if (_selectedCategoryId.isEmpty) return 'All Categories';
+    final found = _categories.firstWhere(
+      (c) => c.id == _selectedCategoryId,
+      orElse: () => const IptvCategory(id: '', name: 'All Categories'),
+    );
+    return found.name;
   }
 
   Future<void> _loadSectionData() async {
@@ -454,15 +639,131 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
         series: series,
       ),
     );
+  }  void _showMobileCategorySheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setSheetState) {
+            final cats = _filteredCategories();
+            return Container(
+              height: MediaQuery.sizeOf(context).height * 0.75,
+              decoration: const BoxDecoration(
+                color: Color(0xFF0C0F17),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                border: Border(top: BorderSide(color: Color(0xFF22283A), width: 1.2)),
+              ),
+              child: Column(
+                children: [
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 10, bottom: 12),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.folder_rounded, color: Color(0xFF7C5CFF), size: 20),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Select Category',
+                          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${_categories.length} total',
+                          style: const TextStyle(color: Colors.white38, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141824),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF22283A)),
+                      ),
+                      child: TextField(
+                        controller: _catSearchCtrl,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Filter categories…',
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12.5),
+                          prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54, size: 18),
+                          suffixIcon: _catSearchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
+                                  onPressed: () {
+                                    _catSearchCtrl.clear();
+                                    setState(() => _catSearchQuery = '');
+                                    setSheetState(() {});
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        ),
+                        onChanged: (v) {
+                          setState(() => _catSearchQuery = v);
+                          setSheetState(() {});
+                        },
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Divider(color: Color(0xFF1B2030), height: 1),
+                  Expanded(
+                    child: ListView.builder(
+                      itemCount: cats.length,
+                      itemExtent: 50.0,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      itemBuilder: (ctx, i) {
+                        final cat = cats[i];
+                        final isSelected = _selectedCategoryId == cat.id;
+                        final count = _countForCategory(cat.id);
+                        return _CategoryListRow(
+                          category: cat,
+                          count: count,
+                          isSelected: isSelected,
+                          onTap: () {
+                            setState(() => _selectedCategoryId = cat.id);
+                            _contentScrollController.jumpTo(0);
+                            Navigator.pop(ctx);
+                          },
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
     final title = widget.portal?.name.isNotEmpty == true
         ? widget.portal!.name
         : (widget.m3uPlaylist?.name ?? 'IPTV Portal');
 
-    final isDesktop = _isDesktop();
+    final isDesktop = _isDesktop(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFF07090E),
@@ -470,317 +771,507 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
         child: Column(
           children: [
             // ── TOP APPLICATION HEADER ──
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-              decoration: const BoxDecoration(
-                color: Color(0xFF0C0F17),
-                border: Border(
-                  bottom: BorderSide(color: Color(0xFF1B2030), width: 1.2),
+            if (isDesktop)
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0C0F17),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFF1B2030), width: 1.2),
+                  ),
                 ),
-              ),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
-                    tooltip: 'Back',
-                    onPressed: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 8),
-
-                  // Portal Emblem & Title
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.4)),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+                      tooltip: 'Back',
+                      onPressed: () => Navigator.pop(context),
                     ),
-                    child: const Icon(Icons.settings_input_antenna_rounded, color: Color(0xFF7C5CFF), size: 20),
-                  ),
-                  const SizedBox(width: 12),
+                    const SizedBox(width: 8),
 
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                      if (widget.portal != null) ...[
-                        const SizedBox(height: 2),
-                        Row(
-                          children: [
-                            Text(
-                              'Expiry: ${widget.portal!.expiry}',
-                              style: const TextStyle(color: Color(0xFF9D4EDD), fontSize: 11, fontWeight: FontWeight.w600),
-                            ),
-                            const SizedBox(width: 10),
-                            Container(width: 3, height: 3, decoration: const BoxDecoration(color: Colors.white30, shape: BoxShape.circle)),
-                            const SizedBox(width: 10),
-                            Text(
-                              'Connections: ${widget.portal!.activeConnections}/${widget.portal!.maxConnections}',
-                              style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w600),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ],
-                  ),
-
-                  const Spacer(),
-
-                  // ── SECTION SWITCHER TABS ──
-                  if (widget.portal != null) ...[
+                    // Portal Emblem & Title
                     Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFF141824),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFF22283A)),
+                        color: palette.primaryColor.withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: palette.primaryColor.withValues(alpha: 0.4)),
                       ),
-                      child: Row(
+                      child: Icon(Icons.settings_input_antenna_rounded, color: palette.primaryColor, size: 20),
+                    ),
+                    const SizedBox(width: 12),
+
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          _buildSectionTab('Live TV', Icons.live_tv_rounded, IptvSection.live),
-                          const SizedBox(width: 4),
-                          _buildSectionTab('Movies', Icons.movie_rounded, IptvSection.vod),
-                          const SizedBox(width: 4),
-                          _buildSectionTab('TV Series', Icons.tv_rounded, IptvSection.series),
+                          Text(
+                            title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                          if (widget.portal != null) ...[
+                            const SizedBox(height: 2),
+                            Row(
+                              children: [
+                                Text(
+                                  'Expiry: ${widget.portal!.expiry}',
+                                  style: const TextStyle(color: Color(0xFF9D4EDD), fontSize: 11, fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(width: 10),
+                                Container(width: 3, height: 3, decoration: const BoxDecoration(color: Colors.white30, shape: BoxShape.circle)),
+                                const SizedBox(width: 10),
+                                Text(
+                                  'Connections: ${widget.portal!.activeConnections}/${widget.portal!.maxConnections}',
+                                  style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ],
                         ],
                       ),
                     ),
+
                     const SizedBox(width: 16),
-                  ],
 
-                  // Search Bar
-                  SizedBox(
-                    width: 260,
-                    height: 40,
-                    child: TextField(
-                      controller: _searchCtrl,
-                      style: const TextStyle(color: Colors.white, fontSize: 13),
-                      decoration: InputDecoration(
-                        hintText: 'Search channels…',
-                        hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12.5),
-                        prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF7C5CFF), size: 18),
-                        suffixIcon: _searchQuery.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
-                                onPressed: () {
-                                  _searchCtrl.clear();
-                                  setState(() => _searchQuery = '');
-                                },
+                    // ── SECTION SWITCHER TABS ──
+                    if (widget.portal != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF141824),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0xFF22283A)),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildSectionTab('Live TV', Icons.live_tv_rounded, IptvSection.live),
+                            const SizedBox(width: 4),
+                            _buildSectionTab('Movies', Icons.movie_rounded, IptvSection.vod),
+                            const SizedBox(width: 4),
+                            _buildSectionTab('TV Series', Icons.tv_rounded, IptvSection.series),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                    ],
+
+                    // Search Bar
+                    SizedBox(
+                      width: 240,
+                      height: 40,
+                      child: TextField(
+                        controller: _searchCtrl,
+                        style: const TextStyle(color: Colors.white, fontSize: 13),
+                        decoration: InputDecoration(
+                          hintText: 'Search channels…',
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12.5),
+                          prefixIcon: Icon(Icons.search_rounded, color: palette.primaryColor, size: 18),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              : null,
+                          filled: true,
+                          fillColor: const Color(0xFF141824),
+                          contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: const BorderSide(color: Color(0xFF22283A)),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide(color: palette.primaryColor, width: 1.4),
+                          ),
+                        ),
+                        onChanged: (v) => setState(() => _searchQuery = v),
+                      ),
+                    ),
+
+                    // Alive Sniffer Action
+                    if (_activeSection == IptvSection.live && widget.portal != null) ...[
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: _isCheckingAlive ? const Color(0xFFB91C1C) : palette.primaryColor,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        icon: _isCheckingAlive
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                               )
-                            : null,
-                        filled: true,
-                        fillColor: const Color(0xFF141824),
-                        contentPadding: const EdgeInsets.symmetric(vertical: 0, horizontal: 12),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF22283A)),
+                            : const Icon(Icons.speed_rounded, size: 16, color: Colors.white),
+                        label: Text(
+                          _isCheckingAlive ? 'Stop ($_aliveChecked/$_aliveTotal)' : 'Check Health',
+                          style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700),
                         ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: const BorderSide(color: Color(0xFF7C5CFF), width: 1.4),
-                        ),
+                        onPressed: _isCheckingAlive ? () => setState(() => _cancelAlive = true) : _startAliveCheck,
                       ),
-                      onChanged: (v) => setState(() => _searchQuery = v),
-                    ),
-                  ),
+                    ],
 
-                  // Alive Sniffer Action
-                  if (_activeSection == IptvSection.live && widget.portal != null) ...[
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _isCheckingAlive ? const Color(0xFFB91C1C) : const Color(0xFF7C5CFF),
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      icon: _isCheckingAlive
-                          ? const SizedBox(
-                              width: 14,
-                              height: 14,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.speed_rounded, size: 16, color: Colors.white),
-                      label: Text(
-                        _isCheckingAlive ? 'Stop ($_aliveChecked/$_aliveTotal)' : 'Check Health',
-                        style: const TextStyle(color: Colors.white, fontSize: 12.5, fontWeight: FontWeight.w700),
-                      ),
-                      onPressed: _isCheckingAlive ? () => setState(() => _cancelAlive = true) : _startAliveCheck,
+                    const SizedBox(width: 8),
+
+                    IconButton(
+                      icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
+                      tooltip: 'Customize Portal Browser Layout',
+                      onPressed: () => _showBrowserCustomizer(context),
                     ),
                   ],
-                ],
-              ),
-            ),
+                ),
+              )
+            else
+              // ── MOBILE RESPONSIVE HEADER ──
+              Container(
+                padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+                decoration: const BoxDecoration(
+                  color: Color(0xFF0C0F17),
+                  border: Border(
+                    bottom: BorderSide(color: Color(0xFF1B2030), width: 1.2),
+                  ),
+                ),
+                child: Column(
+                  children: [
+                    // Top Bar: Back, Portal Title, Health button
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 22),
+                          onPressed: () => Navigator.pop(context),
+                        ),
+                        const SizedBox(width: 4),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: palette.primaryColor.withValues(alpha: 0.2),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: palette.primaryColor.withValues(alpha: 0.4)),
+                          ),
+                          child: Icon(Icons.settings_input_antenna_rounded, color: palette.primaryColor, size: 16),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              if (widget.portal != null)
+                                Text(
+                                  'Conn: ${widget.portal!.activeConnections}/${widget.portal!.maxConnections} • ${widget.portal!.expiry}',
+                                  style: const TextStyle(color: Colors.white54, fontSize: 10.5),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                            ],
+                          ),
+                        ),
+                        if (_activeSection == IptvSection.live && widget.portal != null)
+                          IconButton(
+                            tooltip: 'Check Health',
+                            icon: _isCheckingAlive
+                                ? const SizedBox(
+                                    width: 18,
+                                    height: 18,
+                                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.redAccent),
+                                  )
+                                : const Icon(Icons.speed_rounded, color: Color(0xFF00D2EF), size: 20),
+                            onPressed: _isCheckingAlive ? () => setState(() => _cancelAlive = true) : _startAliveCheck,
+                          ),
+                        IconButton(
+                          icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
+                          tooltip: 'Customize',
+                          onPressed: () => _showBrowserCustomizer(context),
+                        ),
+                      ],
+                    ),
 
-            // ── MAIN SPLIT VIEW (LEFT CATEGORIES PANEL + RIGHT CONTENT) ──
+                    const SizedBox(height: 8),
+
+                    // Controls Bar: Category Selector Chip + Section Tabs
+                    Row(
+                      children: [
+                        // Mobile Category Chip
+                        InkWell(
+                          onTap: () => _showMobileCategorySheet(context),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF141824),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.5)),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.folder_rounded, color: Color(0xFF7C5CFF), size: 15),
+                                const SizedBox(width: 6),
+                                ConstrainedBox(
+                                  constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.32),
+                                  child: Text(
+                                    _selectedCategoryName(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(color: Colors.white, fontSize: 11.5, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                                const SizedBox(width: 4),
+                                const Icon(Icons.arrow_drop_down_rounded, color: Color(0xFF7C5CFF), size: 18),
+                              ],
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(width: 8),
+
+                        // Section Switchers
+                        if (widget.portal != null)
+                          Expanded(
+                            child: SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: Container(
+                                padding: const EdgeInsets.all(3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF141824),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: const Color(0xFF22283A)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    _buildSectionTab('Live', Icons.live_tv_rounded, IptvSection.live),
+                                    const SizedBox(width: 2),
+                                    _buildSectionTab('Movies', Icons.movie_rounded, IptvSection.vod),
+                                    const SizedBox(width: 2),
+                                    _buildSectionTab('Series', Icons.tv_rounded, IptvSection.series),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+
+                    const SizedBox(height: 8),
+
+                    // Search Input
+                    Container(
+                      height: 38,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141824),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: const Color(0xFF22283A)),
+                      ),
+                      child: TextField(
+                        controller: _searchCtrl,
+                        style: const TextStyle(color: Colors.white, fontSize: 12.5),
+                        decoration: InputDecoration(
+                          hintText: 'Search in this category…',
+                          hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
+                          prefixIcon: const Icon(Icons.search_rounded, color: Color(0xFF7C5CFF), size: 18),
+                          suffixIcon: _searchQuery.isNotEmpty
+                              ? IconButton(
+                                  icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
+                                  onPressed: () {
+                                    _searchCtrl.clear();
+                                    setState(() => _searchQuery = '');
+                                  },
+                                )
+                              : null,
+                          border: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
+                        ),
+                        onChanged: (v) => setState(() => _searchQuery = v),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+            // ── MAIN CONTENT (SPLIT VIEW ON DESKTOP, FULL-WIDTH ON MOBILE) ──
             Expanded(
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF)))
                   : _errorMessage != null
                       ? Center(child: Text(_errorMessage!, style: const TextStyle(color: Colors.redAccent, fontSize: 15)))
-                      : Row(
-                          children: [
-                            // ── LEFT CATEGORIES PANEL ──
-                            SizedBox(
-                              width: 290,
-                              child: Container(
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFF0A0D14),
-                                  border: Border(
-                                    right: BorderSide(color: Color(0xFF1B2030), width: 1.2),
+                      : isDesktop
+                          ? Row(
+                              children: [
+                                // ── LEFT CATEGORIES PANEL ──
+                                SizedBox(
+                                  width: IptvSettings.sidebarWidth.value,
+                                  child: Container(
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFF0A0D14),
+                                      border: Border(
+                                        right: BorderSide(color: Color(0xFF1B2030), width: 1.2),
+                                      ),
+                                    ),
+                                    child: Column(
+                                      children: [
+                                        // Categories Search Filter
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                                          child: Container(
+                                            height: 38,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF141824),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: const Color(0xFF22283A)),
+                                            ),
+                                            child: TextField(
+                                              controller: _catSearchCtrl,
+                                              style: const TextStyle(color: Colors.white, fontSize: 12.5),
+                                              decoration: InputDecoration(
+                                                hintText: 'Filter categories…',
+                                                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
+                                                prefixIcon: const Icon(Icons.filter_list_rounded, color: Colors.white54, size: 18),
+                                                suffixIcon: _catSearchQuery.isNotEmpty
+                                                    ? IconButton(
+                                                        icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
+                                                        onPressed: () {
+                                                          _catSearchCtrl.clear();
+                                                          setState(() => _catSearchQuery = '');
+                                                        },
+                                                      )
+                                                    : null,
+                                                border: InputBorder.none,
+                                                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                                              ),
+                                              onChanged: (v) => setState(() => _catSearchQuery = v),
+                                            ),
+                                          ),
+                                        ),
+
+                                        // Category List with Desktop Vertical Scroll Arrows
+                                        Expanded(
+                                          child: MouseRegion(
+                                            onEnter: (_) => setState(() => _isHoveringCategories = true),
+                                            onExit: (_) => setState(() => _isHoveringCategories = false),
+                                            child: Stack(
+                                              children: [
+                                                ListView.builder(
+                                                  controller: _categoryScrollController,
+                                                  itemExtent: 46.0,
+                                                  cacheExtent: 300.0,
+                                                  addAutomaticKeepAlives: false,
+                                                  addRepaintBoundaries: true,
+                                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                                  itemCount: _filteredCategories().length,
+                                                  itemBuilder: (context, index) {
+                                                    final cat = _filteredCategories()[index];
+                                                    final isSelected = _selectedCategoryId == cat.id;
+                                                    final count = _countForCategory(cat.id);
+
+                                                    return _CategoryListRow(
+                                                      category: cat,
+                                                      count: count,
+                                                      isSelected: isSelected,
+                                                      onTap: () {
+                                                        setState(() => _selectedCategoryId = cat.id);
+                                                        _contentScrollController.jumpTo(0);
+                                                      },
+                                                    );
+                                                  },
+                                                ),
+
+                                                // Desktop Category Scroll Up Arrow
+                                                if (_isHoveringCategories && _canScrollCatUp)
+                                                  Positioned(
+                                                    top: 6,
+                                                    left: 0,
+                                                    right: 0,
+                                                    child: Center(
+                                                      child: _VerticalScrollButton(
+                                                        icon: Icons.keyboard_arrow_up_rounded,
+                                                        onTap: () => _scrollCategories(-240),
+                                                      ),
+                                                    ),
+                                                  ),
+
+                                                // Desktop Category Scroll Down Arrow
+                                                if (_isHoveringCategories && _canScrollCatDown)
+                                                  Positioned(
+                                                    bottom: 6,
+                                                    left: 0,
+                                                    right: 0,
+                                                    child: Center(
+                                                      child: _VerticalScrollButton(
+                                                        icon: Icons.keyboard_arrow_down_rounded,
+                                                        onTap: () => _scrollCategories(240),
+                                                      ),
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ),
-                                child: Column(
-                                  children: [
-                                    // Categories Search Filter
-                                    Padding(
-                                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-                                      child: Container(
-                                        height: 38,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF141824),
-                                          borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: const Color(0xFF22283A)),
-                                        ),
-                                        child: TextField(
-                                          controller: _catSearchCtrl,
-                                          style: const TextStyle(color: Colors.white, fontSize: 12.5),
-                                          decoration: InputDecoration(
-                                            hintText: 'Filter categories…',
-                                            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 12),
-                                            prefixIcon: const Icon(Icons.filter_list_rounded, color: Colors.white54, size: 18),
-                                            suffixIcon: _catSearchQuery.isNotEmpty
-                                                ? IconButton(
-                                                    icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 16),
-                                                    onPressed: () {
-                                                      _catSearchCtrl.clear();
-                                                      setState(() => _catSearchQuery = '');
-                                                    },
-                                                  )
-                                                : null,
-                                            border: InputBorder.none,
-                                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                                          ),
-                                          onChanged: (v) => setState(() => _catSearchQuery = v),
-                                        ),
-                                      ),
-                                    ),
 
-                                    // Category List with Desktop Vertical Scroll Arrows
-                                    Expanded(
-                                      child: MouseRegion(
-                                        onEnter: (_) => setState(() => _isHoveringCategories = true),
-                                        onExit: (_) => setState(() => _isHoveringCategories = false),
-                                        child: Stack(
-                                          children: [
-                                            ListView.builder(
-                                              controller: _categoryScrollController,
-                                              itemExtent: 46.0,
-                                              cacheExtent: 300.0,
-                                              addAutomaticKeepAlives: false,
-                                              addRepaintBoundaries: true,
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                              itemCount: _filteredCategories().length,
-                                              itemBuilder: (context, index) {
-                                                final cat = _filteredCategories()[index];
-                                                final isSelected = _selectedCategoryId == cat.id;
-                                                final count = _countForCategory(cat.id);
+                                // ── RIGHT CONTENT PANEL ──
+                                Expanded(
+                                  child: MouseRegion(
+                                    onEnter: (_) => setState(() => _isHoveringContent = true),
+                                    onExit: (_) => setState(() => _isHoveringContent = false),
+                                    child: Stack(
+                                      children: [
+                                        _buildMainContent(),
 
-                                                return _CategoryListRow(
-                                                  category: cat,
-                                                  count: count,
-                                                  isSelected: isSelected,
-                                                  onTap: () {
-                                                    setState(() => _selectedCategoryId = cat.id);
-                                                    _contentScrollController.jumpTo(0);
-                                                  },
-                                                );
-                                              },
+                                        // Desktop Content Scroll Up Arrow
+                                        if (_isHoveringContent && _canScrollContentUp)
+                                          Positioned(
+                                            top: 14,
+                                            right: 28,
+                                            child: _VerticalScrollButton(
+                                              icon: Icons.keyboard_arrow_up_rounded,
+                                              onTap: () => _scrollContent(-450),
                                             ),
+                                          ),
 
-                                            // Desktop Category Scroll Up Arrow
-                                            if (isDesktop && _isHoveringCategories && _canScrollCatUp)
-                                              Positioned(
-                                                top: 6,
-                                                left: 0,
-                                                right: 0,
-                                                child: Center(
-                                                  child: _VerticalScrollButton(
-                                                    icon: Icons.keyboard_arrow_up_rounded,
-                                                    onTap: () => _scrollCategories(-240),
-                                                  ),
-                                                ),
-                                              ),
-
-                                            // Desktop Category Scroll Down Arrow
-                                            if (isDesktop && _isHoveringCategories && _canScrollCatDown)
-                                              Positioned(
-                                                bottom: 6,
-                                                left: 0,
-                                                right: 0,
-                                                child: Center(
-                                                  child: _VerticalScrollButton(
-                                                    icon: Icons.keyboard_arrow_down_rounded,
-                                                    onTap: () => _scrollCategories(240),
-                                                  ),
-                                                ),
-                                              ),
-                                          ],
-                                        ),
-                                      ),
+                                        // Desktop Content Scroll Down Arrow
+                                        if (_isHoveringContent && _canScrollContentDown)
+                                          Positioned(
+                                            bottom: 14,
+                                            right: 28,
+                                            child: _VerticalScrollButton(
+                                              icon: Icons.keyboard_arrow_down_rounded,
+                                              onTap: () => _scrollContent(450),
+                                            ),
+                                          ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-
-                            // ── RIGHT CONTENT PANEL ──
-                            Expanded(
-                              child: MouseRegion(
-                                onEnter: (_) => setState(() => _isHoveringContent = true),
-                                onExit: (_) => setState(() => _isHoveringContent = false),
-                                child: Stack(
-                                  children: [
-                                    _buildMainContent(),
-
-                                    // Desktop Content Scroll Up Arrow
-                                    if (isDesktop && _isHoveringContent && _canScrollContentUp)
-                                      Positioned(
-                                        top: 14,
-                                        right: 28,
-                                        child: _VerticalScrollButton(
-                                          icon: Icons.keyboard_arrow_up_rounded,
-                                          onTap: () => _scrollContent(-450),
-                                        ),
-                                      ),
-
-                                    // Desktop Content Scroll Down Arrow
-                                    if (isDesktop && _isHoveringContent && _canScrollContentDown)
-                                      Positioned(
-                                        bottom: 14,
-                                        right: 28,
-                                        child: _VerticalScrollButton(
-                                          icon: Icons.keyboard_arrow_down_rounded,
-                                          onTap: () => _scrollContent(450),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                              ],
+                            )
+                          : _buildMainContent(),
             ),
           ],
         ),
@@ -789,6 +1280,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
   }
 
   Widget _buildSectionTab(String label, IconData icon, IptvSection section) {
+    final palette = AppThemeService.currentPalette.value;
     final isSelected = _activeSection == section;
 
     return MouseRegion(
@@ -804,7 +1296,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
           duration: const Duration(milliseconds: 160),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFF7C5CFF) : Colors.transparent,
+            color: isSelected ? palette.primaryColor : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -878,25 +1370,38 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
       );
     }
 
-    if (_activeSection == IptvSection.live) {
-      // ── LIVE CHANNELS HIGH-PERFORMANCE VIRTUALIZED LIST VIEW (itemExtent O(1)) ──
-      return ListView.builder(
-        controller: _contentScrollController,
-        itemExtent: 78.0,
-        cacheExtent: 400.0,
-        addAutomaticKeepAlives: false,
-        addRepaintBoundaries: true,
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
-        physics: const BouncingScrollPhysics(),
-        itemCount: streams.length,
-        itemBuilder: (context, index) {
-          final stream = streams[index];
-          final isAlive = _aliveStreamIds.contains(stream.streamId);
-          final isFav = _favoriteStreamIds.contains(stream.streamId);
+    final isDesktop = _isDesktop(context);
 
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: _LiveChannelListRow(
+    if (_activeSection == IptvSection.live) {
+      final layout = IptvSettings.browserLayout.value;
+
+      if (layout == PortalBrowserLayout.grid) {
+        final screenW = MediaQuery.sizeOf(context).width;
+        int gridCols = IptvSettings.browserGridColumns.value;
+        if (!isDesktop) {
+          gridCols = screenW > 600 ? 3 : 2;
+        }
+
+        return GridView.builder(
+          controller: _contentScrollController,
+          cacheExtent: 400.0,
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: true,
+          padding: EdgeInsets.fromLTRB(isDesktop ? 20 : 10, 12, isDesktop ? 20 : 10, 30),
+          physics: const BouncingScrollPhysics(),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: gridCols,
+            childAspectRatio: 1.25,
+            crossAxisSpacing: isDesktop ? 14 : 10,
+            mainAxisSpacing: isDesktop ? 14 : 10,
+          ),
+          itemCount: streams.length,
+          itemBuilder: (context, index) {
+            final stream = streams[index];
+            final isAlive = _aliveStreamIds.contains(stream.streamId);
+            final isFav = _favoriteStreamIds.contains(stream.streamId);
+
+            return _LiveChannelGridCard(
               key: ValueKey(stream.streamId),
               index: index + 1,
               stream: stream,
@@ -905,20 +1410,87 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
               isFavorite: isFav,
               onToggleFavorite: () => _toggleFavoriteStream(stream.streamId),
               onTap: () => _playStream(stream),
-            ),
-          );
-        },
-      );
+            );
+          },
+        );
+      } else if (layout == PortalBrowserLayout.compactList) {
+        return ListView.builder(
+          controller: _contentScrollController,
+          itemExtent: 52.0,
+          cacheExtent: 400.0,
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: true,
+          padding: EdgeInsets.fromLTRB(isDesktop ? 20 : 10, 12, isDesktop ? 20 : 10, 30),
+          physics: const BouncingScrollPhysics(),
+          itemCount: streams.length,
+          itemBuilder: (context, index) {
+            final stream = streams[index];
+            final isAlive = _aliveStreamIds.contains(stream.streamId);
+            final isFav = _favoriteStreamIds.contains(stream.streamId);
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: _LiveChannelCompactListRow(
+                key: ValueKey(stream.streamId),
+                index: index + 1,
+                stream: stream,
+                portal: widget.portal,
+                isAlive: isAlive,
+                isFavorite: isFav,
+                onToggleFavorite: () => _toggleFavoriteStream(stream.streamId),
+                onTap: () => _playStream(stream),
+              ),
+            );
+          },
+        );
+      } else {
+        // Detailed List view
+        return ListView.builder(
+          controller: _contentScrollController,
+          itemExtent: 78.0,
+          cacheExtent: 400.0,
+          addAutomaticKeepAlives: false,
+          addRepaintBoundaries: true,
+          padding: EdgeInsets.fromLTRB(isDesktop ? 20 : 10, 12, isDesktop ? 20 : 10, 30),
+          physics: const BouncingScrollPhysics(),
+          itemCount: streams.length,
+          itemBuilder: (context, index) {
+            final stream = streams[index];
+            final isAlive = _aliveStreamIds.contains(stream.streamId);
+            final isFav = _favoriteStreamIds.contains(stream.streamId);
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _LiveChannelListRow(
+                key: ValueKey(stream.streamId),
+                index: index + 1,
+                stream: stream,
+                portal: widget.portal,
+                isAlive: isAlive,
+                isFavorite: isFav,
+                onToggleFavorite: () => _toggleFavoriteStream(stream.streamId),
+                onTap: () => _playStream(stream),
+              ),
+            );
+          },
+        );
+      }
     } else {
       // ── MOVIES & SERIES GRID VIEW ──
-      final width = MediaQuery.sizeOf(context).width - 290;
-      int crossAxisCount = 3;
+      final screenW = MediaQuery.sizeOf(context).width;
+      final sidebarW = isDesktop ? IptvSettings.sidebarWidth.value : 0.0;
+      final width = isDesktop ? (screenW - sidebarW) : screenW;
+      int crossAxisCount = 2;
       if (width > 1200) {
         crossAxisCount = 6;
       } else if (width > 900) {
         crossAxisCount = 5;
       } else if (width > 650) {
         crossAxisCount = 4;
+      } else if (width > 420) {
+        crossAxisCount = 3;
+      } else {
+        crossAxisCount = 2;
       }
 
       return GridView.builder(
@@ -926,13 +1498,13 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
         cacheExtent: 400.0,
         addAutomaticKeepAlives: false,
         addRepaintBoundaries: true,
-        padding: const EdgeInsets.fromLTRB(20, 16, 20, 30),
+        padding: EdgeInsets.fromLTRB(isDesktop ? 20 : 10, 12, isDesktop ? 20 : 10, 30),
         physics: const BouncingScrollPhysics(),
         gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: crossAxisCount,
           childAspectRatio: 0.68,
-          crossAxisSpacing: 14,
-          mainAxisSpacing: 14,
+          crossAxisSpacing: isDesktop ? 14 : 10,
+          mainAxisSpacing: isDesktop ? 14 : 10,
         ),
         itemCount: streams.length,
         itemBuilder: (context, index) {
@@ -986,7 +1558,9 @@ class _CategoryListRowState extends State<_CategoryListRow> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
     final isFavCategory = widget.category.id == _IptvPortalBrowserPageState.favoritesCategoryId;
+    final showCount = IptvSettings.showCategoryCount.value;
 
     return RepaintBoundary(
       child: MouseRegion(
@@ -1000,12 +1574,12 @@ class _CategoryListRowState extends State<_CategoryListRow> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: widget.isSelected
-                  ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.15) : const Color(0xFF1E2235))
+                  ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.15) : palette.primaryColor.withValues(alpha: 0.15))
                   : (_hovered ? const Color(0xFF141724) : Colors.transparent),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
                 color: widget.isSelected
-                    ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.6) : const Color(0xFF7C5CFF).withValues(alpha: 0.5))
+                    ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.6) : palette.primaryColor.withValues(alpha: 0.6))
                     : Colors.transparent,
               ),
             ),
@@ -1016,7 +1590,7 @@ class _CategoryListRowState extends State<_CategoryListRow> {
                   height: 16,
                   decoration: BoxDecoration(
                     color: widget.isSelected
-                        ? (isFavCategory ? const Color(0xFFFFC107) : const Color(0xFF7C5CFF))
+                        ? (isFavCategory ? const Color(0xFFFFC107) : palette.primaryColor)
                         : Colors.transparent,
                     borderRadius: BorderRadius.circular(2),
                   ),
@@ -1040,26 +1614,28 @@ class _CategoryListRowState extends State<_CategoryListRow> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
-                  decoration: BoxDecoration(
-                    color: widget.isSelected
-                        ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.3) : const Color(0xFF7C5CFF).withValues(alpha: 0.3))
-                        : (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.06)),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    '${widget.count}',
-                    style: TextStyle(
-                      color: isFavCategory
-                          ? const Color(0xFFFFC107)
-                          : (widget.isSelected ? const Color(0xFF9D4EDD) : Colors.white38),
-                      fontSize: 10.5,
-                      fontWeight: FontWeight.w700,
+                if (showCount) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                    decoration: BoxDecoration(
+                      color: widget.isSelected
+                          ? (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.3) : palette.primaryColor.withValues(alpha: 0.3))
+                          : (isFavCategory ? const Color(0xFFFFC107).withValues(alpha: 0.12) : Colors.white.withValues(alpha: 0.06)),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      '${widget.count}',
+                      style: TextStyle(
+                        color: isFavCategory
+                            ? const Color(0xFFFFC107)
+                            : (widget.isSelected ? palette.primaryColor : Colors.white38),
+                        fontSize: 10.5,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -1104,6 +1680,7 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
   }
 
   void _loadEpg() async {
+    if (!IptvSettings.showEpgSnippet.value) return;
     if (_cachedEpg != null || widget.portal == null || widget.stream.streamId.isEmpty) return;
     try {
       final entries = await IptvClient.shortEpg(widget.portal!.portal, widget.stream.streamId, limit: 2);
@@ -1116,10 +1693,15 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
 
   @override
   Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
     final s = widget.stream;
     final indexFormatted = widget.index.toString().padLeft(3, '0');
     final currentEpg = _cachedEpg?.isNotEmpty == true ? _cachedEpg!.first : null;
     final nextEpg = _cachedEpg != null && _cachedEpg!.length > 1 ? _cachedEpg![1] : null;
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isVerySmall = screenW < 440;
+    final showLogo = IptvSettings.showStreamLogos.value;
+    final showEpg = IptvSettings.showEpgSnippet.value;
 
     return RepaintBoundary(
       child: MouseRegion(
@@ -1133,18 +1715,18 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
           onTap: widget.onTap,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            padding: EdgeInsets.symmetric(horizontal: isVerySmall ? 8 : 14, vertical: 8),
             decoration: BoxDecoration(
               color: _hovered ? const Color(0xFF161A28) : const Color(0xFF0E111A),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: _hovered ? const Color(0xFF7C5CFF).withValues(alpha: 0.7) : const Color(0xFF1B2030),
+                color: _hovered ? palette.primaryColor.withValues(alpha: 0.7) : const Color(0xFF1B2030),
                 width: _hovered ? 1.4 : 1.0,
               ),
               boxShadow: _hovered
                   ? [
                       BoxShadow(
-                        color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
+                        color: palette.primaryColor.withValues(alpha: 0.2),
                         blurRadius: 10,
                         offset: const Offset(0, 2),
                       ),
@@ -1154,45 +1736,47 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
             child: Row(
               children: [
                 // Index
-                SizedBox(
-                  width: 32,
-                  child: Text(
-                    indexFormatted,
-                    style: const TextStyle(
-                      color: Colors.white24,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      fontFamily: 'monospace',
+                if (!isVerySmall) ...[
+                  SizedBox(
+                    width: 30,
+                    child: Text(
+                      indexFormatted,
+                      style: const TextStyle(
+                        color: Colors.white24,
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w700,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
-                ),
+                  const SizedBox(width: 6),
+                ],
 
-                const SizedBox(width: 8),
-
-                // ── BIG PROMINENT CHANNEL LOGO BAY ──
-                Container(
-                  width: 64,
-                  height: 46,
-                  padding: const EdgeInsets.all(3),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF080A10),
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: const Color(0xFF1E2336)),
+                // ── CHANNEL LOGO BAY ──
+                if (showLogo) ...[
+                  Container(
+                    width: isVerySmall ? 52 : 64,
+                    height: isVerySmall ? 40 : 46,
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF080A10),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: const Color(0xFF1E2336)),
+                    ),
+                    child: s.icon.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(5),
+                            child: CachedNetworkImage(
+                              imageUrl: s.icon,
+                              fit: BoxFit.contain,
+                              memCacheWidth: 128,
+                              errorWidget: (_, _, _) => const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 20),
+                            ),
+                          )
+                        : const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 20),
                   ),
-                  child: s.icon.isNotEmpty
-                      ? ClipRRect(
-                          borderRadius: BorderRadius.circular(5),
-                          child: CachedNetworkImage(
-                            imageUrl: s.icon,
-                            fit: BoxFit.contain,
-                            memCacheWidth: 128,
-                            errorWidget: (_, _, _) => const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 20),
-                          ),
-                        )
-                      : const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 20),
-                ),
-
-                const SizedBox(width: 14),
+                  SizedBox(width: isVerySmall ? 8 : 12),
+                ],
 
                 // Channel Title & EPG Info
                 Expanded(
@@ -1239,21 +1823,21 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
                         ],
                       ),
 
-                      const SizedBox(height: 2),
-
-                      // Program Guide (EPG)
-                      if (currentEpg != null) ...[
-                        Text(
-                          'NOW: ${currentEpg.title}${nextEpg != null ? "  |  NEXT: " + nextEpg.title : ""}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 11),
-                        ),
-                      ] else ...[
-                        Text(
-                          'Live Stream Feed',
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
-                        ),
+                      if (showEpg) ...[
+                        const SizedBox(height: 2),
+                        if (currentEpg != null) ...[
+                          Text(
+                            'NOW: ${currentEpg.title}${nextEpg != null ? "  |  NEXT: ${nextEpg.title}" : ""}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.65), fontSize: 11),
+                          ),
+                        ] else ...[
+                          Text(
+                            'Live Stream Feed',
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 11),
+                          ),
+                        ],
                       ],
                     ],
                   ),
@@ -1296,7 +1880,7 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: _hovered ? const Color(0xFF7C5CFF) : Colors.white.withValues(alpha: 0.06),
+                    color: _hovered ? palette.primaryColor : Colors.white.withValues(alpha: 0.06),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
@@ -1304,6 +1888,306 @@ class _LiveChannelListRowState extends State<_LiveChannelListRow> {
                     color: Colors.white,
                     size: 20,
                   ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveChannelGridCard extends StatefulWidget {
+  final int index;
+  final IptvStream stream;
+  final VerifiedPortal? portal;
+  final bool isAlive;
+  final bool isFavorite;
+  final VoidCallback onToggleFavorite;
+  final VoidCallback onTap;
+
+  const _LiveChannelGridCard({
+    super.key,
+    required this.index,
+    required this.stream,
+    this.portal,
+    required this.isAlive,
+    required this.isFavorite,
+    required this.onToggleFavorite,
+    required this.onTap,
+  });
+
+  @override
+  State<_LiveChannelGridCard> createState() => _LiveChannelGridCardState();
+}
+
+class _LiveChannelGridCardState extends State<_LiveChannelGridCard> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
+    final s = widget.stream;
+    final showLogo = IptvSettings.showStreamLogos.value;
+
+    return RepaintBoundary(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 140),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: _hovered ? const Color(0xFF161A28) : const Color(0xFF0E111A),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: _hovered ? palette.primaryColor.withValues(alpha: 0.8) : const Color(0xFF1B2030),
+                width: _hovered ? 1.5 : 1.0,
+              ),
+              boxShadow: _hovered
+                  ? [
+                      BoxShadow(
+                        color: palette.primaryColor.withValues(alpha: 0.22),
+                        blurRadius: 14,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Top row: logo/index + live badge + star
+                Row(
+                  children: [
+                    if (showLogo && s.icon.isNotEmpty)
+                      Container(
+                        width: 44,
+                        height: 32,
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF080A10),
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: const Color(0xFF1E2336)),
+                        ),
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: CachedNetworkImage(
+                            imageUrl: s.icon,
+                            fit: BoxFit.contain,
+                            memCacheWidth: 100,
+                            errorWidget: (_, _, _) => const Icon(Icons.live_tv_rounded, color: Colors.white38, size: 16),
+                          ),
+                        ),
+                      )
+                    else
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.06),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '#${widget.index}',
+                          style: const TextStyle(color: Colors.white54, fontSize: 10, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+
+                    const Spacer(),
+
+                    if (widget.isAlive)
+                      Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                        decoration: BoxDecoration(
+                          color: Colors.greenAccent.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: Colors.greenAccent.withValues(alpha: 0.4)),
+                        ),
+                        child: const Text('LIVE', style: TextStyle(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.w900)),
+                      ),
+
+                    GestureDetector(
+                      onTap: widget.onToggleFavorite,
+                      child: Icon(
+                        widget.isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                        color: widget.isFavorite ? const Color(0xFFFFC107) : Colors.white30,
+                        size: 19,
+                      ),
+                    ),
+                  ],
+                ),
+
+                const Spacer(),
+
+                // Channel Title
+                Text(
+                  s.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    height: 1.2,
+                  ),
+                ),
+
+                const SizedBox(height: 6),
+
+                // Bottom row: format tag + Play Icon
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF141824),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: const Color(0xFF22283A)),
+                      ),
+                      child: Text(
+                        s.containerExt.toUpperCase(),
+                        style: const TextStyle(color: Colors.white60, fontSize: 9, fontWeight: FontWeight.w800),
+                      ),
+                    ),
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 120),
+                      width: 26,
+                      height: 26,
+                      decoration: BoxDecoration(
+                        color: _hovered ? palette.primaryColor : Colors.white.withValues(alpha: 0.06),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LiveChannelCompactListRow extends StatefulWidget {
+  final int index;
+  final IptvStream stream;
+  final VerifiedPortal? portal;
+  final bool isAlive;
+  final bool isFavorite;
+  final VoidCallback onToggleFavorite;
+  final VoidCallback onTap;
+
+  const _LiveChannelCompactListRow({
+    super.key,
+    required this.index,
+    required this.stream,
+    this.portal,
+    required this.isAlive,
+    required this.isFavorite,
+    required this.onToggleFavorite,
+    required this.onTap,
+  });
+
+  @override
+  State<_LiveChannelCompactListRow> createState() => _LiveChannelCompactListRowState();
+}
+
+class _LiveChannelCompactListRowState extends State<_LiveChannelCompactListRow> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = AppThemeService.currentPalette.value;
+    final s = widget.stream;
+    final showLogo = IptvSettings.showStreamLogos.value;
+
+    return RepaintBoundary(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: _hovered ? const Color(0xFF161A28) : const Color(0xFF0E111A),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: _hovered ? palette.primaryColor.withValues(alpha: 0.7) : const Color(0xFF1B2030),
+              ),
+            ),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 28,
+                  child: Text(
+                    widget.index.toString().padLeft(3, '0'),
+                    style: const TextStyle(color: Colors.white24, fontSize: 11, fontFamily: 'monospace', fontWeight: FontWeight.bold),
+                  ),
+                ),
+                if (showLogo && s.icon.isNotEmpty) ...[
+                  const SizedBox(width: 6),
+                  SizedBox(
+                    width: 32,
+                    height: 24,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: CachedNetworkImage(
+                        imageUrl: s.icon,
+                        fit: BoxFit.contain,
+                        memCacheWidth: 64,
+                        errorWidget: (_, _, _) => const Icon(Icons.live_tv_rounded, color: Colors.white24, size: 14),
+                      ),
+                    ),
+                  ),
+                ],
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    s.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (widget.isAlive) ...[
+                  Container(
+                    margin: const EdgeInsets.only(right: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.greenAccent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text('LIVE', style: TextStyle(color: Colors.greenAccent, fontSize: 9, fontWeight: FontWeight.w900)),
+                  ),
+                ],
+                GestureDetector(
+                  onTap: widget.onToggleFavorite,
+                  child: Icon(
+                    widget.isFavorite ? Icons.star_rounded : Icons.star_outline_rounded,
+                    color: widget.isFavorite ? const Color(0xFFFFC107) : Colors.white30,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(
+                  Icons.play_arrow_rounded,
+                  color: _hovered ? palette.primaryColor : Colors.white38,
+                  size: 18,
                 ),
               ],
             ),

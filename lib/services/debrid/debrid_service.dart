@@ -1,129 +1,139 @@
-import 'dart:convert';
-import 'package:flutter/foundation.dart';
-import 'package:http/http.dart' as http;
+import 'dart:async';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../models/debrid/debrid_account.dart';
+
+import 'models/debrid_file.dart';
+import 'providers/alldebrid_service.dart';
+import 'providers/debrid_link_service.dart';
+import 'providers/premiumize_service.dart';
+import 'providers/real_debrid_service.dart';
+import 'providers/torbox_service.dart';
 
 class DebridService {
-  DebridService._();
-  static final DebridService instance = DebridService._();
+  static final DebridService _instance = DebridService._internal();
+  factory DebridService() => _instance;
+  DebridService._internal();
 
-  static const _storageKey = 'debrid_accounts_v1';
-  final ValueNotifier<List<DebridAccount>> accounts = ValueNotifier<List<DebridAccount>>([]);
-  final ValueNotifier<bool> isLoading = ValueNotifier<bool>(false);
+  final realDebrid = RealDebridService();
+  final torBox = TorBoxService();
+  final allDebrid = AllDebridService();
+  final premiumize = PremiumizeService();
+  final debridLink = DebridLinkService();
 
-  Future<void> initialize() async {
-    final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getString(_storageKey);
-    if (stored != null) {
-      try {
-        final list = (jsonDecode(stored) as List)
-            .map((e) => DebridAccount.fromJson(e as Map<String, dynamic>))
-            .toList();
-        accounts.value = list;
-      } catch (_) {
-        accounts.value = [];
-      }
+  static const String _debridServiceKey = 'debrid_service';
+  static const String _useDebridForStreamsKey = 'use_debrid_for_streams';
+
+  Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
+
+  // ── Active Service Selection ───────────────────────────────────────────────
+
+  Future<String> getSelectedService() async {
+    final prefs = await _prefs;
+    return prefs.getString(_debridServiceKey) ?? 'None';
+  }
+
+  Future<void> saveSelectedService(String service) async {
+    final prefs = await _prefs;
+    await prefs.setString(_debridServiceKey, service.trim());
+  }
+
+  // ── "Use Debrid for streams" Toggle ────────────────────────────────────────
+
+  Future<bool> getUseDebridForStreams() async {
+    final prefs = await _prefs;
+    return prefs.getBool(_useDebridForStreamsKey) ?? false;
+  }
+
+  Future<void> saveUseDebridForStreams(bool value) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_useDebridForStreamsKey, value);
+  }
+
+  /// Returns true if Debrid is fully setup AND the "Use Debrid for streams" toggle is ON.
+  Future<bool> isDebridActiveForStreams() async {
+    final enabled = await getUseDebridForStreams();
+    if (!enabled) return false;
+
+    final service = await getSelectedService();
+    if (service == 'None' || service.isEmpty) return false;
+
+    return await hasKeyForService(service);
+  }
+
+  Future<bool> hasKeyForService(String service) async {
+    switch (service) {
+      case 'Real-Debrid':
+        return await realDebrid.hasKey();
+      case 'TorBox':
+        return await torBox.hasKey();
+      case 'AllDebrid':
+        return await allDebrid.hasKey();
+      case 'Premiumize':
+        return await premiumize.hasKey();
+      case 'Debrid-Link':
+        return await debridLink.hasKey();
+      default:
+        return false;
     }
   }
 
-  Future<void> _persist() async {
-    final prefs = await SharedPreferences.getInstance();
-    final data = jsonEncode(accounts.value.map((e) => e.toJson()).toList());
-    await prefs.setString(_storageKey, data);
-  }
+  // ── Stream Resolution Dispatcher ──────────────────────────────────────────
 
-  bool isConfigured(DebridProvider provider) {
-    return accounts.value.any((a) => a.provider == provider && a.apiKey.isNotEmpty);
-  }
-
-  DebridAccount? getAccount(DebridProvider provider) {
-    try {
-      return accounts.value.firstWhere((a) => a.provider == provider);
-    } catch (_) {
-      return null;
+  Future<List<DebridFile>> resolveMagnet({
+    required String magnet,
+    String? service,
+    int? fileIndex,
+    String? filename,
+    int? season,
+    int? episode,
+  }) async {
+    final activeService = service ?? await getSelectedService();
+    if (activeService == 'None' || activeService.isEmpty) {
+      throw Exception('No active Debrid service selected.');
     }
-  }
 
-  Future<bool> authenticateRealDebrid(String apiToken) async {
-    isLoading.value = true;
-    try {
-      final response = await http.get(
-        Uri.parse('https://api.real-debrid.com/rest/1.0/user'),
-        headers: {'Authorization': 'Bearer $apiToken'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final username = data['username']?.toString();
-        final email = data['email']?.toString();
-        final expiration = data['expiration'] != null
-            ? DateTime.tryParse(data['expiration'].toString())
-            : null;
-        final type = data['type']?.toString();
-        final isPremium = type == 'premium';
-
-        final account = DebridAccount(
-          provider: DebridProvider.realDebrid,
-          apiKey: apiToken,
-          username: username,
-          email: email,
-          expirationDate: expiration,
-          isPremium: isPremium,
+    switch (activeService) {
+      case 'Real-Debrid':
+        return await realDebrid.resolveMagnet(
+          magnet,
+          fileIndex: fileIndex,
+          filename: filename,
+          season: season,
+          episode: episode,
         );
-
-        final updated = accounts.value.where((a) => a.provider != DebridProvider.realDebrid).toList();
-        updated.add(account);
-        accounts.value = updated;
-        await _persist();
-        isLoading.value = false;
-        return true;
-      }
-    } catch (e) {
-      debugPrint('Real-Debrid auth error: $e');
-    }
-    isLoading.value = false;
-    return false;
-  }
-
-  Future<bool> authenticateTorbox(String apiToken) async {
-    isLoading.value = true;
-    try {
-      final response = await http.get(
-        Uri.parse('https://api.torbox.app/v1/api/user/me'),
-        headers: {'Authorization': 'Bearer $apiToken'},
-      );
-
-      if (response.statusCode == 200) {
-        final json = jsonDecode(response.body) as Map<String, dynamic>;
-        final data = json['data'] as Map<String, dynamic>?;
-        final email = data?['email']?.toString();
-        final plan = data?['plan'] as int? ?? 0;
-
-        final account = DebridAccount(
-          provider: DebridProvider.torbox,
-          apiKey: apiToken,
-          username: email?.split('@').first,
-          email: email,
-          isPremium: plan > 0,
+      case 'TorBox':
+        return await torBox.resolveMagnet(
+          magnet,
+          fileIndex: fileIndex,
+          filename: filename,
+          season: season,
+          episode: episode,
         );
-
-        final updated = accounts.value.where((a) => a.provider != DebridProvider.torbox).toList();
-        updated.add(account);
-        accounts.value = updated;
-        await _persist();
-        isLoading.value = false;
-        return true;
-      }
-    } catch (e) {
-      debugPrint('Torbox auth error: $e');
+      case 'AllDebrid':
+        return await allDebrid.resolveMagnet(
+          magnet,
+          fileIndex: fileIndex,
+          filename: filename,
+          season: season,
+          episode: episode,
+        );
+      case 'Premiumize':
+        return await premiumize.resolveMagnet(
+          magnet,
+          fileIndex: fileIndex,
+          filename: filename,
+          season: season,
+          episode: episode,
+        );
+      case 'Debrid-Link':
+        return await debridLink.resolveMagnet(
+          magnet,
+          fileIndex: fileIndex,
+          filename: filename,
+          season: season,
+          episode: episode,
+        );
+      default:
+        throw Exception('Unknown Debrid provider: $activeService');
     }
-    isLoading.value = false;
-    return false;
-  }
-
-  Future<void> removeAccount(DebridProvider provider) async {
-    accounts.value = accounts.value.where((a) => a.provider != provider).toList();
-    await _persist();
   }
 }

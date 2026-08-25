@@ -40,7 +40,7 @@ dependencies:
   shared_preferences: ^2.3.3
   url_launcher: ^6.3.2
   torrserver_flutter: ^0.0.4
-  fvp: ^0.37.3
+  fvp: ^0.38.1
   video_player: ^2.11.1
   archive: ^4.0.9
   path_provider: ^2.1.6
@@ -55,6 +55,9 @@ dependencies:
   pointycastle: ^3.9.1
   xml: ^7.0.1
   flutter_inappwebview: ^6.1.5
+  wakelock_plus: ^1.5.2
+  window_manager: ^0.5.2
+  file_picker: ^8.1.7
 
 dev_dependencies:
   flutter_test:

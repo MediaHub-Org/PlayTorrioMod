@@ -161,7 +161,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
         sizing.sidePadding,
         topPadding,
         sizing.sidePadding,
-        40,
+        40 + MediaQuery.paddingOf(context).bottom,
       ),
       physics: const BouncingScrollPhysics(),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/music/music_track.dart';
 
 class QobuzTrack {
@@ -45,19 +46,111 @@ class QobuzMusicService {
   static final QobuzMusicService instance = QobuzMusicService._internal();
   QobuzMusicService._internal();
 
-  /// Default Eclipse Qobuz endpoint from WAVE
+  /// Default fallback Eclipse Qobuz endpoint
   static const String defaultEndpoint =
       'https://qobuz-tidal-eclipse.cyrusna29.workers.dev/u/4opn823jmxs6yee60au24sse15kp';
 
+  static const String generateUrl =
+      'https://qobuz-tidal-eclipse.cyrusna29.workers.dev/generate';
+
   static const String userAgent =
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36';
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36';
+
+  static const _storageEndpointKey = 'qobuz_eclipse_endpoint';
+  static const _storageTokenKey = 'qobuz_eclipse_token';
+  static const _storageManifestKey = 'qobuz_eclipse_manifest_url';
+
+  String? _activeEndpoint;
+  String? _token;
+  String? _manifestUrl;
+  String? _quality;
+
+  String get activeEndpoint => _activeEndpoint ?? defaultEndpoint;
+  String? get currentToken => _token;
+  String? get currentManifestUrl => _manifestUrl;
+  String? get currentQuality => _quality;
 
   final Map<String, ({String url, Map<String, String> headers, String quality, String format})> _cache = {};
+
+  /// Generates a fresh Eclipse token and manifestUrl dynamically on app launch
+  Future<void> initialize() async {
+    // Load previously cached endpoint first for immediate responsiveness
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _activeEndpoint = prefs.getString(_storageEndpointKey);
+      _token = prefs.getString(_storageTokenKey);
+      _manifestUrl = prefs.getString(_storageManifestKey);
+    } catch (_) {}
+
+    // Request new dynamic token and manifest from /generate
+    await refreshEndpoint();
+  }
+
+  /// Performs POST https://qobuz-tidal-eclipse.cyrusna29.workers.dev/generate
+  Future<bool> refreshEndpoint() async {
+    try {
+      debugPrint('[QobuzMusicService] Generating fresh FLAC Eclipse session on app launch...');
+      final uri = Uri.parse(generateUrl);
+      final headers = {
+        'Content-Type': 'application/json',
+        'Origin': 'https://qobuz-tidal-eclipse.cyrusna29.workers.dev',
+        'Referer': 'https://qobuz-tidal-eclipse.cyrusna29.workers.dev/',
+        'User-Agent': userAgent,
+        'sec-ch-ua': '"Not=A?Brand";v="99", "Brave";v="151", "Chromium";v="151"',
+        'sec-ch-ua-mobile': '?0',
+        'sec-ch-ua-platform': '"Windows"',
+        'sec-fetch-dest': 'empty',
+        'sec-fetch-mode': 'cors',
+        'sec-fetch-site': 'same-origin',
+        'sec-gpc': '1',
+        'Accept': '*/*',
+      };
+
+      final response = await http
+          .post(
+            uri,
+            headers: headers,
+            body: '{}',
+          )
+          .timeout(const Duration(seconds: 12));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final token = data['token']?.toString();
+        final quality = data['quality']?.toString();
+        final manifestUrl = data['manifestUrl']?.toString();
+
+        if (manifestUrl != null && manifestUrl.isNotEmpty) {
+          _manifestUrl = manifestUrl;
+          _token = token;
+          _quality = quality;
+          _activeEndpoint = manifestUrl.replaceAll('/manifest.json', '');
+
+          debugPrint('[QobuzMusicService] Successfully generated fresh FLAC endpoint: $_activeEndpoint (Token: $_token, Quality: $_quality)');
+
+          // Cache in local preferences
+          try {
+            final prefs = await SharedPreferences.getInstance();
+            await prefs.setString(_storageEndpointKey, _activeEndpoint!);
+            if (_token != null) await prefs.setString(_storageTokenKey, _token!);
+            await prefs.setString(_storageManifestKey, _manifestUrl!);
+          } catch (_) {}
+
+          return true;
+        }
+      } else {
+        debugPrint('[QobuzMusicService] Generate request returned status code ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('[QobuzMusicService] Failed to generate fresh FLAC endpoint: $e');
+    }
+    return false;
+  }
 
   /// Searches Qobuz tracks by query string using Eclipse /search endpoint
   Future<List<QobuzTrack>> searchTracks(String query, {String? endpoint}) async {
     if (query.trim().isEmpty) return [];
-    final base = endpoint ?? defaultEndpoint;
+    final base = endpoint ?? activeEndpoint;
 
     try {
       final url = Uri.parse(
@@ -96,7 +189,7 @@ class QobuzMusicService {
     String trackId, {
     String? endpoint,
   }) async {
-    final base = endpoint ?? defaultEndpoint;
+    final base = endpoint ?? activeEndpoint;
     try {
       final url = Uri.parse('$base/stream/$trackId');
       final res = await http
@@ -140,7 +233,7 @@ class QobuzMusicService {
       final artist = track.artist;
       final query = '$title $artist'.trim();
 
-      debugPrint('Resolving FLAC lossless track on Qobuz for "$query"...');
+      debugPrint('Resolving FLAC lossless track on Qobuz for "$query" using endpoint $activeEndpoint...');
       var results = await searchTracks(query, endpoint: endpoint);
 
       // Fallback search with cleaned title if no results found

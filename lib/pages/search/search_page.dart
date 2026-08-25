@@ -209,7 +209,7 @@ class _SearchPageState extends State<SearchPage> {
               clipBehavior: Clip.none,
               padding: EdgeInsets.only(
                 top: topPadding + kToolbarHeight + 40,
-                bottom: 40,
+                bottom: 40 + MediaQuery.paddingOf(context).bottom,
               ),
               physics: const BouncingScrollPhysics(),
               itemCount: _results.length,

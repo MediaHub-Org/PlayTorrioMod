@@ -211,7 +211,7 @@ class ParseTorrentTitle {
   }
 
   void addHandler(String name, RegExp regExp, {dynamic value, String? type, bool skipIfAlreadyFound = false}) {
-    int? Function(String title, Map<String, dynamic> result) handler = (String title, Map<String, dynamic> result) {
+    int? handler(String title, Map<String, dynamic> result) {
       if (result.containsKey(name) && skipIfAlreadyFound) {
         return null;
       }
@@ -224,12 +224,19 @@ class ParseTorrentTitle {
         dynamic finalValue = value;
         if (finalValue == null) {
           String input = cleanMatch ?? rawMatch;
-          if (type == 'lowercase') finalValue = input.toLowerCase();
-          else if (type == 'uppercase') finalValue = input.toUpperCase();
-          else if (type == 'boolean') finalValue = true;
-          else if (type == 'integer') finalValue = int.tryParse(input);
-          else if (type == 'float') finalValue = double.tryParse(input);
-          else finalValue = input;
+          if (type == 'lowercase') {
+            finalValue = input.toLowerCase();
+          } else if (type == 'uppercase') {
+            finalValue = input.toUpperCase();
+          } else if (type == 'boolean') {
+            finalValue = true;
+          } else if (type == 'integer') {
+            finalValue = int.tryParse(input);
+          } else if (type == 'float') {
+            finalValue = double.tryParse(input);
+          } else {
+            finalValue = input;
+          }
         }
 
         if (!skipIfAlreadyFound && result.containsKey(name) && result[name] != finalValue) {
@@ -249,7 +256,7 @@ class ParseTorrentTitle {
       }
 
       return null;
-    };
+    }
     
     _handlers.add(_Handler(name, handler));
   }

@@ -226,7 +226,6 @@ class VuflixScraper extends StreamScraper {
             for (final item in sourcesList) {
               if (item is! Map) continue;
 
-              final providerId = (item['provider'] ?? prov.id).toString().toLowerCase();
               final providerName = (item['providerName'] ??
                       item['publicLabel'] ??
                       prov.name)

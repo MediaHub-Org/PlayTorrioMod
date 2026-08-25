@@ -230,7 +230,7 @@ class _CatalogPageState extends State<CatalogPage> {
                 sizing.sidePadding,
                 gridTopPadding,
                 sizing.sidePadding,
-                40, // Bottom padding
+                40 + MediaQuery.paddingOf(context).bottom, // Bottom padding
               ),
               physics: const BouncingScrollPhysics(),
               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

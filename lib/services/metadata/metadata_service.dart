@@ -180,4 +180,78 @@ class MetadataService {
       return null;
     }
   }
+
+  /// Searches active addons (or Cinemeta fallback) to resolve a title into a real Movie
+  static Future<Movie?> findMovieByTitle({
+    required String title,
+    String? type,
+    int? year,
+    String? preferredBaseUrl,
+  }) async {
+    final query = title.trim();
+    if (query.isEmpty) return null;
+
+    final targetBaseUrl = (preferredBaseUrl != null &&
+            preferredBaseUrl.startsWith('http') &&
+            !preferredBaseUrl.contains('bestsimilar'))
+        ? preferredBaseUrl
+        : 'https://v3-cinemeta.strem.io';
+
+    final isPreferredTv = (type == 'series' || type == 'tv' || type == 'anime');
+    final firstType = isPreferredTv ? 'series' : 'movie';
+    final secondType = isPreferredTv ? 'movie' : 'series';
+
+    // Search both types to compare candidates across series and movie catalogs
+    final results = await Future.wait([
+      search(baseUrl: targetBaseUrl, type: firstType, catalogId: 'top', query: query)
+          .catchError((_) => <Movie>[]),
+      search(baseUrl: targetBaseUrl, type: secondType, catalogId: 'top', query: query)
+          .catchError((_) => <Movie>[]),
+    ]);
+
+    final allCandidates = <Movie>[...results[0], ...results[1]];
+    if (allCandidates.isEmpty) return null;
+
+    final qLower = query.toLowerCase();
+
+    // Scoring:
+    // +100 for exact title match
+    // +60 for exact year match (or year in range e.g. 2013-2018)
+    // +20 for matching preferred type
+    // +30 for title startsWith
+    Movie? bestMatch;
+    int highestScore = -1;
+
+    for (final c in allCandidates) {
+      int score = 0;
+      final cName = c.name.toLowerCase().trim();
+      final cYear = (c.year ?? '').trim();
+
+      if (cName == qLower) {
+        score += 100;
+      } else if (cName.startsWith(qLower)) {
+        score += 30;
+      }
+
+      if (year != null && cYear.isNotEmpty) {
+        if (cYear.startsWith('$year') || cYear.contains('$year')) {
+          score += 60;
+        }
+      }
+
+      if (type != null) {
+        final isCTv = (c.type == 'series' || c.type == 'tv' || c.type == 'anime');
+        if (isCTv == isPreferredTv) {
+          score += 20;
+        }
+      }
+
+      if (score > highestScore) {
+        highestScore = score;
+        bestMatch = c;
+      }
+    }
+
+    return bestMatch ?? allCandidates.first;
+  }
 }

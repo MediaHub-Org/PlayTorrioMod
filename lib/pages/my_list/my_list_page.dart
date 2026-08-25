@@ -3,8 +3,6 @@ import 'package:flutter/material.dart';
 
 import '../../models/my_list/my_list_item.dart';
 import '../../services/my_list/my_list_service.dart';
-import '../../services/trakt/trakt_auth_service.dart';
-import '../../services/trakt/trakt_sync_service.dart';
 import '../../utils/route_transitions.dart';
 import '../details/details_page.dart';
 import '../../models/movie/movie.dart';
@@ -122,7 +120,7 @@ class _MyListPageState extends State<MyListPage> {
 
     if (confirm == true) {
       if (mounted) {
-        await TraktSyncService.syncRemove(item, context);
+        MyListService.remove(item);
       }
     }
   }
@@ -195,12 +193,17 @@ class _MyListPageState extends State<MyListPage> {
                       child: displayedItems.isEmpty
                           ? _buildEmptyState(allItems.isEmpty)
                           : GridView.builder(
-                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              padding: EdgeInsets.fromLTRB(
+                                16,
+                                12,
+                                16,
+                                24 + MediaQuery.paddingOf(context).bottom,
+                              ),
                               gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                 crossAxisCount: _getCrossAxisCount(context),
                                 childAspectRatio: 0.65,
-                                crossAxisSpacing: 16,
-                                mainAxisSpacing: 18,
+                                crossAxisSpacing: 14,
+                                mainAxisSpacing: 16,
                               ),
                               itemCount: displayedItems.length,
                               itemBuilder: (context, index) {
@@ -224,10 +227,10 @@ class _MyListPageState extends State<MyListPage> {
   }
 
   Widget _buildHeader(BuildContext context, int totalCount) {
-    final auth = TraktAuthService();
+    final isMobile = MediaQuery.sizeOf(context).width < 600;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: 10),
       decoration: BoxDecoration(
         color: const Color(0xFF0D1017).withValues(alpha: 0.8),
         border: Border(
@@ -246,86 +249,83 @@ class _MyListPageState extends State<MyListPage> {
               padding: const EdgeInsets.all(8),
             ),
           ),
-          const SizedBox(width: 14),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'My List',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 22,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'My List',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                  ),
                 ),
-              ),
-              Text(
-                '$totalCount saved ${totalCount == 1 ? 'title' : 'titles'}',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.45),
-                  fontSize: 12,
+                Text(
+                  '$totalCount saved ${totalCount == 1 ? 'title' : 'titles'}',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.45),
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const Spacer(),
+          const SizedBox(width: 8),
 
-          // ── Trakt Sync Status & Refresh Button ──
+          // ── Cloud Sync Status & Refresh Button ──
           ValueListenableBuilder<bool>(
-            valueListenable: auth.isLoggedIn,
-            builder: (context, isLoggedIn, _) {
-              if (!isLoggedIn) return const SizedBox.shrink();
-
-              return ValueListenableBuilder<bool>(
-                valueListenable: TraktSyncService.isSyncing,
-                builder: (context, isSyncing, _) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF7C5CFF).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(
-                        color: const Color(0xFF7C5CFF).withValues(alpha: 0.3),
+            valueListenable: MyListService.isSyncing,
+            builder: (context, isSyncing, _) {
+              return Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7C5CFF).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: const Color(0xFF7C5CFF).withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (isSyncing)
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
+                        ),
+                      )
+                    else
+                      const Icon(Icons.cloud_done_rounded, color: Color(0xFF7C5CFF), size: 15),
+                    const SizedBox(width: 6),
+                    Text(
+                      isSyncing ? 'Syncing...' : 'Cloud Synced',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isSyncing)
-                          const SizedBox(
-                            width: 14,
-                            height: 14,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
-                            ),
-                          )
-                        else
-                          const Icon(Icons.cloud_done_rounded, color: Color(0xFF7C5CFF), size: 15),
-                        const SizedBox(width: 6),
-                        Text(
-                          isSyncing ? 'Syncing...' : 'Trakt Synced',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          constraints: const BoxConstraints(),
-                          padding: EdgeInsets.zero,
-                          icon: Icon(
-                            Icons.refresh_rounded,
-                            color: Colors.white.withValues(alpha: 0.7),
-                            size: 14,
-                          ),
-                          onPressed: isSyncing ? null : () => TraktSyncService.manualSync(),
-                        ),
-                      ],
+                    const SizedBox(width: 4),
+                    IconButton(
+                      constraints: const BoxConstraints(),
+                      padding: EdgeInsets.zero,
+                      icon: Icon(
+                        Icons.refresh_rounded,
+                        color: Colors.white.withValues(alpha: 0.7),
+                        size: 14,
+                      ),
+                      onPressed: isSyncing ? null : () => MyListService.syncAll(),
                     ),
-                  );
-                },
+                  ],
+                ),
               );
             },
           ),
@@ -336,43 +336,47 @@ class _MyListPageState extends State<MyListPage> {
 
   Widget _buildFilterToolbar(int totalCount, int movieCount, int seriesCount) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Column(
         children: [
-          Row(
-            children: [
-              // Filter Tabs
-              _buildFilterPill('all', 'All', totalCount),
-              const SizedBox(width: 8),
-              _buildFilterPill('movie', 'Movies', movieCount),
-              const SizedBox(width: 8),
-              _buildFilterPill('series', 'TV Shows', seriesCount),
-              const Spacer(),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                // Filter Tabs
+                _buildFilterPill('all', 'All', totalCount),
+                const SizedBox(width: 8),
+                _buildFilterPill('movie', 'Movies', movieCount),
+                const SizedBox(width: 8),
+                _buildFilterPill('series', 'TV Shows', seriesCount),
+                const SizedBox(width: 16),
 
-              // Sort Dropdown
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<String>(
-                    value: _sortBy,
-                    dropdownColor: const Color(0xFF151822),
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
-                    icon: const Icon(Icons.sort_rounded, color: Color(0xFF7C5CFF), size: 16),
-                    items: const [
-                      DropdownMenuItem(value: 'recent', child: Text('Recently Added')),
-                      DropdownMenuItem(value: 'title', child: Text('Alphabetical')),
-                      DropdownMenuItem(value: 'year', child: Text('Release Year')),
-                    ],
-                    onChanged: (v) => setState(() => _sortBy = v!),
+                // Sort Dropdown
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      value: _sortBy,
+                      dropdownColor: const Color(0xFF151822),
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      icon: const Icon(Icons.sort_rounded, color: Color(0xFF7C5CFF), size: 16),
+                      items: const [
+                        DropdownMenuItem(value: 'recent', child: Text('Recently Added')),
+                        DropdownMenuItem(value: 'title', child: Text('Alphabetical')),
+                        DropdownMenuItem(value: 'year', child: Text('Release Year')),
+                      ],
+                      onChanged: (v) => setState(() => _sortBy = v!),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(height: 10),
 
@@ -648,16 +652,26 @@ class _MyListCardState extends State<_MyListCard> {
                           ),
                         ),
 
-                        // Trakt Badge if synced
+                        // Cloud Sync Badge
                         if (item.source == MyListSource.trakt)
                           Container(
                             padding: const EdgeInsets.all(4),
                             decoration: BoxDecoration(
                               color: Colors.black.withValues(alpha: 0.6),
                               shape: BoxShape.circle,
-                              border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.5)),
+                              border: Border.all(color: const Color(0xFFED1C24).withValues(alpha: 0.5)),
                             ),
-                            child: const Icon(Icons.cloud_done_rounded, color: Color(0xFF7C5CFF), size: 11),
+                            child: const Icon(Icons.cloud_done_rounded, color: Color(0xFFED1C24), size: 11),
+                          )
+                        else if (item.source == MyListSource.simkl)
+                          Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.6),
+                              shape: BoxShape.circle,
+                              border: Border.all(color: const Color(0xFF00ADFF).withValues(alpha: 0.5)),
+                            ),
+                            child: const Icon(Icons.cloud_done_rounded, color: Color(0xFF00ADFF), size: 11),
                           ),
                       ],
                     ),

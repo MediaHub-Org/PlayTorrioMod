@@ -40,6 +40,12 @@ mixin HeroCarouselAutoRotate<T extends StatefulWidget> on State<T> {
     });
   }
 
+  /// Stops the auto-rotate timer without disposing the controller. Call
+  /// this when a caller-side setting turns auto-rotate off at runtime.
+  void stopHeroAutoRotate() {
+    _autoRotateTimer?.cancel();
+  }
+
   void goToHeroPage(
     int index, {
     Duration duration = const Duration(milliseconds: 500),

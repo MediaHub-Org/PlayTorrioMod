@@ -1,15 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
-import '../../models/download/download_item.dart';
+import '../../models/download/download_task_model.dart';
 import '../../models/movie/movie.dart';
 import '../../models/my_list/my_list_item.dart';
 import '../../models/playback/playback_history_item.dart';
 import '../../services/download/download_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../services/playback/playback_history_service.dart';
-import '../../services/trakt/trakt_auth_service.dart';
-import '../../services/trakt/trakt_sync_service.dart';
 import '../../utils/route_transitions.dart';
 import '../../widgets/common/library_tabs.dart';
 import '../details/details_page.dart';
@@ -136,41 +134,10 @@ class _CollectionPageState extends State<CollectionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final traktAuth = TraktAuthService();
-
     return LibraryTabs(
       title: 'Library',
       titleIcon: Icons.video_library_rounded,
       initialIndex: widget.initialTabIndex,
-      trailing: ValueListenableBuilder<bool>(
-        valueListenable: traktAuth.isLoggedIn,
-        builder: (context, loggedIn, _) {
-          if (!loggedIn) return const SizedBox.shrink();
-          return ValueListenableBuilder<bool>(
-            valueListenable: TraktSyncService.isSyncing,
-            builder: (context, syncing, _) {
-              return IconButton(
-                tooltip: 'Sync with Trakt',
-                icon: syncing
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Color(0xFFED1C24),
-                        ),
-                      )
-                    : const Icon(
-                        Icons.sync_rounded,
-                        color: Color(0xFFED1C24),
-                        size: 22,
-                      ),
-                onPressed: syncing ? null : () => TraktSyncService.manualSync(),
-              );
-            },
-          );
-        },
-      ),
       tabs: [
         LibraryTab(
           label: 'My List',
@@ -353,8 +320,8 @@ class _CollectionPageState extends State<CollectionPage> {
   }
 
   Widget _buildDownloadsTab() {
-    return ValueListenableBuilder<List<DownloadItem>>(
-      valueListenable: DownloadService.downloads,
+    return ValueListenableBuilder<List<DownloadTask>>(
+      valueListenable: DownloadService.instance.tasksNotifier,
       builder: (context, downloads, _) {
         if (downloads.isEmpty) {
           return LibraryEmptyState(
@@ -370,6 +337,7 @@ class _CollectionPageState extends State<CollectionPage> {
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final item = downloads[index];
+            final progress = item.totalBytes > 0 ? item.receivedBytes / item.totalBytes : 0.0;
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -381,9 +349,9 @@ class _CollectionPageState extends State<CollectionPage> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: item.poster != null
+                    child: item.posterUrl != null
                         ? CachedNetworkImage(
-                            imageUrl: item.poster!,
+                            imageUrl: item.posterUrl!,
                             width: 50,
                             height: 75,
                             fit: BoxFit.cover,
@@ -423,14 +391,14 @@ class _CollectionPageState extends State<CollectionPage> {
                         ],
                         const SizedBox(height: 8),
                         LinearProgressIndicator(
-                          value: item.progress > 0 ? item.progress : null,
+                          value: progress > 0 ? progress : null,
                           backgroundColor: Colors.white10,
                           valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          '${item.status.name.toUpperCase()} • ${(item.progress * 100).toStringAsFixed(0)}%',
+                          '${item.status.name.toUpperCase()} • ${(progress * 100).toStringAsFixed(0)}%',
                           style: const TextStyle(color: Colors.white38, fontSize: 11),
                         ),
                       ],
@@ -438,7 +406,7 @@ class _CollectionPageState extends State<CollectionPage> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                    onPressed: () => DownloadService.removeDownload(item.id),
+                    onPressed: () => DownloadService.instance.deleteDownload(item.id),
                   ),
                 ],
               ),

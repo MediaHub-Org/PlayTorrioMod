@@ -14,6 +14,7 @@ import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/hero_carousel_auto_rotate.dart';
 import '../../widgets/common/page_search_button.dart';
+import '../../widgets/home/continue_watching_slider.dart';
 import 'anime_details_page.dart';
 import 'anime_stream_sheet.dart';
 
@@ -285,9 +286,17 @@ class _AnimePageState extends State<AnimePage> {
                     onDetailsTap: _openDetails,
                   ),
 
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
 
-                // 2. Sliders with Desktop Scroll Arrows
+                // 2. Anime Continue Watching Slider
+                const ContinueWatchingSlider(
+                  typeFilter: 'anime',
+                  title: 'Continue Watching',
+                ),
+
+                const SizedBox(height: 8),
+
+                // 3. Sliders with Desktop Scroll Arrows
                 AnimeSliderSection(
                   title: '🔥 Trending Anime',
                   subtitle: 'Top popular and trending series',
@@ -337,7 +346,7 @@ class _AnimePageState extends State<AnimePage> {
                   onAnimeTap: _openDetails,
                 ),
 
-                const SizedBox(height: 90),
+                SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom),
               ],
             ),
           ),
@@ -843,9 +852,9 @@ class _AnimeHeroSlide extends StatelessWidget {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF7C5CFF),
                           foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 28,
-                            vertical: 16,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isCompact ? 18 : 28,
+                            vertical: isCompact ? 12 : 16,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
@@ -854,26 +863,26 @@ class _AnimeHeroSlide extends StatelessWidget {
                           shadowColor: const Color(0xFF7C5CFF).withValues(alpha: 0.45),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: isCompact ? 8 : 12),
                       OutlinedButton.icon(
                         onPressed: onDetailsTap,
                         icon: Icon(
                           Icons.info_outline_rounded,
-                          size: 21,
+                          size: isCompact ? 18 : 21,
                           color: Colors.white.withValues(alpha: 0.80),
                         ),
                         label: Text(
                           'Details',
                           style: TextStyle(
                             fontWeight: FontWeight.w700,
-                            fontSize: 15.5,
+                            fontSize: isCompact ? 14 : 15.5,
                             color: Colors.white.withValues(alpha: 0.80),
                           ),
                         ),
                         style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 24,
-                            vertical: 16,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: isCompact ? 16 : 24,
+                            vertical: isCompact ? 12 : 16,
                           ),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),

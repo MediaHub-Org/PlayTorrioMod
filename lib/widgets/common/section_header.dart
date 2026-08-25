@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../services/app_theme_service.dart';
 
 /// Clean section header — title on left, optional "See All" on right.
 class SectionHeader extends StatelessWidget {
@@ -15,6 +16,8 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final primaryColor = AppThemeService.currentPalette.value.primaryColor;
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 16, 0),
       child: Row(
@@ -53,7 +56,7 @@ class SectionHeader extends StatelessWidget {
               child: TextButton(
                 onPressed: onSeeAll,
                 style: TextButton.styleFrom(
-                  foregroundColor: const Color(0xFF7C5CFF),
+                  foregroundColor: primaryColor,
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
                     vertical: 4,

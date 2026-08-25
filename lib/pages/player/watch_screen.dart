@@ -50,12 +50,14 @@ class WatchScreen extends StatefulWidget {
   final MovieDetail detail;
   final Video? selectedEpisode;
   final String type;
+  final Duration? initialPosition;
 
   const WatchScreen({
     super.key,
     required this.detail,
     this.selectedEpisode,
     required this.type,
+    this.initialPosition,
   });
 
   @override
@@ -449,6 +451,7 @@ class _WatchScreenState extends State<WatchScreen>
                         detail: widget.detail,
                         episode: widget.selectedEpisode,
                         onNextEpisode: _playNextEpisode,
+                        initialPosition: widget.initialPosition,
                       ),
                     );
                   },
@@ -746,7 +749,7 @@ class _WatchScreenState extends State<WatchScreen>
                   setState(() => _synopsisExpanded = !_synopsisExpanded),
               child: Text(
                 _synopsisExpanded ? 'Show less' : 'Read more',
-                style: TextStyle(
+                style: const TextStyle(
                   color: _C.accent,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -836,14 +839,15 @@ class _WatchScreenState extends State<WatchScreen>
         final nameLower = link.name.toLowerCase();
         final catLower = link.category.toLowerCase();
 
-        if (nameLower.contains('imdb') || catLower.contains('imdb'))
+        if (nameLower.contains('imdb') || catLower.contains('imdb')) {
           icon = Icons.movie_creation_outlined;
-        else if (nameLower.contains('trailer') || catLower.contains('trailer'))
+        } else if (nameLower.contains('trailer') || catLower.contains('trailer')) {
           icon = Icons.play_circle_outline;
-        else if (nameLower.contains('wiki') || catLower.contains('wiki'))
+        } else if (nameLower.contains('wiki') || catLower.contains('wiki')) {
           icon = Icons.article_outlined;
-        else if (nameLower.contains('search') || catLower.contains('search'))
+        } else if (nameLower.contains('search') || catLower.contains('search')) {
           icon = Icons.search_rounded;
+        }
 
         return Expanded(
           child: Padding(
@@ -914,11 +918,11 @@ class _WatchScreenState extends State<WatchScreen>
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
+            const Row(
               children: [
-                const Icon(Icons.stream_rounded, color: _C.accent, size: 20),
-                const SizedBox(width: _S.xs),
-                const Text(
+                Icon(Icons.stream_rounded, color: _C.accent, size: 20),
+                SizedBox(width: _S.xs),
+                Text(
                   'Watch Sources',
                   style: TextStyle(
                     color: _C.textPrimary,
@@ -979,6 +983,7 @@ class _WatchScreenState extends State<WatchScreen>
           detail: widget.detail,
           episode: widget.selectedEpisode,
           onNextEpisode: _playNextEpisode,
+          initialPosition: widget.initialPosition,
         );
       },
     );
@@ -1231,6 +1236,7 @@ class _SourceCard extends StatefulWidget {
   final MovieDetail detail;
   final Video? episode;
   final VoidCallback? onNextEpisode;
+  final Duration? initialPosition;
 
   const _SourceCard({
     required this.source,
@@ -1239,6 +1245,7 @@ class _SourceCard extends StatefulWidget {
     required this.detail,
     this.episode,
     this.onNextEpisode,
+    this.initialPosition,
   });
 
   @override
@@ -1334,6 +1341,7 @@ class _SourceCardState extends State<_SourceCard> {
                     detail: widget.detail,
                     episode: widget.episode,
                     onNextEpisode: widget.onNextEpisode,
+                    initialPosition: widget.initialPosition,
                   ),
                 ),
               );

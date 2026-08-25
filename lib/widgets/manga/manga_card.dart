@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 
 import '../../models/manga/manga.dart';
 import '../../pages/manga/manga_details_page.dart';
+import '../../services/app_theme_service.dart';
+import '../../services/manga/manga_settings.dart';
 import '../../utils/route_transitions.dart';
 import '../common/poster_skeleton.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Card sizing — responsive breakpoints that mimic Stremio poster sizes.
+// Card sizing — responsive breakpoints that scale with MangaCardDensity.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class MangaCardSizing {
@@ -25,23 +27,24 @@ class MangaCardSizing {
     required this.sidePadding,
   });
 
-  factory MangaCardSizing.fromWidth(double screenWidth) {
-    double cardWidth;
+  factory MangaCardSizing.fromWidth(double screenWidth, {MangaCardDensity density = MangaCardDensity.standard}) {
+    double baseWidth;
 
     if (screenWidth < 360) {
-      cardWidth = 138;
+      baseWidth = 138;
     } else if (screenWidth < 430) {
-      cardWidth = 152;
+      baseWidth = 152;
     } else if (screenWidth < 700) {
-      cardWidth = 162;
+      baseWidth = 162;
     } else if (screenWidth < 1000) {
-      cardWidth = 176;
+      baseWidth = 176;
     } else if (screenWidth < 1400) {
-      cardWidth = 190;
+      baseWidth = 190;
     } else {
-      cardWidth = 205;
+      baseWidth = 205;
     }
 
+    final cardWidth = baseWidth * density.scale;
     final posterHeight = cardWidth * 1.48;
     final totalHeight = posterHeight + 66;
 
@@ -80,6 +83,10 @@ class _MangaCardState extends State<MangaCard> {
   @override
   Widget build(BuildContext context) {
     final manga = widget.manga;
+    final palette = AppThemeService.currentPalette.value;
+    final showYear = MangaSettings.showMangaYear.value;
+    final showBadge = MangaSettings.showContentTypeBadge.value;
+    final ambientGlow = MangaSettings.ambientCardGlow.value;
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -116,7 +123,7 @@ class _MangaCardState extends State<MangaCard> {
                 context,
                 LiquidRevealRoute(
                   page: MangaDetailsPage(manga: manga),
-                  tapPosition: null, // Let it center if tapPosition not easily available
+                  tapPosition: null,
                 ),
               );
             },
@@ -137,6 +144,9 @@ class _MangaCardState extends State<MangaCard> {
                     posterUrl: manga.coverNormal.isNotEmpty ? manga.coverNormal : manga.coverSmall,
                     hovered: _hovered,
                     contentType: manga.type.isNotEmpty ? manga.type : 'MANGA',
+                    palette: palette,
+                    showBadge: showBadge,
+                    ambientGlow: ambientGlow,
                   ),
                 ),
                 
@@ -157,18 +167,20 @@ class _MangaCardState extends State<MangaCard> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  manga.year.isNotEmpty ? manga.year : 'Unknown Year',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.white.withOpacity(0.55),
-                    letterSpacing: -0.1,
+                if (showYear) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    manga.year.isNotEmpty ? manga.year : 'Unknown Year',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.white.withOpacity(0.55),
+                      letterSpacing: -0.1,
+                    ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -182,11 +194,17 @@ class _PosterFrame extends StatelessWidget {
   final String? posterUrl;
   final bool hovered;
   final String contentType;
+  final AppThemePalette palette;
+  final bool showBadge;
+  final bool ambientGlow;
 
   const _PosterFrame({
     required this.posterUrl,
     required this.hovered,
     required this.contentType,
+    required this.palette,
+    required this.showBadge,
+    required this.ambientGlow,
   });
 
   @override
@@ -204,9 +222,9 @@ class _PosterFrame extends StatelessWidget {
             blurRadius: hovered ? 32 : 20,
             offset: Offset(0, hovered ? 18 : 10),
           ),
-          if (hovered)
+          if (hovered && ambientGlow)
             BoxShadow(
-              color: const Color(0xFF7C5CFF).withOpacity(0.24),
+              color: palette.primaryColor.withOpacity(0.30),
               blurRadius: 34,
               spreadRadius: 1,
               offset: const Offset(0, 8),
@@ -274,36 +292,37 @@ class _PosterFrame extends StatelessWidget {
             ),
 
             // Content type badge (top-left)
-            Positioned(
-              left: 9,
-              top: 9,
-              child: AnimatedOpacity(
-                opacity: hovered ? 1.0 : 0.0,
-                duration: const Duration(milliseconds: 170),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF7C5CFF).withOpacity(0.85),
-                    borderRadius: BorderRadius.circular(8),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withOpacity(0.40),
-                        blurRadius: 8,
+            if (showBadge)
+              Positioned(
+                left: 9,
+                top: 9,
+                child: AnimatedOpacity(
+                  opacity: hovered ? 1.0 : 0.0,
+                  duration: const Duration(milliseconds: 170),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: palette.primaryColor.withOpacity(0.88),
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.40),
+                          blurRadius: 8,
+                        ),
+                      ],
+                    ),
+                    child: Text(
+                      contentType.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.6,
+                        color: Colors.white,
                       ),
-                    ],
-                  ),
-                  child: Text(
-                    contentType.toUpperCase(),
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 0.6,
-                      color: Colors.white,
                     ),
                   ),
                 ),
               ),
-            ),
 
             // Border glow on hover
             Positioned.fill(
@@ -314,9 +333,9 @@ class _PosterFrame extends StatelessWidget {
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
                       color: hovered
-                          ? Colors.white.withOpacity(0.28)
+                          ? palette.primaryColor.withOpacity(0.50)
                           : Colors.white.withOpacity(0.08),
-                      width: hovered ? 1.35 : 1,
+                      width: hovered ? 1.4 : 1,
                     ),
                   ),
                 ),

@@ -6,10 +6,10 @@ class SliderArrow extends StatefulWidget {
   final VoidCallback onTap;
 
   const SliderArrow({
-    Key? key,
+    super.key,
     required this.icon,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   State<SliderArrow> createState() => _SliderArrowState();
