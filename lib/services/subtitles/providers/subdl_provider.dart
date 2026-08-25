@@ -1,12 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as html_parser;
-import 'package:archive/archive.dart';
-import 'package:path_provider/path_provider.dart';
 
 import '../../../models/subtitle/subtitle_model.dart';
 import '../subtitle_provider.dart';
+import '../subtitle_extractor.dart';
 
 class SubdlProvider extends SubtitleProvider {
   @override
@@ -155,7 +153,10 @@ class SubdlProvider extends SubtitleProvider {
             if (!match) continue;
           }
 
-          final aTag = rowLi.querySelector('a[href*="dl.subdl.com/subtitle/"]') ??
+          final aTag = rowLi.querySelector('a[href*="dl.subdl.com"]') ??
+              rowLi.querySelector('a[href*=".zip"]') ??
+              rowLi.querySelector('a[title*="Download"]') ??
+              rowLi.querySelector('button[title*="Download"]')?.parent ??
               rowLi.querySelector('a[href*="/subtitle/"]');
           final titleTag = rowLi.querySelector('h4') ?? rowLi.querySelector('a');
 
@@ -190,30 +191,11 @@ class SubdlProvider extends SubtitleProvider {
 
   @override
   Future<String?> download(SubtitleVariant variant) async {
-    try {
-      final res = await http.get(Uri.parse(variant.downloadUrl), headers: _headers);
-      if (res.statusCode != 200) return null;
-
-      final archive = ZipDecoder().decodeBytes(res.bodyBytes);
-
-      for (final file in archive) {
-        if (file.isFile && (file.name.endsWith('.srt') || file.name.endsWith('.vtt'))) {
-          final data = file.content as List<int>;
-
-          final dir = await getTemporaryDirectory();
-          final ext = file.name.endsWith('.vtt') ? 'vtt' : 'srt';
-          final outPath = '${dir.path}/${DateTime.now().millisecondsSinceEpoch}.$ext';
-
-          final outFile = File(outPath);
-          await outFile.writeAsBytes(data);
-
-          return outPath;
-        }
-      }
-    } catch (e) {
-      print('Subdl download error: $e');
-    }
-    return null;
+    return SubtitleExtractor.downloadAndExtract(
+      variant.downloadUrl,
+      headers: _headers,
+      providerName: name,
+    );
   }
 
   // ---------------------------------------------------------------------------

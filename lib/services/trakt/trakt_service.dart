@@ -933,6 +933,56 @@ class TraktService {
     return true;
   }
 
+  /// Clears all paused playback session(s) in Trakt matching a given IMDb / TMDB ID
+  /// via `DELETE /sync/playback/{id}`.
+  Future<bool> deletePlaybackForImdb(String imdbId, {String? type}) async {
+    final isAuth = await isAuthenticated();
+    if (!isAuth || imdbId.isEmpty) return false;
+
+    final cleanId = imdbId.trim().toLowerCase();
+    final isMovie = type == 'movie';
+    final isSeries = type == 'series' || type == 'show' || type == 'shows';
+
+    final futures = <Future<List<dynamic>>>[];
+    if (isMovie || !isSeries) {
+      futures.add(fetchPlaybackItems('movies'));
+    }
+    if (isSeries || !isMovie) {
+      futures.add(fetchPlaybackItems('episodes'));
+    }
+
+    final results = await Future.wait(futures);
+    final idsToDelete = <int>{};
+
+    for (final list in results) {
+      for (final raw in list) {
+        if (raw is! Map<String, dynamic>) continue;
+        final playbackId = raw['id'] as int?;
+        if (playbackId == null) continue;
+
+        final container = (raw['movie'] ?? raw['show']) as Map<String, dynamic>?;
+        final ids = container?['ids'] as Map<String, dynamic>?;
+        final matchImdb = ids?['imdb']?.toString().toLowerCase();
+        final matchTmdb = ids?['tmdb']?.toString();
+
+        if ((matchImdb != null && matchImdb == cleanId) ||
+            (matchTmdb != null && matchTmdb == cleanId)) {
+          idsToDelete.add(playbackId);
+        }
+      }
+    }
+
+    if (idsToDelete.isEmpty) return true;
+
+    var allOk = true;
+    for (final id in idsToDelete) {
+      final ok = await removePlaybackItem(id);
+      if (!ok) allOk = false;
+    }
+    _invalidateLibraryCache();
+    return allOk;
+  }
+
   /// Fetch a standard Trakt list (watchlist, collection, ratings, recommendations).
   /// [listType] is one of: watchlist, collection, ratings, recommendations.
   /// [contentType] is one of: movies, shows.

@@ -1,0 +1,163 @@
+import 'package:flutter/material.dart';
+import 'player_glass.dart';
+
+/// Top header bar for the video player.
+class PlayerTopBar extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final String? quality;
+  final VoidCallback onBack;
+  final VoidCallback? onScreenshot;
+  final VoidCallback? onToggleAspect;
+  final VoidCallback? onCast;
+
+  const PlayerTopBar({
+    super.key,
+    required this.title,
+    this.subtitle,
+    this.quality,
+    required this.onBack,
+    this.onScreenshot,
+    this.onToggleAspect,
+    this.onCast,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: EdgeInsets.only(
+        top: MediaQuery.paddingOf(context).top + 12,
+        left: 24,
+        right: 24,
+        bottom: 24,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.75),
+            Colors.black.withValues(alpha: 0.35),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Frosted Glass Circular Back Button
+          PlayerIconButton(
+            size: 44,
+            iconSize: 26,
+            icon: const Icon(Icons.chevron_left_rounded),
+            tooltip: 'Back',
+            backgroundColor: const Color(0x33080C12),
+            borderRadius: 9999,
+            onPressed: onBack,
+          ),
+
+          const SizedBox(width: 16),
+
+          // Title & Details Column
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.2,
+                          shadows: [
+                            Shadow(
+                              color: Color(0x99000000),
+                              offset: Offset(0, 2),
+                              blurRadius: 8,
+                            ),
+                          ],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (quality != null && quality!.isNotEmpty) ...[
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          quality!.toUpperCase(),
+                          style: const TextStyle(
+                            color: Color(0xDDFFFFFF),
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.6,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                if (subtitle != null && subtitle!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    subtitle!,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.7),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w400,
+                      shadows: const [
+                        Shadow(
+                          color: Color(0x99000000),
+                          offset: Offset(0, 1),
+                          blurRadius: 4,
+                        ),
+                      ],
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ],
+            ),
+          ),
+
+          // Top-Right Action Badges
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (onScreenshot != null)
+                PlayerIconButton(
+                  size: 40,
+                  iconSize: 20,
+                  icon: const Icon(Icons.camera_alt_outlined),
+                  tooltip: 'Screenshot',
+                  backgroundColor: const Color(0x22080C12),
+                  onPressed: onScreenshot,
+                ),
+              if (onCast != null)
+                PlayerIconButton(
+                  size: 40,
+                  iconSize: 20,
+                  icon: const Icon(Icons.cast_rounded),
+                  tooltip: 'Cast',
+                  backgroundColor: const Color(0x22080C12),
+                  onPressed: onCast,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

@@ -380,7 +380,8 @@ class ContinueWatchingService {
     }
   }
 
-  /// Removes an item completely from continue watching.
+  /// Removes an item completely from continue watching locally and removes
+  /// its playback session & tracking state from Trakt and Simkl in the background.
   static Future<void> removeItem(ContinueWatchingItem item) async {
     final current = List<ContinueWatchingItem>.from(activeItems.value);
     current.removeWhere((i) => i.sessionKey == item.sessionKey);
@@ -395,6 +396,46 @@ class ContinueWatchingService {
       await prefs.setString(_storageKey, jsonEncode(jsonList));
     } catch (e) {
       debugPrint('[ContinueWatchingService] Failed to remove session: $e');
+    }
+
+    // Cloud Removal (Trakt & Simkl)
+    _removeCloudSession(item);
+  }
+
+  static void _removeCloudSession(ContinueWatchingItem item) async {
+    final rawId = item.id;
+    if (rawId.startsWith('anilist:')) return;
+
+    final baseId = rawId.contains(':') ? rawId.split(':').first : rawId;
+    if (baseId.isEmpty) return;
+
+    final type = item.type;
+    final isSeries = type == 'series' || type == 'show' || type == 'shows';
+
+    // 1. Trakt Cloud Removal
+    try {
+      if (await TraktService.instance.isAuthenticated()) {
+        await TraktService.instance.deletePlaybackForImdb(baseId, type: type);
+        if (isSeries) {
+          await TraktService.instance.removeFromHistory(baseId, 'series');
+        }
+        debugPrint('[ContinueWatchingService] Removed $baseId ($type) from Trakt continue watching');
+      }
+    } catch (e) {
+      debugPrint('[ContinueWatchingService] Trakt cloud removal error for $baseId: $e');
+    }
+
+    // 2. Simkl Cloud Removal
+    try {
+      if (await SimklService.instance.isAuthenticated()) {
+        await SimklService.instance.deletePlaybackForImdb(baseId);
+        if (isSeries) {
+          await SimklService.instance.addToList(baseId, 'series', 'hold');
+        }
+        debugPrint('[ContinueWatchingService] Removed $baseId ($type) from Simkl continue watching');
+      }
+    } catch (e) {
+      debugPrint('[ContinueWatchingService] Simkl cloud removal error for $baseId: $e');
     }
   }
 

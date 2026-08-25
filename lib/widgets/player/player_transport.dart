@@ -1,0 +1,310 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'player_glass.dart';
+import 'player_seek_bar.dart';
+import 'player_volume_control.dart';
+
+/// Full bottom transport bar containing timeline scrubber, play controls, and menu triggers.
+class PlayerTransport extends StatelessWidget {
+  final bool isPlaying;
+  final Duration position;
+  final Duration duration;
+  final Duration? buffered;
+  final double volume;
+  final bool isMuted;
+  final double playbackRate;
+  final bool isSubtitlesActive;
+  final bool isSubSyncActive;
+  final bool isAudioActive;
+  final bool isFullscreen;
+  final bool hasPrevEpisode;
+  final bool hasNextEpisode;
+
+  // Actions
+  final VoidCallback onPlayPause;
+  final ValueChanged<Duration> onSeek;
+  final VoidCallback onSeekBack10;
+  final VoidCallback onSeekForward10;
+  final ValueChanged<double> onVolumeChanged;
+  final VoidCallback onToggleMute;
+  final VoidCallback onToggleAspectMenu;
+  final VoidCallback onToggleSpeedMenu;
+  final VoidCallback onToggleAudioMenu;
+  final VoidCallback onToggleSubtitleMenu;
+  final VoidCallback onToggleSubSync;
+  final VoidCallback onToggleFullscreen;
+  final VoidCallback? onPrevEpisode;
+  final VoidCallback? onNextEpisode;
+  final ValueChanged<bool>? onScrubbingChanged;
+
+  const PlayerTransport({
+    super.key,
+    required this.isPlaying,
+    required this.position,
+    required this.duration,
+    this.buffered,
+    required this.volume,
+    required this.isMuted,
+    required this.playbackRate,
+    required this.isSubtitlesActive,
+    required this.isSubSyncActive,
+    required this.isAudioActive,
+    required this.isFullscreen,
+    this.hasPrevEpisode = false,
+    this.hasNextEpisode = false,
+    required this.onPlayPause,
+    required this.onSeek,
+    required this.onSeekBack10,
+    required this.onSeekForward10,
+    required this.onVolumeChanged,
+    required this.onToggleMute,
+    required this.onToggleAspectMenu,
+    required this.onToggleSpeedMenu,
+    required this.onToggleAudioMenu,
+    required this.onToggleSubtitleMenu,
+    required this.onToggleSubSync,
+    required this.onToggleFullscreen,
+    this.onPrevEpisode,
+    this.onNextEpisode,
+    this.onScrubbingChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isCompact = screenWidth < 680;
+    final isDesktop = !kIsWeb && (Platform.isWindows || Platform.isMacOS || Platform.isLinux);
+    final btnSize = isCompact ? 36.0 : 42.0;
+    final btnIconSize = isCompact ? 20.0 : 22.0;
+    final playBtnSize = isCompact ? 46.0 : 54.0;
+    final gap = isCompact ? 2.0 : 4.0;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(
+        isCompact ? 14 : 28,
+        isCompact ? 32 : 48,
+        isCompact ? 14 : 28,
+        isCompact ? 14 : 24,
+      ),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [
+            Colors.black.withValues(alpha: 0.85),
+            Colors.black.withValues(alpha: 0.40),
+            Colors.transparent,
+          ],
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Seek Bar & Timers
+          PlayerSeekBar(
+            position: position,
+            duration: duration,
+            buffered: buffered,
+            onSeek: onSeek,
+            onScrubbingChanged: onScrubbingChanged,
+          ),
+
+          SizedBox(height: isCompact ? 8 : 14),
+
+          // Bottom Controls Row
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              // Left Group: Play/Pause, Rewind 10, FastForward 10, Volume Control
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Frosted Play/Pause Button
+                  GestureDetector(
+                    onTap: onPlayPause,
+                    child: Container(
+                      width: playBtnSize,
+                      height: playBtnSize,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.25),
+                          width: 1.2,
+                        ),
+                        boxShadow: const [
+                          BoxShadow(
+                            color: Color(0x66000000),
+                            offset: Offset(0, 4),
+                            blurRadius: 16,
+                          ),
+                        ],
+                      ),
+                      alignment: Alignment.center,
+                      child: Icon(
+                        isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: isCompact ? 28 : 34,
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(width: isCompact ? 8 : 14),
+
+                  // Seek Back 10s
+                  PlayerIconButton(
+                    size: btnSize,
+                    iconSize: btnIconSize + 2,
+                    icon: const Icon(Icons.replay_10_rounded),
+                    tooltip: 'Seek -10s',
+                    onPressed: onSeekBack10,
+                  ),
+
+                  SizedBox(width: gap),
+
+                  // Seek Forward 10s
+                  PlayerIconButton(
+                    size: btnSize,
+                    iconSize: btnIconSize + 2,
+                    icon: const Icon(Icons.forward_10_rounded),
+                    tooltip: 'Seek +10s',
+                    onPressed: onSeekForward10,
+                  ),
+
+                  // Volume Control (Full slider on wide screens, Mute button on compact)
+                  if (!isCompact) ...[
+                    const SizedBox(width: 10),
+                    PlayerVolumeControl(
+                      volume: volume,
+                      isMuted: isMuted,
+                      onVolumeChanged: onVolumeChanged,
+                      onToggleMute: onToggleMute,
+                    ),
+                  ] else ...[
+                    SizedBox(width: gap),
+                    PlayerIconButton(
+                      size: btnSize,
+                      iconSize: btnIconSize,
+                      icon: Icon(
+                        isMuted || volume == 0
+                            ? Icons.volume_off_rounded
+                            : (volume > 1.0 ? Icons.volume_up_rounded : Icons.volume_down_rounded),
+                      ),
+                      tooltip: isMuted ? 'Unmute' : 'Mute',
+                      onPressed: onToggleMute,
+                    ),
+                  ],
+                ],
+              ),
+
+              // Center Group: Episode Navigation (if available and enough width)
+              if (!isCompact && (hasPrevEpisode || hasNextEpisode))
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (hasPrevEpisode && onPrevEpisode != null)
+                      PlayerIconButton(
+                        size: 40,
+                        iconSize: 22,
+                        icon: const Icon(Icons.skip_previous_rounded),
+                        tooltip: 'Previous Episode',
+                        onPressed: onPrevEpisode,
+                      ),
+                    if (hasNextEpisode && onNextEpisode != null) ...[
+                      const SizedBox(width: 6),
+                      PlayerIconButton(
+                        size: 40,
+                        iconSize: 22,
+                        icon: const Icon(Icons.skip_next_rounded),
+                        tooltip: 'Next Episode',
+                        onPressed: onNextEpisode,
+                      ),
+                    ],
+                  ],
+                ),
+
+              // Right Group: Aspect, Speed, Audio, Subtitles, SubSync, Fullscreen
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Aspect Ratio Menu Trigger
+                  PlayerIconButton(
+                    size: btnSize,
+                    iconSize: btnIconSize,
+                    icon: const Icon(Icons.aspect_ratio_rounded),
+                    tooltip: 'Aspect Ratio',
+                    onPressed: onToggleAspectMenu,
+                  ),
+
+                  SizedBox(width: gap),
+
+                  // Playback Speed Menu Trigger
+                  PlayerIconButton(
+                    size: btnSize,
+                    iconSize: btnIconSize,
+                    icon: const Icon(Icons.speed_rounded),
+                    tooltip: 'Playback Speed',
+                    showActiveBadge: playbackRate != 1.0,
+                    onPressed: onToggleSpeedMenu,
+                  ),
+
+                  SizedBox(width: gap),
+
+                  // Audio Menu Trigger
+                  PlayerIconButton(
+                    size: btnSize,
+                    iconSize: btnIconSize,
+                    icon: const Icon(Icons.audiotrack_rounded),
+                    tooltip: 'Audio Tracks',
+                    onPressed: onToggleAudioMenu,
+                  ),
+
+                  SizedBox(width: gap),
+
+                  // Subtitles Menu Trigger
+                  PlayerIconButton(
+                    size: btnSize,
+                    iconSize: btnIconSize,
+                    icon: const Icon(Icons.subtitles_rounded),
+                    tooltip: 'Subtitles',
+                    showActiveBadge: isSubtitlesActive,
+                    badgeColor: const Color(0xFF10B981), // Emerald
+                    onPressed: onToggleSubtitleMenu,
+                  ),
+
+                  SizedBox(width: gap),
+
+                  // Subtitle Sync Trigger
+                  PlayerIconButton(
+                    size: btnSize,
+                    iconSize: btnIconSize,
+                    icon: const Icon(Icons.tune_rounded),
+                    tooltip: 'Subtitle Sync',
+                    active: isSubSyncActive,
+                    activeColor: PlayerTheme.accent,
+                    onPressed: onToggleSubSync,
+                  ),
+
+                  // Fullscreen Button (Desktop only)
+                  if (isDesktop) ...[
+                    SizedBox(width: gap),
+                    PlayerIconButton(
+                      size: btnSize,
+                      iconSize: btnIconSize,
+                      icon: Icon(
+                        isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                      ),
+                      tooltip: isFullscreen ? 'Exit Fullscreen' : 'Fullscreen',
+                      onPressed: onToggleFullscreen,
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
