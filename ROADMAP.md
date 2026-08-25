@@ -21,6 +21,8 @@ being a centered popup instead of a real screen.
 > **Mobile hub switching via drawer** was dropped: the leftover bottom nav bar it referred to is already gone, and the global `TopBar` (3 fixed hub tabs) + `SectionTopBar` (horizontally-scrolling section chips) already cover every screen width, including mobile — a drawer would duplicate that, not fix a gap.
 >
 > **IPTV multi-view** shipped (see CHANGELOG) as an original grid feature, not a port of `interneto/tv-multiview` (a pure JS/PWA project, not pullable as a Flutter dependency). Scoped to channels with an already-cached stream, not fresh scans — see the CHANGELOG entry for why.
+>
+> **`interneto/tv-multiview`'s channel data** (`json-tv/tv-channels.json` -- 96 channels with direct m3u8 URLs, name/logo/category/country) was evaluated as a source for more IPTV channels. Declined: mostly minor national/public broadcasters (34 news, 23 general), the data has no stated license (from `Alplox/json-tv`, marked "(No license)" in their own NOTICE.md), and `HardcodedChannel` has no direct-stream-URL field -- these channels already have a working URL, so bolting them into the existing name+keyword portal-scan model would mean scanning portals for niche broadcasters unlikely to be in that catalog. Using it properly needs a second, direct-play path bypassing the scan entirely -- a real new subsystem, not proportionate to what ~88 working channels (mostly minor) add.
 
 ## Architecture: consistency, SOLID, modularity
 
