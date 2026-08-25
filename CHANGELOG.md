@@ -17,6 +17,7 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ### Live TV
 - Added **Live TV** as a new section in the Watch hub (`lib/pages/iptv/`), wired through `HubController` alongside Movies/Series/Anime/Genres/Library.
+- Added **multi-view**: a grid-view button in the Live TV app bar picks up to 4 channels and plays them at once, tap a tile to swap audio focus. Deliberately scoped to channels that already have a cached stream URL (`IptvChannelResultsStore`) instead of triggering fresh scans -- `IptvController`'s scan flow only tracks one active channel at a time, and extending that shared singleton to N concurrent scan contexts was a real risk to the existing single-channel flow for a first version. Each tile owns and disposes its own `VideoPlayerController` directly and the grid bypasses `PlaybackCoordinator` (several simultaneous video sources don't fit its single-active-source model), stopping whatever else was playing on entry instead.
 
 ### Backup & Restore
 - Added **local JSON export/import** for user data (Settings → Backup & Restore): reads/writes the entire `SharedPreferences` store as one flat, versioned JSON file, so no per-service serializer was needed for the ~15 independent services that hold user data. Envelope schema is deliberately transport-agnostic so cloud sync later is a matter of shipping the same JSON elsewhere.
