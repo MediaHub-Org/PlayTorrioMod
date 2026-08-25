@@ -77,12 +77,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
     });
 
     // Auto-launch URL
-    try {
-      final uri = Uri.parse(verifyUrl);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      }
-    } catch (_) {}
+    _openBrowser(verifyUrl);
 
     // Start Polling
     _pollTimer?.cancel();
@@ -107,6 +102,26 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
         }
       }
     });
+  }
+
+  Future<void> _openBrowser(String url) async {
+    try {
+      final uri = Uri.parse(url);
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
+      );
+      if (!launched) {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (_) {
+      try {
+        final uri = Uri.parse(url);
+        await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      } catch (e) {
+        debugPrint('[Trakt] Browser launch error: $e');
+      }
+    }
   }
 
   Future<void> _logout() async {
@@ -291,7 +306,20 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 16),
+                            const SizedBox(height: 14),
+                            ElevatedButton.icon(
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.white.withValues(alpha: 0.12),
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                              ),
+                              onPressed: () => _openBrowser('https://trakt.tv/activate'),
+                              icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                              label: const Text('Open trakt.tv/activate', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                            ),
+                            const SizedBox(height: 14),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [

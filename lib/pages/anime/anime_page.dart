@@ -17,6 +17,7 @@ import '../manga/manga_page.dart';
 import '../music/music_page.dart';
 import '../iptv/iptv_page.dart';
 import '../my_list/my_list_page.dart';
+import '../downloads/downloads_page.dart';
 import '../settings/settings_page.dart';
 import 'anime_details_page.dart';
 import 'anime_stream_sheet.dart';
@@ -412,7 +413,15 @@ class _AnimePageState extends State<AnimePage> {
               DockItem(
                 icon: Icons.download_rounded,
                 label: 'Downloads',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    LiquidRevealRoute(
+                      page: const DownloadsPage(),
+                      tapPosition: null,
+                    ),
+                  );
+                },
               ),
               DockItem(
                 icon: Icons.favorite_rounded,

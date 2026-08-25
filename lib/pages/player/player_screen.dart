@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
@@ -39,6 +40,9 @@ import '../../widgets/player/player_episodes_panel.dart';
 import '../../widgets/player/player_sources_panel.dart';
 import '../../widgets/player/sub_sync_bar.dart';
 import '../../widgets/player/text_sync_overlay.dart';
+import '../../models/download/download_task_model.dart';
+import '../../services/download/download_service.dart';
+import '../../utils/download_path_helper.dart';
 
 class PlayerScreen extends StatefulWidget {
   final StreamSource source;
@@ -149,6 +153,20 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     try {
       final rawUrl = _currentSource.url;
+
+      // Handle offline downloaded file playback directly
+      if (rawUrl != null && (File(rawUrl).existsSync() || _currentSource.name == 'Downloaded')) {
+        print('[PlayerScreen] Initializing offline local file playback: $rawUrl');
+        final localFile = File(rawUrl);
+        _controller = VideoPlayerController.file(localFile);
+        _controller!.addListener(_onControllerError);
+        _controller!.addListener(_onPlaybackTick);
+        await _controller!.initialize();
+        _controller!.play();
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+
       final infoHash = _currentSource.infoHash;
       final isMagnetUrl = rawUrl != null && rawUrl.startsWith('magnet:');
       final isTorrent = (infoHash != null && infoHash.isNotEmpty) || isMagnetUrl;
@@ -953,6 +971,73 @@ class _PlayerScreenState extends State<PlayerScreen>
     );
   }
 
+  Future<void> _handleDownloadMedia() async {
+    final mediaId = widget.detail?.id ?? _currentTitle;
+    final season = _currentEpisode?.season;
+    final episode = _currentEpisode?.episode;
+
+    final existing = DownloadService.instance.tasksNotifier.value.where((t) {
+      if (t.mediaId == mediaId && t.season == season && t.episode == episode) {
+        return true;
+      }
+      return false;
+    }).firstOrNull;
+
+    if (existing != null) {
+      if (existing.status == DownloadStatus.downloading) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Download already in progress in background.')),
+        );
+        return;
+      } else if (existing.status == DownloadStatus.completed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This media is already downloaded.')),
+        );
+        return;
+      }
+    }
+
+    try {
+      String? customDir;
+      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+        customDir = await DownloadPathHelper.pickDownloadsDirectory();
+        if (customDir == null) {
+          // User canceled folder selection
+          return;
+        }
+      }
+
+      await DownloadService.instance.startDownload(
+        title: widget.detail?.name ?? _currentTitle,
+        mediaId: mediaId,
+        type: widget.detail?.type ?? (widget.detail?.videos.isNotEmpty == true ? 'series' : 'movie'),
+        season: season,
+        episode: episode,
+        episodeTitle: _currentEpisode?.title,
+        posterUrl: widget.detail?.poster,
+        backdropUrl: widget.detail?.background,
+        year: widget.detail?.year,
+        source: _currentSource,
+        customDownloadDir: customDir,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Download started in background. Track progress in Downloads tab.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed to start: $e')),
+        );
+      }
+    }
+  }
+
   Widget _buildControlsOverlay() {
     final buffered = _controller?.value.buffered.isNotEmpty == true
         ? _controller!.value.buffered.last.end
@@ -962,6 +1047,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     final episodeSubtitle = _currentEpisode != null
         ? 'S${_currentEpisode!.season ?? 1}:E${_currentEpisode!.episode ?? 1}${episodeTitle != null && episodeTitle.isNotEmpty ? " • $episodeTitle" : ""}'
         : widget.detail?.year;
+
+    final isOfflineFile = _currentSource.name == 'Downloaded';
 
     return Stack(
       children: [
@@ -996,17 +1083,33 @@ class _PlayerScreenState extends State<PlayerScreen>
                   _isHoveringUI = false;
                   _startHideControlsTimer();
                 },
-                child: PlayerTopBar(
-                  title: widget.detail?.name ?? _currentTitle,
-                  subtitle: episodeSubtitle,
-                  quality: _currentSource.name,
-                  onToggleEpisodes: (!_isLoading && widget.detail?.videos.isNotEmpty == true)
-                      ? _toggleEpisodesPanel
-                      : null,
-                  isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
-                  onBack: () {
-                    WindowService.instance.exitFullscreen();
-                    Navigator.pop(context);
+                child: ValueListenableBuilder<List<DownloadTask>>(
+                  valueListenable: DownloadService.instance.tasksNotifier,
+                  builder: (context, tasks, _) {
+                    final mediaId = widget.detail?.id ?? _currentTitle;
+                    final season = _currentEpisode?.season;
+                    final episode = _currentEpisode?.episode;
+                    final isDownloading = tasks.any((t) =>
+                        t.mediaId == mediaId &&
+                        t.season == season &&
+                        t.episode == episode &&
+                        t.status == DownloadStatus.downloading);
+
+                    return PlayerTopBar(
+                      title: widget.detail?.name ?? _currentTitle,
+                      subtitle: episodeSubtitle,
+                      quality: _currentSource.name,
+                      onDownload: isOfflineFile ? null : _handleDownloadMedia,
+                      isDownloading: isDownloading,
+                      onToggleEpisodes: (!_isLoading && widget.detail?.videos.isNotEmpty == true)
+                          ? _toggleEpisodesPanel
+                          : null,
+                      isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
+                      onBack: () {
+                        WindowService.instance.exitFullscreen();
+                        Navigator.pop(context);
+                      },
+                    );
                   },
                 ),
               ),

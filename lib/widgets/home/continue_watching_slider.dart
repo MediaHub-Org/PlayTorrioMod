@@ -3,6 +3,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/continue_watching/continue_watching_item.dart';
+import '../../models/movie/movie.dart';
+import '../../models/anime/anime_media.dart';
+import '../../pages/details/details_page.dart';
+import '../../pages/anime/anime_details_page.dart';
+import '../../utils/route_transitions.dart';
 import '../../services/app_theme_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../common/slider_arrow.dart';
@@ -259,6 +264,55 @@ class _ContinueWatchingCard extends StatefulWidget {
 class _ContinueWatchingCardState extends State<_ContinueWatchingCard> {
   bool _isHovered = false;
 
+  void _openDetails(BuildContext context) {
+    final item = widget.item;
+    if (item.type == 'anime' || item.id.startsWith('anilist:')) {
+      final anilistId = int.tryParse(item.id.replaceAll('anilist:', '')) ?? 0;
+      final anime = AnimeMedia(
+        id: anilistId,
+        titleEnglish: item.title,
+        titleRomaji: item.title,
+        titleNative: '',
+        titleUserPreferred: item.title,
+        coverImageLarge: item.posterUrl ?? '',
+        coverImageExtraLarge: item.posterUrl ?? '',
+        bannerImage: item.backdropUrl ?? '',
+        description: '',
+        seasonYear: int.tryParse(item.year ?? '') ?? 0,
+        averageScore: 0,
+        genres: const [],
+        format: 'TV',
+        status: 'RELEASING',
+        totalEpisodes: 0,
+      );
+
+      Navigator.push(
+        context,
+        CinematicSlideRoute(page: AnimeDetailsPage(anime: anime)),
+      );
+    } else {
+      final movie = Movie(
+        id: item.id,
+        name: item.title,
+        poster: item.posterUrl ?? item.backdropUrl,
+        year: item.year,
+        type: item.type,
+        addonBaseUrl: '',
+      );
+
+      final box = context.findRenderObject() as RenderBox?;
+      final offset = box?.localToGlobal(box.size.center(Offset.zero));
+
+      Navigator.push(
+        context,
+        LiquidRevealRoute(
+          page: DetailsPage(movie: movie),
+          tapPosition: offset,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
@@ -365,29 +419,62 @@ class _ContinueWatchingCardState extends State<_ContinueWatchingCard> {
                       ),
                     ),
 
-                    // Dismiss Button (Top-Right on Hover)
+                    // Action Buttons (Top-Right on Hover: Details + Dismiss)
                     if (_isHovered)
                       Positioned(
                         top: 6,
                         right: 6,
-                        child: GestureDetector(
-                          onTap: widget.onRemove,
-                          child: Container(
-                            padding: const EdgeInsets.all(4),
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.black.withValues(alpha: 0.7),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                width: 0.8,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            // Details Button
+                            Tooltip(
+                              message: 'View Details',
+                              child: GestureDetector(
+                                onTap: () => _openDetails(context),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.black.withValues(alpha: 0.75),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.25),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.info_outline_rounded,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                ),
                               ),
                             ),
-                            child: const Icon(
-                              Icons.close_rounded,
-                              size: 14,
-                              color: Colors.white,
+                            const SizedBox(width: 6),
+                            // Dismiss / Remove Button
+                            Tooltip(
+                              message: 'Remove from Continue Watching',
+                              child: GestureDetector(
+                                onTap: widget.onRemove,
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: Colors.black.withValues(alpha: 0.75),
+                                    border: Border.all(
+                                      color: Colors.white.withValues(alpha: 0.25),
+                                      width: 0.8,
+                                    ),
+                                  ),
+                                  child: const Icon(
+                                    Icons.close_rounded,
+                                    size: 14,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ),
 

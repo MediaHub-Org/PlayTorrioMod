@@ -12,6 +12,8 @@ class PlayerTopBar extends StatelessWidget {
   final VoidCallback? onScreenshot;
   final VoidCallback? onToggleAspect;
   final VoidCallback? onCast;
+  final VoidCallback? onDownload;
+  final bool isDownloading;
 
   const PlayerTopBar({
     super.key,
@@ -24,6 +26,8 @@ class PlayerTopBar extends StatelessWidget {
     this.onScreenshot,
     this.onToggleAspect,
     this.onCast,
+    this.onDownload,
+    this.isDownloading = false,
   });
 
   @override
@@ -203,6 +207,28 @@ class PlayerTopBar extends StatelessWidget {
                   tooltip: 'Screenshot',
                   backgroundColor: const Color(0x22080C12),
                   onPressed: onScreenshot,
+                ),
+                const SizedBox(width: 8),
+              ],
+              if (onDownload != null) ...[
+                PlayerIconButton(
+                  size: 40,
+                  iconSize: 20,
+                  icon: isDownloading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Color(0xFF10B981),
+                          ),
+                        )
+                      : const Icon(Icons.file_download_outlined),
+                  tooltip: isDownloading ? 'Downloading...' : 'Download Media',
+                  backgroundColor: isDownloading
+                      ? const Color(0xFF10B981).withValues(alpha: 0.2)
+                      : const Color(0x22080C12),
+                  onPressed: onDownload,
                 ),
                 const SizedBox(width: 8),
               ],

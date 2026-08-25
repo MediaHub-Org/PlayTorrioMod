@@ -3,6 +3,8 @@ import 'package:flutter/foundation.dart';
 import 'package:torrserver_flutter/torrserver_flutter.dart';
 
 import '../../utils/parse_torrent_title.dart';
+import '../../models/download/download_task_model.dart';
+import '../download/download_service.dart';
 
 /// Rich torrent statistics object.
 class TorrentStats {
@@ -394,15 +396,29 @@ class TorrentStreamService {
 
   /// Drops active torrents from RAM to free resources when closing player.
   Future<void> cleanup() async {
+    final downloadingHashes = <String>{};
+    for (final task in DownloadService.instance.tasksNotifier.value) {
+      if (task.isDownloading || task.status == DownloadStatus.queued) {
+        final h1 = task.infoHash != null ? _extractHash(task.infoHash!) : null;
+        final h2 = task.magnet != null ? _extractHash(task.magnet!) : null;
+        final h3 = task.rawUrl != null ? _extractHash(task.rawUrl!) : null;
+        if (h1 != null) downloadingHashes.add(h1);
+        if (h2 != null) downloadingHashes.add(h2);
+        if (h3 != null) downloadingHashes.add(h3);
+      }
+    }
+
     for (final hash in List<String>.from(_activeTorrents)) {
+      if (downloadingHashes.contains(hash.toLowerCase())) {
+        continue;
+      }
       try {
         if (_controller.isRunning) {
           await _controller.dropTorrent(hash);
         }
       } catch (_) {}
     }
-    _activeTorrents.clear();
-    _latestUpdates.clear();
+    _activeTorrents.removeWhere((h) => !downloadingHashes.contains(h.toLowerCase()));
     _log('TorrentStreamService cleanup completed.');
   }
 

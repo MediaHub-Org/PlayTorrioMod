@@ -29,6 +29,7 @@ import '../music/music_page.dart';
 import '../anime/anime_page.dart';
 import '../iptv/iptv_page.dart';
 import '../my_list/my_list_page.dart';
+import '../downloads/downloads_page.dart';
 
 import '../../widgets/common/liquid_dock.dart';
 
@@ -432,7 +433,15 @@ class _HomePageState extends State<HomePage> {
               DockItem(
                 icon: Icons.download_rounded,
                 label: 'Downloads',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    LiquidRevealRoute(
+                      page: const DownloadsPage(),
+                      tapPosition: null,
+                    ),
+                  );
+                },
               ),
               DockItem(
                 icon: Icons.favorite_rounded,
