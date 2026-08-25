@@ -45,10 +45,6 @@ class _MusicPageState extends State<MusicPage> {
   MusicTrack? _heroTrack;
 
   MusicSearchData _searchData = MusicSearchData.empty;
-  MusicArtistDetails? _activeArtistModal;
-  MusicAlbumDetails? _activeAlbumModal;
-  MusicPlaylistDetails? _activeCuratedPlaylistModal;
-  UserPlaylist? _activeUserPlaylistModal;
 
   bool _isLoading = true;
   bool _isSearching = false;
@@ -208,9 +204,19 @@ class _MusicPageState extends State<MusicPage> {
     _showToast('Loading artist details...');
     final details = await _musicService.fetchArtistDetails(artistId);
     if (details != null && mounted) {
-      setState(() {
-        _activeArtistModal = details;
-      });
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _MusicArtistDetailPage(
+            details: details,
+            playerController: _playerController,
+            onPlayTrack: (t, queue) =>
+                _playerController.playTrack(t, playlistQueue: queue),
+            onAddToPlaylist: _showAddToPlaylistMenu,
+            onOpenAlbum: _openAlbumModal,
+          ),
+        ),
+      );
     }
   }
 
@@ -218,9 +224,18 @@ class _MusicPageState extends State<MusicPage> {
     _showToast('Loading album...');
     final details = await _musicService.fetchAlbumDetails(albumId);
     if (details != null && mounted) {
-      setState(() {
-        _activeAlbumModal = details;
-      });
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _MusicAlbumDetailPage(
+            details: details,
+            playerController: _playerController,
+            onPlayTrack: (t, queue) =>
+                _playerController.playTrack(t, playlistQueue: queue),
+            onAddToPlaylist: _showAddToPlaylistMenu,
+          ),
+        ),
+      );
     }
   }
 
@@ -228,10 +243,34 @@ class _MusicPageState extends State<MusicPage> {
     _showToast('Loading playlist...');
     final details = await _musicService.fetchPlaylistDetails(playlistId);
     if (details != null && mounted) {
-      setState(() {
-        _activeCuratedPlaylistModal = details;
-      });
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => _MusicCuratedPlaylistDetailPage(
+            details: details,
+            playerController: _playerController,
+            onPlayTrack: (t, queue) =>
+                _playerController.playTrack(t, playlistQueue: queue),
+            onAddToPlaylist: _showAddToPlaylistMenu,
+          ),
+        ),
+      );
     }
+  }
+
+  void _openUserPlaylistDetail(UserPlaylist pl) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => _MusicUserPlaylistDetailPage(
+          playlistId: pl.id,
+          libraryService: _libraryService,
+          playerController: _playerController,
+          onPlayTrack: (t, queue) =>
+              _playerController.playTrack(t, playlistQueue: queue),
+        ),
+      ),
+    );
   }
 
   void _handleKeyEvent(KeyEvent event) {
@@ -257,16 +296,6 @@ class _MusicPageState extends State<MusicPage> {
         setState(() => _showLyricsDrawer = false);
       } else if (_showShortcutsModal) {
         setState(() => _showShortcutsModal = false);
-      } else if (_activeArtistModal != null ||
-          _activeAlbumModal != null ||
-          _activeCuratedPlaylistModal != null ||
-          _activeUserPlaylistModal != null) {
-        setState(() {
-          _activeArtistModal = null;
-          _activeAlbumModal = null;
-          _activeCuratedPlaylistModal = null;
-          _activeUserPlaylistModal = null;
-        });
       } else {
         Navigator.maybePop(context);
       }
@@ -784,64 +813,6 @@ class _MusicPageState extends State<MusicPage> {
                   track: _playerController.currentTrack!,
                   playerController: _playerController,
                   onClose: () => setState(() => _showLyricsDrawer = false),
-                ),
-              ),
-
-            // Modals: Artist Detail
-            if (_activeArtistModal != null)
-              Positioned.fill(
-                child: _MusicArtistDetailModal(
-                  details: _activeArtistModal!,
-                  playerController: _playerController,
-                  onClose: () => setState(() => _activeArtistModal = null),
-                  onPlayTrack: (t, queue) => _playerController.playTrack(t, playlistQueue: queue),
-                  onAddToPlaylist: _showAddToPlaylistMenu,
-                  onOpenAlbum: _openAlbumModal,
-                ),
-              ),
-
-            // Modals: Album Detail
-            if (_activeAlbumModal != null)
-              Positioned.fill(
-                child: _MusicAlbumDetailModal(
-                  details: _activeAlbumModal!,
-                  playerController: _playerController,
-                  onClose: () => setState(() => _activeAlbumModal = null),
-                  onPlayTrack: (t, queue) => _playerController.playTrack(t, playlistQueue: queue),
-                  onAddToPlaylist: _showAddToPlaylistMenu,
-                ),
-              ),
-
-            // Modals: Curated Playlist Detail
-            if (_activeCuratedPlaylistModal != null)
-              Positioned.fill(
-                child: _MusicCuratedPlaylistDetailModal(
-                  details: _activeCuratedPlaylistModal!,
-                  playerController: _playerController,
-                  onClose: () => setState(() => _activeCuratedPlaylistModal = null),
-                  onPlayTrack: (t, queue) => _playerController.playTrack(t, playlistQueue: queue),
-                  onAddToPlaylist: _showAddToPlaylistMenu,
-                ),
-              ),
-
-            // Modals: User Playlist Detail
-            if (_activeUserPlaylistModal != null)
-              Positioned.fill(
-                child: _MusicUserPlaylistDetailModal(
-                  playlist: _activeUserPlaylistModal!,
-                  playerController: _playerController,
-                  onClose: () => setState(() => _activeUserPlaylistModal = null),
-                  onPlayTrack: (t, queue) => _playerController.playTrack(t, playlistQueue: queue),
-                  onRemoveTrack: (trackId) async {
-                    await _libraryService.removeTrackFromPlaylist(_activeUserPlaylistModal!.id, trackId);
-                    setState(() {
-                      final updated = _libraryService.userPlaylists.firstWhere(
-                        (p) => p.id == _activeUserPlaylistModal!.id,
-                        orElse: () => _activeUserPlaylistModal!,
-                      );
-                      _activeUserPlaylistModal = updated;
-                    });
-                  },
                 ),
               ),
 
@@ -1523,7 +1494,7 @@ class _MusicPageState extends State<MusicPage> {
         return _MusicHoverable(
           scaleFactor: 1.04,
           child: GestureDetector(
-            onTap: () => setState(() => _activeUserPlaylistModal = pl),
+            onTap: () => _openUserPlaylistDetail(pl),
             child: Container(
               decoration: BoxDecoration(
                 color: const Color(0xFF13151F),
@@ -2653,6 +2624,9 @@ class _MusicQueueDrawer extends StatelessWidget {
 /// Shared full-screen dimmed-backdrop + glass panel shell used by every
 /// music detail modal (artist/album/curated playlist/user playlist) --
 /// identical across all four, only the content inside differs.
+/// The full-screen shell shared by Artist/Album/Playlist detail pages, kept
+/// in one place so they read as real screens (like every other detail view
+/// in the app) instead of a fixed-size overlay popup.
 class _MusicModalShell extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry? padding;
@@ -2661,43 +2635,28 @@ class _MusicModalShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final size = MediaQuery.sizeOf(context);
-    final isMobile = size.width < 700;
-
-    return Container(
-      color: Colors.black.withValues(alpha: 0.85),
-      child: Center(
-        child: PerformanceLiquidLens(
-          style: PerformanceGlassStyles.sheet,
-          child: Container(
-            width: isMobile ? size.width - 24 : 720,
-            height: isMobile ? size.height * 0.85 : 640,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F121C),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-            ),
-            padding: padding,
-            child: child,
-          ),
+    return Scaffold(
+      backgroundColor: const Color(0xFF0F121C),
+      body: SafeArea(
+        child: Padding(
+          padding: padding ?? EdgeInsets.zero,
+          child: child,
         ),
       ),
     );
   }
 }
 
-class _MusicArtistDetailModal extends StatelessWidget {
+class _MusicArtistDetailPage extends StatelessWidget {
   final MusicArtistDetails details;
   final MusicPlayerController playerController;
-  final VoidCallback onClose;
   final Function(MusicTrack, List<MusicTrack>) onPlayTrack;
   final Function(MusicTrack) onAddToPlaylist;
   final Function(String) onOpenAlbum;
 
-  const _MusicArtistDetailModal({
+  const _MusicArtistDetailPage({
     required this.details,
     required this.playerController,
-    required this.onClose,
     required this.onPlayTrack,
     required this.onAddToPlaylist,
     required this.onOpenAlbum,
@@ -2739,7 +2698,7 @@ class _MusicArtistDetailModal extends StatelessWidget {
                       right: 12,
                       child: IconButton(
                         icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
-                        onPressed: onClose,
+                        onPressed: () => Navigator.pop(context),
                       ),
                     ),
                     Positioned(
@@ -2862,17 +2821,15 @@ class _MusicArtistDetailModal extends StatelessWidget {
   }
 }
 
-class _MusicAlbumDetailModal extends StatelessWidget {
+class _MusicAlbumDetailPage extends StatelessWidget {
   final MusicAlbumDetails details;
   final MusicPlayerController playerController;
-  final VoidCallback onClose;
   final Function(MusicTrack, List<MusicTrack>) onPlayTrack;
   final Function(MusicTrack) onAddToPlaylist;
 
-  const _MusicAlbumDetailModal({
+  const _MusicAlbumDetailPage({
     required this.details,
     required this.playerController,
-    required this.onClose,
     required this.onPlayTrack,
     required this.onAddToPlaylist,
   });
@@ -2971,7 +2928,7 @@ class _MusicAlbumDetailModal extends StatelessWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                      onPressed: onClose,
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
@@ -3007,17 +2964,15 @@ class _MusicAlbumDetailModal extends StatelessWidget {
   }
 }
 
-class _MusicCuratedPlaylistDetailModal extends StatelessWidget {
+class _MusicCuratedPlaylistDetailPage extends StatelessWidget {
   final MusicPlaylistDetails details;
   final MusicPlayerController playerController;
-  final VoidCallback onClose;
   final Function(MusicTrack, List<MusicTrack>) onPlayTrack;
   final Function(MusicTrack) onAddToPlaylist;
 
-  const _MusicCuratedPlaylistDetailModal({
+  const _MusicCuratedPlaylistDetailPage({
     required this.details,
     required this.playerController,
-    required this.onClose,
     required this.onPlayTrack,
     required this.onAddToPlaylist,
   });
@@ -3103,7 +3058,7 @@ class _MusicCuratedPlaylistDetailModal extends StatelessWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                      onPressed: onClose,
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
@@ -3139,34 +3094,48 @@ class _MusicCuratedPlaylistDetailModal extends StatelessWidget {
   }
 }
 
-class _MusicUserPlaylistDetailModal extends StatelessWidget {
-  final UserPlaylist playlist;
+class _MusicUserPlaylistDetailPage extends StatelessWidget {
+  final String playlistId;
+  final MusicLibraryService libraryService;
   final MusicPlayerController playerController;
-  final VoidCallback onClose;
   final Function(MusicTrack, List<MusicTrack>) onPlayTrack;
-  final Function(String) onRemoveTrack;
 
-  const _MusicUserPlaylistDetailModal({
-    required this.playlist,
+  const _MusicUserPlaylistDetailPage({
+    required this.playlistId,
+    required this.libraryService,
     required this.playerController,
-    required this.onClose,
     required this.onPlayTrack,
-    required this.onRemoveTrack,
   });
 
   @override
   Widget build(BuildContext context) {
-    final tracks = playlist.tracks;
     final size = MediaQuery.sizeOf(context);
     final isMobile = size.width < 700;
 
-    return _MusicModalShell(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
+    // Rebuilds off the library service so removing a track (or the playlist
+    // itself, from elsewhere) is reflected live instead of the page holding
+    // a stale snapshot.
+    return ListenableBuilder(
+      listenable: libraryService,
+      builder: (context, _) {
+        final playlist = libraryService.userPlaylists
+            .where((p) => p.id == playlistId)
+            .firstOrNull;
+        if (playlist == null) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (Navigator.canPop(context)) Navigator.pop(context);
+          });
+          return const _MusicModalShell(child: SizedBox.shrink());
+        }
+        final tracks = playlist.tracks;
+
+        return _MusicModalShell(
+          padding: const EdgeInsets.all(24),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: isMobile ? 70 : 100,
@@ -3236,7 +3205,7 @@ class _MusicUserPlaylistDetailModal extends StatelessWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                      onPressed: onClose,
+                      onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
@@ -3293,7 +3262,10 @@ class _MusicUserPlaylistDetailModal extends StatelessWidget {
                               ),
                               trailing: IconButton(
                                 icon: const Icon(Icons.delete_outline_rounded, color: Colors.white38),
-                                onPressed: () => onRemoveTrack(track.id),
+                                onPressed: () => libraryService.removeTrackFromPlaylist(
+                                  playlistId,
+                                  track.id,
+                                ),
                               ),
                               onTap: () => onPlayTrack(track, tracks),
                             );
@@ -3304,6 +3276,8 @@ class _MusicUserPlaylistDetailModal extends StatelessWidget {
                 ),
               ],
             ),
+        );
+      },
     );
   }
 }
