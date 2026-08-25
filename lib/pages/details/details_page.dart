@@ -12,6 +12,8 @@ import '../../services/addon/addon_manager.dart';
 import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/my_list/my_list_service.dart';
+import '../../services/tmdb/tmdb_service.dart';
+import '../../services/tmdb/tmdb_settings.dart';
 import '../../utils/route_transitions.dart';
 import '../discover/discover_page.dart';
 import '../player/watch_screen.dart';
@@ -77,6 +79,10 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   // Similar content from BestSimilar
   List<BSItem> _similarItems = [];
   bool _isFetchingSimilar = false;
+
+  // TMDB cast enrichment (photos/character names), only when a key is
+  // configured and the addon's own cast data has none.
+  List<CastMember>? _enrichedCast;
 
   late AnimationController _animController;
   late Animation<double> _fadeAnimation;
@@ -265,6 +271,24 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
 
       // Fire off similar content fetch in background
       _fetchSimilarContent();
+      _fetchCastFromTmdb();
+    }
+  }
+
+  Future<void> _fetchCastFromTmdb() async {
+    final meta = _detail;
+    final tmdbId = meta?.tmdbId;
+    if (meta == null || tmdbId == null || tmdbId.isEmpty) return;
+    if (TmdbSettings.apiKey.value == null) return;
+
+    // Only enrich when the addon's own cast has no photos to show already.
+    final hasPhotos = meta.castMembers.any((c) => c.profileUrl != null && c.profileUrl!.isNotEmpty);
+    if (hasPhotos) return;
+
+    final isTvShow = widget.movie.type == 'series' || widget.movie.type == 'anime';
+    final cast = await TmdbService.fetchCast(tmdbId, isTvShow: isTvShow);
+    if (cast.isNotEmpty && mounted) {
+      setState(() => _enrichedCast = cast);
     }
   }
 
@@ -450,7 +474,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                           SizedBox(height: heroHeight - overlap),
                           isDesktop ? _buildDesktopLayout(meta, posterUrl) : _buildMobileLayout(meta, posterUrl),
                           const SizedBox(height: _Space.xl),
-                          if (meta.castMembers.isNotEmpty || meta.cast.isNotEmpty) ...[
+                          if ((_enrichedCast?.isNotEmpty ?? false) || meta.castMembers.isNotEmpty || meta.cast.isNotEmpty) ...[
                             _buildCastRow(meta),
                             const SizedBox(height: _Space.xl),
                           ],
@@ -1041,9 +1065,10 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
   Widget _buildCastRow(MovieDetail meta) {
-    final List<CastMember> members = meta.castMembers.isNotEmpty
-        ? meta.castMembers
-        : meta.cast.map((c) => CastMember(name: c)).toList();
+    final List<CastMember> members = _enrichedCast ??
+        (meta.castMembers.isNotEmpty
+            ? meta.castMembers
+            : meta.cast.map((c) => CastMember(name: c)).toList());
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHoveringCast = true),

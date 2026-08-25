@@ -8,6 +8,7 @@ import '../../services/backup/backup_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/glass_settings.dart';
 import '../../services/player_settings.dart';
+import '../../services/tmdb/tmdb_settings.dart';
 import '../../services/app_updater_service.dart';
 import '../../services/trakt/trakt_auth_service.dart';
 import '../../services/trakt/trakt_sync_service.dart';
@@ -567,6 +568,10 @@ class _SettingsPageState extends State<SettingsPage> {
           _buildDebridSection(),
           const SizedBox(height: 28),
 
+          // ── TMDB section ──
+          _buildTmdbSection(),
+          const SizedBox(height: 28),
+
           // ── Backup & Restore section ──
           _buildBackupSection(),
           const SizedBox(height: 28),
@@ -985,6 +990,139 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         );
       }
+    }
+  }
+
+  // ── TMDB section ────────────────────────────────────────────────────────
+
+  Widget _buildTmdbSection() {
+    return ValueListenableBuilder<String?>(
+      valueListenable: TmdbSettings.apiKey,
+      builder: (context, apiKey, _) {
+        final connected = apiKey != null;
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: const Color(0xFF12151E),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: connected
+                  ? const Color(0xFF01B4E4).withValues(alpha: 0.3)
+                  : Colors.white.withValues(alpha: 0.08),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF01B4E4).withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(Icons.theaters_rounded, color: Color(0xFF01B4E4)),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'TMDB Cast Photos',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      connected
+                          ? 'Connected — cast photos and character names load when available.'
+                          : 'Add your own free TMDB API key to fill in cast photos and character names most addons don\'t provide.',
+                      style: const TextStyle(color: Colors.white54, fontSize: 12.5, height: 1.35),
+                    ),
+                  ],
+                ),
+              ),
+              if (connected)
+                TextButton(
+                  onPressed: () => TmdbSettings.setApiKey(null),
+                  child: Text(
+                    'Disconnect',
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 13),
+                  ),
+                )
+              else
+                ElevatedButton(
+                  onPressed: _showTmdbKeyDialog,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF01B4E4),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
+                  child: const Text('Connect', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _showTmdbKeyDialog() async {
+    final controller = TextEditingController();
+
+    final key = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151822),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Connect TMDB',
+          style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Paste your TMDB API key (free — sign up at themoviedb.org, no billing required).',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 13),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'API Key',
+                hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                filled: true,
+                fillColor: const Color(0xFF0D1017),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text('Cancel', style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, controller.text.trim()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF01B4E4),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (key != null && key.isNotEmpty) {
+      await TmdbSettings.setApiKey(key);
     }
   }
 

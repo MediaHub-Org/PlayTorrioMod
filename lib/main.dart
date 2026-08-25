@@ -14,6 +14,7 @@ import './services/iptv/iptv_controller.dart';
 import './services/my_list/my_list_service.dart';
 import './services/playback/playback_history_service.dart';
 import './services/player_settings.dart';
+import './services/tmdb/tmdb_settings.dart';
 import './services/trakt/trakt_auth_service.dart';
 import './services/trakt/trakt_sync_service.dart';
 import './widgets/update_dialog.dart';
@@ -53,6 +54,7 @@ void main() async {
     MyListService.initialize(),
     PlaybackHistoryService.initialize(),
     PlayerSettings.initialize(),
+    TmdbSettings.initialize(),
     TraktAuthService().initialize(),
     TraktSyncService.initialize(),
   ]);
