@@ -1,8 +1,8 @@
-import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../services/iptv/hardcoded_channels.dart';
+import '../common/hero_carousel_auto_rotate.dart';
 
 class IptvHeroCarousel extends StatefulWidget {
   final List<HardcodedChannel> channels;
@@ -20,37 +20,15 @@ class IptvHeroCarousel extends StatefulWidget {
   State<IptvHeroCarousel> createState() => _IptvHeroCarouselState();
 }
 
-class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
-  late final PageController _pageController;
-  int _currentIndex = 0;
-  Timer? _timer;
-  bool _isHovering = false;
-
+class _IptvHeroCarouselState extends State<IptvHeroCarousel>
+    with HeroCarouselAutoRotate<IptvHeroCarousel> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
-    _startTimer();
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  void _startTimer() {
-    _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 7), (_) {
-      if (!mounted || widget.channels.length <= 1 || _isHovering) return;
-      final next = (_currentIndex + 1) % widget.channels.length;
-      _pageController.animateToPage(
-        next,
-        duration: const Duration(milliseconds: 700),
-        curve: Curves.easeOutCubic,
-      );
-    });
+    startHeroAutoRotate(
+      itemCount: widget.channels.length,
+      interval: const Duration(seconds: 7),
+    );
   }
 
   bool _isDesktop() {
@@ -70,8 +48,8 @@ class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
     final isDesktop = _isDesktop();
 
     return MouseRegion(
-      onEnter: (_) => setState(() => _isHovering = true),
-      onExit: (_) => setState(() => _isHovering = false),
+      onEnter: (_) => setState(() => isHoveringCarousel = true),
+      onExit: (_) => setState(() => isHoveringCarousel = false),
       child: RepaintBoundary(
         child: SizedBox(
           height: heroHeight,
@@ -81,10 +59,10 @@ class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
             children: [
               // Page View
               PageView.builder(
-                controller: _pageController,
+                controller: heroPageController,
                 itemCount: widget.channels.length,
                 onPageChanged: (idx) {
-                  setState(() => _currentIndex = idx);
+                  setState(() => currentHeroIndex = idx);
                 },
                 itemBuilder: (context, index) {
                   final ch = widget.channels[index];
@@ -97,7 +75,7 @@ class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
               ),
 
               // Desktop Previous / Next Hover Arrows
-              if (isDesktop && _isHovering && widget.channels.length > 1) ...[
+              if (isDesktop && isHoveringCarousel && widget.channels.length > 1) ...[
                 Positioned(
                   left: 20,
                   top: 0,
@@ -106,13 +84,9 @@ class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
                     child: _HeroArrowButton(
                       icon: Icons.chevron_left_rounded,
                       onTap: () {
-                        final prev = (_currentIndex - 1 + widget.channels.length) %
+                        final prev = (currentHeroIndex - 1 + widget.channels.length) %
                             widget.channels.length;
-                        _pageController.animateToPage(
-                          prev,
-                          duration: const Duration(milliseconds: 500),
-                          curve: Curves.easeOutCubic,
-                        );
+                        goToHeroPage(prev);
                       },
                     ),
                   ),
@@ -125,12 +99,8 @@ class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
                     child: _HeroArrowButton(
                       icon: Icons.chevron_right_rounded,
                       onTap: () {
-                        final next = (_currentIndex + 1) % widget.channels.length;
-                        _pageController.animateToPage(
-                          next,
-                          duration: const Duration(milliseconds: 500),
-                          curve: Curves.easeOutCubic,
-                        );
+                        final next = (currentHeroIndex + 1) % widget.channels.length;
+                        goToHeroPage(next);
                       },
                     ),
                   ),
@@ -149,24 +119,18 @@ class _IptvHeroCarouselState extends State<IptvHeroCarousel> {
                       children: List.generate(
                         widget.channels.length,
                         (index) => GestureDetector(
-                          onTap: () {
-                            _pageController.animateToPage(
-                              index,
-                              duration: const Duration(milliseconds: 500),
-                              curve: Curves.easeOutCubic,
-                            );
-                          },
+                          onTap: () => goToHeroPage(index),
                           child: AnimatedContainer(
                             duration: const Duration(milliseconds: 250),
                             margin: const EdgeInsets.symmetric(horizontal: 4),
-                            width: _currentIndex == index ? 26 : 7,
+                            width: currentHeroIndex == index ? 26 : 7,
                             height: 7,
                             decoration: BoxDecoration(
-                              color: _currentIndex == index
+                              color: currentHeroIndex == index
                                   ? const Color(0xFF7C5CFF)
                                   : Colors.white.withValues(alpha: 0.25),
                               borderRadius: BorderRadius.circular(4),
-                              boxShadow: _currentIndex == index
+                              boxShadow: currentHeroIndex == index
                                   ? [
                                       const BoxShadow(
                                         color: Color(0xFF7C5CFF),

@@ -12,6 +12,7 @@ import '../../widgets/anime/anime_card.dart';
 import '../../widgets/anime/anime_slider_section.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/common/filter_dropdown.dart';
+import '../../widgets/common/hero_carousel_auto_rotate.dart';
 import '../../widgets/common/page_search_button.dart';
 import 'anime_details_page.dart';
 import 'anime_stream_sheet.dart';
@@ -431,46 +432,23 @@ class _AnimeHeroCarousel extends StatefulWidget {
   State<_AnimeHeroCarousel> createState() => _AnimeHeroCarouselState();
 }
 
-class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel> {
+class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel>
+    with HeroCarouselAutoRotate<_AnimeHeroCarousel> {
   static const _rotateEvery = Duration(seconds: 8);
-  final PageController _pageController = PageController();
-
-  Timer? _timer;
-  int _index = 0;
-  bool _isHovering = false;
 
   @override
   void initState() {
     super.initState();
-    _startTimer();
+    startHeroAutoRotate(
+      itemCount: widget.animeList.length,
+      interval: _rotateEvery,
+      transitionDuration: const Duration(milliseconds: 700),
+      transitionCurve: Curves.easeInOutCubic,
+    );
   }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    _pageController.dispose();
-    super.dispose();
-  }
-
-  void _startTimer() {
-    _timer?.cancel();
-    if (widget.animeList.length < 2) return;
-    _timer = Timer.periodic(_rotateEvery, (_) {
-      if (!mounted || !_pageController.hasClients) return;
-      final next = (_index + 1) % widget.animeList.length;
-      _pageController.animateToPage(
-        next,
-        duration: const Duration(milliseconds: 700),
-        curve: Curves.easeInOutCubic,
-      );
-    });
-  }
-
-  void _pauseTimer() => _timer?.cancel();
 
   void _goTo(int index) {
-    if (!_pageController.hasClients) return;
-    _pageController.animateToPage(
+    goToHeroPage(
       index,
       duration: const Duration(milliseconds: 600),
       curve: Curves.easeInOutCubic,
@@ -499,14 +477,8 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel> {
     if (widget.animeList.isEmpty) return SizedBox(height: heroHeight);
 
     return MouseRegion(
-      onEnter: (_) {
-        setState(() => _isHovering = true);
-        _pauseTimer();
-      },
-      onExit: (_) {
-        setState(() => _isHovering = false);
-        _startTimer();
-      },
+      onEnter: (_) => setState(() => isHoveringCarousel = true),
+      onExit: (_) => setState(() => isHoveringCarousel = false),
       child: SizedBox(
         height: heroHeight,
         width: double.infinity,
@@ -514,9 +486,9 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel> {
           fit: StackFit.expand,
           children: [
             PageView.builder(
-              controller: _pageController,
+              controller: heroPageController,
               itemCount: widget.animeList.length,
-              onPageChanged: (i) => setState(() => _index = i),
+              onPageChanged: (i) => setState(() => currentHeroIndex = i),
               itemBuilder: (context, i) {
                 final anime = widget.animeList[i];
                 return _AnimeHeroSlide(
@@ -537,7 +509,7 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: List.generate(widget.animeList.length, (i) {
-                    final active = i == _index;
+                    final active = i == currentHeroIndex;
                     return GestureDetector(
                       onTap: () => _goTo(i),
                       child: AnimatedContainer(
@@ -569,9 +541,9 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel> {
 
             // Desktop Hover Arrows
             if (widget.animeList.length > 1 &&
-                _isHovering &&
+                isHoveringCarousel &&
                 screenWidth > 600) ...[
-              if (_index > 0)
+              if (currentHeroIndex > 0)
                 Positioned(
                   left: 24,
                   top: 0,
@@ -579,11 +551,11 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel> {
                   child: Center(
                     child: _CarouselArrow(
                       icon: Icons.arrow_back_ios_new_rounded,
-                      onTap: () => _goTo(_index - 1),
+                      onTap: () => _goTo(currentHeroIndex - 1),
                     ),
                   ),
                 ),
-              if (_index < widget.animeList.length - 1)
+              if (currentHeroIndex < widget.animeList.length - 1)
                 Positioned(
                   right: 24,
                   top: 0,
@@ -591,7 +563,7 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel> {
                   child: Center(
                     child: _CarouselArrow(
                       icon: Icons.arrow_forward_ios_rounded,
-                      onTap: () => _goTo(_index + 1),
+                      onTap: () => _goTo(currentHeroIndex + 1),
                     ),
                   ),
                 ),
