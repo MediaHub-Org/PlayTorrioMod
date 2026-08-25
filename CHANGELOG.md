@@ -4,6 +4,11 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Merged upstream — 2026-08-25
+- Reconciled `ayman708-UX/PlayTorrioV3` main (8 commits since the last merge) with this fork's navigation restructure and everything shipped this session. Brings in: a full Trakt/Simkl cloud-sync rewrite, a download manager with a 5-provider Debrid engine (Real-Debrid, TorBox, AllDebrid, Premiumize, Debrid-Link), an app-wide `AppThemeService` color-palette system, per-content-type player customization (`AudiobookSettings`/`MusicSettings`/`MangaSettings`/`IptvSettings` "player studio" pages), a modularized settings page (401-line hub + category sub-pages, replacing the 1503-line monolith), and various player/scraper fixes.
+- Kept our hub navigation, `PlaybackCoordinator` fixes, and this session's UI decisions (volume slider not shuffle, real pages not modals) layered inside upstream's new architecture rather than reverted by it. Dropped the old HomePage/LiquidDock-specific pieces (already removed from our nav) and ~1750 lines of now-dead pre-refactor UI superseded by upstream's own extracted widget files. Full resolution notes and per-file decisions are in the merge commit (`207a779`).
+- Verified clean: `flutter analyze` 0 errors, full test suite passes, Windows release build succeeds.
+
 ### Fixed
 - **Black screen on Windows launch**: the bottom play-bar was built by a `ListenableBuilder` sitting directly as a `Stack` child, returning `SizedBox.shrink()` normally but a bare `Positioned` when the Listen hub was active. Flutter's `Stack` doesn't handle a child flipping between Positioned and non-Positioned across rebuilds; it corrupted the whole window's paint — app was fully built underneath (confirmed via widget-tree dump) but rendered solid black. Fixed by wrapping it in a stable outer `Positioned`.
 - Corrupted `scripts/run_windows.bat` (stray characters had mangled `if`/`echo`/`pushd` into invalid batch syntax).
