@@ -1,8 +1,9 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../services/iptv/hardcoded_channels.dart';
+import '../common/interactive_card_shell.dart';
 
-class IptvChannelCard extends StatefulWidget {
+class IptvChannelCard extends StatelessWidget {
   final HardcodedChannel channel;
   final VoidCallback onTap;
   final double? width;
@@ -17,43 +18,18 @@ class IptvChannelCard extends StatefulWidget {
   });
 
   @override
-  State<IptvChannelCard> createState() => _IptvChannelCardState();
-}
-
-class _IptvChannelCardState extends State<IptvChannelCard> {
-  bool _hovered = false;
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final ch = widget.channel;
+    final ch = channel;
     final primaryColor = ch.gradient.isNotEmpty ? ch.gradient.first : const Color(0xFF7C5CFF);
     final secondaryColor = ch.gradient.length > 1 ? ch.gradient.last : const Color(0xFF00D2EF);
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() {
-        _hovered = false;
-        _pressed = false;
-      }),
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapCancel: () => setState(() => _pressed = false),
-        onTapUp: (_) => setState(() => _pressed = false),
-        onTap: widget.onTap,
-        child: RepaintBoundary(
-          child: AnimatedScale(
-            duration: const Duration(milliseconds: 170),
-            curve: Curves.easeOutCubic,
-            scale: _pressed ? 0.96 : (_hovered ? 1.045 : 1.0),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 170),
-              curve: Curves.easeOutCubic,
-              transform: Matrix4.translationValues(0, _hovered ? -6 : 0, 0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+    return InteractiveCardShell(
+      pressedScale: 0.96,
+      onTap: onTap,
+      builder: (context, hovered, pressed) => RepaintBoundary(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
                   // Poster / Gradient Box
                   Expanded(
                     child: Container(
@@ -71,18 +47,18 @@ class _IptvChannelCardState extends State<IptvChannelCard> {
                         ),
                         boxShadow: [
                           BoxShadow(
-                            color: _hovered
+                            color: hovered
                                 ? primaryColor.withValues(alpha: 0.45)
                                 : Colors.black.withValues(alpha: 0.35),
-                            blurRadius: _hovered ? 20 : 10,
-                            offset: Offset(0, _hovered ? 8 : 4),
+                            blurRadius: hovered ? 20 : 10,
+                            offset: Offset(0, hovered ? 8 : 4),
                           ),
                         ],
                         border: Border.all(
-                          color: _hovered
+                          color: hovered
                               ? primaryColor.withValues(alpha: 0.8)
                               : Colors.white.withValues(alpha: 0.12),
-                          width: _hovered ? 1.5 : 1.0,
+                          width: hovered ? 1.5 : 1.0,
                         ),
                       ),
                       child: ClipRRect(
@@ -200,7 +176,7 @@ class _IptvChannelCardState extends State<IptvChannelCard> {
                             ),
 
                             // Gloss overlay on hover
-                            if (_hovered)
+                            if (hovered)
                               Positioned.fill(
                                 child: Container(
                                   decoration: BoxDecoration(
@@ -269,9 +245,6 @@ class _IptvChannelCardState extends State<IptvChannelCard> {
                     ],
                   ),
                 ],
-              ),
-            ),
-          ),
         ),
       ),
     );

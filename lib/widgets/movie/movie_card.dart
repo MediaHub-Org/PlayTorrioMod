@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../models/movie/movie.dart';
 import '../../pages/details/details_page.dart';
 import '../../utils/route_transitions.dart';
+import '../common/interactive_card_shell.dart';
 import '../common/poster_skeleton.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -66,7 +67,7 @@ class MovieCardSizing {
 // Movie Card
 // ─────────────────────────────────────────────────────────────────────────────
 
-class MovieCard extends StatefulWidget {
+class MovieCard extends StatelessWidget {
   final Movie movie;
   final VoidCallback? onTap;
 
@@ -77,129 +78,81 @@ class MovieCard extends StatefulWidget {
   });
 
   @override
-  State<MovieCard> createState() => _MovieCardState();
-}
-
-class _MovieCardState extends State<MovieCard> {
-  bool _hovered = false;
-  bool _pressed = false;
-
-  @override
   Widget build(BuildContext context) {
-    final movie = widget.movie;
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) {
-        setState(() {
-          _hovered = true;
-        });
-      },
-      onExit: (_) {
-        setState(() {
-          _hovered = false;
-          _pressed = false;
-        });
-      },
-      child: GestureDetector(
-        onTapDown: (_) {
-          setState(() {
-            _pressed = true;
-          });
-        },
-        onTapCancel: () {
-          setState(() {
-            _pressed = false;
-          });
-        },
-        onTapUp: (_) {
-          setState(() {
-            _pressed = false;
-          });
-        },
-        onTap: widget.onTap ??
-            () {
-              Navigator.push(
-                context,
-                LiquidRevealRoute(
-                  page: DetailsPage(movie: movie),
-                  tapPosition: null, // Let it center if tapPosition not easily available
-                ),
-              );
-            },
-        child: AnimatedScale(
-          duration: const Duration(milliseconds: 170),
-          curve: Curves.easeOutCubic,
-          scale: _pressed ? 0.97 : (_hovered ? 1.045 : 1.0),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 170),
-            curve: Curves.easeOutCubic,
-            transform: Matrix4.translationValues(0, _hovered ? -6 : 0, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Poster ──────────────────────────────────────────────
-                Expanded(
-                  child: _PosterFrame(
-                    posterUrl: movie.poster,
-                    hovered: _hovered,
-                    contentType: movie.type,
-                  ),
-                ),
-
-                // ── Title ───────────────────────────────────────────────
-                const SizedBox(height: 9),
-                Text(
-                  movie.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 15.5,
-                    height: 1.15,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: -0.25,
-                  ),
-                ),
-
-                // ── Year / type ─────────────────────────────────────────
-                const SizedBox(height: 4),
-                Row(
-                  children: [
-                    if (movie.year != null && movie.year!.isNotEmpty)
-                      Text(
-                        movie.year!,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: Colors.white.withOpacity(0.52),
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    if (movie.year != null && movie.year!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 7),
-                        child: Container(
-                          width: 4,
-                          height: 4,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.26),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                      ),
-                    Text(
-                      movie.type == 'series' ? 'Series' : (movie.type == 'anime' ? 'Anime' : 'Movie'),
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white.withOpacity(0.42),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+    return InteractiveCardShell(
+      pressedScale: 0.97,
+      onTap: onTap ??
+          () {
+            Navigator.push(
+              context,
+              LiquidRevealRoute(
+                page: DetailsPage(movie: movie),
+                tapPosition: null, // Let it center if tapPosition not easily available
+              ),
+            );
+          },
+      builder: (context, hovered, pressed) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── Poster ──────────────────────────────────────────────
+          Expanded(
+            child: _PosterFrame(
+              posterUrl: movie.poster,
+              hovered: hovered,
+              contentType: movie.type,
             ),
           ),
-        ),
+
+          // ── Title ───────────────────────────────────────────────
+          const SizedBox(height: 9),
+          Text(
+            movie.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              fontSize: 15.5,
+              height: 1.15,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.25,
+            ),
+          ),
+
+          // ── Year / type ─────────────────────────────────────────
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              if (movie.year != null && movie.year!.isNotEmpty)
+                Text(
+                  movie.year!,
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Colors.white.withOpacity(0.52),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              if (movie.year != null && movie.year!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 7),
+                  child: Container(
+                    width: 4,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.26),
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ),
+              Text(
+                movie.type == 'series' ? 'Series' : (movie.type == 'anime' ? 'Anime' : 'Movie'),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: Colors.white.withOpacity(0.42),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
