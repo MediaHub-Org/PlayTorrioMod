@@ -169,6 +169,7 @@ class UniversalPlayBar extends StatelessWidget {
       'music' => Icons.music_note_rounded,
       'video' => Icons.movie_rounded,
       'audiobook' => Icons.headphones_rounded,
+      'podcast' => Icons.podcasts_rounded,
       _ => Icons.play_arrow_rounded,
     };
     return Container(
@@ -184,6 +185,7 @@ class UniversalPlayBar extends StatelessWidget {
       'music' => 'MUSIC',
       'video' => 'VIDEO',
       'audiobook' => 'AUDIOBOOK',
+      'podcast' => 'PODCAST',
       _ => 'PLAYING',
     };
   }

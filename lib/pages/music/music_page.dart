@@ -18,6 +18,7 @@ import '../../utils/fullscreen_navigator.dart';
 import '../../utils/hub_controller.dart';
 import '../../utils/search_scope.dart';
 import '../../main.dart' show navigatorKey;
+import '../podcast/podcasts_page.dart';
 
 class MusicPage extends StatefulWidget {
   const MusicPage({super.key});
@@ -877,6 +878,10 @@ class _MusicPageState extends State<MusicPage> {
 
     if (_activeTab == 'Genres') return _buildBrowseView();
     if (_activeTab == 'Radio') return _buildRadioView();
+    if (_activeTab == 'Podcasts') {
+      SearchScope.set(null, label: 'Podcasts');
+      return const PodcastsPage();
+    }
     if (_activeTab == 'Library') {
       SearchScope.set(null, label: 'Library');
       return _buildLibraryView();
