@@ -3,10 +3,10 @@ import 'package:flutter/material.dart';
 import '../../utils/search_scope.dart';
 import '../music/music_page.dart';
 
-/// Music hub: Music, Radio, and Library.
-///
-/// The Music page already provides its own left sidebar (Home / Browse /
-/// Radio / Library) and mobile bottom nav, so this hub simply hosts it.
+/// Listen hub: hosts [MusicPage], which owns its own section switching
+/// (Music/Search/Genres/Radio/Audiobooks/Library) plus ambient background,
+/// keyboard shortcuts, and drawer/modal overlays -- a genuinely different
+/// shell shape than [SectionedHubScaffold], not a copy of it.
 class MusicHub extends StatelessWidget {
   const MusicHub({super.key});
 

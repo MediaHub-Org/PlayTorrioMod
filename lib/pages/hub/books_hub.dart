@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../widgets/common/section_top_bar.dart';
+import '../../widgets/common/sectioned_hub_scaffold.dart';
 import '../../utils/hub_controller.dart';
 import '../../utils/search_scope.dart';
 import '../audiobooks/audiobooks_page.dart';
@@ -37,20 +37,9 @@ class BooksHub extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: HubController.instance,
-      builder: (context, _) {
-        final activeSection = HubController.instance.booksSection;
-        return Scaffold(
-          backgroundColor: const Color(0xFF080A0F),
-          body: Column(
-            children: [
-              const SectionTopBar(),
-              Expanded(child: _buildSection(activeSection)),
-            ],
-          ),
-        );
-      },
+    return SectionedHubScaffold(
+      activeSectionOf: () => HubController.instance.booksSection,
+      buildSection: _buildSection,
     );
   }
 }
