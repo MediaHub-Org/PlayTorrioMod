@@ -25,11 +25,10 @@ consolidated into `CHANGELOG.md`.
 
 ## Architecture: consistency, SOLID, modularity
 
-Cross-cutting cleanup requested — apply consistently rather than as one-off patches. Concrete instances already identified in review (not exhaustive):
+Cross-cutting cleanup requested — applied consistently rather than as one-off patches. All identified instances are resolved (see CHANGELOG):
 
-- **Duplicated widgets with independently-drifting behavior**: `IptvSliderSection`/`MovieSliderSection` scroll-arrow logic, `IptvChannelCard`/`MovieCard` hover-press animation, `IptvHeroCarousel`/the anime hero carousel's PageController+Timer auto-rotate logic, and `MediaHub`/`BooksHub`'s scaffold shell are all done (see CHANGELOG). `MusicHub`/`music_page.dart` stays a deliberately separate third shape (ambient background, keyboard listener, drawer/modal overlays) rather than being forced into the same abstraction.
-- **Playback progress/state syncing to `PlaybackCoordinator`** was added ad hoc per call site (music got full sync; video/audiobook/IPTV needed the same boilerplate added separately, see CHANGELOG) instead of being a required part of the `activate()` contract — worth formalizing so the next playback type doesn't repeat the gap.
+- **Duplicated widgets with independently-drifting behavior**: `IptvSliderSection`/`MovieSliderSection` scroll-arrow logic, `IptvChannelCard`/`MovieCard` hover-press animation, `IptvHeroCarousel`/the anime hero carousel's PageController+Timer auto-rotate logic, and `MediaHub`/`BooksHub`'s scaffold shell are all done. `MusicHub`/`music_page.dart` stays a deliberately separate third shape (ambient background, keyboard listener, drawer/modal overlays) rather than being forced into the same abstraction.
+- **Playback progress/state syncing to `PlaybackCoordinator`**: evaluated formalizing this into the `activate()` contract. Music and audiobook drive it from their own custom controllers' internal state; video and IPTV share a duplicated 2-line fragment (`setProgress`+`setPlaying` off a `VideoPlayerController`'s `value`) inside otherwise-unrelated listeners. Forcing all four into one contract would mean an adapter per controller type to paper over genuinely different underlying APIs — real design cost to save two lines, with no current bug from the gap. Left as-is; revisit if a fifth playback type actually forgets the sync.
 
-> See open PRs / issues for the current plan on each item. Completed items are in
-> the CHANGELOG — pull latest `upstream/main` and confirm the working tree is clean
-> before any commit.
+> Completed items are in the CHANGELOG — pull latest `upstream/main` and confirm the
+> working tree is clean before any commit.
