@@ -7,6 +7,7 @@ import '../audiobooks/audiobooks_page.dart';
 import '../manga/manga_page.dart';
 import '../collection/books_library_page.dart';
 import '../catalog/comics_page.dart';
+import '../read/books_page.dart';
 
 /// Read hub: Manga, Comics, Audiobooks, and the user's reading collection.
 ///
@@ -23,6 +24,9 @@ class BooksHub extends StatelessWidget {
       case 'comics':
         SearchScope.set(null, label: 'Comics');
         return const ComicsPage();
+      case 'books':
+        SearchScope.set(null, label: 'Books');
+        return const BooksPage();
       case 'audiobooks':
         SearchScope.set('audiobook', label: 'Audiobooks');
         return const AudiobooksPage();
