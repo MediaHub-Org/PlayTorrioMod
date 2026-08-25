@@ -28,7 +28,7 @@ consolidated into `CHANGELOG.md`.
 Cross-cutting cleanup requested — apply consistently rather than as one-off patches. Concrete instances already identified in review (not exhaustive):
 
 - **Three parallel hub-scaffold implementations.** `media_hub.dart` and `books_hub.dart` hand-duplicate the identical `Scaffold > Column[SectionTopBar(), Expanded(_buildSection(...))]` shell; `music_hub.dart` opts out entirely and delegates to `music_page.dart`, which reimplements a third variant with its own extra layers. Extract a shared `SectionedHubScaffold` all three hubs build on.
-- **Duplicated widgets with independently-drifting behavior**: `IptvHeroCarousel` vs the anime hero carousel (itself already a known copy of the old home page's carousel — a third copy now exists). `IptvSliderSection`/`MovieSliderSection` scroll-arrow logic and `IptvChannelCard`/`MovieCard` hover-press animation are both done (see CHANGELOG) — the carousel pair should share one implementation too.
+- **Duplicated widgets with independently-drifting behavior**: `IptvSliderSection`/`MovieSliderSection` scroll-arrow logic, `IptvChannelCard`/`MovieCard` hover-press animation, and `IptvHeroCarousel`/the anime hero carousel's PageController+Timer auto-rotate logic are all done (see CHANGELOG).
 - **Playback progress/state syncing to `PlaybackCoordinator`** was added ad hoc per call site (music got full sync; video/audiobook/IPTV needed the same boilerplate added separately, see CHANGELOG) instead of being a required part of the `activate()` contract — worth formalizing so the next playback type doesn't repeat the gap.
 
 > See open PRs / issues for the current plan on each item. Completed items are in
