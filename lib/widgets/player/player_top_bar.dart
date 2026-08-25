@@ -7,6 +7,8 @@ class PlayerTopBar extends StatelessWidget {
   final String? subtitle;
   final String? quality;
   final VoidCallback onBack;
+  final VoidCallback? onToggleEpisodes;
+  final bool isEpisodesActive;
   final VoidCallback? onScreenshot;
   final VoidCallback? onToggleAspect;
   final VoidCallback? onCast;
@@ -17,6 +19,8 @@ class PlayerTopBar extends StatelessWidget {
     this.subtitle,
     this.quality,
     required this.onBack,
+    this.onToggleEpisodes,
+    this.isEpisodesActive = false,
     this.onScreenshot,
     this.onToggleAspect,
     this.onCast,
@@ -136,7 +140,62 @@ class PlayerTopBar extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (onScreenshot != null)
+              if (onToggleEpisodes != null) ...[
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: onToggleEpisodes,
+                    borderRadius: BorderRadius.circular(12),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: isEpisodesActive
+                            ? PlayerTheme.accent.withValues(alpha: 0.30)
+                            : const Color(0x33080C12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: isEpisodesActive
+                              ? PlayerTheme.accent.withValues(alpha: 0.85)
+                              : Colors.white.withValues(alpha: 0.15),
+                          width: 1.2,
+                        ),
+                        boxShadow: isEpisodesActive
+                            ? [
+                                BoxShadow(
+                                  color: PlayerTheme.accent.withValues(alpha: 0.35),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.video_library_rounded,
+                            size: 18,
+                            color: isEpisodesActive ? const Color(0xFF9D84FF) : Colors.white,
+                          ),
+                          const SizedBox(width: 7),
+                          Text(
+                            'Episodes',
+                            style: TextStyle(
+                              color: isEpisodesActive ? Colors.white : Colors.white.withValues(alpha: 0.9),
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+              ],
+              if (onScreenshot != null) ...[
                 PlayerIconButton(
                   size: 40,
                   iconSize: 20,
@@ -145,6 +204,8 @@ class PlayerTopBar extends StatelessWidget {
                   backgroundColor: const Color(0x22080C12),
                   onPressed: onScreenshot,
                 ),
+                const SizedBox(width: 8),
+              ],
               if (onCast != null)
                 PlayerIconButton(
                   size: 40,

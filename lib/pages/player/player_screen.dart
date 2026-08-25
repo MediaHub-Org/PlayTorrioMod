@@ -28,10 +28,15 @@ import '../../widgets/player/player_top_bar.dart';
 import '../../widgets/player/player_transport.dart';
 import '../../widgets/player/player_speed_menu.dart';
 import '../../services/window/window_service.dart';
+import '../../models/player/skip_segment_model.dart';
+import '../../services/player/skip_segments_service.dart';
 import '../../widgets/player/player_aspect_menu.dart';
 import '../../widgets/player/player_audio_menu.dart';
 import '../../widgets/player/player_subtitle_menu.dart';
 import '../../widgets/player/player_sub_style_bar.dart';
+import '../../widgets/player/player_skip_button.dart';
+import '../../widgets/player/player_episodes_panel.dart';
+import '../../widgets/player/player_sources_panel.dart';
 import '../../widgets/player/sub_sync_bar.dart';
 import '../../widgets/player/text_sync_overlay.dart';
 
@@ -96,9 +101,29 @@ class _PlayerScreenState extends State<PlayerScreen>
   double _subtitleDelayMs = 0;
   double _subtitleScale = 1.0;
 
+  // Skip Segments State (IntroDB)
+  List<MediaSkipSegment> _skipSegments = [];
+  MediaSkipSegment? _activeSkipSegment;
+  bool _showSkipButton = false;
+  final Set<String> _dismissedSegmentKeys = {};
+
+  // Episodes & Sources Side Panels State
+  late StreamSource _currentSource;
+  Video? _currentEpisode;
+  late String _currentTitle;
+  bool _showEpisodesPanel = false;
+  bool _showSourcesPanel = false;
+  Video? _sourcesEpisode;
+  String? _sourcesErrorMessage;
+  final Map<String, List<StreamSource>> _cachedSourcesByEpisode = {};
+
   @override
   void initState() {
     super.initState();
+    _currentSource = widget.source;
+    _currentEpisode = widget.episode;
+    _currentTitle = widget.title;
+
     WakelockPlus.enable();
     _logoAnimController = AnimationController(
       vsync: this,
@@ -116,15 +141,15 @@ class _PlayerScreenState extends State<PlayerScreen>
     String? streamUrl;
 
     print('[PlayerScreen] Initializing playback:');
-    print('[PlayerScreen]   Title: ${widget.title}');
-    print('[PlayerScreen]   Source Name: ${widget.source.name}');
-    print('[PlayerScreen]   Addon Name: ${widget.source.addonName}');
-    print('[PlayerScreen]   Source Title: ${widget.source.title}');
-    print('[PlayerScreen]   Raw URL: ${widget.source.url}');
+    print('[PlayerScreen]   Title: $_currentTitle');
+    print('[PlayerScreen]   Source Name: ${_currentSource.name}');
+    print('[PlayerScreen]   Addon Name: ${_currentSource.addonName}');
+    print('[PlayerScreen]   Source Title: ${_currentSource.title}');
+    print('[PlayerScreen]   Raw URL: ${_currentSource.url}');
 
     try {
-      final rawUrl = widget.source.url;
-      final infoHash = widget.source.infoHash;
+      final rawUrl = _currentSource.url;
+      final infoHash = _currentSource.infoHash;
       final isMagnetUrl = rawUrl != null && rawUrl.startsWith('magnet:');
       final isTorrent = (infoHash != null && infoHash.isNotEmpty) || isMagnetUrl;
 
@@ -134,8 +159,8 @@ class _PlayerScreenState extends State<PlayerScreen>
           magnet = rawUrl;
         } else {
           magnet = 'magnet:?xt=urn:btih:$infoHash';
-          if (widget.source.sources != null) {
-            for (final source in widget.source.sources!) {
+          if (_currentSource.sources != null) {
+            for (final source in _currentSource.sources!) {
               if (source.startsWith('tracker:')) {
                 final trackerUrl = source.replaceFirst('tracker:', '');
                 magnet += '&tr=${Uri.encodeComponent(trackerUrl)}';
@@ -150,13 +175,13 @@ class _PlayerScreenState extends State<PlayerScreen>
           if (!mounted) return;
           setState(() => _statusMessage = 'Resolving via $activeService cloud...');
 
-          final seasonNum = widget.episode?.season;
-          final episodeNum = widget.episode?.episode;
+          final seasonNum = _currentEpisode?.season;
+          final episodeNum = _currentEpisode?.episode;
 
           final debridFiles = await DebridService().resolveMagnet(
             magnet: magnet,
-            fileIndex: widget.source.fileIdx,
-            filename: widget.title,
+            fileIndex: _currentSource.fileIdx,
+            filename: _currentTitle,
             season: seasonNum,
             episode: episodeNum,
           );
@@ -173,7 +198,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
           streamUrl = await TorrentStreamService().streamTorrent(
             magnet,
-            fileIdx: widget.source.fileIdx,
+            fileIdx: _currentSource.fileIdx,
           );
         }
       } else if (rawUrl != null && rawUrl.isNotEmpty) {
@@ -195,8 +220,8 @@ class _PlayerScreenState extends State<PlayerScreen>
         playerHeaders['User-Agent'] =
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
       }
-      if (widget.source.headers != null) {
-        playerHeaders.addAll(widget.source.headers!);
+      if (_currentSource.headers != null) {
+        playerHeaders.addAll(_currentSource.headers!);
       }
 
       final lowerUrl = sanitizedUrlStr.toLowerCase();
@@ -206,8 +231,8 @@ class _PlayerScreenState extends State<PlayerScreen>
           lowerUrl.contains('.webm');
 
       // Direct native path for MP4/MKV files; use proxy for HLS / M3U8 playlists requiring manifest rewrite
-      final needsProxy = widget.source.headers != null &&
-          widget.source.headers!.isNotEmpty &&
+      final needsProxy = _currentSource.headers != null &&
+          _currentSource.headers!.isNotEmpty &&
           !isDirectVideo;
 
       String resolvedUrlStr = needsProxy
@@ -218,23 +243,28 @@ class _PlayerScreenState extends State<PlayerScreen>
       print('[PlayerScreen] Attempting to open network stream URL: $cleanUri');
 
       if (!mounted) return;
-      setState(() => _statusMessage = 'Buffering video...');
+      final epLabel = _currentEpisode != null
+          ? 'S${_currentEpisode!.season ?? 1}:E${_currentEpisode!.episode ?? 1} - ${_currentEpisode!.title.isNotEmpty ? _currentEpisode!.title : "Episode ${_currentEpisode!.episode ?? 1}"}'
+          : (widget.detail?.name ?? _currentTitle);
+      setState(() => _statusMessage = 'Buffering $epLabel...');
 
       _controller = VideoPlayerController.networkUrl(
         cleanUri,
         httpHeaders: playerHeaders,
       );
       _controller!.addListener(_onControllerError);
+      _controller!.addListener(_onPlaybackTick);
 
       try {
         await _controller!.initialize();
       } catch (initErr) {
         // Fallback: If direct playback failed with custom headers, try through LocalStreamProxy
-        if (!needsProxy && widget.source.headers != null && widget.source.headers!.isNotEmpty) {
+        if (!needsProxy && _currentSource.headers != null && _currentSource.headers!.isNotEmpty) {
           print('[PlayerScreen] Direct playback failed, falling back to LocalStreamProxy: $initErr');
           resolvedUrlStr = LocalStreamProxy.instance.getProxiedUrl(sanitizedUrlStr, playerHeaders);
           cleanUri = Uri.parse(resolvedUrlStr);
           _controller?.removeListener(_onControllerError);
+          _controller?.removeListener(_onPlaybackTick);
           _controller?.dispose();
 
           _controller = VideoPlayerController.networkUrl(
@@ -242,6 +272,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             httpHeaders: playerHeaders,
           );
           _controller!.addListener(_onControllerError);
+          _controller!.addListener(_onPlaybackTick);
           await _controller!.initialize();
         } else {
           rethrow;
@@ -249,6 +280,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
 
       _setSubtitleScale(_subtitleScale);
+
+      // Fetch IntroDB skip segments in background
+      _fetchSkipSegments();
 
       if (widget.initialPosition != null && widget.initialPosition! > Duration.zero) {
         print('[PlayerScreen] Seeking to saved position: ${widget.initialPosition}');
@@ -296,8 +330,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (detail != null) {
         final targetId = detail.id.startsWith('tt') ? detail.id : (detail.tmdbId ?? detail.id);
         if (targetId.isNotEmpty) {
-          final s = widget.episode?.season;
-          final e = widget.episode?.episode;
+          final s = _currentEpisode?.season;
+          final e = _currentEpisode?.episode;
           final initPos = widget.initialPosition?.inSeconds ?? 0;
           final dur = _controller!.value.duration.inSeconds;
           final progress = (dur > 0 ? (initPos / dur) * 100.0 : 0.0).clamp(0.0, 100.0);
@@ -326,6 +360,17 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       if (!mounted) return;
 
+      // If we have an episode context (TV show), reopen the sources panel with error notice!
+      if (_currentEpisode != null && widget.detail?.videos.isNotEmpty == true) {
+        setState(() {
+          _isLoading = false;
+          _showSourcesPanel = true;
+          _sourcesEpisode = _currentEpisode;
+          _sourcesErrorMessage = 'Source failed to play. Please select another source below.';
+        });
+        return;
+      }
+
       String displayMessage = 'Error: $e';
       if (e is PlatformException &&
           (e.message?.contains('invalid or unsupported media') ?? false)) {
@@ -346,17 +391,35 @@ class _PlayerScreenState extends State<PlayerScreen>
         final yMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(widget.detail!.year!);
         if (yMatch != null) searchYear = int.tryParse(yMatch.group(1)!);
       }
+      final showName = widget.detail?.name ?? widget.title;
       final groups = await SubtitleService().fetchAllSubtitles(
-        widget.detail?.name ?? widget.title,
+        showName,
         imdbId: widget.detail?.id,
-        season: widget.episode?.season,
-        episode: widget.episode?.episode,
+        season: _currentEpisode?.season,
+        episode: _currentEpisode?.episode,
         year: searchYear,
       );
       if (mounted && groups.isNotEmpty) {
         setState(() => _subtitleGroups = groups);
+
+        // Auto-load matching language subtitle for the new episode if subtitles were enabled
+        if (_isSubtitleEnabled && _currentSubtitleVariant != null) {
+          final previousLang = _currentSubtitleVariant!.language.toLowerCase();
+          final matchingGroup = groups.firstWhere(
+            (g) => g.language.toLowerCase() == previousLang,
+            orElse: () => groups.firstWhere(
+              (g) => g.language.toLowerCase().contains('english') || g.language.toLowerCase() == 'en',
+              orElse: () => groups.first,
+            ),
+          );
+          if (matchingGroup.variants.isNotEmpty) {
+            _loadSubtitle(matchingGroup.variants.first);
+          }
+        }
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[PlayerScreen] Error loading subtitles: $e');
+    }
   }
 
   void _startHideControlsTimer() {
@@ -568,11 +631,185 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (value.hasError && !_isLoading) {
       final errorMsg = value.errorDescription ?? 'Unknown playback error';
       print('[PlayerScreen ERROR] Video controller error: $errorMsg');
+
+      if (_currentEpisode != null && widget.detail?.videos.isNotEmpty == true) {
+        setState(() {
+          _isLoading = false;
+          _showSourcesPanel = true;
+          _sourcesEpisode = _currentEpisode;
+          _sourcesErrorMessage = 'Playback error: $errorMsg. Please select another source below.';
+        });
+        return;
+      }
+
       setState(() {
         _isLoading = true;
         _statusMessage = 'Playback error: $errorMsg';
       });
     }
+  }
+
+  void _toggleEpisodesPanel() {
+    setState(() {
+      _showEpisodesPanel = !_showEpisodesPanel;
+      if (_showEpisodesPanel) {
+        _showSourcesPanel = false;
+        _activeMenu = null;
+        _showSubSyncBar = false;
+        _showTextSyncOverlay = false;
+        _showControls = true;
+      }
+    });
+  }
+
+  void _onEpisodeChosen(Video episode) {
+    setState(() {
+      _showEpisodesPanel = false;
+      _showSourcesPanel = true;
+      _sourcesEpisode = episode;
+      _sourcesErrorMessage = null;
+      _activeMenu = null;
+      _showControls = true;
+    });
+  }
+
+  void _onBackToEpisodes() {
+    setState(() {
+      _showSourcesPanel = false;
+      _showEpisodesPanel = true;
+      _sourcesErrorMessage = null;
+    });
+  }
+
+  void _playNewSource(StreamSource newSource, Video episode) {
+    setState(() {
+      _showSourcesPanel = false;
+      _showEpisodesPanel = false;
+      _sourcesErrorMessage = null;
+    });
+    _switchStream(newSource, episode);
+  }
+
+  void _switchStream(StreamSource newSource, Video newEpisode) async {
+    _progressSaveTimer?.cancel();
+    _savePlaybackProgress();
+
+    final prevVariant = _currentSubtitleVariant;
+    final wasSubEnabled = _isSubtitleEnabled;
+
+    setState(() {
+      _currentSource = newSource;
+      _currentEpisode = newEpisode;
+      final showName = widget.detail?.name ?? widget.title;
+      final epNum = newEpisode.episode ?? 1;
+      final sNum = newEpisode.season ?? 1;
+      _currentTitle = '$showName - S${sNum}E$epNum ${newEpisode.title}';
+      _isLoading = true;
+      _statusMessage = 'Buffering S$sNum:E$epNum - ${newEpisode.title.isNotEmpty ? newEpisode.title : "Episode $epNum"}...';
+      _showEpisodesPanel = false;
+      _showSourcesPanel = false;
+      _activeMenu = null;
+      _showSubSyncBar = false;
+      _showTextSyncOverlay = false;
+      _showSkipButton = false;
+      _activeSkipSegment = null;
+      _skipSegments = [];
+      _subtitleGroups = [];
+      _currentSubtitlePath = null;
+      _currentCues = [];
+      _currentSubtitleVariant = prevVariant;
+      _isSubtitleEnabled = wasSubEnabled;
+    });
+
+    // Cleanup previous torrent engine if was P2P
+    TorrentStreamService().cleanup();
+
+    _controller?.removeListener(_onControllerError);
+    _controller?.removeListener(_onPlaybackTick);
+    await _controller?.dispose();
+    _controller = null;
+
+    _initStream();
+  }
+
+  void _fetchSkipSegments() async {
+    try {
+      final detail = widget.detail;
+      final showName = widget.detail?.name ?? widget.title;
+      final skipData = await SkipSegmentsService.instance.fetchSkipSegments(
+        tmdbId: detail?.tmdbId,
+        imdbId: (detail != null && detail.id.startsWith('tt')) ? detail.id : null,
+        title: showName,
+        year: int.tryParse(detail?.year ?? ''),
+        type: detail?.type ?? (_currentEpisode != null ? 'tv' : 'movie'),
+        season: _currentEpisode?.season,
+        episode: _currentEpisode?.episode,
+        durationMs: _controller?.value.duration.inMilliseconds,
+      );
+
+      if (skipData != null && mounted) {
+        setState(() {
+          _skipSegments = skipData.segments;
+        });
+      }
+    } catch (e) {
+      debugPrint('[PlayerScreen] Error loading skip segments: $e');
+    }
+  }
+
+  void _onPlaybackTick() {
+    if (_controller == null || !_controller!.value.isInitialized || _skipSegments.isEmpty) return;
+
+    final pos = _controller!.value.position;
+    final dur = _controller!.value.duration;
+
+    MediaSkipSegment? matched;
+    for (final seg in _skipSegments) {
+      if (seg.contains(pos, dur)) {
+        matched = seg;
+        break;
+      }
+    }
+
+    if (matched != null) {
+      if (!_dismissedSegmentKeys.contains(matched.uniqueKey)) {
+        if (_activeSkipSegment?.uniqueKey != matched.uniqueKey) {
+          setState(() {
+            _activeSkipSegment = matched;
+            _showSkipButton = true;
+          });
+        }
+      }
+    } else {
+      if (_activeSkipSegment != null) {
+        setState(() {
+          _activeSkipSegment = null;
+          _showSkipButton = false;
+        });
+      }
+    }
+  }
+
+  void _handleSkipSegment(MediaSkipSegment seg) {
+    _dismissedSegmentKeys.add(seg.uniqueKey);
+    final target = seg.endMs != null
+        ? Duration(milliseconds: seg.endMs!)
+        : (_controller?.value.duration ?? Duration.zero);
+
+    _controller?.seekTo(target + const Duration(milliseconds: 300));
+
+    setState(() {
+      _showSkipButton = false;
+      _activeSkipSegment = null;
+    });
+  }
+
+  void _handleDismissSkipSegment(MediaSkipSegment seg) {
+    _dismissedSegmentKeys.add(seg.uniqueKey);
+    setState(() {
+      _showSkipButton = false;
+      _activeSkipSegment = null;
+    });
   }
 
   void _savePlaybackProgress() {
@@ -585,8 +822,8 @@ class _PlayerScreenState extends State<PlayerScreen>
 
     ContinueWatchingService.saveProgress(
       detail: widget.detail!,
-      episode: widget.episode,
-      source: widget.source,
+      episode: _currentEpisode,
+      source: _currentSource,
       positionSeconds: pos,
       totalDurationSeconds: dur,
     );
@@ -605,6 +842,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       DeviceOrientation.landscapeRight,
     ]);
     _controller?.removeListener(_onControllerError);
+    _controller?.removeListener(_onPlaybackTick);
     _controller?.dispose();
     _logoAnimController.dispose();
     TorrentStreamService().cleanup();
@@ -720,9 +958,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         ? _controller!.value.buffered.last.end
         : null;
 
-    final episodeTitle = widget.episode?.title;
-    final episodeSubtitle = widget.episode != null
-        ? 'S${widget.episode!.season}:E${widget.episode!.episode}${episodeTitle != null && episodeTitle.isNotEmpty ? " • $episodeTitle" : ""}'
+    final episodeTitle = _currentEpisode?.title;
+    final episodeSubtitle = _currentEpisode != null
+        ? 'S${_currentEpisode!.season ?? 1}:E${_currentEpisode!.episode ?? 1}${episodeTitle != null && episodeTitle.isNotEmpty ? " • $episodeTitle" : ""}'
         : widget.detail?.year;
 
     return Stack(
@@ -759,9 +997,13 @@ class _PlayerScreenState extends State<PlayerScreen>
                   _startHideControlsTimer();
                 },
                 child: PlayerTopBar(
-                  title: widget.detail?.name ?? widget.title,
+                  title: widget.detail?.name ?? _currentTitle,
                   subtitle: episodeSubtitle,
-                  quality: widget.source.name,
+                  quality: _currentSource.name,
+                  onToggleEpisodes: (!_isLoading && widget.detail?.videos.isNotEmpty == true)
+                      ? _toggleEpisodesPanel
+                      : null,
+                  isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
                   onBack: () {
                     WindowService.instance.exitFullscreen();
                     Navigator.pop(context);
@@ -803,13 +1045,18 @@ class _PlayerScreenState extends State<PlayerScreen>
                               position: value.position,
                               duration: value.duration,
                               buffered: buffered,
+                              skipSegments: _skipSegments,
                               volume: _volume,
                               isMuted: _isMuted || _volume == 0,
                               playbackRate: _playbackRate,
                               isSubtitlesActive: _isSubtitleEnabled && _currentSubtitleVariant != null,
                               isSubSyncActive: _showSubSyncBar || _subtitleDelayMs != 0,
                               isAudioActive: _selectedAudioTrackIndex > 0,
+                              isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
                               isFullscreen: isFs,
+                              onToggleEpisodes: (widget.detail?.videos.isNotEmpty == true)
+                                  ? _toggleEpisodesPanel
+                                  : null,
                               onPlayPause: () {
                                 setState(() {
                                   if (_controller!.value.isPlaying) {
@@ -887,8 +1134,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                 isSubtitleEnabled: _isSubtitleEnabled,
                 movieTitle: widget.detail?.name ?? widget.title,
                 imdbId: widget.detail?.id,
-                season: widget.episode?.season,
-                episode: widget.episode?.episode,
+                season: _currentEpisode?.season,
+                episode: _currentEpisode?.episode,
                 year: widget.detail?.year != null ? int.tryParse(widget.detail!.year!) : null,
                 delaySec: _subtitleDelayMs / 1000.0,
                 onSelectVariant: (v) {
@@ -1006,6 +1253,55 @@ class _PlayerScreenState extends State<PlayerScreen>
               ),
             ),
 
+          // In-Player Episodes Side Panel
+          if (_showEpisodesPanel && widget.detail?.videos.isNotEmpty == true && !_isLoading)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _showEpisodesPanel = false),
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  child: GestureDetector(
+                    onTap: () {},
+                    child: PlayerEpisodesPanel(
+                      videos: widget.detail!.videos,
+                      currentEpisode: _currentEpisode,
+                      onEpisodeSelected: _onEpisodeChosen,
+                      onClose: () => setState(() => _showEpisodesPanel = false),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // In-Player Sources Side Panel (Targeted Scraping & Error Recovery)
+          if (_showSourcesPanel && _sourcesEpisode != null && !_isLoading)
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _showSourcesPanel = false),
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  child: GestureDetector(
+                    onTap: () {},
+                    child: PlayerSourcesPanel(
+                      episode: _sourcesEpisode!,
+                      detail: widget.detail,
+                      currentAddonName: _currentSource.addonName,
+                      errorMessage: _sourcesErrorMessage,
+                      cachedSources: _cachedSourcesByEpisode['${_sourcesEpisode!.season ?? 1}:${_sourcesEpisode!.episode ?? 1}'],
+                      onSourcesLoaded: (sources) {
+                        _cachedSourcesByEpisode['${_sourcesEpisode!.season ?? 1}:${_sourcesEpisode!.episode ?? 1}'] = sources;
+                      },
+                      onPlaySource: _playNewSource,
+                      onBackToEpisodes: _onBackToEpisodes,
+                      onClose: () => setState(() => _showSourcesPanel = false),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
           // Right Drawer Text Sync
           if (_showTextSyncOverlay && !_isLoading && _controller != null && _currentCues.isNotEmpty)
             Positioned.fill(
@@ -1018,6 +1314,26 @@ class _PlayerScreenState extends State<PlayerScreen>
                   _startHideControlsTimer();
                 },
                 onSave: _saveTextSyncedCues,
+              ),
+            ),
+
+          // Floating Skip Button (Skip Intro, Skip Recap, Skip Credits, Skip Preview)
+          if (_showSkipButton && _activeSkipSegment != null && !_isLoading && !_showTextSyncOverlay && !_showEpisodesPanel && !_showSourcesPanel)
+            Positioned(
+              bottom: (_showControls || _activeMenu != null)
+                  ? (MediaQuery.paddingOf(context).bottom +
+                      (MediaQuery.sizeOf(context).width < 680 ? 108 : 128))
+                  : (MediaQuery.paddingOf(context).bottom +
+                      (MediaQuery.sizeOf(context).width < 680 ? 22 : 36)),
+              right: MediaQuery.sizeOf(context).width < 680 ? 16 : 28,
+              child: AnimatedOpacity(
+                opacity: _showSkipButton ? 1.0 : 0.0,
+                duration: const Duration(milliseconds: 250),
+                child: PlayerSkipButton(
+                  segment: _activeSkipSegment!,
+                  onSkip: () => _handleSkipSegment(_activeSkipSegment!),
+                  onDismiss: () => _handleDismissSkipSegment(_activeSkipSegment!),
+                ),
               ),
             ),
         ],

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/player/skip_segment_model.dart';
 import 'player_glass.dart';
 
 /// Timeline scrubber with buffered progress and interactive hover / drag preview.
@@ -6,6 +7,7 @@ class PlayerSeekBar extends StatefulWidget {
   final Duration position;
   final Duration duration;
   final Duration? buffered;
+  final List<MediaSkipSegment> skipSegments;
   final ValueChanged<Duration> onSeek;
   final ValueChanged<bool>? onScrubbingChanged;
 
@@ -14,6 +16,7 @@ class PlayerSeekBar extends StatefulWidget {
     required this.position,
     required this.duration,
     this.buffered,
+    this.skipSegments = const [],
     required this.onSeek,
     this.onScrubbingChanged,
   });
@@ -162,6 +165,31 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
                                     ),
                                   ),
                                 ),
+
+                              // Skip Segments Highlights (Intro, Recap, Credits)
+                              if (totalMs > 0 && widget.skipSegments.isNotEmpty)
+                                ...widget.skipSegments.map((seg) {
+                                  final sFrac = ((seg.startMs ?? 0) / totalMs).clamp(0.0, 1.0);
+                                  final eFrac = ((seg.endMs ?? totalMs) / totalMs).clamp(0.0, 1.0);
+                                  final segWidth = ((eFrac - sFrac) * trackWidth).clamp(2.0, trackWidth);
+                                  final isCredits = seg.type == 'credits';
+                                  final color = isCredits
+                                      ? const Color(0x9910B981)
+                                      : const Color(0x99F59E0B);
+
+                                  return Positioned(
+                                    left: sFrac * trackWidth,
+                                    width: segWidth,
+                                    top: 0,
+                                    bottom: 0,
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: color,
+                                        borderRadius: BorderRadius.circular(2),
+                                      ),
+                                    ),
+                                  );
+                                }),
                             ],
                           ),
                         ),

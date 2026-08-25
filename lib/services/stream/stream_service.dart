@@ -24,34 +24,12 @@ import '../scraper/sites/vuflix.dart';
 import '../scraper/sites/rivestream.dart';
 import '../scraper/sites/cinejoy.dart';
 
-
 /// Service that fetches playback streams from all installed Stremio addons
-/// that declare "stream" in their manifest resources.
+/// and built-in scrapers.
 class StreamService {
   StreamService._();
 
-  /// Fetches streams from all active stream-capable addons for the given
-  /// content type and ID.
-  ///
-  /// Streams are yielded progressively as each addon responds, so the UI
-  /// can populate immediately instead of waiting for all addons.
-  ///
-  /// For series episodes, [id] should be the video ID (e.g. "tt1234567:1:2").
-  static Stream<StreamSource> fetchStreams({
-    required String type,
-    required String id,
-    required String title,
-    int? year,
-    int? season,
-    int? episode,
-  }) {
-    final controller = StreamController<StreamSource>();
-
-    final addons = AddonManager.instance.activeAddons
-        .where((a) => a.manifest.supportsStream)
-        .toList();
-
-    // Register built-in scrapers
+  static void _registerBuiltInScrapers() {
     ScraperManager.instance.registerScraper(KnabenScraper());
     ScraperManager.instance.registerScraper(TorrentGalaxyScraper());
     ScraperManager.instance.registerScraper(FourKHDHubScraper());
@@ -67,6 +45,25 @@ class StreamService {
     ScraperManager.instance.registerScraper(VuflixScraper());
     ScraperManager.instance.registerScraper(RiveStreamScraper());
     ScraperManager.instance.registerScraper(CinejoyScraper());
+  }
+
+  /// Fetches streams from all active stream-capable addons for the given
+  /// content type and ID.
+  static Stream<StreamSource> fetchStreams({
+    required String type,
+    required String id,
+    required String title,
+    int? year,
+    int? season,
+    int? episode,
+  }) {
+    final controller = StreamController<StreamSource>();
+
+    final addons = AddonManager.instance.activeAddons
+        .where((a) => a.manifest.supportsStream)
+        .toList();
+
+    _registerBuiltInScrapers();
 
     int pending = addons.length + 1; // addons + local scrapers
 
@@ -84,7 +81,6 @@ class StreamService {
       pending--;
       if (pending == 0 && !controller.isClosed) controller.close();
     });
-
 
     for (final addon in addons) {
       _fetchFromAddon(addon, type, id).then((sources) {
@@ -104,14 +100,104 @@ class StreamService {
     return controller.stream;
   }
 
+  /// Fetches streams specifically for a targeted provider/addon that was previously used by the user.
+  ///
+  /// - If [targetAddonName] == 'PlayTorrioHTTP': Only scrapes built-in alive HTTP scrapers.
+  /// - If [targetAddonName] == 'PlayTorrio': Only scrapes built-in torrent scrapers.
+  /// - If [targetAddonName] matches a Stremio addon (e.g. 'Torrentio', 'CyberFlix'): Only calls that specific addon.
+  static Stream<StreamSource> fetchStreamsForTargetAddon({
+    required String targetAddonName,
+    required String type,
+    required String id,
+    required String title,
+    int? year,
+    int? season,
+    int? episode,
+  }) {
+    final controller = StreamController<StreamSource>();
+    final normalizedTarget = targetAddonName.trim().toLowerCase();
+
+    // Check if targeting built-in PlayTorrioHTTP / PlayTorrio
+    final isLocalPlayTorrio = normalizedTarget == 'playtorriohttp' ||
+        normalizedTarget == 'playtorrio' ||
+        normalizedTarget.contains('playtorrio');
+
+    if (isLocalPlayTorrio) {
+      _registerBuiltInScrapers();
+
+      ScraperManager.instance.scrapeAll(
+        type: type,
+        title: title,
+        year: year,
+        season: season,
+        episode: episode,
+        imdbId: id.split(':')[0],
+      ).listen(
+        (source) {
+          if (!controller.isClosed) {
+            // If target was specifically PlayTorrioHTTP, only yield HTTP streams
+            if (normalizedTarget == 'playtorriohttp' &&
+                (source.infoHash != null && source.infoHash!.isNotEmpty)) {
+              return;
+            }
+            // If target was specifically PlayTorrio (torrent), only yield torrent streams
+            if (normalizedTarget == 'playtorrio' &&
+                (source.infoHash == null || source.infoHash!.isEmpty)) {
+              return;
+            }
+            controller.add(source);
+          }
+        },
+        onError: (_) {},
+        onDone: () {
+          if (!controller.isClosed) controller.close();
+        },
+      );
+
+      return controller.stream;
+    }
+
+    // Otherwise, find the matching Stremio addon
+    final matchingAddons = AddonManager.instance.activeAddons.where(
+      (a) =>
+          a.manifest.supportsStream &&
+          (a.manifest.name.toLowerCase() == normalizedTarget ||
+              a.manifest.name.toLowerCase().contains(normalizedTarget) ||
+              normalizedTarget.contains(a.manifest.name.toLowerCase())),
+    ).toList();
+
+    if (matchingAddons.isNotEmpty) {
+      final matchingAddon = matchingAddons.first;
+      _fetchFromAddon(matchingAddon, type, id).then((sources) {
+        if (!controller.isClosed) {
+          for (final source in sources) {
+            controller.add(source);
+          }
+        }
+      }).catchError((_) {}).whenComplete(() {
+        if (!controller.isClosed) controller.close();
+      });
+    } else {
+      // Fallback: If no exact addon match found, run general fetch
+      return fetchStreams(
+        type: type,
+        id: id,
+        title: title,
+        year: year,
+        season: season,
+        episode: episode,
+      );
+    }
+
+    return controller.stream;
+  }
+
   static Future<List<StreamSource>> _fetchFromAddon(
     InstalledAddon addon,
     String type,
     String id,
   ) async {
     try {
-      // Standard IDs (tt123456, tt123456:1:2, kitsu:123) go raw in the path.
-      // Only URL-based custom IDs need encoding.
       final needsEncoding = id.contains('://') || id.contains('/');
       final pathId = needsEncoding ? Uri.encodeComponent(id) : id;
       final url = '${addon.baseUrl}/stream/$type/$pathId.json';
@@ -138,7 +224,7 @@ class StreamService {
           .toList();
     } catch (e, st) {
       debugPrint('Addon ${addon.manifest.name} failed: $e\n$st');
-      return []; // Silently skip failed addons
+      return [];
     }
   }
 }

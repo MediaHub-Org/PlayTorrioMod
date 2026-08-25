@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import '../../models/player/skip_segment_model.dart';
 import 'player_glass.dart';
 import 'player_seek_bar.dart';
 import 'player_volume_control.dart';
@@ -11,12 +12,14 @@ class PlayerTransport extends StatelessWidget {
   final Duration position;
   final Duration duration;
   final Duration? buffered;
+  final List<MediaSkipSegment> skipSegments;
   final double volume;
   final bool isMuted;
   final double playbackRate;
   final bool isSubtitlesActive;
   final bool isSubSyncActive;
   final bool isAudioActive;
+  final bool isEpisodesActive;
   final bool isFullscreen;
   final bool hasPrevEpisode;
   final bool hasNextEpisode;
@@ -28,6 +31,7 @@ class PlayerTransport extends StatelessWidget {
   final VoidCallback onSeekForward10;
   final ValueChanged<double> onVolumeChanged;
   final VoidCallback onToggleMute;
+  final VoidCallback? onToggleEpisodes;
   final VoidCallback onToggleAspectMenu;
   final VoidCallback onToggleSpeedMenu;
   final VoidCallback onToggleAudioMenu;
@@ -44,12 +48,14 @@ class PlayerTransport extends StatelessWidget {
     required this.position,
     required this.duration,
     this.buffered,
+    this.skipSegments = const [],
     required this.volume,
     required this.isMuted,
     required this.playbackRate,
     required this.isSubtitlesActive,
     required this.isSubSyncActive,
     required this.isAudioActive,
+    this.isEpisodesActive = false,
     required this.isFullscreen,
     this.hasPrevEpisode = false,
     this.hasNextEpisode = false,
@@ -59,6 +65,7 @@ class PlayerTransport extends StatelessWidget {
     required this.onSeekForward10,
     required this.onVolumeChanged,
     required this.onToggleMute,
+    this.onToggleEpisodes,
     required this.onToggleAspectMenu,
     required this.onToggleSpeedMenu,
     required this.onToggleAudioMenu,
@@ -106,6 +113,7 @@ class PlayerTransport extends StatelessWidget {
             position: position,
             duration: duration,
             buffered: buffered,
+            skipSegments: skipSegments,
             onSeek: onSeek,
             onScrubbingChanged: onScrubbingChanged,
           ),
@@ -228,6 +236,20 @@ class PlayerTransport extends StatelessWidget {
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Episodes Menu Trigger (for TV Shows)
+                  if (onToggleEpisodes != null) ...[
+                    PlayerIconButton(
+                      size: btnSize,
+                      iconSize: btnIconSize,
+                      icon: const Icon(Icons.video_library_rounded),
+                      tooltip: 'Episodes',
+                      active: isEpisodesActive,
+                      activeColor: PlayerTheme.accent,
+                      onPressed: onToggleEpisodes,
+                    ),
+                    SizedBox(width: gap),
+                  ],
+
                   // Aspect Ratio Menu Trigger
                   PlayerIconButton(
                     size: btnSize,
