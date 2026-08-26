@@ -8,6 +8,7 @@ import '../../utils/hub_controller.dart';
 import '../../utils/hub_navigator.dart';
 import '../../utils/route_transitions.dart';
 import '../../services/app_breakpoints.dart';
+import '../../services/app_spacing.dart';
 import '../../widgets/common/adaptive_nav_shell.dart';
 import '../settings/settings_page.dart';
 import 'media_hub.dart';
@@ -121,7 +122,7 @@ class _HubPageState extends State<HubPage> {
                 },
                 child: ClipRRect(
                   borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(16),
+                    topLeft: Radius.circular(AppRadii.lg),
                   ),
                   child: ListenableBuilder(
                     listenable: HubController.instance,

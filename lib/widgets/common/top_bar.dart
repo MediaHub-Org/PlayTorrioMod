@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/app_spacing.dart';
 import '../../utils/app_hub.dart';
 import '../../utils/hub_controller.dart';
 import 'sidebar_logo.dart';
@@ -20,11 +21,7 @@ class TopBar extends StatelessWidget {
 
   const TopBar({super.key, this.height = 60, this.onSettingsTap});
 
-  static const _hubs = [
-    (hub: AppHub.media, label: 'Watch', icon: Icons.movie_filter_rounded),
-    (hub: AppHub.music, label: 'Listen', icon: Icons.music_note_rounded),
-    (hub: AppHub.books, label: 'Read', icon: Icons.auto_stories_rounded),
-  ];
+  static const _hubOrder = [AppHub.media, AppHub.music, AppHub.books];
 
   @override
   Widget build(BuildContext context) {
@@ -43,7 +40,7 @@ class TopBar extends StatelessWidget {
           ),
         ],
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -56,7 +53,7 @@ class TopBar extends StatelessWidget {
                 return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    for (final h in _hubs) _hubTab(context, h, current),
+                    for (final hub in _hubOrder) _hubTab(context, hub, current),
                   ],
                 );
               },
@@ -88,15 +85,15 @@ class TopBar extends StatelessWidget {
   /// no fill or border — sits visually above the section chip bar beneath it.
   Widget _hubTab(
     BuildContext context,
-    ({AppHub hub, String label, IconData icon}) h,
+    AppHub hub,
     AppHub current,
   ) {
-    final selected = current == h.hub;
+    final selected = current == hub;
     final color = selected ? Colors.white : Colors.white54;
     return Padding(
       padding: const EdgeInsets.only(left: 22),
       child: InkWell(
-        onTap: () => HubController.instance.setHub(h.hub),
+        onTap: () => HubController.instance.setHub(hub),
         borderRadius: BorderRadius.circular(6),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -104,10 +101,10 @@ class TopBar extends StatelessWidget {
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(h.icon, color: color, size: 17),
+                Icon(hub.navIcon, color: color, size: 17),
                 const SizedBox(width: 6),
                 Text(
-                  h.label,
+                  hub.navLabel,
                   style: TextStyle(
                     color: color,
                     fontSize: 13,

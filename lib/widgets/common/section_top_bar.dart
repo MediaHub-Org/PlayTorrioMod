@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/app_spacing.dart';
 import '../../utils/hub_controller.dart';
 
 /// A horizontal bar of section chips shown at the top of each hub's content
@@ -26,7 +27,7 @@ class SectionTopBar extends StatelessWidget {
           final activeId = HubController.instance.currentSectionId;
           return ListView.separated(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: 6),
             itemCount: sections.length,
             separatorBuilder: (_, __) => const SizedBox(width: 6),
             itemBuilder: (context, index) {
@@ -64,13 +65,13 @@ class _Chip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(AppRadii.md),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: selected ? const Color(0xFF7C5CFF) : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(AppRadii.md),
           boxShadow: selected
               ? [
                   BoxShadow(

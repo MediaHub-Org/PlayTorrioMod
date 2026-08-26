@@ -4,6 +4,7 @@ import '../../services/app_breakpoints.dart';
 import '../../services/app_spacing.dart';
 import '../../utils/app_hub.dart';
 import '../../utils/hub_controller.dart';
+import 'sidebar_logo.dart';
 import 'top_bar.dart';
 
 /// Tier-aware nav chrome wrapping a hub's content area.
@@ -77,7 +78,7 @@ class _MobileTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Image.asset('assets/icon.png', width: 28, height: 28, fit: BoxFit.contain),
+          const SidebarLogo(),
           const Spacer(),
           if (onSettingsTap != null)
             IconButton(
