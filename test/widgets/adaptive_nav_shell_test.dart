@@ -49,5 +49,47 @@ void main() {
       expect(find.byType(TopBar), findsOneWidget);
       expect(find.byKey(const Key('adaptiveNavMobileBar')), findsNothing);
     });
+
+    testWidgets('tapping a mobile tab switches the hub', (tester) async {
+      setSurfaceWidth(tester, 400);
+      await tester.pumpWidget(wrap(const AdaptiveNavShell(child: SizedBox.shrink())));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Listen'));
+      await tester.pump();
+
+      expect(HubController.instance.currentHub, AppHub.music);
+    });
+
+    testWidgets('mobile top bar hides settings icon when onSettingsTap is null', (tester) async {
+      setSurfaceWidth(tester, 400);
+      await tester.pumpWidget(wrap(const AdaptiveNavShell(child: SizedBox.shrink())));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.settings_rounded), findsNothing);
+    });
+
+    testWidgets('mobile top bar shows settings icon and calls onSettingsTap', (tester) async {
+      setSurfaceWidth(tester, 400);
+      var tapped = false;
+      await tester.pumpWidget(wrap(AdaptiveNavShell(
+        onSettingsTap: () => tapped = true,
+        child: const SizedBox.shrink(),
+      )));
+      await tester.pumpAndSettle();
+
+      expect(find.byIcon(Icons.settings_rounded), findsOneWidget);
+      await tester.tap(find.byIcon(Icons.settings_rounded));
+      await tester.pump();
+      expect(tapped, true);
+    });
+
+    testWidgets('renders the provided child', (tester) async {
+      setSurfaceWidth(tester, 1200);
+      await tester.pumpWidget(wrap(const AdaptiveNavShell(child: Text('hub content'))));
+      await tester.pumpAndSettle();
+
+      expect(find.text('hub content'), findsOneWidget);
+    });
   });
 }

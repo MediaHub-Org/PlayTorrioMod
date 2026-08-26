@@ -18,6 +18,14 @@ class AdaptiveNavShell extends StatelessWidget {
   /// should offset by at least this much.
   static const double mobileBottomBarHeight = 64;
 
+  /// Total space the mobile bottom tab bar occupies on screen, including
+  /// the device's bottom safe-area inset (e.g. the iOS home indicator).
+  /// Callers positioning other bottom-anchored chrome above it on mobile
+  /// (e.g. a mini player) should use this instead of [mobileBottomBarHeight]
+  /// alone, or their chrome will overlap the inset.
+  static double mobileBottomBarInset(BuildContext context) =>
+      mobileBottomBarHeight + MediaQuery.paddingOf(context).bottom;
+
   final Widget child;
   final VoidCallback? onSettingsTap;
 
@@ -30,7 +38,7 @@ class AdaptiveNavShell extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tier = AppBreakpoints.of(context);
-    final topPadding = MediaQuery.of(context).padding.top;
+    final topPadding = MediaQuery.paddingOf(context).top;
 
     if (tier == ScreenTier.mobile) {
       return Column(
@@ -38,7 +46,7 @@ class AdaptiveNavShell extends StatelessWidget {
           SizedBox(height: topPadding),
           _MobileTopBar(onSettingsTap: onSettingsTap),
           Expanded(child: child),
-          const _MobileHubTabBar(),
+          const SafeArea(top: false, child: _MobileHubTabBar()),
         ],
       );
     }

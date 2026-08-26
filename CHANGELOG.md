@@ -6,7 +6,7 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ### Frontend nav chrome — 2026-08-26
 - Added `AppBreakpoints`/`ScreenTier` (mobile/tablet/desktop, 600/900 cutoffs) as the single source of truth for responsive tiers, and `AppSpacing`/`AppRadii` as a shared 8pt-grid token scale — both follow `AppThemeService`'s existing static-service pattern.
-- Added `AdaptiveNavShell`: `HubPage` now shows a thumb-reachable bottom tab bar on mobile (matching Netflix/Disney+/Stremio's mobile nav placement) instead of the same top-anchored `TopBar` used on every screen size. Tablet/desktop are unchanged.
+- Added `AdaptiveNavShell`: `HubPage` now shows a thumb-reachable bottom tab bar on mobile (matching Netflix/Disney+/Stremio's mobile nav placement) instead of the same top-anchored `TopBar` used on every screen size. Tablet/desktop keep `TopBar` unchanged; the play bar's bottom margin on tablet also tightened from a leftover 76px to the correct 16px it already used on desktop.
 - Additive-only pass: no existing service, model, or scraper touched; `TopBar`/`SectionTopBar` reused as-is. Full design and what's intentionally deferred (opportunistic migration of the 52 files with ad-hoc breakpoint checks, restyling `TopBar` onto the new tokens) is in `docs/superpowers/specs/2026-08-26-frontend-design-system-design.md`.
 
 ### Merged upstream — 2026-08-25

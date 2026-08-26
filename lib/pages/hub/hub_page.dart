@@ -150,7 +150,7 @@ class _HubPageState extends State<HubPage> {
             if (!_showIntro)
               Positioned(
                 bottom: tier == ScreenTier.mobile
-                    ? AdaptiveNavShell.mobileBottomBarHeight + 12
+                    ? AdaptiveNavShell.mobileBottomBarInset(context) + 12
                     : 16,
                 left: 12,
                 right: 12,
