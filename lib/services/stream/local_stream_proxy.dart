@@ -108,6 +108,20 @@ class LocalStreamProxy {
       h['Origin'] = 'https://anidb.app';
       h['User-Agent'] =
           'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
+    } else if (lower.contains('4animo.xyz') ||
+        (initialHeaders != null && initialHeaders['Referer']?.contains('4animo.xyz') == true)) {
+      h['Referer'] = 'https://cdn.4animo.xyz/';
+      h['Origin'] = 'https://cdn.4animo.xyz';
+      h['User-Agent'] =
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
+    } else if (lower.contains('tryembed.us.cc') ||
+        lower.contains('premilkyway.com') ||
+        lower.contains('anixx.cloud') ||
+        (initialHeaders != null && initialHeaders['Referer']?.contains('tryembed') == true)) {
+      h['Referer'] = 'https://tryembed.us.cc/';
+      h['Origin'] = 'https://tryembed.us.cc';
+      h['User-Agent'] =
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
     }
 
     return h;
@@ -226,80 +240,97 @@ class LocalStreamProxy {
       final lowerUrl = targetUrl.toLowerCase();
 
       // Check if this is an M3U8 text manifest that requires playlist URL rewriting
-      final isM3u8Manifest = (lowerUrl.contains('.m3u8') ||
+      final isM3u8Manifest = (request.uri.path.endsWith('.m3u8') ||
+              lowerUrl.contains('.m3u8') ||
               upstreamContentType.contains('mpegurl') ||
               upstreamContentType.contains('application/x-mpegurl')) &&
-          !lowerUrl.contains('.ts') &&
           !lowerUrl.contains('.mp4') &&
           !lowerUrl.contains('.m4s');
 
-      if (isM3u8Manifest && statusCode == 200) {
-        // Read text manifest (M3U8 playlists are small, usually 2-50KB)
-        final bodyBytes = await upstreamRes.fold<List<int>>([], (prev, elem) => prev..addAll(elem));
-        final isActualM3u8 = bodyBytes.length >= 7 &&
-            utf8.decode(bodyBytes.sublist(0, 7), allowMalformed: true).startsWith('#EXTM3U');
+      if (statusCode == 200) {
+        // Read text manifest if M3U8 or if content might be an HLS playlist
+        if (isM3u8Manifest || request.uri.path.endsWith('.m3u8') || upstreamContentType.contains('text/')) {
+          final bodyBytes = await upstreamRes.fold<List<int>>([], (prev, elem) => prev..addAll(elem));
+          final isActualM3u8 = bodyBytes.length >= 7 &&
+              utf8.decode(bodyBytes.sublist(0, 7), allowMalformed: true).startsWith('#EXTM3U');
 
-        if (isActualM3u8) {
-          final bodyText = utf8.decode(bodyBytes, allowMalformed: true);
-          final lines = bodyText.split('\n');
-          final headersJsonStr = jsonEncode(effectiveHeaders);
-          final encodedHeadersStr = Uri.encodeComponent(headersJsonStr);
+          if (isActualM3u8) {
+            final bodyText = utf8.decode(bodyBytes, allowMalformed: true);
+            final lines = bodyText.split('\n');
+            final headersJsonStr = jsonEncode(effectiveHeaders);
+            final encodedHeadersStr = Uri.encodeComponent(headersJsonStr);
 
-          final rewrittenLines = <String>[];
-          for (final line in lines) {
-            final trimmed = line.trim();
-            if (trimmed.isEmpty) continue;
+            final rewrittenLines = <String>[];
+            bool isNextLineVariantPlaylist = false;
 
-            // Strip broken I-FRAME stream declarations that 404 on streaming CDNs (e.g. watching.onl)
-            if (trimmed.startsWith('#EXT-X-I-FRAME-STREAM-INF')) {
-              continue;
-            }
+            for (final line in lines) {
+              final trimmed = line.trim();
+              if (trimmed.isEmpty) continue;
 
-            if (trimmed.startsWith('#')) {
-              if (trimmed.contains('URI="')) {
-                final uriRegex = RegExp(r'URI="([^"]+)"');
-                final replaced = trimmed.replaceAllMapped(uriRegex, (match) {
-                  final matchedUri = match.group(1)!;
-                  var resolvedUri = upstreamUri.resolve(matchedUri);
-                  if (upstreamUri.hasQuery && !resolvedUri.hasQuery) {
-                    resolvedUri = resolvedUri.replace(query: upstreamUri.query);
-                  }
-                  final pathLower = resolvedUri.path.toLowerCase();
-                  final isM3u8 = pathLower.contains('.m3u8') || pathLower.endsWith('.m3u8');
-                  final ext = isM3u8 ? 'proxy.m3u8' : 'proxy.ts';
-                  final proxiedUri =
-                      'http://127.0.0.1:$_port/$ext?url=${Uri.encodeComponent(resolvedUri.toString())}&headers=$encodedHeadersStr';
-                  return 'URI="$proxiedUri"';
-                });
-                rewrittenLines.add(replaced);
-              } else {
-                rewrittenLines.add(line);
+              // Strip broken I-FRAME stream declarations that 404 on streaming CDNs (e.g. watching.onl)
+              if (trimmed.startsWith('#EXT-X-I-FRAME-STREAM-INF')) {
+                continue;
               }
-              continue;
+
+              if (trimmed.startsWith('#EXT-X-STREAM-INF')) {
+                isNextLineVariantPlaylist = true;
+                rewrittenLines.add(line);
+                continue;
+              }
+
+              if (trimmed.startsWith('#')) {
+                if (trimmed.contains('URI="')) {
+                  final uriRegex = RegExp(r'URI="([^"]+)"');
+                  final replaced = trimmed.replaceAllMapped(uriRegex, (match) {
+                    final matchedUri = match.group(1)!;
+                    var resolvedUri = upstreamUri.resolve(matchedUri);
+                    if (upstreamUri.hasQuery && !resolvedUri.hasQuery) {
+                      resolvedUri = resolvedUri.replace(query: upstreamUri.query);
+                    }
+                    final pathLower = resolvedUri.path.toLowerCase();
+                    final isM3u8 = isNextLineVariantPlaylist ||
+                        pathLower.contains('.m3u8') ||
+                        pathLower.endsWith('.m3u8') ||
+                        trimmed.contains('TYPE=SUBTITLES') ||
+                        trimmed.contains('TYPE=AUDIO');
+                    final ext = isM3u8 ? 'proxy.m3u8' : 'proxy.ts';
+                    final proxiedUri =
+                        'http://127.0.0.1:$_port/$ext?url=${Uri.encodeComponent(resolvedUri.toString())}&headers=$encodedHeadersStr';
+                    return 'URI="$proxiedUri"';
+                  });
+                  rewrittenLines.add(replaced);
+                } else {
+                  rewrittenLines.add(line);
+                }
+                continue;
+              }
+
+              // Segment / variant stream URL
+              var resolvedUri = upstreamUri.resolve(trimmed);
+              if (upstreamUri.hasQuery && !resolvedUri.hasQuery) {
+                resolvedUri = resolvedUri.replace(query: upstreamUri.query);
+              }
+              final pathLower = resolvedUri.path.toLowerCase();
+              final isM3u8Sub = isNextLineVariantPlaylist ||
+                  pathLower.contains('.m3u8') ||
+                  pathLower.endsWith('.m3u8');
+              isNextLineVariantPlaylist = false;
+              final ext = isM3u8Sub ? 'proxy.m3u8' : 'proxy.ts';
+              rewrittenLines.add('http://127.0.0.1:$_port/$ext?url=${Uri.encodeComponent(resolvedUri.toString())}&headers=$encodedHeadersStr');
             }
 
-            // Segment / variant stream URL
-            var resolvedUri = upstreamUri.resolve(trimmed);
-            if (upstreamUri.hasQuery && !resolvedUri.hasQuery) {
-              resolvedUri = resolvedUri.replace(query: upstreamUri.query);
-            }
-            final pathLower = resolvedUri.path.toLowerCase();
-            final isM3u8Sub = pathLower.contains('.m3u8') || pathLower.endsWith('.m3u8');
-            final ext = isM3u8Sub ? 'proxy.m3u8' : 'proxy.ts';
-            rewrittenLines.add('http://127.0.0.1:$_port/$ext?url=${Uri.encodeComponent(resolvedUri.toString())}&headers=$encodedHeadersStr');
+            final rewrittenBody = rewrittenLines.join('\n');
+            final outputBytes = utf8.encode(rewrittenBody);
+
+            request.response
+              ..statusCode = HttpStatus.ok
+              ..headers.set(HttpHeaders.contentTypeHeader, 'application/vnd.apple.mpegurl')
+              ..headers.set(HttpHeaders.accessControlAllowOriginHeader, '*')
+              ..headers.set(HttpHeaders.contentLengthHeader, outputBytes.length)
+              ..add(outputBytes);
+            await request.response.close();
+            return;
           }
-
-          final rewrittenBody = rewrittenLines.join('\n');
-          final outputBytes = utf8.encode(rewrittenBody);
-
-          request.response
-            ..statusCode = HttpStatus.ok
-            ..headers.set(HttpHeaders.contentTypeHeader, 'application/vnd.apple.mpegurl')
-            ..headers.set(HttpHeaders.accessControlAllowOriginHeader, '*')
-            ..headers.set(HttpHeaders.contentLengthHeader, outputBytes.length)
-            ..add(outputBytes);
-          await request.response.close();
-          return;
         }
       }
 

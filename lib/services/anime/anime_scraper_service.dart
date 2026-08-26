@@ -6,6 +6,8 @@ import '../../models/movie/video.dart';
 import '../../models/stream/stream_model.dart';
 import 'extractors/anidb_extractor.dart';
 import 'extractors/megaplay_extractor.dart';
+import 'extractors/recloud_extractor.dart';
+import 'extractors/tryembed_extractor.dart';
 import 'extractors/watchhentai_extractor.dart';
 import 'extractors/hentaini_extractor.dart';
 
@@ -14,6 +16,8 @@ class AnimeScraperService {
   AnimeScraperService._internal();
 
   final MegaPlayExtractor _megaPlay = MegaPlayExtractor.instance;
+  final ReCloudExtractor _reCloud = ReCloudExtractor.instance;
+  final TryEmbedExtractor _tryEmbed = TryEmbedExtractor.instance;
   final AniDbExtractor _aniDb = AniDbExtractor.instance;
   final WatchHentaiExtractor _watchHentai = WatchHentaiExtractor();
   final HentainiExtractor _hentaini = HentainiExtractor();
@@ -93,7 +97,98 @@ class AnimeScraperService {
         );
       }
 
-      // 2. AniDB Provider (Sub & Dub)
+      // 2. ReCloud Provider (Sub & Dub)
+      for (final cat in cats) {
+        tasks.add(
+          _reCloud
+              .extract(
+            anilistId: anime.id,
+            episodeNumber: episodeNumber,
+            category: cat,
+          )
+              .then((res) {
+            if (res != null &&
+                res.url.isNotEmpty &&
+                seenUrls.add(res.url) &&
+                !controller.isClosed) {
+              final catUpper = cat.toUpperCase();
+              final subCount = res.tracks.where((t) => t.kind != 'thumbnails').length;
+              final subLabel = subCount > 0 ? ' • $subCount Subtitles' : '';
+
+              controller.add(
+                StreamSource(
+                  name: '⚡ ReCloud • $catUpper',
+                  title:
+                      '${anime.displayTitle} • Ep $episodeNumber [ReCloud • $catUpper]',
+                  description:
+                      'ReCloud • Master HLS • $catUpper$subLabel',
+                  url: res.url,
+                  addonName: 'ReCloud',
+                  headers: res.headers,
+                  behaviorHints: {
+                    'notWebReady': true,
+                    if (res.intro != null) 'intro': res.intro,
+                    if (res.outro != null) 'outro': res.outro,
+                    'proxyHeaders': {
+                      'request': res.headers,
+                    },
+                  },
+                ),
+              );
+            }
+          }).catchError((e) {
+            if (kDebugMode) debugPrint('[AnimeScraper] ReCloud ($cat) error: $e');
+          }),
+        );
+      }
+
+      // 3. TryEmbed Provider (Sub & Dub)
+      for (final cat in cats) {
+        tasks.add(
+          _tryEmbed
+              .extractAll(
+            anilistId: anime.id,
+            episodeNumber: episodeNumber,
+            category: cat,
+          )
+              .then((results) {
+            for (final res in results) {
+              if (res.url.isNotEmpty &&
+                  seenUrls.add(res.url) &&
+                  !controller.isClosed) {
+                final catUpper = cat.toUpperCase();
+                final subCount = res.tracks.length;
+                final subLabel = subCount > 0 ? ' • $subCount Subtitles' : '';
+
+                controller.add(
+                  StreamSource(
+                    name: '⚡ TryEmbed • ${res.serverName} • $catUpper',
+                    title:
+                        '${anime.displayTitle} • Ep $episodeNumber [TryEmbed • ${res.serverName} • $catUpper]',
+                    description:
+                        'TryEmbed (${res.serverName}) • Master HLS • $catUpper$subLabel',
+                    url: res.url,
+                    addonName: 'TryEmbed',
+                    headers: res.headers,
+                    behaviorHints: {
+                      'notWebReady': false,
+                      if (res.intro != null) 'intro': res.intro,
+                      if (res.outro != null) 'outro': res.outro,
+                      'proxyHeaders': {
+                        'request': res.headers,
+                      },
+                    },
+                  ),
+                );
+              }
+            }
+          }).catchError((e) {
+            if (kDebugMode) debugPrint('[AnimeScraper] TryEmbed ($cat) error: $e');
+          }),
+        );
+      }
+
+      // 4. AniDB Provider (Sub & Dub)
       if (titleCandidates.isNotEmpty) {
         for (final cat in cats) {
           tasks.add(
@@ -135,7 +230,7 @@ class AnimeScraperService {
         }
       }
 
-      // 3. Fallback Hentai extractors for NSFW/Ecchi anime
+      // 5. Fallback Hentai extractors for NSFW/Ecchi anime
       final isAdult = anime.genres.any((g) =>
           g.toLowerCase().contains('hentai') ||
           g.toLowerCase().contains('erotica') ||
@@ -268,9 +363,96 @@ class AnimeScraperService {
             }),
           );
         }
+
+        // 2. ReCloud Provider (Sub & Dub)
+        for (final cat in cats) {
+          tasks.add(
+            _reCloud
+                .extract(
+              anilistId: anilistId,
+              episodeNumber: episodeNumber,
+              category: cat,
+            )
+                .then((res) {
+              if (res != null &&
+                  res.url.isNotEmpty &&
+                  seenUrls.add(res.url) &&
+                  !controller.isClosed) {
+                final catUpper = cat.toUpperCase();
+                final subCount = res.tracks.where((t) => t.kind != 'thumbnails').length;
+                final subLabel = subCount > 0 ? ' • $subCount Subtitles' : '';
+
+                controller.add(
+                  StreamSource(
+                    name: '⚡ ReCloud • $catUpper',
+                    title: '$cleanTitle • Ep $episodeNumber [ReCloud • $catUpper]',
+                    description: 'ReCloud • Master HLS • $catUpper$subLabel',
+                    url: res.url,
+                    addonName: 'ReCloud',
+                    headers: res.headers,
+                    behaviorHints: {
+                      'notWebReady': true,
+                      if (res.intro != null) 'intro': res.intro,
+                      if (res.outro != null) 'outro': res.outro,
+                      'proxyHeaders': {
+                        'request': res.headers,
+                      },
+                    },
+                  ),
+                );
+              }
+            }).catchError((e) {
+              if (kDebugMode) debugPrint('[AnimeScraper] In-player ReCloud error: $e');
+            }),
+          );
+        }
+
+        // 3. TryEmbed Provider (Sub & Dub)
+        for (final cat in cats) {
+          tasks.add(
+            _tryEmbed
+                .extractAll(
+              anilistId: anilistId,
+              episodeNumber: episodeNumber,
+              category: cat,
+            )
+                .then((results) {
+              for (final res in results) {
+                if (res.url.isNotEmpty &&
+                    seenUrls.add(res.url) &&
+                    !controller.isClosed) {
+                  final catUpper = cat.toUpperCase();
+                  final subCount = res.tracks.length;
+                  final subLabel = subCount > 0 ? ' • $subCount Subtitles' : '';
+
+                  controller.add(
+                    StreamSource(
+                      name: '⚡ TryEmbed • ${res.serverName} • $catUpper',
+                      title: '$cleanTitle • Ep $episodeNumber [TryEmbed • ${res.serverName} • $catUpper]',
+                      description: 'TryEmbed (${res.serverName}) • Master HLS • $catUpper$subLabel',
+                      url: res.url,
+                      addonName: 'TryEmbed',
+                      headers: res.headers,
+                      behaviorHints: {
+                        'notWebReady': false,
+                        if (res.intro != null) 'intro': res.intro,
+                        if (res.outro != null) 'outro': res.outro,
+                        'proxyHeaders': {
+                          'request': res.headers,
+                        },
+                      },
+                    ),
+                  );
+                }
+              }
+            }).catchError((e) {
+              if (kDebugMode) debugPrint('[AnimeScraper] In-player TryEmbed error: $e');
+            }),
+          );
+        }
       }
 
-      // 2. AniDB Provider (Sub & Dub)
+      // 4. AniDB Provider (Sub & Dub)
       if (titleCandidates.isNotEmpty) {
         for (final cat in cats) {
           tasks.add(
