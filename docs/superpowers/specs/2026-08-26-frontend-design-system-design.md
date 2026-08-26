@@ -13,8 +13,6 @@ PlayTorrio's frontend has no single responsive/visual source of truth:
   its own cutoffs.
 - Spacing/radius values are magic numbers repeated per widget, not a
   shared scale.
-- Card widgets are near-duplicated per content type (`MovieCard`,
-  `IptvChannelCard`, manga/book cover tiles) with no shared shell.
 - Navigation chrome (`TopBar` — logo + 3 hub tabs + settings, fixed 60px;
   `SectionTopBar` — 44px horizontal chip row) renders identically on
   every screen size. There is no mobile-native layout: a top-anchored
@@ -22,9 +20,17 @@ PlayTorrio's frontend has no single responsive/visual source of truth:
   primary navigation (bottom, thumb-reachable).
 
 Goal: a small, reusable design-system layer (breakpoints, spacing,
-shared components, adaptive nav) that every hub can draw on, giving the
-app one consistent, responsive, "consolidated-app" visual language —
-without a mass rewrite and without touching backend/services.
+adaptive nav) that every hub can draw on, giving the app one consistent,
+responsive, "consolidated-app" visual language — without a mass rewrite
+and without touching backend/services.
+
+**Card/header dedup already exists.** An earlier pass already extracted
+`lib/widgets/common/interactive_card_shell.dart` (hover/press physics,
+used by `MovieCard` and `IptvChannelCard`) and
+`lib/widgets/common/section_header.dart` ("row title + See All", used by
+`MovieSliderSection`). What's left per card type (poster+rating badge vs.
+channel gradient+logo) is genuinely different content, not duplicated
+boilerplate — this spec does not touch that area.
 
 ## Non-goals
 
@@ -67,41 +73,33 @@ pattern (`lib/services/app_theme_service.dart`):
 
 ## Components
 
-Additions under `lib/widgets/common/` (existing convention — that's
-where `sectioned_hub_scaffold.dart`, `top_bar.dart`, `section_top_bar.dart`
-already live):
+- **`lib/utils/app_hub.dart`** (additive edit) — `AppHub` gains
+  `navLabel`/`navIcon` getters (Watch/movie icon, Listen/music icon,
+  Read/books icon) so the new mobile tab bar doesn't need its own copy of
+  the label/icon mapping `TopBar` already has privately. `TopBar` itself
+  is untouched — it keeps its own private list, per Migration below.
 
-- **`premium_card.dart`** — one card shell (poster/backdrop, gradient
-  scrim, hover/press physics) that `MovieCard`, `IptvChannelCard`, and
-  manga/book cover tiles converge onto over time. Built on
-  `AppSpacing`/`AppRadii`.
-
-- **`section_header.dart`** — the "row title + see-all" pattern repeated
-  across every slider section, extracted once.
-
-- **`adaptive_nav_shell.dart`** — replaces `HubPage`'s hardcoded `TopBar`
-  mount. Reads `AppBreakpoints.of(context)`:
-  - `mobile`: bottom tab bar (3 hub tabs, thumb-reachable), `TopBar`
-    collapses to logo + settings only.
+- **`lib/widgets/common/adaptive_nav_shell.dart`** (new) — replaces
+  `HubPage`'s hardcoded `TopBar` mount. Reads `AppBreakpoints.of(context)`:
+  - `mobile`: bottom tab bar (3 hub tabs, thumb-reachable, built from
+    `AppHub.navLabel`/`navIcon`), collapsed top bar (logo + settings only).
   - `tablet` / `desktop`: mounts the existing `TopBar` unchanged — no
     edits to `top_bar.dart` in this pass, per Migration below. Restyling
     it onto the new tokens is opportunistic follow-up work, not this one.
   - `SectionTopBar` (the per-hub submenu) is unchanged in this pass too,
     on every tier — same opportunistic-migration treatment.
 
-Both card/header widgets are additive: existing widgets keep working
-untouched until a page is deliberately migrated onto the new ones.
-
 ## Migration & blast radius
 
-- This pass ships the five new files above, fully additive.
+- This pass ships three new files (`app_breakpoints.dart`,
+  `app_spacing.dart`, `adaptive_nav_shell.dart`) plus a small additive
+  edit to `app_hub.dart` (new getters, no existing behavior changed).
 - `lib/pages/hub/hub_page.dart` is the one existing file with a required
   behavior change: it mounts `AdaptiveNavShell` instead of `TopBar`
   directly. That's the entire nav-visible diff for this phase.
-- Everything else (the 52 files with ad-hoc `MediaQuery` checks, the
-  per-content-type card widgets, section headers across hubs) migrates
-  onto the new tokens/widgets opportunistically in later, separate work —
-  not in this pass. Keeps the diff reviewable and low-risk.
+- Everything else (the 52 files with ad-hoc `MediaQuery` checks) migrates
+  onto the new tokens opportunistically in later, separate work — not in
+  this pass. Keeps the diff reviewable and low-risk.
 - `lib/services/**` untouched except the two new additive token files —
   no existing service, model, scraper, or API contract changes. Backend
   and frontend stay decoupled for this work, per direction.
@@ -138,7 +136,7 @@ decision, everything else after):
    reuse; it's a separate spike to find a lighter EPUB-to-Flutter-widgets
    renderer (e.g. an HTML-to-RichText package) before committing to
    dropping the dependency.
-3. Opportunistic migration of the 52 existing ad-hoc-breakpoint files and
-   per-content-type card widgets onto the new tokens/components.
+3. Opportunistic migration of the 52 existing ad-hoc-breakpoint files,
+   plus restyling `TopBar`/`SectionTopBar` onto the new spacing tokens.
 4. General functionality/design improvements — not yet scoped; needs its
    own brainstorming pass once the above is prioritized.
