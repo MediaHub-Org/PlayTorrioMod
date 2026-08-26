@@ -100,64 +100,82 @@ class BooksService {
       final url = Uri.parse('$_base/index.php?req=${Uri.encodeComponent(query)}&curtab=f');
       final response = await _client.get(url, headers: _headers);
       if (response.statusCode != 200) return [];
-
-      final document = hp.parse(response.body);
-      final results = <BookResult>[];
-      final rows = document.querySelectorAll('table tbody tr, table tr');
-
-      for (final row in rows) {
-        final tds = row.querySelectorAll('td');
-        if (tds.length < 8) continue;
-
-        final firstTd = tds[0];
-        final titleLink = firstTd.querySelector('a[href*="edition.php"]');
-        if (titleLink == null) continue;
-
-        final title = titleLink.text.trim();
-        if (title.isEmpty) continue;
-
-        final editionHref = titleLink.attributes['href'] ?? '';
-        final editionId = RegExp(r'id=(\d+)').firstMatch(editionHref)?.group(1);
-        if (editionId == null || editionId.isEmpty) continue;
-
-        final series = firstTd.querySelector('b')?.text.trim() ?? '';
-        final isbn = firstTd.querySelector('font[color="green"]')?.text.trim() ?? '';
-        final fileId = firstTd.querySelector('.badge-secondary')?.text.trim() ?? '';
-
-        final author = tds[1].text.trim();
-        final publisher = tds[2].text.trim();
-        final year = tds[3].text.trim();
-        final language = tds[4].text.trim();
-        final pages = tds[5].text.trim();
-
-        final sizeTd = tds[6];
-        final size = sizeTd.querySelector('a')?.text.trim().isNotEmpty == true
-            ? sizeTd.querySelector('a')!.text.trim()
-            : sizeTd.text.trim();
-
-        final format = tds[7].text.trim();
-        if (format.toLowerCase() != 'epub') continue;
-
-        results.add(BookResult(
-          title: title,
-          series: series,
-          author: author,
-          publisher: publisher,
-          year: year,
-          language: language,
-          pages: pages,
-          size: size,
-          format: format,
-          isbn: isbn,
-          editionId: editionId,
-          editionUrl: '$_base/edition.php?id=$editionId',
-          fileId: fileId,
-        ));
-      }
-      return results;
+      return _parseResults(response.body);
     } catch (_) {
       return [];
     }
+  }
+
+  /// The site's own "recently added" feed, same fiction/epub tab as
+  /// [search] (`curtab=f`) so the browse grid and search results parse
+  /// identically -- gives the Books section something to show before a
+  /// user types a query, matching every other Read-hub section.
+  Future<List<BookResult>> browseRecent() async {
+    try {
+      final url = Uri.parse('$_base/index.php?req=mode:last&curtab=f');
+      final response = await _client.get(url, headers: _headers);
+      if (response.statusCode != 200) return [];
+      return _parseResults(response.body);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  List<BookResult> _parseResults(String html) {
+    final document = hp.parse(html);
+    final results = <BookResult>[];
+    final rows = document.querySelectorAll('table tbody tr, table tr');
+
+    for (final row in rows) {
+      final tds = row.querySelectorAll('td');
+      if (tds.length < 8) continue;
+
+      final firstTd = tds[0];
+      final titleLink = firstTd.querySelector('a[href*="edition.php"]');
+      if (titleLink == null) continue;
+
+      final title = titleLink.text.trim();
+      if (title.isEmpty) continue;
+
+      final editionHref = titleLink.attributes['href'] ?? '';
+      final editionId = RegExp(r'id=(\d+)').firstMatch(editionHref)?.group(1);
+      if (editionId == null || editionId.isEmpty) continue;
+
+      final series = firstTd.querySelector('b')?.text.trim() ?? '';
+      final isbn = firstTd.querySelector('font[color="green"]')?.text.trim() ?? '';
+      final fileId = firstTd.querySelector('.badge-secondary')?.text.trim() ?? '';
+
+      final author = tds[1].text.trim();
+      final publisher = tds[2].text.trim();
+      final year = tds[3].text.trim();
+      final language = tds[4].text.trim();
+      final pages = tds[5].text.trim();
+
+      final sizeTd = tds[6];
+      final size = sizeTd.querySelector('a')?.text.trim().isNotEmpty == true
+          ? sizeTd.querySelector('a')!.text.trim()
+          : sizeTd.text.trim();
+
+      final format = tds[7].text.trim();
+      if (format.toLowerCase() != 'epub') continue;
+
+      results.add(BookResult(
+        title: title,
+        series: series,
+        author: author,
+        publisher: publisher,
+        year: year,
+        language: language,
+        pages: pages,
+        size: size,
+        format: format,
+        isbn: isbn,
+        editionId: editionId,
+        editionUrl: '$_base/edition.php?id=$editionId',
+        fileId: fileId,
+      ));
+    }
+    return results;
   }
 
   /// editionId → md5, by scraping the edition page's `ads.php?md5=` link.

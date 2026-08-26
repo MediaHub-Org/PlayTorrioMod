@@ -25,10 +25,24 @@ class _BooksPageState extends State<BooksPage> {
   bool _hasSearched = false;
   List<BookProgress> _reading = [];
 
+  List<BookResult> _browsing = [];
+  bool _isBrowsingLoading = true;
+
   @override
   void initState() {
     super.initState();
     _loadReadingList();
+    _loadBrowse();
+  }
+
+  Future<void> _loadBrowse() async {
+    final results = await _service.browseRecent();
+    if (mounted) {
+      setState(() {
+        _browsing = results;
+        _isBrowsingLoading = false;
+      });
+    }
   }
 
   @override
@@ -166,20 +180,22 @@ class _BooksPageState extends State<BooksPage> {
             ),
           ),
         ),
-        if (!_hasSearched && _reading.isNotEmpty) ..._continueReadingSlivers(),
-        if (_isLoading)
+        if (!_hasSearched) ...[
+          if (_reading.isNotEmpty) ..._continueReadingSlivers(),
+          ..._browseSlivers(),
+        ] else if (_isLoading)
           const SliverFillRemaining(
             hasScrollBody: false,
             child: Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF))),
           )
-        else if (_hasSearched && _results.isEmpty)
+        else if (_results.isEmpty)
           const SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
               child: Text('No epub results found.', style: TextStyle(color: Colors.white54)),
             ),
           )
-        else if (_hasSearched)
+        else
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             sliver: SliverList(
@@ -188,26 +204,62 @@ class _BooksPageState extends State<BooksPage> {
                 childCount: _results.length,
               ),
             ),
-          )
-        else if (_reading.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.import_contacts_rounded, color: Colors.white24, size: 64),
-                    SizedBox(height: 16),
-                    Text('Search for a book to get started', style: TextStyle(color: Colors.white54, fontSize: 16)),
-                  ],
-                ),
-              ),
-            ),
           ),
       ],
     );
+  }
+
+  List<Widget> _browseSlivers() {
+    if (_isBrowsingLoading) {
+      return const [
+        SliverPadding(
+          padding: EdgeInsets.only(top: 40),
+          sliver: SliverToBoxAdapter(
+            child: Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF))),
+          ),
+        ),
+      ];
+    }
+    if (_browsing.isEmpty) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.import_contacts_rounded, color: Colors.white24, size: 64),
+                  SizedBox(height: 16),
+                  Text('Search for a book to get started', style: TextStyle(color: Colors.white54, fontSize: 16)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+        sliver: SliverToBoxAdapter(
+          child: Text(
+            'Recently Added',
+            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+        sliver: SliverList(
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _BookRow(book: _browsing[index], onTap: () => _openDownloadDialog(_browsing[index])),
+            childCount: _browsing.length,
+          ),
+        ),
+      ),
+    ];
   }
 
   List<Widget> _continueReadingSlivers() {

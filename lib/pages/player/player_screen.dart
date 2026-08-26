@@ -50,7 +50,6 @@ import '../../widgets/player/text_sync_overlay.dart';
 import '../../models/download/download_task_model.dart';
 import '../../services/download/download_service.dart';
 import '../../utils/download_path_helper.dart';
-import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 class PlayerScreen extends StatefulWidget {
   final StreamSource source;
