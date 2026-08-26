@@ -2,12 +2,14 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'player_glass.dart';
 
-/// Interactive volume slider with boost support (up to 300%).
+/// Interactive volume slider with realistic boost support (up to 140%).
 class PlayerVolumeControl extends StatefulWidget {
-  final double volume; // 0.0 to 3.0 (300%)
+  final double volume; // 0.0 to 1.40 (140%)
   final bool isMuted;
   final ValueChanged<double> onVolumeChanged;
   final VoidCallback onToggleMute;
+
+  static const double maxVolume = 1.40;
 
   const PlayerVolumeControl({
     super.key,
@@ -40,18 +42,17 @@ class _PlayerVolumeControlState extends State<PlayerVolumeControl> {
 
   Color _getBoostColor() {
     if (widget.volume <= 1.0) return Colors.white;
-    if (widget.volume <= 1.5) return const Color(0xFFF97316); // Orange
-    return const Color(0xFFEF4444); // Red
+    return const Color(0xFFF97316); // Amber/Orange
   }
 
   void _updateFromPosition(double localX) {
-    // Normal 0.0 to 1.0 takes up 70% of the bar, Boost 1.0 to 3.0 takes the remaining 30%
+    // Normal 0.0 to 1.0 takes up 75% of the bar, Boost 1.0 to 1.40 takes the remaining 25%
     final fraction = (localX / _trackWidth).clamp(0.0, 1.0);
     double newVol;
-    if (fraction <= 0.70) {
-      newVol = (fraction / 0.70);
+    if (fraction <= 0.75) {
+      newVol = (fraction / 0.75);
     } else {
-      newVol = 1.0 + ((fraction - 0.70) / 0.30) * 2.0;
+      newVol = 1.0 + ((fraction - 0.75) / 0.25) * 0.40;
     }
     widget.onVolumeChanged((newVol * 100).round() / 100.0);
   }
@@ -59,9 +60,9 @@ class _PlayerVolumeControlState extends State<PlayerVolumeControl> {
   double _getFractionFromVolume(double v) {
     if (widget.isMuted) return 0.0;
     if (v <= 1.0) {
-      return (v * 0.70).clamp(0.0, 0.70);
+      return (v * 0.75).clamp(0.0, 0.75);
     }
-    return (0.70 + ((v - 1.0) / 2.0) * 0.30).clamp(0.70, 1.0);
+    return (0.75 + ((v - 1.0) / 0.40) * 0.25).clamp(0.75, 1.0);
   }
 
   @override
@@ -76,7 +77,7 @@ class _PlayerVolumeControlState extends State<PlayerVolumeControl> {
       onPointerSignal: (pointerSignal) {
         if (pointerSignal is PointerScrollEvent) {
           final delta = pointerSignal.scrollDelta.dy < 0 ? 0.05 : -0.05;
-          final next = (widget.volume + delta).clamp(0.0, 3.0);
+          final next = (widget.volume + delta).clamp(0.0, PlayerVolumeControl.maxVolume);
           widget.onVolumeChanged((next * 100).round() / 100.0);
         }
       },
@@ -129,7 +130,7 @@ class _PlayerVolumeControlState extends State<PlayerVolumeControl> {
                       decoration: BoxDecoration(
                         gradient: isBoosting
                             ? const LinearGradient(
-                                colors: [Colors.white, Color(0xFFF97316), Color(0xFFEF4444)],
+                                colors: [Colors.white, Color(0xFFF97316)],
                               )
                             : null,
                         color: isBoosting ? null : Colors.white.withValues(alpha: 0.9),

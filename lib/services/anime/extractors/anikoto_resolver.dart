@@ -382,8 +382,8 @@ class AnikotoResolver {
 
       return AnikotoDirectResult(
         url: file,
-        referer: '$origin/',
-        origin: origin,
+        referer: 'https://megaplay.buzz/',
+        origin: 'https://megaplay.buzz',
         tracks: tracks,
         introStart: introStart,
         introEnd: introEnd,

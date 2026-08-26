@@ -26,6 +26,7 @@ class AddonManifest {
   bool get supportsMeta => resources.contains('meta');
   bool get supportsCatalog => resources.contains('catalog');
   bool get supportsStream => resources.contains('stream');
+  bool get supportsSubtitles => resources.contains('subtitles');
 
   factory AddonManifest.fromJson(Map<String, dynamic> json) {
     return AddonManifest(

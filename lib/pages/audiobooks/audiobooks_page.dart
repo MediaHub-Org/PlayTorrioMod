@@ -1326,12 +1326,16 @@ class _AudiobookCardState extends State<_AudiobookCard> {
                                   const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFB74D), size: 10),
                                   const SizedBox(width: 3),
                                 ],
-                                Text(
-                                  isTorrent ? 'AUDIOBOOKBAY (TORRENT)' : book.source.toUpperCase(),
-                                  style: TextStyle(
-                                    color: isTorrent ? const Color(0xFFFFB74D) : palette.primaryColor,
-                                    fontSize: 9,
-                                    fontWeight: FontWeight.bold,
+                                Flexible(
+                                  child: Text(
+                                    isTorrent ? 'AUDIOBOOKBAY' : book.source.toUpperCase(),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: isTorrent ? const Color(0xFFFFB74D) : palette.primaryColor,
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ],

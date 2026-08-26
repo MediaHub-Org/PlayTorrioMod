@@ -270,12 +270,16 @@ abstract final class GlassSettings {
     );
   }
 
-  static LiquidGlassStyle createButtonGlassStyle() {
+  static LiquidGlassStyle createButtonGlassStyle({
+    double cornerRadius = 18,
+    double? customBorderWidth,
+    Color? customColor,
+  }) {
     return LiquidGlassStyle(
       shape: LiquidGlassShape.continuousRoundedRectangle(
-        cornerRadius: 18,
+        cornerRadius: cornerRadius,
         clipQuality: LiquidGlassClipQuality.exact,
-        borderWidth: borderWidth.value * 0.9,
+        borderWidth: customBorderWidth ?? borderWidth.value * 0.9,
         lightIntensity: lightIntensity.value,
         lightColor: const Color(0xE6FFFFFF),
         lightDirection: 110,
@@ -287,7 +291,7 @@ abstract final class GlassSettings {
         ),
       ),
       appearance: LiquidGlassAppearance(
-        color: const Color(0x3813151C),
+        color: customColor ?? const Color(0x3813151C),
         saturation: 1.1,
         blur: LiquidGlassBlur(
           sigmaX: blurSigma.value * 0.8,

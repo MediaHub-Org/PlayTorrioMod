@@ -18,6 +18,7 @@ import '../manga/manga_page.dart';
 import '../music/music_page.dart';
 import '../my_list/my_list_page.dart';
 import '../settings/settings_page.dart';
+import '../settings/addons_settings_page.dart';
 import 'iptv_channel_sheet.dart';
 import 'iptv_player_page.dart';
 import 'iptv_portals_modal.dart';
@@ -300,7 +301,15 @@ class _IptvPageState extends State<IptvPage> {
               DockItem(
                 icon: Icons.extension_rounded,
                 label: 'Addons',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    LiquidRevealRoute(
+                      page: const AddonsSettingsPage(),
+                      tapPosition: null,
+                    ),
+                  );
+                },
               ),
               DockItem(
                 icon: Icons.download_rounded,

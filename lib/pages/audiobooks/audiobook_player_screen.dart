@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -463,6 +464,104 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     final palette = AppThemeService.currentPalette.value;
     final preset = AudiobookSettings.selectedPlayerPreset.value;
 
+    final screenSize = MediaQuery.sizeOf(context);
+    final isDesktop = screenSize.width >= 800;
+
+    if (isDesktop) {
+      return Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Stack(
+          alignment: Alignment.center,
+          children: [
+            // Dismissible Scrim with blur
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                  child: Container(color: Colors.black.withValues(alpha: 0.65)),
+                ),
+              ),
+            ),
+
+            // Floating Modal Window
+            Center(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: 680,
+                  maxHeight: math.min(780, screenSize.height * 0.90),
+                ),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF0C0F17),
+                    borderRadius: BorderRadius.circular(28),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.75),
+                        blurRadius: 40,
+                        spreadRadius: 8,
+                        offset: const Offset(0, 12),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: Stack(
+                      children: [
+                        // Background ambient cover blur & atmosphere
+                        if (hasCover && widget.audiobook.coverImage.trim().isNotEmpty)
+                          Positioned.fill(
+                            child: Opacity(
+                              opacity: 0.22,
+                              child: CachedNetworkImage(
+                                imageUrl: widget.audiobook.coverImage.trim(),
+                                httpHeaders: const {
+                                  'User-Agent':
+                                      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                                },
+                                fit: BoxFit.cover,
+                                placeholder: (_, __) => const SizedBox.shrink(),
+                                errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                              ),
+                            ),
+                          ),
+                        Positioned.fill(
+                          child: BackdropFilter(
+                            filter: ImageFilter.blur(sigmaX: 55, sigmaY: 55),
+                            child: Container(color: Colors.black.withValues(alpha: 0.68)),
+                          ),
+                        ),
+
+                        // Main Modal Content
+                        Column(
+                          children: [
+                            // Top App Bar
+                            _buildTopAppBar(context, palette, isDesktop: true),
+
+                            // Main Content Rendered by Selected Player Preset
+                            Expanded(
+                              child: _buildPlayerContentByPreset(preset, false, hasCover, currentChapter, palette),
+                            ),
+                          ],
+                        ),
+
+                        // Sliding Premade Chapters Drawer Overlay
+                        if (_showChaptersDrawer)
+                          Positioned.fill(
+                            child: _buildPremadeChaptersDrawer(palette),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFF080A0F),
       body: Stack(
@@ -523,13 +622,13 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
   }
 
   // ── Top Header Bar ──
-  Widget _buildTopAppBar(BuildContext context, AppThemePalette palette) {
+  Widget _buildTopAppBar(BuildContext context, AppThemePalette palette, {bool isDesktop = false}) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
       child: Row(
         children: [
           _PlayerIconButton(
-            icon: Icons.arrow_back_ios_new_rounded,
+            icon: isDesktop ? Icons.close_rounded : Icons.arrow_back_ios_new_rounded,
             palette: palette,
             onTap: () => Navigator.pop(context),
           ),

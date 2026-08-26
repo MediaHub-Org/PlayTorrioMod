@@ -23,6 +23,7 @@ import '../../widgets/home/continue_watching_slider.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../search/search_page.dart';
 import '../settings/settings_page.dart';
+import '../settings/addons_settings_page.dart';
 import '../manga/manga_page.dart';
 import '../audiobooks/audiobooks_page.dart';
 import '../music/music_page.dart';
@@ -428,7 +429,15 @@ class _HomePageState extends State<HomePage> {
               DockItem(
                 icon: Icons.extension_rounded,
                 label: 'Addons',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    LiquidRevealRoute(
+                      page: const AddonsSettingsPage(),
+                      tapPosition: null,
+                    ),
+                  );
+                },
               ),
               DockItem(
                 icon: Icons.download_rounded,
@@ -457,19 +466,9 @@ class _HomePageState extends State<HomePage> {
                 },
               ),
               DockItem(
-                icon: Icons.bookmark_rounded,
-                label: 'Watchlist',
-                onTap: () {},
-              ),
-              DockItem(
                 icon: Icons.settings_rounded,
                 label: 'Settings',
                 onTap: () => _navigateToSettings(null),
-              ),
-              DockItem(
-                icon: Icons.person_rounded,
-                label: 'Profile',
-                onTap: () {},
               ),
               DockItem(
                 icon: Icons.search_rounded,

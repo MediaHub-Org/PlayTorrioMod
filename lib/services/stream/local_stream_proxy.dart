@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 
+import '../subtitles/subtitlecat_service.dart';
+
 /// Ultra-low latency embedded Loopback HTTP/HLS proxy server running on 127.0.0.1.
 ///
 /// Features:
@@ -84,6 +86,17 @@ class LocalStreamProxy {
     } else if (lower.contains('gn1r5n.org') || lower.contains('owphbf24.com')) {
       h['Referer'] = 'https://gn1r5n.org/';
       h['Origin'] = 'https://gn1r5n.org';
+    } else if (lower.contains('watching.onl') ||
+        lower.contains('anivideo.sbs') ||
+        lower.contains('trycloud.pro') ||
+        lower.contains('cloudvideo.lat') ||
+        lower.contains('megaplay.buzz') ||
+        lower.contains('vidwish.live') ||
+        lower.contains('anikoto') ||
+        (initialHeaders != null && initialHeaders['Referer']?.contains('megaplay.buzz') == true) ||
+        (initialHeaders != null && initialHeaders['Referer']?.contains('vidwish') == true)) {
+      h['Referer'] = 'https://megaplay.buzz/';
+      h['Origin'] = 'https://megaplay.buzz';
     }
 
     return h;
@@ -114,6 +127,41 @@ class LocalStreamProxy {
   }
 
   Future<void> _handleRequest(HttpRequest request) async {
+    if (request.uri.path == '/subtitlecat-translate') {
+      final orig = request.uri.queryParameters['orig'];
+      final tl = request.uri.queryParameters['tl'];
+      final name = request.uri.queryParameters['name'] ?? 'subtitle';
+      if (orig == null || orig.isEmpty || tl == null || tl.isEmpty) {
+        request.response
+          ..statusCode = HttpStatus.badRequest
+          ..write('Missing orig or tl')
+          ..close();
+        return;
+      }
+      try {
+        final srt = await SubtitleCatService.instance.translateSrt(
+          origUrl: orig,
+          targetLang: tl,
+        );
+        final bytes = utf8.encode(srt);
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.set(HttpHeaders.contentTypeHeader, 'application/x-subrip; charset=utf-8')
+          ..headers.set(HttpHeaders.accessControlAllowOriginHeader, '*')
+          ..headers.set('Content-Disposition', 'inline; filename="$name-$tl.srt"')
+          ..headers.set(HttpHeaders.contentLengthHeader, bytes.length)
+          ..add(bytes);
+        await request.response.close();
+        return;
+      } catch (e) {
+        request.response
+          ..statusCode = HttpStatus.internalServerError
+          ..write('Translation failed: $e')
+          ..close();
+        return;
+      }
+    }
+
     if (!request.uri.path.startsWith('/proxy')) {
       request.response
         ..statusCode = HttpStatus.notFound
@@ -212,7 +260,9 @@ class LocalStreamProxy {
             if (upstreamUri.hasQuery && !resolvedUri.hasQuery) {
               resolvedUri = resolvedUri.replace(query: upstreamUri.query);
             }
-            final ext = resolvedUri.path.toLowerCase().contains('.ts') ? 'proxy.ts' : 'proxy.m3u8';
+            final pathLower = resolvedUri.path.toLowerCase();
+            final isM3u8Sub = pathLower.contains('.m3u8') || pathLower.endsWith('.m3u8');
+            final ext = isM3u8Sub ? 'proxy.m3u8' : 'proxy.ts';
             return 'http://127.0.0.1:$_port/$ext?url=${Uri.encodeComponent(resolvedUri.toString())}&headers=$encodedHeadersStr';
           });
 
@@ -237,10 +287,10 @@ class LocalStreamProxy {
 
       // Mirror Content-Type
       String effectiveContentType = upstreamContentType;
-      if (effectiveContentType.isEmpty || effectiveContentType.contains('text/html')) {
-        if (lowerUrl.contains('.ts')) {
-          effectiveContentType = 'video/MP2T';
-        } else if (lowerUrl.contains('.mp4') || lowerUrl.contains('.m4s')) {
+      if (effectiveContentType.isEmpty ||
+          effectiveContentType.contains('text/html') ||
+          effectiveContentType.startsWith('image/')) {
+        if (lowerUrl.contains('.mp4') || lowerUrl.contains('.m4s')) {
           effectiveContentType = 'video/mp4';
         } else {
           effectiveContentType = 'video/MP2T';

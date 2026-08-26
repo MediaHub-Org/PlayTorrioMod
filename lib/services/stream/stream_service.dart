@@ -68,13 +68,16 @@ class StreamService {
     int pending = addons.length + 1; // addons + local scrapers
 
     // Local scrapers
+    final isImdb = id.startsWith('tt');
+    final cleanImdbId = isImdb ? id.split(':')[0] : null;
+
     ScraperManager.instance.scrapeAll(
       type: type,
       title: title,
       year: year,
       season: season,
       episode: episode,
-      imdbId: id.split(':')[0],
+      imdbId: cleanImdbId,
     ).listen((source) {
       if (!controller.isClosed) controller.add(source);
     }, onDone: () {
@@ -125,13 +128,16 @@ class StreamService {
     if (isLocalPlayTorrio) {
       _registerBuiltInScrapers();
 
+      final isImdb = id.startsWith('tt');
+      final cleanImdbId = isImdb ? id.split(':')[0] : null;
+
       ScraperManager.instance.scrapeAll(
         type: type,
         title: title,
         year: year,
         season: season,
         episode: episode,
-        imdbId: id.split(':')[0],
+        imdbId: cleanImdbId,
       ).listen(
         (source) {
           if (!controller.isClosed) {
@@ -198,8 +204,19 @@ class StreamService {
     String id,
   ) async {
     try {
-      final needsEncoding = id.contains('://') || id.contains('/');
-      final pathId = needsEncoding ? Uri.encodeComponent(id) : id;
+      // Check idPrefixes filtering if declared by addon
+      if (addon.manifest.idPrefixes.isNotEmpty) {
+        final matchesPrefix = addon.manifest.idPrefixes.any((p) => id.startsWith(p));
+        if (!matchesPrefix) return [];
+      }
+
+      // Check types filtering if declared by addon
+      if (addon.manifest.types.isNotEmpty) {
+        final matchesType = addon.manifest.types.contains(type);
+        if (!matchesType) return [];
+      }
+
+      final pathId = Uri.encodeComponent(id);
       final url = '${addon.baseUrl}/stream/$type/$pathId.json';
 
       final response = await http.get(

@@ -3,8 +3,11 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 import '../../models/movie/movie_section.dart';
+import '../../models/stream/stream_model.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../widgets/movie/movie_slider_section.dart';
+import '../../widgets/search/magnet_files_view.dart';
+import '../player/player_screen.dart';
 
 class SearchPage extends StatefulWidget {
   const SearchPage({super.key});
@@ -21,6 +24,53 @@ class _SearchPageState extends State<SearchPage> {
   bool _isLoading = false;
   List<MovieSection> _results = [];
   String _lastQuery = '';
+
+  bool _isMagnetMode = false;
+  String _magnetQuery = '';
+
+  static bool _isMagnetLink(String text) {
+    final trimmed = text.trim();
+    if (trimmed.toLowerCase().startsWith('magnet:')) return true;
+    if (RegExp(r'^[0-9a-fA-F]{40}$').hasMatch(trimmed)) return true;
+    if (RegExp(r'^[a-zA-Z2-7]{32}$').hasMatch(trimmed)) return true;
+    return false;
+  }
+
+  static bool _isStreamLink(String text) {
+    final trimmed = text.trim();
+    final lower = trimmed.toLowerCase();
+    if (!lower.startsWith('http://') && !lower.startsWith('https://')) {
+      return false;
+    }
+    return true;
+  }
+
+  void _playDirectStream(String url) {
+    final trimmed = url.trim();
+    final uri = Uri.tryParse(trimmed);
+    String title = 'Direct Stream';
+    if (uri != null && uri.pathSegments.isNotEmpty) {
+      final last = uri.pathSegments.last;
+      if (last.isNotEmpty) {
+        title = Uri.decodeComponent(last);
+      }
+    }
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PlayerScreen(
+          source: StreamSource(
+            name: 'Direct Stream',
+            title: title,
+            url: trimmed,
+            addonName: 'Direct Stream',
+          ),
+          title: title,
+        ),
+      ),
+    );
+  }
 
   @override
   void dispose() {
@@ -39,8 +89,30 @@ class _SearchPageState extends State<SearchPage> {
         _results.clear();
         _isLoading = false;
         _lastQuery = '';
+        _isMagnetMode = false;
+        _magnetQuery = '';
       });
       return;
+    }
+
+    if (_isStreamLink(trimmed)) {
+      _playDirectStream(trimmed);
+      return;
+    }
+
+    if (_isMagnetLink(trimmed)) {
+      setState(() {
+        _isMagnetMode = true;
+        _magnetQuery = trimmed;
+        _isLoading = false;
+        _results.clear();
+      });
+      return;
+    } else if (_isMagnetMode) {
+      setState(() {
+        _isMagnetMode = false;
+        _magnetQuery = '';
+      });
     }
 
     _debounce = Timer(const Duration(milliseconds: 600), () {
@@ -51,13 +123,30 @@ class _SearchPageState extends State<SearchPage> {
   }
 
   void _performSearch(String query) async {
+    final trimmed = query.trim();
+    if (_isStreamLink(trimmed)) {
+      _playDirectStream(trimmed);
+      return;
+    }
+
+    if (_isMagnetLink(trimmed)) {
+      setState(() {
+        _isMagnetMode = true;
+        _magnetQuery = trimmed;
+        _isLoading = false;
+        _results.clear();
+      });
+      return;
+    }
+
     setState(() {
       _isLoading = true;
-      _lastQuery = query;
+      _lastQuery = trimmed;
+      _isMagnetMode = false;
     });
 
     try {
-      final results = await AddonManager.instance.searchAll(query);
+      final results = await AddonManager.instance.searchAll(trimmed);
       if (!mounted) return;
       
       setState(() {
@@ -135,10 +224,10 @@ class _SearchPageState extends State<SearchPage> {
                           onChanged: _onSearchChanged,
                           onSubmitted: _performSearch,
                           decoration: InputDecoration(
-                            hintText: 'Search movies, shows...',
+                            hintText: 'Search movies and shows, paste magnet or stream link',
                             hintStyle: TextStyle(
                               color: Colors.white.withValues(alpha: 0.35),
-                              fontSize: 15,
+                              fontSize: 14,
                             ),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
@@ -172,7 +261,12 @@ class _SearchPageState extends State<SearchPage> {
       ),
       body: Stack(
         children: [
-          if (_isLoading)
+          if (_isMagnetMode && _magnetQuery.isNotEmpty)
+            MagnetFilesView(
+              key: ValueKey(_magnetQuery),
+              magnet: _magnetQuery,
+            )
+          else if (_isLoading)
             const Center(
               child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
             )

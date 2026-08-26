@@ -207,6 +207,42 @@ class TorrentStreamService {
     }
   }
 
+  /// Adds a magnet, waits for metadata, and returns full TorrentInfo including all files.
+  Future<TorrentInfo?> getTorrentMetadata(String magnetLink) async {
+    try {
+      final started = await start();
+      if (!started) return null;
+
+      final rawHash = _extractHash(magnetLink);
+      if (rawHash == null) {
+        _log('Invalid magnet link / hash: $magnetLink');
+        return null;
+      }
+      final hash = rawHash.toLowerCase();
+
+      final formattedMagnet = !magnetLink.startsWith('magnet:?')
+          ? 'magnet:?xt=urn:btih:$rawHash'
+          : magnetLink;
+
+      final title = _extractDisplayName(formattedMagnet);
+      _log('Adding torrent for file list inspection: $hash ($title)');
+      await _controller.addTorrent(
+        magnet: formattedMagnet,
+        title: title.isNotEmpty ? title : null,
+        saveToDb: false,
+      );
+      _activeTorrents.add(hash);
+
+      final files = await _waitForMetadata(hash);
+      if (files == null || files.isEmpty) return null;
+
+      return await _controller.getTorrent(hash);
+    } catch (e, st) {
+      _log('getTorrentMetadata error: $e\n$st');
+      return null;
+    }
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Metadata polling
   // ─────────────────────────────────────────────────────────────────────────

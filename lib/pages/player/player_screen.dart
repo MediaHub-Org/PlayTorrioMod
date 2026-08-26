@@ -38,11 +38,13 @@ import '../../widgets/player/player_sub_style_bar.dart';
 import '../../widgets/player/player_skip_button.dart';
 import '../../widgets/player/player_episodes_panel.dart';
 import '../../widgets/player/player_sources_panel.dart';
+import '../../widgets/player/player_volume_control.dart';
 import '../../widgets/player/sub_sync_bar.dart';
 import '../../widgets/player/text_sync_overlay.dart';
 import '../../models/download/download_task_model.dart';
 import '../../services/download/download_service.dart';
 import '../../utils/download_path_helper.dart';
+import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 class PlayerScreen extends StatefulWidget {
   final StreamSource source;
@@ -97,6 +99,8 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   // Subtitle State
   List<SubtitleLanguageGroup> _subtitleGroups = [];
+  List<PlayerEmbeddedSubtitle> _embeddedSubtitles = [];
+  int? _selectedEmbeddedSubtitleIndex;
   SubtitleVariant? _currentSubtitleVariant;
   bool _isSubtitleEnabled = false;
   String? _currentSubtitlePath;
@@ -191,7 +195,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         if (useDebrid) {
           final activeService = await DebridService().getSelectedService();
           if (!mounted) return;
-          setState(() => _statusMessage = 'Resolving via $activeService cloud...');
+          setState(() => _statusMessage = 'Using $activeService for files...');
 
           final seasonNum = _currentEpisode?.season;
           final episodeNum = _currentEpisode?.episode;
@@ -298,6 +302,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
 
       _setSubtitleScale(_subtitleScale);
+      _applyVolume(_isMuted ? 0.0 : _volume);
 
       // Fetch IntroDB skip segments in background
       _fetchSkipSegments();
@@ -329,6 +334,25 @@ class _PlayerScreenState extends State<PlayerScreen>
               channels: item.codec.channels,
             );
           }).toList();
+        }
+
+        final subList = mediaInfo?.subtitle;
+        if (subList != null && subList.isNotEmpty) {
+          _embeddedSubtitles = subList.asMap().entries.map((entry) {
+            final idx = entry.key;
+            final item = entry.value;
+            final lang = item.metadata['language'] ?? item.metadata['lang'];
+            final title = item.metadata['title'] ?? item.metadata['handler_name'] ??
+                (lang != null ? lang.toUpperCase() : 'Track ${idx + 1}');
+            final codec = item.codec.codec;
+            return PlayerEmbeddedSubtitle(
+              index: idx,
+              title: title,
+              language: lang,
+              codec: codec,
+            );
+          }).toList();
+          print('[PlayerScreen] Found ${_embeddedSubtitles.length} embedded subtitle tracks');
         }
       } catch (_) {}
 
@@ -402,6 +426,15 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
+  static String cleanMediaTitle(String raw) {
+    var name = raw;
+    name = name.replaceAll(RegExp(r'\.(mkv|mp4|avi|webm|ts|mov|m4v|srt|vtt)$', caseSensitive: false), '');
+    name = name.replaceAll(RegExp(r'[._]'), ' ');
+    name = name.replaceAll(RegExp(r'\b(2160p|1080p|720p|480p|4k|uhd|ds4k|webrip|web-dl|bluray|brrip|h264|x264|h265|x265|hevc|10bit|ddp5\.1|dd5\.1|atmos|aac|ac3|dts|flac|remux|hdr|dv|proper|repack|hdtv)\b', caseSensitive: false), ' ');
+    name = name.replaceAll(RegExp(r'-[a-zA-Z0-9]+$'), '');
+    return name.trim().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
   Future<void> _fetchInitialSubtitles() async {
     try {
       int? searchYear;
@@ -409,7 +442,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         final yMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(widget.detail!.year!);
         if (yMatch != null) searchYear = int.tryParse(yMatch.group(1)!);
       }
-      final showName = widget.detail?.name ?? widget.title;
+      final rawName = widget.detail?.name ?? widget.title;
+      if (searchYear == null) {
+        final yMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(rawName);
+        if (yMatch != null) searchYear = int.tryParse(yMatch.group(1)!);
+      }
+      final showName = cleanMediaTitle(rawName);
+      print('[PlayerScreen] Scraping initial subtitles for "$showName" (year: $searchYear, imdb: ${widget.detail?.id})...');
+
       final groups = await SubtitleService().fetchAllSubtitles(
         showName,
         imdbId: widget.detail?.id,
@@ -417,6 +457,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         episode: _currentEpisode?.episode,
         year: searchYear,
       );
+      print('[PlayerScreen] Scraped ${groups.length} subtitle language groups with ${groups.fold(0, (s, g) => s + g.variants.length)} total variants');
       if (mounted && groups.isNotEmpty) {
         setState(() => _subtitleGroups = groups);
 
@@ -487,9 +528,54 @@ class _PlayerScreenState extends State<PlayerScreen>
     });
   }
 
+  void _selectEmbeddedSubtitle(PlayerEmbeddedSubtitle embedded) {
+    setState(() {
+      _selectedEmbeddedSubtitleIndex = embedded.index;
+      _currentSubtitleVariant = SubtitleVariant(
+        providerName: 'Embedded',
+        language: embedded.language ?? 'Embedded',
+        title: embedded.title,
+        downloadUrl: '',
+        format: embedded.codec ?? 'ass',
+      );
+      _isSubtitleEnabled = true;
+      _currentSubtitlePath = null;
+      _currentCues = [];
+    });
+
+    if (_controller != null) {
+      _controller!.setExternalSubtitle('');
+      _controller!.setSubtitleTracks([embedded.index]);
+      _setSubtitleScale(_subtitleScale);
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Switched to embedded subtitle: ${embedded.title}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  void _disableSubtitles() {
+    setState(() {
+      _isSubtitleEnabled = false;
+      _currentSubtitleVariant = null;
+      _selectedEmbeddedSubtitleIndex = null;
+      _currentSubtitlePath = null;
+      _currentCues = [];
+    });
+    _controller?.setSubtitleTracks([-1]);
+    _controller?.setExternalSubtitle('');
+  }
+
   Future<void> _loadSubtitle(SubtitleVariant variant) async {
     _currentSubtitleVariant = variant;
+    _selectedEmbeddedSubtitleIndex = null;
     _isSubtitleEnabled = true;
+    _controller?.setSubtitleTracks([-1]);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -664,6 +750,63 @@ class _PlayerScreenState extends State<PlayerScreen>
         _isLoading = true;
         _statusMessage = 'Playback error: $errorMsg';
       });
+    }
+  }
+
+  int _getControllerId(VideoPlayerController c) {
+    try {
+      final dynamic dyn = c;
+      return (dyn.playerId ?? dyn.textureId ?? 0) as int;
+    } catch (_) {
+      return 0;
+    }
+  }
+
+  void _applyVolume(double vol) {
+    final clamped = vol.clamp(0.0, PlayerVolumeControl.maxVolume);
+    setState(() {
+      _volume = clamped;
+      _isMuted = clamped == 0;
+    });
+    if (_controller != null) {
+      // 1. Standard video_player controller call
+      _controller!.setVolume(clamped.clamp(0.0, 1.0));
+      // 2. Direct VideoPlayerPlatform call to allow native volume boost up to 140% in fvp/mdk
+      try {
+        final id = _getControllerId(_controller!);
+        VideoPlayerPlatform.instance.setVolume(id, clamped);
+      } catch (e) {
+        if (kDebugMode) print('[PlayerScreen] Platform setVolume error: $e');
+      }
+    }
+  }
+
+  void _toggleMute() {
+    if (_volume > 0 && !_isMuted) {
+      _lastVolumeBeforeMute = _volume;
+      setState(() {
+        _isMuted = true;
+      });
+      if (_controller != null) {
+        _controller!.setVolume(0.0);
+        try {
+          final id = _getControllerId(_controller!);
+          VideoPlayerPlatform.instance.setVolume(id, 0.0);
+        } catch (_) {}
+      }
+    } else {
+      final restore = _lastVolumeBeforeMute > 0 ? _lastVolumeBeforeMute : 1.0;
+      setState(() {
+        _volume = restore;
+        _isMuted = false;
+      });
+      if (_controller != null) {
+        _controller!.setVolume(restore.clamp(0.0, 1.0));
+        try {
+          final id = _getControllerId(_controller!);
+          VideoPlayerPlatform.instance.setVolume(id, restore);
+        } catch (_) {}
+      }
     }
   }
 
@@ -1099,7 +1242,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                       title: widget.detail?.name ?? _currentTitle,
                       subtitle: episodeSubtitle,
                       quality: _currentSource.name,
-                      onDownload: isOfflineFile ? null : _handleDownloadMedia,
+                      onDownload: (_isLoading || isOfflineFile) ? null : _handleDownloadMedia,
                       isDownloading: isDownloading,
                       onToggleEpisodes: (!_isLoading && widget.detail?.videos.isNotEmpty == true)
                           ? _toggleEpisodesPanel
@@ -1153,7 +1296,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                               isMuted: _isMuted || _volume == 0,
                               playbackRate: _playbackRate,
                               isSubtitlesActive: _isSubtitleEnabled && _currentSubtitleVariant != null,
-                              isSubSyncActive: _showSubSyncBar || _subtitleDelayMs != 0,
+                              isSubSyncActive: _selectedEmbeddedSubtitleIndex == null && (_showSubSyncBar || _subtitleDelayMs != 0),
                               isAudioActive: _selectedAudioTrackIndex > 0,
                               isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
                               isFullscreen: isFs,
@@ -1181,35 +1324,31 @@ class _PlayerScreenState extends State<PlayerScreen>
                                 _controller!.seekTo(pos + const Duration(seconds: 10));
                                 _startHideControlsTimer();
                               },
-                              onVolumeChanged: (vol) {
-                                setState(() {
-                                  _volume = vol;
-                                  _isMuted = vol == 0;
-                                });
-                                _controller!.setVolume(vol.clamp(0.0, 1.0));
-                              },
-                              onToggleMute: () {
-                                if (_volume > 0) {
-                                  _lastVolumeBeforeMute = _volume;
-                                  _controller!.setVolume(0.0);
-                                  setState(() {
-                                    _volume = 0.0;
-                                    _isMuted = true;
-                                  });
-                                } else {
-                                  final restore = _lastVolumeBeforeMute > 0 ? _lastVolumeBeforeMute : 1.0;
-                                  _controller!.setVolume(restore.clamp(0.0, 1.0));
-                                  setState(() {
-                                    _volume = restore;
-                                    _isMuted = false;
-                                  });
-                                }
-                              },
+                              onVolumeChanged: (vol) => _applyVolume(vol),
+                              onToggleMute: () => _toggleMute(),
                               onToggleAspectMenu: () => _toggleMenu('aspect'),
                               onToggleSpeedMenu: () => _toggleMenu('speed'),
                               onToggleAudioMenu: () => _toggleMenu('audio'),
                               onToggleSubtitleMenu: () => _toggleMenu('subtitle'),
                               onToggleSubSync: () {
+                                if (_selectedEmbeddedSubtitleIndex != null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Subtitle sync is not supported for embedded subtitles. Please select an external subtitle.'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                if (_currentSubtitlePath == null || _currentSubtitleVariant == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Please load an external subtitle to use subtitle sync.'),
+                                      duration: Duration(seconds: 2),
+                                    ),
+                                  );
+                                  return;
+                                }
                                 setState(() {
                                   _showSubSyncBar = !_showSubSyncBar;
                                   _activeMenu = null;
@@ -1233,6 +1372,8 @@ class _PlayerScreenState extends State<PlayerScreen>
               right: MediaQuery.sizeOf(context).width < 680 ? 16 : 28,
               child: PlayerSubtitleMenu(
                 groups: _subtitleGroups,
+                embeddedSubtitles: _embeddedSubtitles,
+                selectedEmbeddedIndex: _selectedEmbeddedSubtitleIndex,
                 selectedVariant: _currentSubtitleVariant,
                 isSubtitleEnabled: _isSubtitleEnabled,
                 movieTitle: widget.detail?.name ?? widget.title,
@@ -1244,14 +1385,18 @@ class _PlayerScreenState extends State<PlayerScreen>
                 onSelectVariant: (v) {
                   if (v != null) _loadSubtitle(v);
                 },
-                onToggleOff: () {
-                  setState(() {
-                    _isSubtitleEnabled = false;
-                    _currentSubtitleVariant = null;
-                  });
-                  _controller?.setExternalSubtitle('');
-                },
+                onSelectEmbedded: (emb) => _selectEmbeddedSubtitle(emb),
+                onToggleOff: _disableSubtitles,
                 onOpenSyncBar: () {
+                  if (_selectedEmbeddedSubtitleIndex != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Subtitle sync is not supported for embedded subtitles.'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    return;
+                  }
                   setState(() {
                     _activeMenu = null;
                     _showSubSyncBar = true;
@@ -1261,6 +1406,15 @@ class _PlayerScreenState extends State<PlayerScreen>
                   setState(() => _activeMenu = 'style');
                 },
                 onOpenTextSync: () {
+                  if (_selectedEmbeddedSubtitleIndex != null || _currentSubtitlePath == null || _currentCues.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Speech sync requires an external subtitle file.'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    return;
+                  }
                   setState(() {
                     _activeMenu = null;
                     _showTextSyncOverlay = true;
@@ -1334,14 +1488,14 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
 
           // Top Floating Live SubSyncBar
-          if (_showSubSyncBar && !_isLoading)
+          if (_showSubSyncBar && !_isLoading && _selectedEmbeddedSubtitleIndex == null)
             Positioned(
               top: MediaQuery.paddingOf(context).top + 16,
               left: 0,
               right: 0,
               child: SubSyncBar(
                 delaySec: _subtitleDelayMs / 1000.0,
-                isTextSyncAvailable: _currentSubtitlePath != null && _currentCues.isNotEmpty,
+                isTextSyncAvailable: _selectedEmbeddedSubtitleIndex == null && _currentSubtitlePath != null && _currentCues.isNotEmpty,
                 onDelayChanged: (sec) => _applyLiveDelay(sec),
                 onEnterTextSync: () {
                   setState(() {
@@ -1406,7 +1560,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
 
           // Right Drawer Text Sync
-          if (_showTextSyncOverlay && !_isLoading && _controller != null && _currentCues.isNotEmpty)
+          if (_showTextSyncOverlay && !_isLoading && _controller != null && _currentCues.isNotEmpty && _selectedEmbeddedSubtitleIndex == null)
             Positioned.fill(
               child: TextSyncOverlay(
                 controller: _controller!,

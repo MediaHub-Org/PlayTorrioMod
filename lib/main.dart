@@ -21,6 +21,7 @@ import './services/music/music_settings.dart';
 import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
 import './services/stream/local_stream_proxy.dart';
+import './services/stream/torrent_stream_service.dart';
 import './services/download/download_service.dart';
 import './services/env_service.dart';
 import './services/window/window_service.dart';
@@ -74,6 +75,7 @@ void main() async {
     MyListService.initialize(),
     LocalStreamProxy.instance.start(),
     DownloadService.instance.initialize(),
+    TorrentStreamService().start(),
   ]);
   runApp(const PlayTorrioApp());
 }
