@@ -24,7 +24,7 @@ class HubController extends ChangeNotifier {
 
   AppHub _currentHub = AppHub.media;
   String _mediaSection = 'movies';
-  String _booksSection = 'manga';
+  String _booksSection = 'audiobooks';
   String _musicTab = 'Music';
 
   AppHub get currentHub => _currentHub;
@@ -70,10 +70,10 @@ class HubController extends ChangeNotifier {
         ];
       case AppHub.books:
         return const [
-          HubSection(id: 'manga', label: 'Manga', icon: Icons.auto_stories_rounded),
-          HubSection(id: 'comics', label: 'Comics', icon: Icons.menu_book_rounded),
-          HubSection(id: 'books', label: 'Books', icon: Icons.import_contacts_rounded),
           HubSection(id: 'audiobooks', label: 'Audiobooks', icon: Icons.headphones_rounded),
+          HubSection(id: 'books', label: 'Books', icon: Icons.import_contacts_rounded),
+          HubSection(id: 'comics', label: 'Comics', icon: Icons.menu_book_rounded),
+          HubSection(id: 'manga', label: 'Manga', icon: Icons.auto_stories_rounded),
           HubSection(id: 'collection', label: 'Library', icon: Icons.collections_bookmark_rounded),
         ];
       case AppHub.music:

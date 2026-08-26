@@ -4,6 +4,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Read-hub section order — 2026-08-27
+- **Sorted the Read hub's section chips (ROADMAP #0)**: `HubController.currentSections` for `AppHub.books` now lists Audiobooks, Books, Comics, Manga (alphabetical), Library last — was Manga, Comics, Books, Audiobooks, Library. Default landing section (`_booksSection`) and `BooksHub`'s fallback `switch` case moved from `manga` to `audiobooks` to match the new first chip, same convention the Watch hub already follows (default section = first chip).
+
 ### Books browse view + dependency cleanup — 2026-08-27
 - **Books section (ROADMAP #2, feasibility confirmed then shipped)**: `BooksService.browseRecent()` scrapes libgen.li's own "recently added" feed (`index.php?req=mode:last&curtab=f`) — verified live to return real, current listings in the same table format `search()` already parses, so the row-parsing logic was extracted into a shared `_parseResults()` instead of duplicated. `BooksPage` shows this as a "Recently Added" grid before a search is performed, closing the last "search-only, no browse view" gap among Read-hub sections.
 - Removed `cupertino_icons` and `photo_view` from `pubspec.yaml` — zero usages anywhere in `lib/` or `test/`. `libass_plugin` also shows zero Dart-level usage but is a local packaging shim bundling a prebuilt `ass.framework` for iOS via the Flutter plugin mechanism, not dead code — kept.

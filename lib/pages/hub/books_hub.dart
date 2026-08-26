@@ -34,8 +34,8 @@ class BooksHub extends StatelessWidget {
         SearchScope.set(null, label: 'Library');
         return const BooksLibraryPage();
       default:
-        SearchScope.set('manga', label: 'Manga');
-        return const MangaPage();
+        SearchScope.set('audiobook', label: 'Audiobooks');
+        return const AudiobooksPage();
     }
   }
 
