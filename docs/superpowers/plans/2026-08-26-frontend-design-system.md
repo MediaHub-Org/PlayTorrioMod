@@ -15,7 +15,7 @@
 - No changes to `lib/services/**` business logic, scrapers, or models — only two new additive files (`app_breakpoints.dart`, `app_spacing.dart`).
 - No changes to `lib/widgets/common/top_bar.dart` or `lib/widgets/common/section_top_bar.dart` in this plan — reused as-is.
 - No new dependencies in `pubspec.yaml` — everything here is plain Flutter/Dart.
-- `lib/pages/hub/hub_page.dart` is the only existing file this plan modifies.
+- `lib/pages/hub/hub_page.dart` is the only existing file with a structural/behavioral change (Task 5). `lib/utils/app_hub.dart` (Task 3) also gets a small additive edit — new `navLabel`/`navIcon` getters only, zero change to the enum's existing values, order, or `.index`-based usage elsewhere — per the spec's Components section.
 - `flutter analyze` must stay at the same or fewer issues than before this plan starts (0 errors either way).
 - `flutter test` full suite must stay green, excluding the known live-network-flaky tests (`test/services/movy_scraper_test.dart`, anime-extractor and IPTV-reddit-extractor live tests) per this repo's established pattern.
 - Package imports in tests use `package:playtorrio/...`, matching every existing test file.
