@@ -17,7 +17,7 @@
 - No new dependencies in `pubspec.yaml` — everything here is plain Flutter/Dart.
 - `lib/pages/hub/hub_page.dart` is the only existing file with a structural/behavioral change (Task 5). `lib/utils/app_hub.dart` (Task 3) also gets a small additive edit — new `navLabel`/`navIcon` getters only, zero change to the enum's existing values, order, or `.index`-based usage elsewhere — per the spec's Components section.
 - `flutter analyze` must stay at the same or fewer issues than before this plan starts (0 errors either way).
-- `flutter test` full suite must stay green, excluding the known live-network-flaky tests (`test/services/movy_scraper_test.dart`, anime-extractor and IPTV-reddit-extractor live tests) per this repo's established pattern.
+- `flutter test` full suite must not regress below this branch's actual baseline: 122/128 passing. 6 pre-existing failures (`test/download_service_test.dart`'s serialization round-trip, 5 in `test/models/my_list_item_test.dart` around `uniqueKey`/type-prefix behavior) are reproducible and unrelated to this plan — confirmed pre-existing on the base commit, out of scope to fix here. The previously-documented live-network-flaky set (`movy_scraper_test.dart` etc.) may also still apply on top of these 6; treat any failure outside these known files as a real regression.
 - Package imports in tests use `package:playtorrio/...`, matching every existing test file.
 
 ---
