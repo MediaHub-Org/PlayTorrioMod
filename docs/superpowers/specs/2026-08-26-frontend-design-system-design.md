@@ -38,6 +38,12 @@ without a mass rewrite and without touching backend/services.
 - TV gets no separate 10-foot layout tier — it reuses the desktop tier
   (it's a big desktop window today, not a distinct remote-first UI).
 - Golden/visual-regression test suite — out of scope for a UI-polish pass.
+- No profile/account icon in the nav. Nothing in the app backs one today
+  (settings are global `SharedPreferences`, Trakt/Simkl are per-service
+  auths not an app-wide account, backup is local export/import, not
+  identity-bound) — add it only when a real account/profile or cloud-sync
+  backend ships, as part of that feature's own spec. `TopBar`'s icon row
+  is a plain `Row`, so nothing here needs to reserve space for it now.
 
 ## Architecture
 
