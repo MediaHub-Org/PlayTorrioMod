@@ -2685,7 +2685,7 @@ class _MusicArtistDetailPage extends StatelessWidget {
                       top: 12,
                       right: 12,
                       child: IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white, size: 24),
+                        icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
                         onPressed: () => Navigator.pop(context),
                       ),
                     ),
@@ -2915,7 +2915,7 @@ class _MusicAlbumDetailPage extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -3045,7 +3045,7 @@ class _MusicCuratedPlaylistDetailPage extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
@@ -3192,7 +3192,7 @@ class _MusicUserPlaylistDetailPage extends StatelessWidget {
                       ),
                     ),
                     IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
                       onPressed: () => Navigator.pop(context),
                     ),
                   ],
