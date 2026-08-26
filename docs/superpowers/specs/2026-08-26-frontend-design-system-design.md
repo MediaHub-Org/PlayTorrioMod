@@ -83,13 +83,11 @@ already live):
   mount. Reads `AppBreakpoints.of(context)`:
   - `mobile`: bottom tab bar (3 hub tabs, thumb-reachable), `TopBar`
     collapses to logo + settings only.
-  - `tablet` / `desktop`: current `TopBar` layout, restyled with the new
-    tokens and `premium_card`-style hover treatment on the tabs, no
-    structural change.
-  - `SectionTopBar` (the per-hub submenu) is unchanged structurally on
-    every tier — its horizontal scrollable chip row already behaves like
-    Netflix's genre-chip row on mobile. Only reskinned with the new
-    tokens.
+  - `tablet` / `desktop`: mounts the existing `TopBar` unchanged — no
+    edits to `top_bar.dart` in this pass, per Migration below. Restyling
+    it onto the new tokens is opportunistic follow-up work, not this one.
+  - `SectionTopBar` (the per-hub submenu) is unchanged in this pass too,
+    on every tier — same opportunistic-migration treatment.
 
 Both card/header widgets are additive: existing widgets keep working
 untouched until a page is deliberately migrated onto the new ones.
