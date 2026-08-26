@@ -4,6 +4,11 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Books browse view + dependency cleanup — 2026-08-27
+- **Books section (ROADMAP #2, feasibility confirmed then shipped)**: `BooksService.browseRecent()` scrapes libgen.li's own "recently added" feed (`index.php?req=mode:last&curtab=f`) — verified live to return real, current listings in the same table format `search()` already parses, so the row-parsing logic was extracted into a shared `_parseResults()` instead of duplicated. `BooksPage` shows this as a "Recently Added" grid before a search is performed, closing the last "search-only, no browse view" gap among Read-hub sections.
+- Removed `cupertino_icons` and `photo_view` from `pubspec.yaml` — zero usages anywhere in `lib/` or `test/`. `libass_plugin` also shows zero Dart-level usage but is a local packaging shim bundling a prebuilt `ass.framework` for iOS via the Flutter plugin mechanism, not dead code — kept.
+- Fixed a duplicate `video_player_platform_interface` import in `player_screen.dart` found during the audit.
+
 ### Consistent page-enter transitions — 2026-08-27
 - Full inventory of all ~64 `Navigator.push`-family call sites (ROADMAP #2) found most page families were already internally consistent (anime details always `CinematicSlideRoute`, search always `LiquidRevealRoute`, several utilitarian sections deliberately bare) — the actual visible inconsistency was narrower: 4 cases where the *same* target page got a different transition depending on which caller pushed it.
 - `IptvPlayerPage`, `SettingsPage`, and `DiscoverPage`: the one bare outlier at each now matches the transition the rest of that target's callers already used (`LiquidRevealRoute` in all three cases).
