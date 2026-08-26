@@ -4,6 +4,13 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Cleanup — 2026-08-27
+- Deleted `lib/models/download/download_item.dart`'s `DownloadItem` — zero references anywhere, superseded by `DownloadTask` when the download manager was rewritten (merged from upstream, see below).
+- `AppRadii` (added with the frontend nav-chrome work, previously unused) now has a real consumer: `hub_page.dart`'s content-panel corner radius.
+- `AdaptiveNavShell`'s mobile top bar now reuses `SidebarLogo` instead of reimplementing its icon-loading call.
+- `TopBar` now reads hub labels/icons from `AppHub.navLabel`/`.navIcon` instead of its own separate hardcoded list — one source of truth instead of two. `TopBar`/`SectionTopBar` also now reference `AppSpacing`/`AppRadii` wherever their existing values actually matched the token scale (16px padding, 12px radius).
+- Also deleted the merged-and-stale `upstream-merge-attempt` git branch/worktree from an earlier merge pass.
+
 ### Navigation & play bar — 2026-08-27
 - **Music detail pages use a back arrow, not a close X**: `_MusicArtistDetailPage`/`_MusicAlbumDetailPage`/`_MusicCuratedPlaylistDetailPage`/`_MusicUserPlaylistDetailPage` are real pushed routes, same as `DetailsPage`/`AudiobookDetailPage`, but used a modal-style close icon. Swapped to the same back-arrow convention every other detail page follows.
 - Investigated Radio/Podcasts' missing back button: both are peer-tab switches inside `MusicPage` (same model as Movies/Series/Anime's section chips), not pushed routes — ruled working-as-designed, no back button needed. Books' lack of a browse view (search-only) is a separate, real gap, tracked in ROADMAP.
