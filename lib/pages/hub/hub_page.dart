@@ -7,7 +7,8 @@ import '../../widgets/common/universal_play_bar.dart';
 import '../../utils/hub_controller.dart';
 import '../../utils/hub_navigator.dart';
 import '../../utils/route_transitions.dart';
-import '../../widgets/common/top_bar.dart';
+import '../../services/app_breakpoints.dart';
+import '../../widgets/common/adaptive_nav_shell.dart';
 import '../settings/settings_page.dart';
 import 'media_hub.dart';
 import 'books_hub.dart';
@@ -89,12 +90,9 @@ class _HubPageState extends State<HubPage> {
     }
   }
 
-  static const double _topBarHeight = 60;
-
   @override
   Widget build(BuildContext context) {
-    final topPadding = MediaQuery.of(context).padding.top;
-    final isDesktop = MediaQuery.sizeOf(context).width >= 900;
+    final tier = AppBreakpoints.of(context);
 
     return KeyboardListener(
       focusNode: _focusNode,
@@ -103,15 +101,10 @@ class _HubPageState extends State<HubPage> {
         backgroundColor: const Color(0xFF080A0F),
         body: Stack(
           children: [
-            // Global top bar: only the logo + Watch/Listen/Read switcher.
-            // It sits at the very top so the icon stays visible; the content
-            // below is pushed down by the bar's own height.
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: TopBar(
-                height: _topBarHeight,
+            // Nav chrome + content: TopBar on tablet/desktop, a collapsed
+            // top bar + bottom tab bar on mobile. See AdaptiveNavShell.
+            Positioned.fill(
+              child: AdaptiveNavShell(
                 onSettingsTap: () async {
                   await Navigator.push(
                     context,
@@ -126,46 +119,39 @@ class _HubPageState extends State<HubPage> {
                     setState(() => _built.fillRange(0, _built.length, null));
                   }
                 },
-              ),
-            ),
-            // Content box: each hub renders its own left sidebar, so this
-            // spans the full width, starting below the shared top bar.
-            Positioned(
-              top: topPadding + _topBarHeight,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: ClipRRect(
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                ),
-                child: ListenableBuilder(
-                  listenable: HubController.instance,
-                  builder: (context, _) {
-                    final index = HubController.instance.currentHub.index;
-                    // Lazily materialize the active hub on first show.
-                    if (_built[index] == null) {
-                      _built[index] = _hubBuilders[index]();
-                    }
-                    return IndexedStack(
-                      index: index,
-                      children: [
-                        _built[0] ?? const SizedBox.shrink(),
-                        _built[1] ?? const SizedBox.shrink(),
-                        _built[2] ?? const SizedBox.shrink(),
-                      ],
-                    );
-                  },
+                child: ClipRRect(
+                  borderRadius: const BorderRadius.only(
+                    topLeft: Radius.circular(16),
+                  ),
+                  child: ListenableBuilder(
+                    listenable: HubController.instance,
+                    builder: (context, _) {
+                      final index = HubController.instance.currentHub.index;
+                      // Lazily materialize the active hub on first show.
+                      if (_built[index] == null) {
+                        _built[index] = _hubBuilders[index]();
+                      }
+                      return IndexedStack(
+                        index: index,
+                        children: [
+                          _built[0] ?? const SizedBox.shrink(),
+                          _built[1] ?? const SizedBox.shrink(),
+                          _built[2] ?? const SizedBox.shrink(),
+                        ],
+                      );
+                    },
+                  ),
                 ),
               ),
             ),
             // Universal Play Bar (hidden during intro)
-            // On desktop it sits above the bottom, offset right of the left
-            // sidebar (collapsed when the sidebar rail shrinks); on mobile it
-            // sits above the bottom section nav.
+            // On desktop/tablet it sits 16px above the bottom; on mobile
+            // it clears AdaptiveNavShell's bottom tab bar.
             if (!_showIntro)
               Positioned(
-                bottom: isDesktop ? 16 : 76,
+                bottom: tier == ScreenTier.mobile
+                    ? AdaptiveNavShell.mobileBottomBarHeight + 12
+                    : 16,
                 left: 12,
                 right: 12,
                 // UniversalPlayBar hides itself when nothing is playing, so
