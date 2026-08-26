@@ -49,6 +49,7 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
   GlobalKey _activeCueKey = GlobalKey();
 
   Timer? _positionUpdateTimer;
+  Timer? _searchDebounceTimer;
   double _currentPositionSec = 0.0;
   bool _isPlaying = true;
   bool _isSaving = false;
@@ -78,30 +79,35 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
     });
 
     _searchController.addListener(() {
-      final q = _searchController.text.trim().toLowerCase();
-      if (q != _searchQuery) {
-        setState(() {
-          _searchQuery = q;
-          _currentMatchKey = GlobalKey();
-          if (q.isNotEmpty) {
-            _isFollowing = false;
-            _matchedIndices = [];
-            for (int i = 0; i < widget.initialCues.length; i++) {
-              if (widget.initialCues[i].text.toLowerCase().contains(q)) {
-                _matchedIndices.add(i);
+      _searchDebounceTimer?.cancel();
+      _searchDebounceTimer = Timer(const Duration(milliseconds: 160), () {
+        if (!mounted) return;
+        final raw = _searchController.text.trim();
+        final q = raw.toLowerCase();
+        if (q != _searchQuery) {
+          setState(() {
+            _searchQuery = q;
+            _currentMatchKey = GlobalKey();
+            if (q.length >= 3) {
+              _isFollowing = false;
+              _matchedIndices = [];
+              for (int i = 0; i < widget.initialCues.length; i++) {
+                if (widget.initialCues[i].text.toLowerCase().contains(q)) {
+                  _matchedIndices.add(i);
+                }
               }
+              _currentMatchIndex = 0;
+            } else {
+              _matchedIndices = [];
+              _currentMatchIndex = 0;
             }
-            _currentMatchIndex = 0;
-          } else {
-            _matchedIndices = [];
-            _currentMatchIndex = 0;
-          }
-        });
+          });
 
-        if (q.isNotEmpty && _matchedIndices.isNotEmpty) {
-          _scrollToMatch(_currentMatchIndex);
+          if (q.length >= 3 && _matchedIndices.isNotEmpty) {
+            _scrollToMatch(_currentMatchIndex);
+          }
         }
-      }
+      });
     });
 
     // Auto-scroll immediately on mount to user's current dialogue position
@@ -123,6 +129,7 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
   @override
   void dispose() {
     _positionUpdateTimer?.cancel();
+    _searchDebounceTimer?.cancel();
     _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
@@ -439,22 +446,24 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
                             ),
                           ),
                         ),
-                        if (_searchQuery.isNotEmpty) ...[
-                          // Match counter pill
+                        if (_searchController.text.trim().isNotEmpty) ...[
+                          // Match counter / hint pill
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: _matchedIndices.isNotEmpty
+                              color: _searchQuery.length >= 3 && _matchedIndices.isNotEmpty
                                   ? const Color(0x33FFC107)
                                   : Colors.white.withValues(alpha: 0.05),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
-                              _matchedIndices.isNotEmpty
-                                  ? '${_currentMatchIndex + 1}/${_matchedIndices.length}'
-                                  : '0/0',
+                              _searchQuery.length < 3
+                                  ? 'Type 3+ letters'
+                                  : (_matchedIndices.isNotEmpty
+                                      ? '${_currentMatchIndex + 1}/${_matchedIndices.length}'
+                                      : '0/0'),
                               style: TextStyle(
-                                color: _matchedIndices.isNotEmpty
+                                color: _searchQuery.length >= 3 && _matchedIndices.isNotEmpty
                                     ? const Color(0xFFFFC107)
                                     : PlayerTheme.inkSubtle,
                                 fontSize: 11,
@@ -466,11 +475,12 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
                           const SizedBox(width: 4),
 
                           // Previous match button
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(6),
-                              onTap: _matchedIndices.isNotEmpty ? _goToPrevMatch : null,
+                          if (_searchQuery.length >= 3)
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: _matchedIndices.isNotEmpty ? _goToPrevMatch : null,
                               child: Padding(
                                 padding: const EdgeInsets.all(4),
                                 child: Icon(
@@ -485,11 +495,12 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
                           ),
 
                           // Next match button
-                          Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              borderRadius: BorderRadius.circular(6),
-                              onTap: _matchedIndices.isNotEmpty ? _goToNextMatch : null,
+                          if (_searchQuery.length >= 3)
+                            Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(6),
+                                onTap: _matchedIndices.isNotEmpty ? _goToNextMatch : null,
                               child: Padding(
                                 padding: const EdgeInsets.all(4),
                                 child: Icon(
@@ -575,9 +586,10 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
                               final inRange = lo != null && hi != null && index >= lo && index <= hi;
                               final inSegment = _segments.any((s) => s.contains(index));
 
-                              final isMatch = _searchQuery.isNotEmpty &&
+                              final isMatch = _searchQuery.length >= 3 &&
                                   cue.text.toLowerCase().contains(_searchQuery);
-                              final isCurrentFocusedMatch = _matchedIndices.isNotEmpty &&
+                              final isCurrentFocusedMatch = _searchQuery.length >= 3 &&
+                                  _matchedIndices.isNotEmpty &&
                                   _currentMatchIndex < _matchedIndices.length &&
                                   _matchedIndices[_currentMatchIndex] == index;
 
@@ -993,7 +1005,7 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
   }
 
   Widget _buildHighlightedText(String text, String query, bool isActive) {
-    if (query.isEmpty) {
+    if (query.isEmpty || query.length < 3) {
       return Text(
         text,
         style: TextStyle(

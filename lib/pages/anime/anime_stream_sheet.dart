@@ -6,16 +6,22 @@ import '../../services/anime/anime_scraper_service.dart';
 import '../../services/anime/anime_library_service.dart';
 import '../player/player_screen.dart';
 
+import '../../services/anime/extractors/anidb_extractor.dart';
+
 class AnimeStreamSheet extends StatefulWidget {
   final AnimeMedia anime;
   final int episodeNumber;
   final bool autoPlay;
+  final List<AniDbEpisode>? aniDbEpisodes;
+  final int? totalEpisodes;
 
   const AnimeStreamSheet({
     super.key,
     required this.anime,
     required this.episodeNumber,
     this.autoPlay = false,
+    this.aniDbEpisodes,
+    this.totalEpisodes,
   });
 
   @override
@@ -115,7 +121,11 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
       durationSeconds: 1440,
     );
 
-    final detail = AnimeScraperService.toMovieDetail(widget.anime);
+    final detail = AnimeScraperService.toMovieDetail(
+      widget.anime,
+      aniDbEpisodes: widget.aniDbEpisodes,
+      customEpisodeCount: widget.totalEpisodes,
+    );
     final video =
         AnimeScraperService.toVideo(widget.anime, widget.episodeNumber);
 

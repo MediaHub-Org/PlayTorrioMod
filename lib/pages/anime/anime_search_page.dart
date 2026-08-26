@@ -8,8 +8,16 @@ import '../../utils/route_transitions.dart';
 import '../../widgets/anime/anime_slider_section.dart';
 import 'anime_details_page.dart';
 
+import '../../services/anime_arabic/anime_arabic_service.dart';
+import '../anime_arabic/anime_arabic_details_page.dart';
+
 class AnimeSearchPage extends StatefulWidget {
-  const AnimeSearchPage({super.key});
+  final bool initialArabicMode;
+
+  const AnimeSearchPage({
+    super.key,
+    this.initialArabicMode = false,
+  });
 
   @override
   State<AnimeSearchPage> createState() => _AnimeSearchPageState();
@@ -19,10 +27,12 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
 
+  late bool _isArabicMode;
   Timer? _debounce;
   bool _isLoading = false;
   bool _allowAdult = false;
   List<AnimeMedia> _allResults = [];
+  Map<int, ArabicAnimeCard> _arabicCardsMap = {};
   String _lastQuery = '';
 
   // Filter selections
@@ -85,7 +95,33 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
       _sort != 'TRENDING_DESC';
 
   void _loadInitialSliders() async {
+    setState(() => _loadingInitial = true);
     try {
+      if (_isArabicMode) {
+        final feed = await AnimeArabicService.instance.getHome();
+        if (mounted) {
+          setState(() {
+            _trendingList = (feed.trending.isNotEmpty ? feed.trending : feed.spotlight)
+                .map((c) {
+                  _arabicCardsMap[c.slug.hashCode.abs()] = c;
+                  return c.toAnimeMedia();
+                }).toList();
+            _popularSeasonList = feed.recentEpisodes
+                .map((c) {
+                  _arabicCardsMap[c.slug.hashCode.abs()] = c;
+                  return c.toAnimeMedia();
+                }).toList();
+            _topRatedList = (feed.topSeasonal.isNotEmpty ? feed.topSeasonal : feed.legendary)
+                .map((c) {
+                  _arabicCardsMap[c.slug.hashCode.abs()] = c;
+                  return c.toAnimeMedia();
+                }).toList();
+            _loadingInitial = false;
+          });
+        }
+        return;
+      }
+
       final results = await Future.wait([
         AnilistService.instance.fetchTrendingAnime(page: 1, perPage: 20),
         AnilistService.instance.fetchPopularThisSeason(page: 1, perPage: 20),
@@ -135,6 +171,21 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
     });
 
     try {
+      if (_isArabicMode) {
+        final cards = await AnimeArabicService.instance.search(q);
+        if (!mounted) return;
+        final list = <AnimeMedia>[];
+        for (final c in cards) {
+          _arabicCardsMap[c.slug.hashCode.abs()] = c;
+          list.add(c.toAnimeMedia());
+        }
+        setState(() {
+          _allResults = list;
+          _isLoading = false;
+        });
+        return;
+      }
+
       final results = await AnilistService.instance.searchAnime(
         q,
         genre: _genre,
@@ -383,6 +434,22 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
   }
 
   void _openDetails(AnimeMedia anime) {
+    if (_isArabicMode || _arabicCardsMap.containsKey(anime.id)) {
+      final card = _arabicCardsMap[anime.id] ??
+          ArabicAnimeCard(
+            slug: anime.titleEnglish.toLowerCase().replaceAll(' ', '-'),
+            title: anime.displayTitle,
+            cover: anime.coverUrl,
+          );
+      Navigator.push(
+        context,
+        CinematicSlideRoute(
+          page: AnimeArabicDetailsPage(anime: card),
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       CinematicSlideRoute(
@@ -503,22 +570,32 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
                           ),
                         ),
 
-                        // 18+ Adult Toggle Pill
+                        // Language Switcher Pill (General vs Arabic Anime)
                         Padding(
                           padding: const EdgeInsets.only(right: 8),
                           child: GestureDetector(
-                            onTap: () => _toggleAdult(!_allowAdult),
+                            onTap: () {
+                              setState(() {
+                                _isArabicMode = !_isArabicMode;
+                                _allResults.clear();
+                              });
+                              if (_searchController.text.trim().isNotEmpty) {
+                                _performSearch(_searchController.text.trim());
+                              } else {
+                                _loadInitialSliders();
+                              }
+                            },
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                               decoration: BoxDecoration(
-                                color: _allowAdult
-                                    ? const Color(0xFFEF4444).withValues(alpha: 0.20)
+                                color: _isArabicMode
+                                    ? const Color(0xFF7C5CFF).withValues(alpha: 0.25)
                                     : Colors.white.withValues(alpha: 0.06),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
-                                  color: _allowAdult
-                                      ? const Color(0xFFEF4444)
+                                  color: _isArabicMode
+                                      ? const Color(0xFF7C5CFF)
                                       : Colors.white.withValues(alpha: 0.12),
                                   width: 1.2,
                                 ),
@@ -526,18 +603,12 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Icon(
-                                    _allowAdult
-                                        ? Icons.check_box_rounded
-                                        : Icons.check_box_outline_blank_rounded,
-                                    size: 16,
-                                    color: _allowAdult ? const Color(0xFFEF4444) : Colors.white54,
-                                  ),
-                                  const SizedBox(width: 5),
                                   Text(
-                                    '18+',
+                                    _isArabicMode ? '🇸🇦 Arabic' : '🇯🇵 Anime',
                                     style: TextStyle(
-                                      color: _allowAdult ? const Color(0xFFEF4444) : Colors.white70,
+                                      color: _isArabicMode
+                                          ? const Color(0xFF7C5CFF)
+                                          : Colors.white70,
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
                                     ),
@@ -547,6 +618,52 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
                             ),
                           ),
                         ),
+
+                        // 18+ Adult Toggle Pill (only in general mode)
+                        if (!_isArabicMode)
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: GestureDetector(
+                              onTap: () => _toggleAdult(!_allowAdult),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                                decoration: BoxDecoration(
+                                  color: _allowAdult
+                                      ? const Color(0xFFEF4444).withValues(alpha: 0.20)
+                                      : Colors.white.withValues(alpha: 0.06),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: _allowAdult
+                                        ? const Color(0xFFEF4444)
+                                        : Colors.white.withValues(alpha: 0.12),
+                                    width: 1.2,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      _allowAdult
+                                          ? Icons.check_box_rounded
+                                          : Icons.check_box_outline_blank_rounded,
+                                      size: 16,
+                                      color: _allowAdult ? const Color(0xFFEF4444) : Colors.white54,
+                                    ),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      '18+',
+                                      style: TextStyle(
+                                        color: _allowAdult ? const Color(0xFFEF4444) : Colors.white70,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
                       ],
                     ),
                   ),

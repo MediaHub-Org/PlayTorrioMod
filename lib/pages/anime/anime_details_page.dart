@@ -7,8 +7,9 @@ import 'package:flutter/material.dart';
 import '../../models/anime/anime_media.dart';
 import '../../services/anime/anilist_service.dart';
 import '../../services/anime/anime_library_service.dart';
-import '../../services/anime/extractors/anikoto_resolver.dart';
+import '../../services/anime/extractors/anidb_extractor.dart';
 import '../../utils/route_transitions.dart';
+import '../../widgets/common/slider_arrow.dart';
 import 'anime_stream_sheet.dart';
 
 class _Space {
@@ -48,7 +49,7 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
 
   int _selectedEpisodeBatch = 0; // 50 episodes per chunk
   int? _highlightedEpisode;
-  AnikotoSeries? _anikotoSeries;
+  List<AniDbEpisode>? _aniDbEpisodes;
 
   static const int _chunkSize = 50;
 
@@ -81,24 +82,29 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
 
     _animController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 650),
+      duration: const Duration(milliseconds: 600),
     );
-    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOut),
+
+    _fadeAnimation = CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOut,
     );
+
     _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.04),
+      begin: const Offset(0, 0.05),
       end: Offset.zero,
-    ).animate(
-      CurvedAnimation(parent: _animController, curve: Curves.easeOutCubic),
-    );
+    ).animate(CurvedAnimation(
+      parent: _animController,
+      curve: Curves.easeOutCubic,
+    ));
+
+    _animController.forward();
+    _loadDetails();
+    _resolveAniDbEpisodes();
 
     _castScrollController.addListener(_updateCastScrollButtons);
     _relationsScrollController.addListener(_updateRelationsScrollButtons);
     _recsScrollController.addListener(_updateRecsScrollButtons);
-
-    _loadDetails();
-    _resolveAnikoto();
   }
 
   @override
@@ -117,7 +123,6 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
       setState(() {
         if (full != null) _anime = full;
       });
-      _animController.forward();
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {
@@ -129,28 +134,28 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
     }
   }
 
-  void _resolveAnikoto() async {
+  void _resolveAniDbEpisodes() async {
     try {
-      final series = await AnikotoResolver.instance.resolveAnikoto(
-        anilistId: _anime.id,
+      final slug = await AniDbExtractor.instance.mapAnime(
         titleCandidates: [
           _anime.titleEnglish,
           _anime.titleRomaji,
           _anime.titleNative,
           _anime.titleUserPreferred,
         ].where((t) => t.isNotEmpty).toList(),
-        expectedEpisodes:
-            _anime.totalEpisodes > 0 ? _anime.totalEpisodes : null,
       );
-      if (series != null && mounted) {
-        setState(() => _anikotoSeries = series);
+      if (slug != null) {
+        final episodes = await AniDbExtractor.instance.getEpisodes(slug);
+        if (episodes != null && mounted) {
+          setState(() => _aniDbEpisodes = episodes);
+        }
       }
     } catch (_) {}
   }
 
   int get _computedTotalEpisodes {
-    if (_anikotoSeries != null && _anikotoSeries!.episodes.isNotEmpty) {
-      return _anikotoSeries!.episodes.length;
+    if (_aniDbEpisodes != null && _aniDbEpisodes!.isNotEmpty) {
+      return _aniDbEpisodes!.length;
     }
     if (_anime.totalEpisodes > 0) return _anime.totalEpisodes;
     if (_anime.nextAiring != null && _anime.nextAiring!.episode > 1) {
@@ -222,6 +227,8 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
         anime: _anime,
         episodeNumber: episodeNumber,
         autoPlay: false,
+        aniDbEpisodes: _aniDbEpisodes,
+        totalEpisodes: _computedTotalEpisodes,
       ),
     );
   }
@@ -868,6 +875,8 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
 
   // ─── Characters & Voice Cast Row ───────────────────────────────
   Widget _buildCharactersRow() {
+    final isDesktop = _isDesktop();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -877,10 +886,12 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
           onEnter: (_) => setState(() => _isHoveringCast = true),
           onExit: (_) => setState(() => _isHoveringCast = false),
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               SizedBox(
                 height: 180,
                 child: ListView.separated(
+                  clipBehavior: Clip.none,
                   controller: _castScrollController,
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
@@ -939,28 +950,36 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
                   },
                 ),
               ),
-              if (_canScrollCastLeft)
-                Positioned(
-                  left: 0,
+
+              // Desktop Floating Scroll Arrows (Matching Home Page & Anime Slider)
+              if (isDesktop) ...[
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  left: _canScrollCastLeft && _isHoveringCast ? 10 : -60,
                   top: 0,
                   bottom: 0,
-                  child: _buildScrollArrow(
-                    icon: Icons.chevron_left_rounded,
-                    onTap: () => _scrollList(_castScrollController, -1),
-                    visible: _isHoveringCast,
+                  child: Center(
+                    child: SliderArrow(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      onTap: () => _scrollList(_castScrollController, -1),
+                    ),
                   ),
                 ),
-              if (_canScrollCastRight)
-                Positioned(
-                  right: 0,
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  right: _canScrollCastRight && _isHoveringCast ? 10 : -60,
                   top: 0,
                   bottom: 0,
-                  child: _buildScrollArrow(
-                    icon: Icons.chevron_right_rounded,
-                    onTap: () => _scrollList(_castScrollController, 1),
-                    visible: _isHoveringCast,
+                  child: Center(
+                    child: SliderArrow(
+                      icon: Icons.arrow_forward_ios_rounded,
+                      onTap: () => _scrollList(_castScrollController, 1),
+                    ),
                   ),
                 ),
+              ],
             ],
           ),
         ),
@@ -1246,10 +1265,12 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
           onEnter: (_) => setState(() => _isHoveringRelations = true),
           onExit: (_) => setState(() => _isHoveringRelations = false),
           child: Stack(
+            clipBehavior: Clip.none,
             children: [
               SizedBox(
                 height: cardHeight,
                 child: ListView.separated(
+                  clipBehavior: Clip.none,
                   controller: _relationsScrollController,
                   scrollDirection: Axis.horizontal,
                   physics: const BouncingScrollPhysics(),
@@ -1346,28 +1367,36 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
                   },
                 ),
               ),
-              if (_canScrollRelationsLeft)
-                Positioned(
-                  left: 0,
+
+              // Desktop Floating Scroll Arrows (Matching Home Page & Anime Slider)
+              if (isDesktop) ...[
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  left: _canScrollRelationsLeft && _isHoveringRelations ? 10 : -60,
                   top: 0,
                   bottom: 0,
-                  child: _buildScrollArrow(
-                    icon: Icons.chevron_left_rounded,
-                    onTap: () => _scrollList(_relationsScrollController, -1),
-                    visible: _isHoveringRelations,
+                  child: Center(
+                    child: SliderArrow(
+                      icon: Icons.arrow_back_ios_new_rounded,
+                      onTap: () => _scrollList(_relationsScrollController, -1),
+                    ),
                   ),
                 ),
-              if (_canScrollRelationsRight)
-                Positioned(
-                  right: 0,
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOutCubic,
+                  right: _canScrollRelationsRight && _isHoveringRelations ? 10 : -60,
                   top: 0,
                   bottom: 0,
-                  child: _buildScrollArrow(
-                    icon: Icons.chevron_right_rounded,
-                    onTap: () => _scrollList(_relationsScrollController, 1),
-                    visible: _isHoveringRelations,
+                  child: Center(
+                    child: SliderArrow(
+                      icon: Icons.arrow_forward_ios_rounded,
+                      onTap: () => _scrollList(_relationsScrollController, 1),
+                    ),
                   ),
                 ),
+              ],
             ],
           ),
         ),
@@ -1381,127 +1410,140 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
     final cardWidth = isDesktop ? 165.0 : 135.0;
     final cardHeight = cardWidth * 1.5 + 68.0;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader('You May Also Like'),
-        const SizedBox(height: _Space.md),
-        MouseRegion(
-          onEnter: (_) => setState(() => _isHoveringRecs = true),
-          onExit: (_) => setState(() => _isHoveringRecs = false),
-          child: Stack(
-            children: [
-              SizedBox(
-                height: cardHeight,
-                child: ListView.separated(
-                  controller: _recsScrollController,
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: _anime.recommendations.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: _Space.md),
-                  itemBuilder: (context, index) {
-                    final rec = _anime.recommendations[index];
-                    return SizedBox(
-                      width: cardWidth,
-                      child: _HoverScale(
-                        onTap: () => _navigateToAnime(rec),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: _Palette.accent.withValues(alpha: 0.15),
-                                    blurRadius: 18,
-                                    spreadRadius: -4,
-                                  ),
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.45),
-                                    blurRadius: 14,
-                                    offset: const Offset(0, 6),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: AspectRatio(
-                                  aspectRatio: 2 / 3,
-                                  child: CachedNetworkImage(
-                                    imageUrl: rec.coverUrl,
-                                    fit: BoxFit.cover,
-                                    errorWidget: (_, __, ___) => Container(
-                                      color: _Palette.surface,
-                                      child: const Icon(
-                                        Icons.movie_creation_outlined,
-                                        color: Colors.white24,
-                                        size: 32,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildSectionHeader('You May Also Like'),
+          const SizedBox(height: _Space.md),
+          MouseRegion(
+            onEnter: (_) => setState(() => _isHoveringRecs = true),
+            onExit: (_) => setState(() => _isHoveringRecs = false),
+            child: SizedBox(
+              height: cardHeight,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  ListView.separated(
+                    clipBehavior: Clip.none,
+                    controller: _recsScrollController,
+                    scrollDirection: Axis.horizontal,
+                    physics: const BouncingScrollPhysics(),
+                    itemCount: _anime.recommendations.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: _Space.md),
+                    itemBuilder: (context, index) {
+                      final rec = _anime.recommendations[index];
+                      return SizedBox(
+                        width: cardWidth,
+                        child: _HoverScale(
+                          onTap: () => _navigateToAnime(rec),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              DecoratedBox(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: _Palette.accent.withValues(alpha: 0.15),
+                                      blurRadius: 18,
+                                      spreadRadius: -4,
+                                    ),
+                                    BoxShadow(
+                                      color: Colors.black.withValues(alpha: 0.45),
+                                      blurRadius: 14,
+                                      offset: const Offset(0, 6),
+                                    ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: AspectRatio(
+                                    aspectRatio: 2 / 3,
+                                    child: CachedNetworkImage(
+                                      imageUrl: rec.coverUrl,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (_, __, ___) => Container(
+                                        color: _Palette.surface,
+                                        child: const Icon(
+                                          Icons.movie_creation_outlined,
+                                          color: Colors.white24,
+                                          size: 32,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              rec.displayTitle,
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                                height: 1.25,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            if (rec.formattedFormat.isNotEmpty)
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: Text(
-                                  rec.formattedFormat,
-                                  style: const TextStyle(
-                                    color: Colors.white38,
-                                    fontSize: 11,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
+                              const SizedBox(height: 8),
+                              Text(
+                                rec.displayTitle,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.25,
                                 ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                          ],
+                              if (rec.formattedFormat.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 2),
+                                  child: Text(
+                                    rec.formattedFormat,
+                                    style: const TextStyle(
+                                      color: Colors.white38,
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+
+                  // Desktop Floating Scroll Arrows (Matching Home Page & Anime Slider)
+                  if (isDesktop) ...[
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      left: _canScrollRecsLeft && _isHoveringRecs ? 10 : -60,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: SliderArrow(
+                          icon: Icons.arrow_back_ios_new_rounded,
+                          onTap: () => _scrollList(_recsScrollController, -1),
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 250),
+                      curve: Curves.easeOutCubic,
+                      right: _canScrollRecsRight && _isHoveringRecs ? 10 : -60,
+                      top: 0,
+                      bottom: 0,
+                      child: Center(
+                        child: SliderArrow(
+                          icon: Icons.arrow_forward_ios_rounded,
+                          onTap: () => _scrollList(_recsScrollController, 1),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-              if (_canScrollRecsLeft)
-                Positioned(
-                  left: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: _buildScrollArrow(
-                    icon: Icons.chevron_left_rounded,
-                    onTap: () => _scrollList(_recsScrollController, -1),
-                    visible: _isHoveringRecs,
-                  ),
-                ),
-              if (_canScrollRecsRight)
-                Positioned(
-                  right: 0,
-                  top: 0,
-                  bottom: 0,
-                  child: _buildScrollArrow(
-                    icon: Icons.chevron_right_rounded,
-                    onTap: () => _scrollList(_recsScrollController, 1),
-                    visible: _isHoveringRecs,
-                  ),
-                ),
-            ],
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -1513,34 +1555,6 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
         fontWeight: FontWeight.w800,
         letterSpacing: -0.4,
         color: Colors.white,
-      ),
-    );
-  }
-
-  Widget _buildScrollArrow({
-    required IconData icon,
-    required VoidCallback onTap,
-    required bool visible,
-  }) {
-    return AnimatedOpacity(
-      opacity: visible ? 1.0 : 0.0,
-      duration: const Duration(milliseconds: 200),
-      child: Center(
-        child: ClipOval(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-            child: Material(
-              color: Colors.black.withValues(alpha: 0.65),
-              child: InkWell(
-                onTap: onTap,
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: Icon(icon, color: Colors.white, size: 24),
-                ),
-              ),
-            ),
-          ),
-        ),
       ),
     );
   }

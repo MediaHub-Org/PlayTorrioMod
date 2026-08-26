@@ -9,10 +9,14 @@ import '../../models/movie/movie_detail.dart';
 import '../../models/movie/video.dart';
 import '../../models/stream/stream_model.dart';
 import '../../pages/anime/anime_stream_sheet.dart';
+import '../../pages/anime_arabic/anime_arabic_details_page.dart';
 import '../../pages/player/player_screen.dart';
 import '../../pages/player/watch_screen.dart';
 import '../../services/anime/anime_scraper_service.dart';
+import '../../services/anime_arabic/anime_arabic_service.dart';
+import '../../services/anime_arabic/anime_arabic_extractor.dart';
 import '../../services/stream/stream_service.dart';
+import '../../utils/route_transitions.dart';
 import '../trakt/trakt_service.dart';
 import '../trakt/trakt_continue_watching_service.dart';
 import '../simkl/simkl_service.dart';
@@ -491,7 +495,128 @@ class ContinueWatchingService {
       return;
     }
 
-    // 1. Anime Specialized Resume Path
+    // 1. Arabic Anime Specialized Resume Path
+    if (item.id.startsWith('arabic_anime:') || item.addonName == 'ArabicAnime') {
+      final slug = item.id.replaceAll('arabic_anime:', '');
+      final episodeNum = item.episode ?? 1;
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (ctx) => Center(
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+            decoration: BoxDecoration(
+              color: const Color(0xFF12151E),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Color(0xFF7C5CFF),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Text(
+                  'استئناف ${item.title} الحلقة $episodeNum...',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      try {
+        final details = await AnimeArabicService.instance.getDetails(slug);
+        final ep = details.episodes.firstWhere(
+          (e) => e.number == episodeNum,
+          orElse: () => details.episodes.isNotEmpty
+              ? details.episodes.first
+              : ArabicEpisode(
+                  number: episodeNum,
+                  title: 'الحلقة $episodeNum',
+                  encodedHref: '',
+                  watchPath: '/e/$slug-$episodeNum#tok',
+                ),
+        );
+
+        final rawStreams = await AnimeArabicExtractor.instance.resolveEpisode(ep);
+
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+
+        if (rawStreams.isNotEmpty) {
+          final sources = AnimeArabicExtractor.toSources(
+            rawStreams,
+            animeTitle: details.title,
+            episodeNumber: episodeNum,
+          );
+
+          StreamSource targetSource = sources.first;
+          if (item.streamName != null) {
+            final matched = sources.where((s) => s.name == item.streamName || s.title == item.streamTitle);
+            if (matched.isNotEmpty) targetSource = matched.first;
+          }
+
+          final movieDetail = details.toMovieDetail();
+          final video = movieDetail.videos.firstWhere(
+            (v) => v.episode == episodeNum,
+            orElse: () => movieDetail.videos.first,
+          );
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PlayerScreen(
+                source: targetSource,
+                title: '${details.title} - الحلقة $episodeNum',
+                backdropUrl: details.displayBanner,
+                detail: movieDetail,
+                episode: video,
+                initialPosition: Duration(seconds: item.positionSeconds),
+              ),
+            ),
+          );
+          return;
+        }
+      } catch (e) {
+        debugPrint('[ContinueWatching] Arabic resume error: $e');
+        if (Navigator.canPop(context)) {
+          Navigator.pop(context);
+        }
+      }
+
+      final card = ArabicAnimeCard(
+        slug: slug,
+        title: item.title,
+        cover: item.posterUrl ?? item.backdropUrl,
+      );
+      Navigator.push(
+        context,
+        CinematicSlideRoute(
+          page: AnimeArabicDetailsPage(
+            anime: card,
+            initialEpisodeNumber: episodeNum,
+          ),
+        ),
+      );
+      return;
+    }
+
+    // 2. General Anime Specialized Resume Path
     if (item.type == 'anime' || item.id.startsWith('anilist:')) {
       final anilistId = int.tryParse(item.id.replaceAll('anilist:', '')) ?? 0;
       final anime = AnimeMedia(

@@ -11,8 +11,8 @@ import '../subtitles/subtitlecat_service.dart';
 /// - True zero-copy async stream piping with native backpressure (no `fold()` in RAM)
 /// - Full HTTP 206 Partial Content & Range request forwarding for flawless seeking
 /// - Automatic cancellation/abort of upstream requests on client disconnect
-/// - M3U8 manifest URL rewriting only for small text playlists (<100KB)
-/// - Mirrors upstream headers, content ranges, and status codes exactly
+/// - M3U8 manifest URL rewriting and stripping of dead I-FRAME tags
+/// - Automatic header and referer resolution for streaming CDNs
 class LocalStreamProxy {
   static final LocalStreamProxy instance = LocalStreamProxy._internal();
   LocalStreamProxy._internal();
@@ -46,11 +46,11 @@ class LocalStreamProxy {
     _port = null;
   }
 
-  /// Automatically derives required Origin and Referer headers based on known video CDNs.
+  /// Automatically derives required Origin, Referer, User-Agent, and Cookie headers based on known video CDNs.
   static Map<String, String> resolveHeadersForUrl(String url, [Map<String, String>? initialHeaders]) {
     final h = <String, String>{
       'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36',
     };
     if (initialHeaders != null) {
       h.addAll(initialHeaders);
@@ -87,16 +87,27 @@ class LocalStreamProxy {
       h['Referer'] = 'https://gn1r5n.org/';
       h['Origin'] = 'https://gn1r5n.org';
     } else if (lower.contains('watching.onl') ||
+        lower.contains('livedns.my') ||
+        lower.contains('sugevideo.xyz') ||
         lower.contains('anivideo.sbs') ||
         lower.contains('trycloud.pro') ||
         lower.contains('cloudvideo.lat') ||
         lower.contains('megaplay.buzz') ||
         lower.contains('vidwish.live') ||
-        lower.contains('anikoto') ||
         (initialHeaders != null && initialHeaders['Referer']?.contains('megaplay.buzz') == true) ||
         (initialHeaders != null && initialHeaders['Referer']?.contains('vidwish') == true)) {
       h['Referer'] = 'https://megaplay.buzz/';
       h['Origin'] = 'https://megaplay.buzz';
+      h['User-Agent'] =
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36';
+      h['Cookie'] = 'SITE_TOTAL_ID=ce655f0eea754f2888ea98ded373e3b5';
+    } else if (lower.contains('anidb.app') ||
+        lower.contains('hls.anidb.app') ||
+        (initialHeaders != null && initialHeaders['Referer']?.contains('anidb.app') == true)) {
+      h['Referer'] = 'https://anidb.app/';
+      h['Origin'] = 'https://anidb.app';
+      h['User-Agent'] =
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36';
     }
 
     return h;
@@ -234,25 +245,37 @@ class LocalStreamProxy {
           final headersJsonStr = jsonEncode(effectiveHeaders);
           final encodedHeadersStr = Uri.encodeComponent(headersJsonStr);
 
-          final rewrittenLines = lines.map((line) {
+          final rewrittenLines = <String>[];
+          for (final line in lines) {
             final trimmed = line.trim();
-            if (trimmed.isEmpty) return line;
+            if (trimmed.isEmpty) continue;
+
+            // Strip broken I-FRAME stream declarations that 404 on streaming CDNs (e.g. watching.onl)
+            if (trimmed.startsWith('#EXT-X-I-FRAME-STREAM-INF')) {
+              continue;
+            }
 
             if (trimmed.startsWith('#')) {
               if (trimmed.contains('URI="')) {
                 final uriRegex = RegExp(r'URI="([^"]+)"');
-                return trimmed.replaceAllMapped(uriRegex, (match) {
+                final replaced = trimmed.replaceAllMapped(uriRegex, (match) {
                   final matchedUri = match.group(1)!;
                   var resolvedUri = upstreamUri.resolve(matchedUri);
                   if (upstreamUri.hasQuery && !resolvedUri.hasQuery) {
                     resolvedUri = resolvedUri.replace(query: upstreamUri.query);
                   }
+                  final pathLower = resolvedUri.path.toLowerCase();
+                  final isM3u8 = pathLower.contains('.m3u8') || pathLower.endsWith('.m3u8');
+                  final ext = isM3u8 ? 'proxy.m3u8' : 'proxy.ts';
                   final proxiedUri =
-                      'http://127.0.0.1:$_port/proxy.m3u8?url=${Uri.encodeComponent(resolvedUri.toString())}&headers=$encodedHeadersStr';
+                      'http://127.0.0.1:$_port/$ext?url=${Uri.encodeComponent(resolvedUri.toString())}&headers=$encodedHeadersStr';
                   return 'URI="$proxiedUri"';
                 });
+                rewrittenLines.add(replaced);
+              } else {
+                rewrittenLines.add(line);
               }
-              return line;
+              continue;
             }
 
             // Segment / variant stream URL
@@ -263,8 +286,8 @@ class LocalStreamProxy {
             final pathLower = resolvedUri.path.toLowerCase();
             final isM3u8Sub = pathLower.contains('.m3u8') || pathLower.endsWith('.m3u8');
             final ext = isM3u8Sub ? 'proxy.m3u8' : 'proxy.ts';
-            return 'http://127.0.0.1:$_port/$ext?url=${Uri.encodeComponent(resolvedUri.toString())}&headers=$encodedHeadersStr';
-          });
+            rewrittenLines.add('http://127.0.0.1:$_port/$ext?url=${Uri.encodeComponent(resolvedUri.toString())}&headers=$encodedHeadersStr');
+          }
 
           final rewrittenBody = rewrittenLines.join('\n');
           final outputBytes = utf8.encode(rewrittenBody);
@@ -285,10 +308,14 @@ class LocalStreamProxy {
       request.response.statusCode = statusCode;
       request.response.headers.set(HttpHeaders.accessControlAllowOriginHeader, '*');
 
-      // Mirror Content-Type
+      // Mirror Content-Type: force video/MP2T for video chunks regardless of fake png/html/jpg/js/css headers
       String effectiveContentType = upstreamContentType;
-      if (effectiveContentType.isEmpty ||
+      if (request.uri.path.endsWith('.ts') ||
+          effectiveContentType.isEmpty ||
           effectiveContentType.contains('text/html') ||
+          effectiveContentType.contains('text/plain') ||
+          effectiveContentType.contains('text/css') ||
+          effectiveContentType.contains('javascript') ||
           effectiveContentType.startsWith('image/')) {
         if (lowerUrl.contains('.mp4') || lowerUrl.contains('.m4s')) {
           effectiveContentType = 'video/mp4';
@@ -325,7 +352,7 @@ class LocalStreamProxy {
       } catch (_) {}
       try {
         if (!request.response.headers.chunkedTransferEncoding) {
-          request.response.statusCode = HttpStatus.badGateway;
+          request.response.statusCode = HttpStatus.internalServerError;
         }
         await request.response.close();
       } catch (_) {}

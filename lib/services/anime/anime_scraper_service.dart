@@ -4,9 +4,8 @@ import '../../models/anime/anime_media.dart';
 import '../../models/movie/movie_detail.dart';
 import '../../models/movie/video.dart';
 import '../../models/stream/stream_model.dart';
-import 'extractors/anikoto_resolver.dart';
-import 'extractors/allanime_extractor.dart';
-import 'extractors/miruro_extractor.dart';
+import 'extractors/anidb_extractor.dart';
+import 'extractors/megaplay_extractor.dart';
 import 'extractors/watchhentai_extractor.dart';
 import 'extractors/hentaini_extractor.dart';
 
@@ -14,11 +13,20 @@ class AnimeScraperService {
   static final AnimeScraperService instance = AnimeScraperService._internal();
   AnimeScraperService._internal();
 
-  final AnikotoResolver _anikoto = AnikotoResolver.instance;
-  final AllAnimeExtractor _allAnime = AllAnimeExtractor();
-  final MiruroExtractor _miruro = MiruroExtractor();
+  final MegaPlayExtractor _megaPlay = MegaPlayExtractor.instance;
+  final AniDbExtractor _aniDb = AniDbExtractor.instance;
   final WatchHentaiExtractor _watchHentai = WatchHentaiExtractor();
   final HentainiExtractor _hentaini = HentainiExtractor();
+
+  static String cleanAnimeTitle(String raw) {
+    var s = raw;
+    s = s.replaceAll(RegExp(r'\s*-\s*Episode\s*\d+.*', caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'\s*•\s*Ep\s*\d+.*', caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'\s*•\s*Episode\s*\d+.*', caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'\(TV\)', caseSensitive: false), '');
+    s = s.replaceAll(RegExp(r'\[.*?\]'), '');
+    return s.trim();
+  }
 
   /// Scrape all stream sources for an Anime and Episode across all native extractors concurrently.
   Stream<StreamSource> scrapeStreamsStream({
@@ -38,255 +46,116 @@ class AnimeScraperService {
 
     () async {
       final tasks = <Future>[];
+      final cats = categoryFilter != null ? [categoryFilter.toLowerCase()] : ['sub', 'dub'];
 
-      // 1. Anikoto -> MegaPlay (HD-1) & VidWish (HD-2)
-      tasks.add(() async {
-        try {
-          final series = await _anikoto.resolveAnikoto(
-            anilistId: anime.id,
-            titleCandidates: titleCandidates,
-            expectedEpisodes: anime.totalEpisodes,
-          );
-
-          if (series != null) {
-            final ep = series.episodes
-                .where((e) => e.number == episodeNumber)
-                .cast<AnikotoEpisode?>()
-                .firstWhere((_) => true, orElse: () => null);
-
-            if (ep != null && ep.embedId.isNotEmpty) {
-              final cats = categoryFilter != null ? [categoryFilter] : ['sub', 'dub'];
-              final anikotoTasks = <Future>[];
-
-              for (final cat in cats) {
-                // MegaPlay HD-1
-                anikotoTasks.add(
-                  _anikoto
-                      .extractDirect(
-                    host: 'megaplay.buzz',
-                    embedId: ep.embedId,
-                    category: cat,
-                  )
-                      .then((res) {
-                    if (res != null &&
-                        res.url.isNotEmpty &&
-                        seenUrls.add(res.url) &&
-                        !controller.isClosed) {
-                      final catUpper = cat.toUpperCase();
-                      controller.add(
-                        StreamSource(
-                          name: '⚡ MegaPlay (HD-1) • $catUpper',
-                          title:
-                              '${anime.displayTitle} • Ep $episodeNumber [MegaPlay HD-1 • $catUpper]',
-                          description:
-                              'MegaPlay • Master HLS • $catUpper • ${res.tracks.length} Subtitles',
-                          url: res.url,
-                          addonName: 'MegaPlay',
-                          headers: {
-                            'Referer': res.referer,
-                            'Origin': res.origin,
-                            'User-Agent':
-                                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                          },
-                          behaviorHints: {
-                            'notWebReady': false,
-                            'proxyHeaders': {
-                              'request': {
-                                'Referer': res.referer,
-                                'Origin': res.origin,
-                                'User-Agent':
-                                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                              },
-                            },
-                          },
-                        ),
-                      );
-                    }
-                  }).catchError((_) {}),
-                );
-
-                // VidWish HD-2
-                anikotoTasks.add(
-                  _anikoto
-                      .extractDirect(
-                    host: 'vidwish.live',
-                    embedId: ep.embedId,
-                    category: cat,
-                  )
-                      .then((res) {
-                    if (res != null &&
-                        res.url.isNotEmpty &&
-                        seenUrls.add(res.url) &&
-                        !controller.isClosed) {
-                      final catUpper = cat.toUpperCase();
-                      controller.add(
-                        StreamSource(
-                          name: '⚡ VidWish (HD-2) • $catUpper',
-                          title:
-                              '${anime.displayTitle} • Ep $episodeNumber [VidWish HD-2 • $catUpper]',
-                          description:
-                              'VidWish • Master HLS • $catUpper • ${res.tracks.length} Subtitles',
-                          url: res.url,
-                          addonName: 'VidWish',
-                          headers: {
-                            'Referer': res.referer,
-                            'Origin': res.origin,
-                            'User-Agent':
-                                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                          },
-                          behaviorHints: {
-                            'notWebReady': false,
-                            'proxyHeaders': {
-                              'request': {
-                                'Referer': res.referer,
-                                'Origin': res.origin,
-                                'User-Agent':
-                                    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                              },
-                            },
-                          },
-                        ),
-                      );
-                    }
-                  }).catchError((_) {}),
-                );
-              }
-
-              await Future.wait(anikotoTasks);
-            }
-          }
-        } catch (e) {
-          if (kDebugMode) debugPrint('[AnimeScraper] Anikoto extract error: $e');
-        }
-      }());
-
-      // 2. AllAnime Extractor
-      final allAnimeCats = categoryFilter != null ? [categoryFilter] : ['sub', 'dub'];
-      for (final cat in allAnimeCats) {
-        for (final prov in AllAnimeExtractor.knownProviders) {
-          tasks.add(
-            _allAnime
-                .extractWithProvider(
-              titleCandidates: titleCandidates,
-              episodeNumber: episodeNumber,
-              category: cat,
-              provider: prov,
-            )
-                .then((res) {
-              if (res != null &&
-                  res.url.isNotEmpty &&
-                  seenUrls.add(res.url) &&
-                  !controller.isClosed) {
-                final catUpper = cat.toUpperCase();
-                final isHls = res.url.contains('.m3u8');
-                final typeTag = isHls ? 'HLS' : 'MP4';
-                controller.add(
-                  StreamSource(
-                    name: '⚡ AllAnime ($prov) • $catUpper',
-                    title:
-                        '${anime.displayTitle} • Ep $episodeNumber [AllAnime $prov • $catUpper]',
-                    description: 'AllAnime • $prov • $typeTag • $catUpper',
-                    url: res.url,
-                    addonName: 'AllAnime',
-                    headers: {
-                      'Referer': res.referer,
-                      'Origin': res.origin,
-                      'User-Agent':
-                          'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
-                    },
-                    behaviorHints: {
-                      'notWebReady': false,
-                      'proxyHeaders': {
-                        'request': {
-                          'Referer': res.referer,
-                          'Origin': res.origin,
-                          'User-Agent':
-                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
-                        },
-                      },
-                    },
-                  ),
-                );
-              }
-            }).catchError((_) {}),
-          );
-        }
-      }
-
-      // 3. Miruro Secure-Pipe Extractor
-      final miruroCats = categoryFilter != null ? [categoryFilter] : ['sub', 'dub'];
-      for (final cat in miruroCats) {
-        for (final prov in MiruroExtractor.knownProviders) {
-          tasks.add(
-            _miruro
-                .extractWithProvider(
-              anilistId: anime.id,
-              episodeNumber: episodeNumber,
-              category: cat,
-              provider: prov,
-            )
-                .then((res) {
-              if (res != null &&
-                  res.url.isNotEmpty &&
-                  seenUrls.add(res.url) &&
-                  !controller.isClosed) {
-                final catUpper = cat.toUpperCase();
-                final provUpper =
-                    prov[0].toUpperCase() + (prov.length > 1 ? prov.substring(1) : '');
-                controller.add(
-                  StreamSource(
-                    name: '⚡ Miruro ($provUpper) • $catUpper',
-                    title:
-                        '${anime.displayTitle} • Ep $episodeNumber [Miruro $provUpper • $catUpper]',
-                    description:
-                        'Miruro • $provUpper • HLS • $catUpper • ${res.tracks.length} Subtitles',
-                    url: res.url,
-                    addonName: 'Miruro',
-                    headers: {
-                      'Referer': res.referer,
-                      'Origin': res.origin,
-                      'User-Agent':
-                          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                    },
-                    behaviorHints: {
-                      'notWebReady': false,
-                      'proxyHeaders': {
-                        'request': {
-                          'Referer': res.referer,
-                          'Origin': res.origin,
-                          'User-Agent':
-                              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                        },
-                      },
-                    },
-                  ),
-                );
-              }
-            }).catchError((_) {}),
-          );
-        }
-      }
-
-      // 4. WatchHentai & Hentaini Extractor (if Adult/NSFW)
-      final isAdultAnime = anime.genres.any((g) =>
-          g.toLowerCase().contains('hentai') || g.toLowerCase().contains('erotica'));
-      if (isAdultAnime && titleCandidates.isNotEmpty) {
+      // 1. MegaPlay Provider (Sub & Dub)
+      for (final cat in cats) {
         tasks.add(
-          _watchHentai
+          _megaPlay
               .extract(
-            titleCandidates: titleCandidates,
+            anilistId: anime.id,
             episodeNumber: episodeNumber,
+            category: cat,
           )
               .then((res) {
             if (res != null &&
                 res.url.isNotEmpty &&
                 seenUrls.add(res.url) &&
                 !controller.isClosed) {
+              final catUpper = cat.toUpperCase();
+              final subCount = res.tracks.where((t) => t.kind != 'thumbnails').length;
+              final subLabel = subCount > 0 ? ' • $subCount Subtitles' : '';
+
               controller.add(
                 StreamSource(
-                  name: '⚡ WatchHentai • HD',
+                  name: '⚡ MegaPlay • $catUpper',
+                  title:
+                      '${anime.displayTitle} • Ep $episodeNumber [MegaPlay • $catUpper]',
+                  description:
+                      'MegaPlay • Master HLS • $catUpper$subLabel',
+                  url: res.url,
+                  addonName: 'MegaPlay',
+                  headers: res.headers,
+                  behaviorHints: {
+                    'notWebReady': false,
+                    if (res.intro != null) 'intro': res.intro,
+                    if (res.outro != null) 'outro': res.outro,
+                    'proxyHeaders': {
+                      'request': res.headers,
+                    },
+                  },
+                ),
+              );
+            }
+          }).catchError((e) {
+            if (kDebugMode) debugPrint('[AnimeScraper] MegaPlay ($cat) error: $e');
+          }),
+        );
+      }
+
+      // 2. AniDB Provider (Sub & Dub)
+      if (titleCandidates.isNotEmpty) {
+        for (final cat in cats) {
+          tasks.add(
+            _aniDb
+                .extract(
+              titleCandidates: titleCandidates,
+              episodeNumber: episodeNumber,
+              category: cat,
+            )
+                .then((res) {
+              if (res != null &&
+                  res.url.isNotEmpty &&
+                  seenUrls.add(res.url) &&
+                  !controller.isClosed) {
+                final catUpper = cat.toUpperCase();
+                controller.add(
+                  StreamSource(
+                    name: '⚡ AniDB • $catUpper',
+                    title:
+                        '${anime.displayTitle} • Ep $episodeNumber [AniDB • $catUpper]',
+                    description:
+                        'AniDB • Master HLS • $catUpper',
+                    url: res.url,
+                    addonName: 'AniDB',
+                    headers: res.headers,
+                    behaviorHints: {
+                      'notWebReady': false,
+                      'proxyHeaders': {
+                        'request': res.headers,
+                      },
+                    },
+                  ),
+                );
+              }
+            }).catchError((e) {
+              if (kDebugMode) debugPrint('[AnimeScraper] AniDB ($cat) error: $e');
+            }),
+          );
+        }
+      }
+
+      // 3. Fallback Hentai extractors for NSFW/Ecchi anime
+      final isAdult = anime.genres.any((g) =>
+          g.toLowerCase().contains('hentai') ||
+          g.toLowerCase().contains('erotica') ||
+          g.toLowerCase().contains('ecchi'));
+
+      if (isAdult && titleCandidates.isNotEmpty) {
+        tasks.add(
+          _watchHentai.extract(
+            titleCandidates: titleCandidates,
+            episodeNumber: episodeNumber,
+          ).then((res) {
+            if (res != null &&
+                res.url.isNotEmpty &&
+                seenUrls.add(res.url) &&
+                !controller.isClosed) {
+              controller.add(
+                StreamSource(
+                  name: '⚡ WatchHentai',
                   title: '${anime.displayTitle} • Ep $episodeNumber [WatchHentai]',
-                  description: 'WatchHentai • Direct Video',
+                  description: 'WatchHentai • Direct MP4',
                   url: res.url,
                   addonName: 'WatchHentai',
                   headers: {
@@ -300,21 +169,189 @@ class AnimeScraperService {
         );
 
         tasks.add(
-          _hentaini
-              .extract(
+          _hentaini.extract(
             titleCandidates: titleCandidates,
             episodeNumber: episodeNumber,
-          )
-              .then((res) {
+          ).then((res) {
             if (res != null &&
                 res.url.isNotEmpty &&
                 seenUrls.add(res.url) &&
                 !controller.isClosed) {
               controller.add(
                 StreamSource(
-                  name: '⚡ Hentaini • HD',
+                  name: '⚡ Hentaini',
                   title: '${anime.displayTitle} • Ep $episodeNumber [Hentaini]',
-                  description: 'Hentaini • Direct Video',
+                  description: 'Hentaini • Direct MP4',
+                  url: res.url,
+                  addonName: 'Hentaini',
+                  headers: {
+                    'Referer': res.referer,
+                    'Origin': res.origin,
+                  },
+                ),
+              );
+            }
+          }).catchError((_) {}),
+        );
+      }
+
+      await Future.wait(tasks);
+      if (!controller.isClosed) {
+        controller.close();
+      }
+    }();
+
+    return controller.stream;
+  }
+
+  /// Scrapes anime streams when only basic metadata (title, anilistId, episodeNumber) is available,
+  /// e.g. from in-player sources panel or continuing playback.
+  Stream<StreamSource> scrapeStreamsByDetails({
+    required String title,
+    int? anilistId,
+    required int episodeNumber,
+    String? categoryFilter,
+  }) {
+    final controller = StreamController<StreamSource>();
+    final seenUrls = <String>{};
+
+    final cleanTitle = cleanAnimeTitle(title);
+    final titleCandidates = [
+      cleanTitle,
+      title,
+    ].where((t) => t.trim().isNotEmpty).toSet().toList();
+
+    () async {
+      final tasks = <Future>[];
+      final cats = categoryFilter != null ? [categoryFilter.toLowerCase()] : ['sub', 'dub'];
+
+      // 1. MegaPlay (if anilistId is available)
+      if (anilistId != null && anilistId > 0) {
+        for (final cat in cats) {
+          tasks.add(
+            _megaPlay
+                .extract(
+              anilistId: anilistId,
+              episodeNumber: episodeNumber,
+              category: cat,
+            )
+                .then((res) {
+              if (res != null &&
+                  res.url.isNotEmpty &&
+                  seenUrls.add(res.url) &&
+                  !controller.isClosed) {
+                final catUpper = cat.toUpperCase();
+                final subCount = res.tracks.where((t) => t.kind != 'thumbnails').length;
+                final subLabel = subCount > 0 ? ' • $subCount Subtitles' : '';
+
+                controller.add(
+                  StreamSource(
+                    name: '⚡ MegaPlay • $catUpper',
+                    title: '$cleanTitle • Ep $episodeNumber [MegaPlay • $catUpper]',
+                    description: 'MegaPlay • Master HLS • $catUpper$subLabel',
+                    url: res.url,
+                    addonName: 'MegaPlay',
+                    headers: res.headers,
+                    behaviorHints: {
+                      'notWebReady': false,
+                      if (res.intro != null) 'intro': res.intro,
+                      if (res.outro != null) 'outro': res.outro,
+                      'proxyHeaders': {
+                        'request': res.headers,
+                      },
+                    },
+                  ),
+                );
+              }
+            }).catchError((e) {
+              if (kDebugMode) debugPrint('[AnimeScraper] In-player MegaPlay error: $e');
+            }),
+          );
+        }
+      }
+
+      // 2. AniDB Provider (Sub & Dub)
+      if (titleCandidates.isNotEmpty) {
+        for (final cat in cats) {
+          tasks.add(
+            _aniDb
+                .extract(
+              titleCandidates: titleCandidates,
+              episodeNumber: episodeNumber,
+              category: cat,
+            )
+                .then((res) {
+              if (res != null &&
+                  res.url.isNotEmpty &&
+                  seenUrls.add(res.url) &&
+                  !controller.isClosed) {
+                final catUpper = cat.toUpperCase();
+                controller.add(
+                  StreamSource(
+                    name: '⚡ AniDB • $catUpper',
+                    title: '$cleanTitle • Ep $episodeNumber [AniDB • $catUpper]',
+                    description: 'AniDB • Master HLS • $catUpper',
+                    url: res.url,
+                    addonName: 'AniDB',
+                    headers: res.headers,
+                    behaviorHints: {
+                      'notWebReady': false,
+                      'proxyHeaders': {
+                        'request': res.headers,
+                      },
+                    },
+                  ),
+                );
+              }
+            }).catchError((e) {
+              if (kDebugMode) debugPrint('[AnimeScraper] In-player AniDB error: $e');
+            }),
+          );
+        }
+      }
+
+      // 3. Fallback Hentai extractors
+      if (titleCandidates.isNotEmpty) {
+        tasks.add(
+          _watchHentai.extract(
+            titleCandidates: titleCandidates,
+            episodeNumber: episodeNumber,
+          ).then((res) {
+            if (res != null &&
+                res.url.isNotEmpty &&
+                seenUrls.add(res.url) &&
+                !controller.isClosed) {
+              controller.add(
+                StreamSource(
+                  name: '⚡ WatchHentai',
+                  title: '$cleanTitle • Ep $episodeNumber [WatchHentai]',
+                  description: 'WatchHentai • Direct MP4',
+                  url: res.url,
+                  addonName: 'WatchHentai',
+                  headers: {
+                    'Referer': res.referer,
+                    'Origin': res.origin,
+                  },
+                ),
+              );
+            }
+          }).catchError((_) {}),
+        );
+
+        tasks.add(
+          _hentaini.extract(
+            titleCandidates: titleCandidates,
+            episodeNumber: episodeNumber,
+          ).then((res) {
+            if (res != null &&
+                res.url.isNotEmpty &&
+                seenUrls.add(res.url) &&
+                !controller.isClosed) {
+              controller.add(
+                StreamSource(
+                  name: '⚡ Hentaini',
+                  title: '$cleanTitle • Ep $episodeNumber [Hentaini]',
+                  description: 'Hentaini • Direct MP4',
                   url: res.url,
                   addonName: 'Hentaini',
                   headers: {
@@ -355,7 +392,48 @@ class AnimeScraperService {
   }
 
   /// Converts AnimeMedia and Episode to MovieDetail and Video for the PlayerScreen
-  static MovieDetail toMovieDetail(AnimeMedia anime) {
+  static MovieDetail toMovieDetail(
+    AnimeMedia anime, {
+    List<AniDbEpisode>? aniDbEpisodes,
+    int? customEpisodeCount,
+  }) {
+    int totalCount = (aniDbEpisodes != null && aniDbEpisodes.isNotEmpty)
+        ? aniDbEpisodes.length
+        : (customEpisodeCount != null && customEpisodeCount > 0)
+            ? customEpisodeCount
+            : (anime.totalEpisodes > 0)
+                ? anime.totalEpisodes
+                : (anime.nextAiring != null && anime.nextAiring!.episode > 1)
+                    ? anime.nextAiring!.episode - 1
+                    : (anime.format.toUpperCase() == 'MOVIE'
+                        ? 1
+                        : (anime.status.toUpperCase() == 'RELEASING' ? 1200 : 24));
+
+    final List<Video> videos;
+    if (aniDbEpisodes != null && aniDbEpisodes.isNotEmpty) {
+      videos = List.generate(aniDbEpisodes.length, (i) {
+        final ep = aniDbEpisodes[i];
+        return Video(
+          id: 'anilist:${anime.id}:${ep.number}',
+          season: 1,
+          episode: ep.number,
+          title: 'Episode ${ep.number}',
+          thumbnail: anime.backdropUrl,
+        );
+      });
+    } else {
+      videos = List.generate(
+        totalCount,
+        (i) => Video(
+          id: 'anilist:${anime.id}:${i + 1}',
+          season: 1,
+          episode: i + 1,
+          title: 'Episode ${i + 1}',
+          thumbnail: anime.backdropUrl,
+        ),
+      );
+    }
+
     return MovieDetail(
       id: 'anilist:${anime.id}',
       type: 'anime',
@@ -366,26 +444,17 @@ class AnimeScraperService {
       year: anime.seasonYear > 0 ? '${anime.seasonYear}' : null,
       imdbRating: anime.averageScore > 0 ? anime.formattedScore : null,
       genres: anime.genres,
-      videos: List.generate(
-        anime.totalEpisodes > 0 ? anime.totalEpisodes : 24,
-        (i) => Video(
-          id: 'anilist:${anime.id}:${i + 1}',
-          season: 1,
-          episode: i + 1,
-          title: 'Episode ${i + 1}',
-          thumbnail: anime.backdropUrl,
-        ),
-      ),
+      videos: videos,
     );
   }
 
-  static Video toVideo(AnimeMedia anime, int episodeNumber) {
+  static Video toVideo(AnimeMedia anime, int episodeNumber, {String? title, String? thumbnail}) {
     return Video(
       id: 'anilist:${anime.id}:$episodeNumber',
       season: 1,
       episode: episodeNumber,
-      title: 'Episode $episodeNumber',
-      thumbnail: anime.backdropUrl,
+      title: (title != null && title.isNotEmpty) ? title : 'Episode $episodeNumber',
+      thumbnail: (thumbnail != null && thumbnail.isNotEmpty) ? thumbnail : anime.backdropUrl,
     );
   }
 }

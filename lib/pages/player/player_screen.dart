@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:video_player/video_player.dart';
@@ -91,6 +92,8 @@ class _PlayerScreenState extends State<PlayerScreen>
   double _volume = 1.0;
   double _lastVolumeBeforeMute = 1.0;
   bool _isMuted = false;
+  bool _showVolumeHud = false;
+  Timer? _volumeHudTimer;
   double _playbackRate = 1.0;
   BoxFit _videoFit = BoxFit.contain;
   List<PlayerAudioTrack> _audioTracks = [];
@@ -252,17 +255,27 @@ class _PlayerScreenState extends State<PlayerScreen>
           lowerUrl.contains('.avi') ||
           lowerUrl.contains('.webm');
 
-      // Direct native path for MP4/MKV files; use proxy for HLS / M3U8 playlists requiring manifest rewrite
-      final needsProxy = _currentSource.headers != null &&
-          _currentSource.headers!.isNotEmpty &&
-          !isDirectVideo;
+      // Direct native path for anime streams and direct videos with playerHeaders
+      final isAnimeStream = _currentSource.addonName == 'MegaPlay' ||
+          _currentSource.addonName == 'AniDB' ||
+          _currentSource.addonName == 'WatchHentai' ||
+          _currentSource.addonName == 'Hentaini' ||
+          _currentSource.addonName == 'ArabicAnime' ||
+          sanitizedUrlStr.contains('watching.onl') ||
+          sanitizedUrlStr.contains('anidb.app');
+
+      final needsProxy = !isAnimeStream &&
+          !isDirectVideo &&
+          (_currentSource.behaviorHints?['notWebReady'] == true &&
+              _currentSource.headers != null &&
+              _currentSource.headers!.isNotEmpty);
 
       String resolvedUrlStr = needsProxy
           ? LocalStreamProxy.instance.getProxiedUrl(sanitizedUrlStr, playerHeaders)
           : sanitizedUrlStr;
 
       var cleanUri = Uri.parse(resolvedUrlStr);
-      print('[PlayerScreen] Attempting to open network stream URL: $cleanUri');
+      print('[PlayerScreen] Attempting to open network stream URL: $cleanUri (headers: ${playerHeaders.keys})');
 
       if (!mounted) return;
       final epLabel = _currentEpisode != null
@@ -657,34 +670,39 @@ class _PlayerScreenState extends State<PlayerScreen>
             ? SubtitleParser.toVtt(syncedCues)
             : SubtitleParser.toSrt(syncedCues);
         final ext = _currentSubFormat == SubFormat.vtt ? 'vtt' : 'srt';
-        final newPath = _currentSubtitlePath!.replaceAll(
-          RegExp(r'\.(srt|vtt)$', caseSensitive: false),
-          '_delayed.$ext',
+        final cleanBase = _currentSubtitlePath!.replaceAll(
+          RegExp(r'(_delayed.*|_synced.*)?\.(srt|vtt)$', caseSensitive: false),
+          '',
         );
+        final newPath = '${cleanBase}_delayed_${DateTime.now().millisecondsSinceEpoch}.$ext';
         await File(newPath).writeAsString(content);
         _controller!.setExternalSubtitle(newPath);
+        _setSubtitleScale(_subtitleScale);
       } else {
         final newPath = await _shiftSubtitleTime(_currentSubtitlePath!, _subtitleDelayMs);
         _controller!.setExternalSubtitle(newPath);
+        _setSubtitleScale(_subtitleScale);
       }
     }
   }
 
   Future<void> _saveTextSyncedCues(List<SubCue> syncedCues, double offsetSec) async {
     _currentCues = syncedCues;
-    _subtitleDelayMs = offsetSec * 1000.0;
+    _subtitleDelayMs = 0.0; // Reset live delay since timestamps are now permanently baked into cues
     if (_currentSubtitlePath != null && _controller != null) {
       final content = _currentSubFormat == SubFormat.vtt
           ? SubtitleParser.toVtt(syncedCues)
           : SubtitleParser.toSrt(syncedCues);
       final ext = _currentSubFormat == SubFormat.vtt ? 'vtt' : 'srt';
-      final newPath = _currentSubtitlePath!.replaceAll(
-        RegExp(r'\.(srt|vtt)$', caseSensitive: false),
-        '_synced.$ext',
+      final cleanBase = _currentSubtitlePath!.replaceAll(
+        RegExp(r'(_delayed.*|_synced.*)?\.(srt|vtt)$', caseSensitive: false),
+        '',
       );
+      final newPath = '${cleanBase}_synced_${DateTime.now().millisecondsSinceEpoch}.$ext';
       await File(newPath).writeAsString(content);
       _currentSubtitlePath = newPath;
       _controller!.setExternalSubtitle(newPath);
+      _setSubtitleScale(_subtitleScale);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -755,59 +773,112 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   int _getControllerId(VideoPlayerController c) {
     try {
-      final dynamic dyn = c;
-      return (dyn.playerId ?? dyn.textureId ?? 0) as int;
+      return c.playerId;
     } catch (_) {
       return 0;
     }
   }
 
-  void _applyVolume(double vol) {
-    final clamped = vol.clamp(0.0, PlayerVolumeControl.maxVolume);
+  void _applyVolume(double vol, {bool showHud = false}) {
+    final clamped = ((vol * 100).round() / 100.0).clamp(0.0, PlayerVolumeControl.maxVolume);
     setState(() {
       _volume = clamped;
       _isMuted = clamped == 0;
+      if (showHud) _showVolumeHud = true;
     });
+
+    if (showHud) {
+      _volumeHudTimer?.cancel();
+      _volumeHudTimer = Timer(const Duration(milliseconds: 1300), () {
+        if (mounted) setState(() => _showVolumeHud = false);
+      });
+    }
+
     if (_controller != null) {
-      // 1. Standard video_player controller call
-      _controller!.setVolume(clamped.clamp(0.0, 1.0));
-      // 2. Direct VideoPlayerPlatform call to allow native volume boost up to 140% in fvp/mdk
-      try {
-        final id = _getControllerId(_controller!);
-        VideoPlayerPlatform.instance.setVolume(id, clamped);
-      } catch (e) {
-        if (kDebugMode) print('[PlayerScreen] Platform setVolume error: $e');
+      final id = _getControllerId(_controller!);
+      if (id > 0) {
+        try {
+          VideoPlayerPlatform.instance.setVolume(id, clamped);
+        } catch (e) {
+          if (kDebugMode) print('[PlayerScreen] Platform setVolume error: $e');
+          _controller!.setVolume(clamped.clamp(0.0, 1.0));
+        }
+      } else {
+        _controller!.setVolume(clamped.clamp(0.0, 1.0));
       }
     }
   }
 
-  void _toggleMute() {
+  void _toggleMute({bool showHud = false}) {
     if (_volume > 0 && !_isMuted) {
       _lastVolumeBeforeMute = _volume;
       setState(() {
         _isMuted = true;
+        if (showHud) _showVolumeHud = true;
       });
       if (_controller != null) {
-        _controller!.setVolume(0.0);
-        try {
-          final id = _getControllerId(_controller!);
-          VideoPlayerPlatform.instance.setVolume(id, 0.0);
-        } catch (_) {}
+        final id = _getControllerId(_controller!);
+        if (id > 0) {
+          try {
+            VideoPlayerPlatform.instance.setVolume(id, 0.0);
+          } catch (_) {
+            _controller!.setVolume(0.0);
+          }
+        } else {
+          _controller!.setVolume(0.0);
+        }
       }
     } else {
       final restore = _lastVolumeBeforeMute > 0 ? _lastVolumeBeforeMute : 1.0;
       setState(() {
         _volume = restore;
         _isMuted = false;
+        if (showHud) _showVolumeHud = true;
       });
       if (_controller != null) {
-        _controller!.setVolume(restore.clamp(0.0, 1.0));
-        try {
-          final id = _getControllerId(_controller!);
-          VideoPlayerPlatform.instance.setVolume(id, restore);
-        } catch (_) {}
+        final id = _getControllerId(_controller!);
+        if (id > 0) {
+          try {
+            VideoPlayerPlatform.instance.setVolume(id, restore);
+          } catch (_) {
+            _controller!.setVolume(restore.clamp(0.0, 1.0));
+          }
+        } else {
+          _controller!.setVolume(restore.clamp(0.0, 1.0));
+        }
       }
     }
+
+    if (showHud) {
+      _volumeHudTimer?.cancel();
+      _volumeHudTimer = Timer(const Duration(milliseconds: 1300), () {
+        if (mounted) setState(() => _showVolumeHud = false);
+      });
+    }
+  }
+
+  void _togglePlayPause() {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    setState(() {
+      if (_controller!.value.isPlaying) {
+        _controller!.pause();
+      } else {
+        _controller!.play();
+      }
+    });
+    _startHideControlsTimer();
+  }
+
+  void _seekRelative(Duration offset) {
+    if (_controller == null || !_controller!.value.isInitialized) return;
+    final cur = _controller!.value.position;
+    final dur = _controller!.value.duration;
+    final target = cur + offset;
+    final clamped = target < Duration.zero
+        ? Duration.zero
+        : (dur > Duration.zero && target > dur ? dur : target);
+    _controller!.seekTo(clamped);
+    _startHideControlsTimer();
   }
 
   void _toggleEpisodesPanel() {
@@ -993,6 +1064,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   @override
   void dispose() {
     _progressSaveTimer?.cancel();
+    _volumeHudTimer?.cancel();
     _savePlaybackProgress();
     WakelockPlus.disable();
     _hideTimer?.cancel();
@@ -1034,15 +1106,71 @@ class _PlayerScreenState extends State<PlayerScreen>
       },
       child: Scaffold(
         backgroundColor: Colors.black,
-        body: MouseRegion(
-          cursor: (_showControls || _isLoading || _activeMenu != null)
-              ? SystemMouseCursors.basic
-              : SystemMouseCursors.none,
-          onHover: (_) => _handlePointerActivity(),
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            onTap: _handleScreenTap,
-            child: _buildPlayerBody(),
+        body: Focus(
+          autofocus: true,
+          onKeyEvent: (node, event) {
+            // Never intercept key events when typing or searching in text inputs or overlay
+            if (_showTextSyncOverlay) {
+              return KeyEventResult.ignored;
+            }
+            final primaryFocus = FocusManager.instance.primaryFocus;
+            if (primaryFocus != null && primaryFocus.context != null) {
+              final focusedWidget = primaryFocus.context!.widget;
+              if (focusedWidget is EditableText) {
+                return KeyEventResult.ignored;
+              }
+            }
+
+            if (event is KeyDownEvent) {
+              if (event.logicalKey == LogicalKeyboardKey.arrowUp ||
+                  event.logicalKey == LogicalKeyboardKey.audioVolumeUp) {
+                _applyVolume((_volume + 0.05).clamp(0.0, PlayerVolumeControl.maxVolume), showHud: true);
+                return KeyEventResult.handled;
+              } else if (event.logicalKey == LogicalKeyboardKey.arrowDown ||
+                  event.logicalKey == LogicalKeyboardKey.audioVolumeDown) {
+                _applyVolume((_volume - 0.05).clamp(0.0, PlayerVolumeControl.maxVolume), showHud: true);
+                return KeyEventResult.handled;
+              } else if (event.logicalKey == LogicalKeyboardKey.keyM) {
+                _toggleMute(showHud: true);
+                return KeyEventResult.handled;
+              } else if (event.logicalKey == LogicalKeyboardKey.space ||
+                  event.logicalKey == LogicalKeyboardKey.keyK) {
+                _togglePlayPause();
+                return KeyEventResult.handled;
+              } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                  event.logicalKey == LogicalKeyboardKey.keyJ) {
+                _seekRelative(const Duration(seconds: -10));
+                return KeyEventResult.handled;
+              } else if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
+                  event.logicalKey == LogicalKeyboardKey.keyL) {
+                _seekRelative(const Duration(seconds: 10));
+                return KeyEventResult.handled;
+              } else if (event.logicalKey == LogicalKeyboardKey.keyF) {
+                WindowService.instance.toggleFullscreen();
+                return KeyEventResult.handled;
+              }
+            }
+            return KeyEventResult.ignored;
+          },
+          child: Listener(
+            onPointerSignal: (pointerSignal) {
+              if (pointerSignal is PointerScrollEvent) {
+                final delta = pointerSignal.scrollDelta.dy < 0 ? 0.05 : -0.05;
+                final next = (_volume + delta).clamp(0.0, PlayerVolumeControl.maxVolume);
+                _applyVolume((next * 100).round() / 100.0, showHud: true);
+              }
+            },
+            child: MouseRegion(
+              cursor: (_showControls || _isLoading || _activeMenu != null)
+                  ? SystemMouseCursors.basic
+                  : SystemMouseCursors.none,
+              onHover: (_) => _handlePointerActivity(),
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onTap: _handleScreenTap,
+                child: _buildPlayerBody(),
+              ),
+            ),
           ),
         ),
       ),
@@ -1593,8 +1721,142 @@ class _PlayerScreenState extends State<PlayerScreen>
                 ),
               ),
             ),
+
+          // Center Heads-Up Volume Display (HUD)
+          if (_showVolumeHud)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: _buildVolumeHud(),
+              ),
+            ),
         ],
       );
+  }
+
+  Widget _buildVolumeHud() {
+    final effectiveVol = _isMuted ? 0.0 : _volume;
+    final isBoosting = !_isMuted && _volume > 1.001;
+    final pct = (effectiveVol * 100).round();
+    final boostColor = _volume > 1.75
+        ? const Color(0xFFFF3D00)
+        : (_volume > 1.0 ? const Color(0xFFFF8A00) : Colors.white);
+
+    IconData volIcon;
+    if (_isMuted || _volume == 0) {
+      volIcon = Icons.volume_off_rounded;
+    } else if (_volume > 1.0) {
+      volIcon = Icons.volume_up_rounded;
+    } else if (_volume < 0.5) {
+      volIcon = Icons.volume_down_rounded;
+    } else {
+      volIcon = Icons.volume_up_rounded;
+    }
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F1117).withValues(alpha: 0.88),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isBoosting
+                ? boostColor.withValues(alpha: 0.45)
+                : Colors.white.withValues(alpha: 0.15),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: isBoosting ? boostColor.withValues(alpha: 0.28) : Colors.black54,
+              blurRadius: 30,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  volIcon,
+                  color: isBoosting ? boostColor : Colors.white,
+                  size: 28,
+                ),
+                const SizedBox(width: 12),
+                Text(
+                  _isMuted ? 'Muted' : '$pct%',
+                  style: TextStyle(
+                    color: isBoosting ? boostColor : Colors.white,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.5,
+                  ),
+                ),
+                if (isBoosting) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: boostColor.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: boostColor.withValues(alpha: 0.4), width: 0.8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.bolt_rounded, size: 13, color: boostColor),
+                        const SizedBox(width: 2),
+                        Text(
+                          _volume > 1.75 ? 'MAX BOOST' : 'BOOST',
+                          style: TextStyle(
+                            color: boostColor,
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: 140,
+              height: 6,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(3),
+                child: Stack(
+                  children: [
+                    Container(color: Colors.white.withValues(alpha: 0.15)),
+                    FractionallySizedBox(
+                      alignment: Alignment.centerLeft,
+                      widthFactor: (effectiveVol / PlayerVolumeControl.maxVolume).clamp(0.0, 1.0),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: isBoosting
+                              ? LinearGradient(
+                                  colors: [
+                                    Colors.white,
+                                    const Color(0xFFFF8A00),
+                                    if (_volume > 1.75) const Color(0xFFFF3D00),
+                                  ],
+                                )
+                              : null,
+                          color: isBoosting ? null : Colors.white,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildPlayerBody() {
