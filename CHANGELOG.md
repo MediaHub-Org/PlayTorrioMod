@@ -4,6 +4,12 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Consistent page-enter transitions — 2026-08-27
+- Full inventory of all ~64 `Navigator.push`-family call sites (ROADMAP #2) found most page families were already internally consistent (anime details always `CinematicSlideRoute`, search always `LiquidRevealRoute`, several utilitarian sections deliberately bare) — the actual visible inconsistency was narrower: 4 cases where the *same* target page got a different transition depending on which caller pushed it.
+- `IptvPlayerPage`, `SettingsPage`, and `DiscoverPage`: the one bare outlier at each now matches the transition the rest of that target's callers already used (`LiquidRevealRoute` in all three cases).
+- `WatchScreen`/`PlayerScreen` launches (11 sites across `continue_watching_service.dart`, `watch_screen.dart`, `magnet_files_view.dart`, `downloads_page.dart`, `search_page.dart`): converged on `CinematicSlideRoute` rather than the prior majority-bare — "start watching" is one conceptual action regardless of entry point (Play button, continue-watching resume, search direct-play, a downloaded file, a magnet link).
+- Deliberately left alone: Music, Settings sub-pages, Books, and Podcasts all stay uniformly bare — consistently untransitioned isn't a bug, and whether to add transitions there is a separate design call, not this fix.
+
 ### Cleanup — 2026-08-27
 - Deleted `lib/models/download/download_item.dart`'s `DownloadItem` — zero references anywhere, superseded by `DownloadTask` when the download manager was rewritten (merged from upstream, see below).
 - `AppRadii` (added with the frontend nav-chrome work, previously unused) now has a real consumer: `hub_page.dart`'s content-panel corner radius.
