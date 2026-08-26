@@ -4,6 +4,11 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Frontend nav chrome — 2026-08-26
+- Added `AppBreakpoints`/`ScreenTier` (mobile/tablet/desktop, 600/900 cutoffs) as the single source of truth for responsive tiers, and `AppSpacing`/`AppRadii` as a shared 8pt-grid token scale — both follow `AppThemeService`'s existing static-service pattern.
+- Added `AdaptiveNavShell`: `HubPage` now shows a thumb-reachable bottom tab bar on mobile (matching Netflix/Disney+/Stremio's mobile nav placement) instead of the same top-anchored `TopBar` used on every screen size. Tablet/desktop are unchanged.
+- Additive-only pass: no existing service, model, or scraper touched; `TopBar`/`SectionTopBar` reused as-is. Full design and what's intentionally deferred (opportunistic migration of the 52 files with ad-hoc breakpoint checks, restyling `TopBar` onto the new tokens) is in `docs/superpowers/specs/2026-08-26-frontend-design-system-design.md`.
+
 ### Merged upstream — 2026-08-25
 - Reconciled `ayman708-UX/PlayTorrioV3` main (8 commits since the last merge) with this fork's navigation restructure and everything shipped this session. Brings in: a full Trakt/Simkl cloud-sync rewrite, a download manager with a 5-provider Debrid engine (Real-Debrid, TorBox, AllDebrid, Premiumize, Debrid-Link), an app-wide `AppThemeService` color-palette system, per-content-type player customization (`AudiobookSettings`/`MusicSettings`/`MangaSettings`/`IptvSettings` "player studio" pages), a modularized settings page (401-line hub + category sub-pages, replacing the 1503-line monolith), and various player/scraper fixes.
 - Kept our hub navigation, `PlaybackCoordinator` fixes, and this session's UI decisions (volume slider not shuffle, real pages not modals) layered inside upstream's new architecture rather than reverted by it. Dropped the old HomePage/LiquidDock-specific pieces (already removed from our nav) and ~1750 lines of now-dead pre-refactor UI superseded by upstream's own extracted widget files. Full resolution notes and per-file decisions are in the merge commit (`207a779`).
