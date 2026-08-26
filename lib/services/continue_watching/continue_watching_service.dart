@@ -483,8 +483,8 @@ class ContinueWatchingService {
     if (isFirstLaunchCloudItem) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => WatchScreen(
+        CinematicSlideRoute(
+          page: WatchScreen(
             detail: movieDetail,
             selectedEpisode: video,
             type: item.type,
@@ -579,8 +579,8 @@ class ContinueWatchingService {
 
           Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (_) => PlayerScreen(
+            CinematicSlideRoute(
+              page: PlayerScreen(
                 source: targetSource,
                 title: '${details.title} - الحلقة $episodeNum',
                 backdropUrl: details.displayBanner,
@@ -728,8 +728,8 @@ class ContinueWatchingService {
         final finalSource = selectedSource;
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (_) => PlayerScreen(
+          CinematicSlideRoute(
+            page: PlayerScreen(
               source: finalSource,
               title: finalSource.displayTitle,
               backdropUrl: item.backdropUrl,
@@ -763,8 +763,8 @@ class ContinueWatchingService {
 
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => PlayerScreen(
+        CinematicSlideRoute(
+          page: PlayerScreen(
             source: source,
             title: item.streamTitle ?? item.title,
             backdropUrl: item.backdropUrl,
@@ -887,8 +887,8 @@ class ContinueWatchingService {
       final finalSource = selectedSource;
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => PlayerScreen(
+        CinematicSlideRoute(
+          page: PlayerScreen(
             source: finalSource,
             title: finalSource.displayTitle,
             backdropUrl: item.backdropUrl,
@@ -902,8 +902,8 @@ class ContinueWatchingService {
       // Fallback to WatchScreen so the user can choose from all available sources
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => WatchScreen(
+        CinematicSlideRoute(
+          page: WatchScreen(
             detail: movieDetail,
             selectedEpisode: video,
             type: item.type,

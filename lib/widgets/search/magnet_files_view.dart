@@ -4,6 +4,7 @@ import '../../pages/player/player_screen.dart';
 import '../../services/app_theme_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
+import '../../utils/route_transitions.dart';
 
 class MagnetFileItem {
   final int id;
@@ -241,8 +242,8 @@ class _MagnetFilesViewState extends State<MagnetFilesView> {
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
+      CinematicSlideRoute(
+        page: PlayerScreen(
           source: source,
           title: streamTitle,
         ),

@@ -176,8 +176,8 @@ class _WatchScreenState extends State<WatchScreen>
     // nested-navigator route instead of the visible fullscreen one, so
     // "Play Next" would silently do nothing. Replace on the root instead.
     pushFullscreenReplacement(
-      MaterialPageRoute(
-        builder: (_) => WatchScreen(
+      CinematicSlideRoute(
+        page: WatchScreen(
           detail: widget.detail,
           selectedEpisode: nextEpisode,
           type: widget.type,
@@ -1337,8 +1337,8 @@ class _SourceCardState extends State<_SourceCard> {
               }
 
               pushFullscreen(
-                MaterialPageRoute(
-                  builder: (_) => PlayerScreen(
+                CinematicSlideRoute(
+                  page: PlayerScreen(
                     source: s,
                     title: s.displayTitle,
                     backdropUrl: widget.backdropUrl,
@@ -1773,7 +1773,7 @@ class _EmptySourcesStateWidgetState extends State<_EmptySourcesStateWidget>
               onTap: () {
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const SettingsPage()),
+                  LiquidRevealRoute(page: const SettingsPage(), tapPosition: null),
                 );
               },
               child: AnimatedContainer(

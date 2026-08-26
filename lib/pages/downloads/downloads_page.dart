@@ -9,6 +9,7 @@ import '../../services/app_theme_service.dart';
 import '../../services/download/download_service.dart';
 import '../../utils/open_file_location_helper.dart';
 import '../../utils/download_path_helper.dart';
+import '../../utils/route_transitions.dart';
 import '../player/player_screen.dart';
 
 class DownloadsPage extends StatefulWidget {
@@ -64,8 +65,8 @@ class _DownloadsPageState extends State<DownloadsPage> with SingleTickerProvider
 
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => PlayerScreen(
+      CinematicSlideRoute(
+        page: PlayerScreen(
           source: task.toLocalStreamSource(),
           title: task.title,
           detail: detail,

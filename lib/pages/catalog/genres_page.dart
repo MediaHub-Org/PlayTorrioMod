@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../services/addon/addon_manager.dart';
+import '../../utils/route_transitions.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/page_search_button.dart';
 import '../discover/discover_page.dart';
@@ -72,8 +73,9 @@ class _GenresPageState extends State<GenresPage> {
   void _openGenre(String genre) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (_) => DiscoverPage(query: genre, isGenre: true),
+      LiquidRevealRoute(
+        page: DiscoverPage(query: genre, isGenre: true),
+        tapPosition: null,
       ),
     );
   }
