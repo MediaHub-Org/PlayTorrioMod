@@ -4,6 +4,15 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Fixed — 2026-08-26
+- **"Unknown error" dialog on Windows app close**: `WindowService` never intercepted the close event, so the OS killed the process while `LocalStreamProxy`'s loopback HTTP server (and other background services) were still live. Now calls `windowManager.setPreventClose(true)` on init and runs a real shutdown sequence in a new `onWindowClose` handler (`PlaybackCoordinator.stopActive()`, `LocalStreamProxy.instance.stop()`, `TorrentStreamService().stop()`, then `windowManager.destroy()`) before actually closing.
+
+### Merged upstream (round 2) — 2026-08-26
+- Reconciled 5 more upstream commits (`d552781`..`18e1910`) into `pr/navigation-cleanup`: a SubtitleCat subtitle provider, a rewritten player keyboard/volume system (arrow-key volume with HUD, mouse-wheel scroll volume, M/space/K/J/L shortcuts, proper text-input passthrough via `Focus` instead of `KeyboardListener`), true borderless OS fullscreen, a new Arabic anime section (`AnimeSearchPage`, `AnimeArabicDetailsPage`, `AnimeArabicStreamSheet`), new anime extractors (AniDB, MegaPlay, ReCloud, TryEmbed, replacing AllAnime/Anikoto/Miruro), a media-title cleaner, `torrent_stream_service`, magnet/stream-link paste detection in search, and updated app icons across platforms.
+- Kept our nav architecture over upstream's per-page Home-Page-style chrome (dropped their Floating Glass App Bar and Liquid Dock navbar from `anime_page.dart`/`iptv_page.dart` again); merged rather than replaced where both sides added real, compatible features — our genre filter alongside their Arabic-mode browsing in `anime_page.dart`, our brightness/volume drag gestures alongside their keyboard/scroll-wheel volume in `player_screen.dart`, our `SearchScope` content-type scoping alongside their broader unscoped-search default.
+- Caught and fixed a genuine upstream bug via its own new widget test: `AnimeSearchPage`'s `late bool _isArabicMode` was never initialized from `widget.initialArabicMode`, crashing on open.
+- Verified clean: `flutter analyze` 0 errors, 141/147 tests passing (6 known pre-existing failures unrelated to this branch), Windows release build succeeds.
+
 ### Frontend nav chrome — 2026-08-26
 - Added `AppBreakpoints`/`ScreenTier` (mobile/tablet/desktop, 600/900 cutoffs) as the single source of truth for responsive tiers, and `AppSpacing`/`AppRadii` as a shared 8pt-grid token scale — both follow `AppThemeService`'s existing static-service pattern.
 - Added `AdaptiveNavShell`: `HubPage` now shows a thumb-reachable bottom tab bar on mobile (matching Netflix/Disney+/Stremio's mobile nav placement) instead of the same top-anchored `TopBar` used on every screen size. Tablet/desktop keep `TopBar` unchanged; the play bar's bottom margin on tablet also tightened from a leftover 76px to the correct 16px it already used on desktop.

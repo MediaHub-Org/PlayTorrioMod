@@ -3,6 +3,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../playback_coordinator.dart';
+import '../stream/local_stream_proxy.dart';
+import '../stream/torrent_stream_service.dart';
+
 /// Centralized window and fullscreen state manager for desktop and mobile.
 class WindowService with WindowListener {
   static final WindowService instance = WindowService._internal();
@@ -10,6 +14,7 @@ class WindowService with WindowListener {
 
   final ValueNotifier<bool> isFullscreenNotifier = ValueNotifier<bool>(false);
   bool _isTransitioning = false;
+  bool _isClosing = false;
 
   bool get isFullscreen => isFullscreenNotifier.value;
   bool get isDesktop =>
@@ -21,6 +26,10 @@ class WindowService with WindowListener {
       windowManager.addListener(this);
       final isFs = await windowManager.isFullScreen();
       isFullscreenNotifier.value = isFs;
+      // Defers the actual close until we call destroy() below, instead of
+      // the OS killing the process mid-teardown while LocalStreamProxy's
+      // server (and other background services) are still live.
+      await windowManager.setPreventClose(true);
     } catch (e) {
       debugPrint('[WindowService] initialize error: $e');
     }
@@ -90,6 +99,29 @@ class WindowService with WindowListener {
   }
 
   // ── WindowListener Callbacks (Synchronize OS events) ──
+
+  /// Graceful shutdown: stops background services holding live resources
+  /// (the local stream proxy's HTTP server, the torrent engine) before
+  /// actually closing the window, instead of letting the OS kill the
+  /// process out from under them.
+  @override
+  void onWindowClose() {
+    if (_isClosing) return;
+    _isClosing = true;
+    _shutdownAndClose();
+  }
+
+  Future<void> _shutdownAndClose() async {
+    try {
+      PlaybackCoordinator.stopActive();
+      await LocalStreamProxy.instance.stop();
+      await TorrentStreamService().stop();
+    } catch (e) {
+      debugPrint('[WindowService] shutdown cleanup error: $e');
+    } finally {
+      await windowManager.destroy();
+    }
+  }
 
   @override
   void onWindowEnterFullScreen() {
