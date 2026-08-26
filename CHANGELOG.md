@@ -4,6 +4,11 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Navigation & play bar — 2026-08-27
+- **Music detail pages use a back arrow, not a close X**: `_MusicArtistDetailPage`/`_MusicAlbumDetailPage`/`_MusicCuratedPlaylistDetailPage`/`_MusicUserPlaylistDetailPage` are real pushed routes, same as `DetailsPage`/`AudiobookDetailPage`, but used a modal-style close icon. Swapped to the same back-arrow convention every other detail page follows.
+- Investigated Radio/Podcasts' missing back button: both are peer-tab switches inside `MusicPage` (same model as Movies/Series/Anime's section chips), not pushed routes — ruled working-as-designed, no back button needed. Books' lack of a browse view (search-only) is a separate, real gap, tracked in ROADMAP.
+- **Like button on the universal play bar**: `PlaybackCoordinator.activate()` gained optional `isLiked`/`onToggleLike` callbacks (music tracks only). `UniversalPlayBar` shows a heart whenever the active source supports it, wired to `MusicLibraryService.isTrackLiked`/`toggleLikeTrack`, so a track can be liked without opening the full player.
+
 ### Fixed — 2026-08-26
 - **"Unknown error" dialog on Windows app close**: `WindowService` never intercepted the close event, so the OS killed the process while `LocalStreamProxy`'s loopback HTTP server (and other background services) were still live. Now calls `windowManager.setPreventClose(true)` on init and runs a real shutdown sequence in a new `onWindowClose` handler (`PlaybackCoordinator.stopActive()`, `LocalStreamProxy.instance.stop()`, `TorrentStreamService().stop()`, then `windowManager.destroy()`) before actually closing.
 
