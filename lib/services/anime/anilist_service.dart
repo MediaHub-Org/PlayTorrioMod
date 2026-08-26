@@ -325,6 +325,22 @@ class AnilistService {
               }
             }
           }
+          staff(sort: RELEVANCE, perPage: 6) {
+            edges {
+              role
+              node {
+                id
+                name {
+                  full
+                  userPreferred
+                }
+                image {
+                  large
+                  medium
+                }
+              }
+            }
+          }
           relations {
             edges {
               relationType

@@ -4,6 +4,10 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Anime director & staff photos — 2026-08-27
+- **Director/staff row on anime detail pages (ROADMAP #2, narrowed)**: `AnimeMedia` gained a `staff` field (new `AnimeStaff` model — id, name, image, role), populated from AniList's `staff(sort: RELEVANCE)` edges in `AnilistService.fetchAnimeDetails` — the same GraphQL API already supplying the existing "Characters & Cast" row, just not previously queried for staff. `AnimeDetailsPage` renders it as a new "Staff" row beneath Characters & Cast, shown only when staff data exists.
+- Manga and Audiobooks stay out of scope: manga is scraped from plain HTML with only a text author (no photo, and fuzzy-matching titles against AniList carries real mismatch risk); the `Audiobook` model has no author/narrator field at all. Both remain **blocked** on source data — see ROADMAP #2.
+
 ### Read-hub section order — 2026-08-27
 - **Sorted the Read hub's section chips (ROADMAP #0)**: `HubController.currentSections` for `AppHub.books` now lists Audiobooks, Books, Comics, Manga (alphabetical), Library last — was Manga, Comics, Books, Audiobooks, Library. Default landing section (`_booksSection`) and `BooksHub`'s fallback `switch` case moved from `manga` to `audiobooks` to match the new first chip, same convention the Watch hub already follows (default section = first chip).
 

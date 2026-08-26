@@ -27,6 +27,7 @@ class AnimeMedia {
   final String? trailerSite;
   final AnimeNextAiring? nextAiring;
   final List<AnimeCharacter> characters;
+  final List<AnimeStaff> staff;
   final List<AnimeRelation> relations;
   final List<AnimeMedia> recommendations;
 
@@ -59,6 +60,7 @@ class AnimeMedia {
     this.trailerSite,
     this.nextAiring,
     this.characters = const [],
+    this.staff = const [],
     this.relations = const [],
     this.recommendations = const [],
   });
@@ -168,6 +170,16 @@ class AnimeMedia {
       }
     }
 
+    final staffList = <AnimeStaff>[];
+    if (json['staff'] is Map<String, dynamic> &&
+        json['staff']['edges'] is List) {
+      for (final edge in json['staff']['edges'] as List) {
+        if (edge is Map<String, dynamic>) {
+          staffList.add(AnimeStaff.fromEdgeJson(edge));
+        }
+      }
+    }
+
     final relationList = <AnimeRelation>[];
     if (json['relations'] is Map<String, dynamic> &&
         json['relations']['edges'] is List) {
@@ -230,6 +242,7 @@ class AnimeMedia {
           ? AnimeNextAiring.fromJson(nextAiringData)
           : null,
       characters: characterList,
+      staff: staffList,
       relations: relationList,
       recommendations: recList,
     );
@@ -349,6 +362,42 @@ class AnimeCharacter {
           name['full']?.toString() ??
           'Unknown',
       nameNative: name['native']?.toString() ?? '',
+      imageLarge: image['large']?.toString() ??
+          image['medium']?.toString() ??
+          '',
+      role: json['role']?.toString() ?? '',
+    );
+  }
+}
+
+class AnimeStaff {
+  final int id;
+  final String nameFull;
+  final String imageLarge;
+  final String role;
+
+  const AnimeStaff({
+    required this.id,
+    required this.nameFull,
+    this.imageLarge = '',
+    this.role = '',
+  });
+
+  factory AnimeStaff.fromEdgeJson(Map<String, dynamic> json) {
+    final node = json['node'] is Map<String, dynamic>
+        ? json['node'] as Map<String, dynamic>
+        : {};
+    final name = node['name'] is Map<String, dynamic>
+        ? node['name'] as Map<String, dynamic>
+        : {};
+    final image = node['image'] is Map<String, dynamic>
+        ? node['image'] as Map<String, dynamic>
+        : {};
+    return AnimeStaff(
+      id: node['id'] as int? ?? 0,
+      nameFull: name['userPreferred']?.toString() ??
+          name['full']?.toString() ??
+          'Unknown',
       imageLarge: image['large']?.toString() ??
           image['medium']?.toString() ??
           '',

@@ -311,6 +311,12 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
                               const SizedBox(height: _Space.xl),
                             ],
 
+                            // Director & Staff Row
+                            if (_anime.staff.isNotEmpty) ...[
+                              _buildStaffRow(),
+                              const SizedBox(height: _Space.xl),
+                            ],
+
                             // Episodes Section with 50-Chunking & Jump Input
                             _buildEpisodesSection(),
                             const SizedBox(height: _Space.xl),
@@ -981,6 +987,76 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
                 ),
               ],
             ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ─── Director & Staff Row ───────────────────────────────────────
+  Widget _buildStaffRow() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader('Staff'),
+        const SizedBox(height: _Space.md),
+        SizedBox(
+          height: 180,
+          child: ListView.separated(
+            clipBehavior: Clip.none,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: _anime.staff.length,
+            separatorBuilder: (_, __) => const SizedBox(width: _Space.md),
+            itemBuilder: (context, index) {
+              final member = _anime.staff[index];
+              return SizedBox(
+                width: 100,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedNetworkImage(
+                        imageUrl: member.imageLarge,
+                        width: 100,
+                        height: 110,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 100,
+                          height: 110,
+                          color: _Palette.surface,
+                          child: const Icon(
+                            Icons.person_rounded,
+                            color: Colors.white24,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      member.nameFull,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    Text(
+                      member.role,
+                      style: const TextStyle(
+                        color: Colors.white38,
+                        fontSize: 10,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              );
+            },
           ),
         ),
       ],
