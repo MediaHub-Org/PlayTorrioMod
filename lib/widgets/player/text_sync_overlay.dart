@@ -43,6 +43,10 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
   bool _isFollowing = true;
   bool _isProgrammaticScroll = false;
   String _searchQuery = '';
+  List<int> _matchedIndices = [];
+  int _currentMatchIndex = 0;
+  GlobalKey _currentMatchKey = GlobalKey();
+  GlobalKey _activeCueKey = GlobalKey();
 
   Timer? _positionUpdateTimer;
   double _currentPositionSec = 0.0;
@@ -78,8 +82,25 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
       if (q != _searchQuery) {
         setState(() {
           _searchQuery = q;
-          if (q.isNotEmpty) _isFollowing = false;
+          _currentMatchKey = GlobalKey();
+          if (q.isNotEmpty) {
+            _isFollowing = false;
+            _matchedIndices = [];
+            for (int i = 0; i < widget.initialCues.length; i++) {
+              if (widget.initialCues[i].text.toLowerCase().contains(q)) {
+                _matchedIndices.add(i);
+              }
+            }
+            _currentMatchIndex = 0;
+          } else {
+            _matchedIndices = [];
+            _currentMatchIndex = 0;
+          }
         });
+
+        if (q.isNotEmpty && _matchedIndices.isNotEmpty) {
+          _scrollToMatch(_currentMatchIndex);
+        }
       }
     });
 
@@ -124,26 +145,59 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
   }
 
   void _scrollToActiveCue({bool immediate = false, int? targetIndex}) {
-    final targetIdx = targetIndex ?? _activeCueIndex ?? _closestCueIndex;
     if (!_scrollController.hasClients || widget.initialCues.isEmpty) return;
 
-    // Approximate row height is ~64px
-    final targetOffset = (targetIdx * 64.0) - 160.0;
-    final clampedOffset = targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_activeCueKey.currentContext != null) {
+        _isProgrammaticScroll = true;
+        Scrollable.ensureVisible(
+          _activeCueKey.currentContext!,
+          alignment: 0.5,
+          duration: immediate ? Duration.zero : const Duration(milliseconds: 280),
+          curve: Curves.easeOutCubic,
+        ).then((_) {
+          _isProgrammaticScroll = false;
+        });
+      }
+    });
+  }
 
-    _isProgrammaticScroll = true;
-    if (immediate) {
-      _scrollController.jumpTo(clampedOffset);
-      _isProgrammaticScroll = false;
-    } else {
-      _scrollController
-          .animateTo(
-            clampedOffset,
-            duration: const Duration(milliseconds: 280),
-            curve: Curves.easeOutCubic,
-          )
-          .then((_) => _isProgrammaticScroll = false);
-    }
+  void _scrollToMatch(int matchIdx) {
+    if (_matchedIndices.isEmpty || matchIdx < 0 || matchIdx >= _matchedIndices.length) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (_currentMatchKey.currentContext != null) {
+        _isProgrammaticScroll = true;
+        Scrollable.ensureVisible(
+          _currentMatchKey.currentContext!,
+          alignment: 0.5,
+          duration: const Duration(milliseconds: 320),
+          curve: Curves.easeInOutCubic,
+        ).then((_) {
+          _isProgrammaticScroll = false;
+        });
+      }
+    });
+  }
+
+  void _goToNextMatch() {
+    if (_matchedIndices.isEmpty) return;
+    setState(() {
+      _currentMatchKey = GlobalKey();
+      _currentMatchIndex = (_currentMatchIndex + 1) % _matchedIndices.length;
+    });
+    _scrollToMatch(_currentMatchIndex);
+  }
+
+  void _goToPrevMatch() {
+    if (_matchedIndices.isEmpty) return;
+    setState(() {
+      _currentMatchKey = GlobalKey();
+      _currentMatchIndex = (_currentMatchIndex - 1 + _matchedIndices.length) % _matchedIndices.length;
+    });
+    _scrollToMatch(_currentMatchIndex);
   }
 
   void _jumpToNow() {
@@ -346,7 +400,7 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
 
                 const SizedBox(height: 10),
 
-                // Search Bar
+                // Search Bar with Search Navigation Controls
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Container(
@@ -354,17 +408,28 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
                     decoration: BoxDecoration(
                       color: PlayerTheme.raised,
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: PlayerTheme.edge),
+                      border: Border.all(
+                        color: _searchQuery.isNotEmpty && _matchedIndices.isNotEmpty
+                            ? const Color(0xFFFFC107).withValues(alpha: 0.45)
+                            : PlayerTheme.edge,
+                      ),
                     ),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
                     child: Row(
                       children: [
-                        const Icon(Icons.search_rounded, color: PlayerTheme.inkSubtle, size: 17),
+                        Icon(
+                          Icons.search_rounded,
+                          color: _searchQuery.isNotEmpty && _matchedIndices.isNotEmpty
+                              ? const Color(0xFFFFC107)
+                              : PlayerTheme.inkSubtle,
+                          size: 17,
+                        ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: TextField(
                             controller: _searchController,
                             style: const TextStyle(color: PlayerTheme.ink, fontSize: 13),
+                            onSubmitted: (_) => _goToNextMatch(),
                             decoration: const InputDecoration(
                               hintText: 'Search dialogue words...',
                               hintStyle: TextStyle(color: PlayerTheme.inkSubtle, fontSize: 13),
@@ -374,11 +439,90 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
                             ),
                           ),
                         ),
-                        if (_searchQuery.isNotEmpty)
-                          GestureDetector(
-                            onTap: () => _searchController.clear(),
-                            child: const Icon(Icons.clear_rounded, color: PlayerTheme.inkSubtle, size: 16),
+                        if (_searchQuery.isNotEmpty) ...[
+                          // Match counter pill
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: _matchedIndices.isNotEmpty
+                                  ? const Color(0x33FFC107)
+                                  : Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              _matchedIndices.isNotEmpty
+                                  ? '${_currentMatchIndex + 1}/${_matchedIndices.length}'
+                                  : '0/0',
+                              style: TextStyle(
+                                color: _matchedIndices.isNotEmpty
+                                    ? const Color(0xFFFFC107)
+                                    : PlayerTheme.inkSubtle,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w700,
+                                fontFeatures: const [FontFeature.tabularFigures()],
+                              ),
+                            ),
                           ),
+                          const SizedBox(width: 4),
+
+                          // Previous match button
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(6),
+                              onTap: _matchedIndices.isNotEmpty ? _goToPrevMatch : null,
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.keyboard_arrow_up_rounded,
+                                  size: 18,
+                                  color: _matchedIndices.isNotEmpty
+                                      ? PlayerTheme.ink
+                                      : PlayerTheme.inkSubtle.withValues(alpha: 0.4),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // Next match button
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(6),
+                              onTap: _matchedIndices.isNotEmpty ? _goToNextMatch : null,
+                              child: Padding(
+                                padding: const EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.keyboard_arrow_down_rounded,
+                                  size: 18,
+                                  color: _matchedIndices.isNotEmpty
+                                      ? PlayerTheme.ink
+                                      : PlayerTheme.inkSubtle.withValues(alpha: 0.4),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 2),
+
+                          // Clear button
+                          Material(
+                            color: Colors.transparent,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(6),
+                              onTap: () {
+                                _searchController.clear();
+                              },
+                              child: const Padding(
+                                padding: EdgeInsets.all(4),
+                                child: Icon(
+                                  Icons.close_rounded,
+                                  color: PlayerTheme.inkSubtle,
+                                  size: 16,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),
@@ -399,227 +543,252 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
                     },
                     child: Stack(
                       children: [
-                        ListView.builder(
+                        SingleChildScrollView(
                           controller: _scrollController,
-                          padding: const EdgeInsets.symmetric(vertical: 6),
-                          itemCount: cues.length,
-                          itemBuilder: (context, index) {
-                            final cue = cues[index];
-                            final isActive = index == activeIdx || (activeIdx == null && index == closestIdx && _isFollowing);
-                            final isSelected = _selectedCueIndex == index && !_sectionMode;
+                          padding: EdgeInsets.only(
+                            top: 8,
+                            bottom: MediaQuery.sizeOf(context).height * 0.65,
+                          ),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: List.generate(cues.length, (index) {
+                              final cue = cues[index];
+                              final isActive = index == activeIdx || (activeIdx == null && index == closestIdx && _isFollowing);
+                              final isSelected = _selectedCueIndex == index && !_sectionMode;
 
-                            // Point anchor badges
-                            int? pointNum;
-                            for (int p = 0; p < _points.length; p++) {
-                              if ((_points[p].t - cue.start).abs() < 0.01) {
-                                pointNum = p + 1;
-                                break;
+                              // Point anchor badges
+                              int? pointNum;
+                              for (int p = 0; p < _points.length; p++) {
+                                if ((_points[p].t - cue.start).abs() < 0.01) {
+                                  pointNum = p + 1;
+                                  break;
+                                }
                               }
-                            }
 
-                            // Section range check
-                            final lo = _rangeStart != null && _rangeEnd != null
-                                ? (_rangeStart! < _rangeEnd! ? _rangeStart! : _rangeEnd!)
-                                : null;
-                            final hi = _rangeStart != null && _rangeEnd != null
-                                ? (_rangeStart! > _rangeEnd! ? _rangeStart! : _rangeEnd!)
-                                : null;
-                            final inRange = lo != null && hi != null && index >= lo && index <= hi;
-                            final inSegment = _segments.any((s) => s.contains(index));
+                              // Section range check
+                              final lo = _rangeStart != null && _rangeEnd != null
+                                  ? (_rangeStart! < _rangeEnd! ? _rangeStart! : _rangeEnd!)
+                                  : null;
+                              final hi = _rangeStart != null && _rangeEnd != null
+                                  ? (_rangeStart! > _rangeEnd! ? _rangeStart! : _rangeEnd!)
+                                  : null;
+                              final inRange = lo != null && hi != null && index >= lo && index <= hi;
+                              final inSegment = _segments.any((s) => s.contains(index));
 
-                            final isMatch = _searchQuery.isNotEmpty &&
-                                cue.text.toLowerCase().contains(_searchQuery);
+                              final isMatch = _searchQuery.isNotEmpty &&
+                                  cue.text.toLowerCase().contains(_searchQuery);
+                              final isCurrentFocusedMatch = _matchedIndices.isNotEmpty &&
+                                  _currentMatchIndex < _matchedIndices.length &&
+                                  _matchedIndices[_currentMatchIndex] == index;
 
-                            return Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Material(
-                                  color: isActive
-                                      ? PlayerTheme.accent.withValues(alpha: 0.18)
-                                      : inRange
-                                          ? PlayerTheme.accent.withValues(alpha: 0.1)
-                                          : isMatch
-                                              ? const Color(0x26FFC107)
-                                              : Colors.transparent,
-                                  child: InkWell(
-                                    onTap: () {
-                                      if (_sectionMode) {
-                                        setState(() {
-                                          if (_rangeStart == null || _rangeEnd != null) {
-                                            _rangeStart = index;
-                                            _rangeEnd = null;
-                                          } else {
-                                            _rangeEnd = index;
-                                          }
-                                        });
-                                      } else {
-                                        setState(() {
-                                          _selectedCueIndex = isSelected ? null : index;
-                                        });
-                                      }
-                                    },
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 20,
-                                        vertical: 10,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        border: Border(
-                                          bottom: BorderSide(
-                                            color: Colors.white.withValues(alpha: 0.05),
+                              Key? itemKey;
+                              if (isCurrentFocusedMatch) {
+                                itemKey = _currentMatchKey;
+                              } else if (isActive && _searchQuery.isEmpty) {
+                                itemKey = _activeCueKey;
+                              } else {
+                                itemKey = ValueKey('cue_$index');
+                              }
+
+                              return Column(
+                                key: itemKey,
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Material(
+                                    color: isCurrentFocusedMatch
+                                        ? const Color(0x59FFC107)
+                                        : isMatch
+                                            ? const Color(0x26FFC107)
+                                            : isActive
+                                                ? PlayerTheme.accent.withValues(alpha: 0.18)
+                                                : inRange
+                                                    ? PlayerTheme.accent.withValues(alpha: 0.1)
+                                                    : Colors.transparent,
+                                    child: InkWell(
+                                      onTap: () {
+                                        if (_sectionMode) {
+                                          setState(() {
+                                            if (_rangeStart == null || _rangeEnd != null) {
+                                              _rangeStart = index;
+                                              _rangeEnd = null;
+                                            } else {
+                                              _rangeEnd = index;
+                                            }
+                                          });
+                                        } else {
+                                          setState(() {
+                                            _selectedCueIndex = isSelected ? null : index;
+                                          });
+                                        }
+                                      },
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 20,
+                                          vertical: 10,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            bottom: BorderSide(
+                                              color: Colors.white.withValues(alpha: 0.05),
+                                            ),
+                                            left: isCurrentFocusedMatch
+                                                ? const BorderSide(
+                                                    color: Color(0xFFFFC107),
+                                                    width: 3.5,
+                                                  )
+                                                : isActive
+                                                    ? const BorderSide(
+                                                        color: PlayerTheme.accent,
+                                                        width: 3.5,
+                                                      )
+                                                    : BorderSide.none,
                                           ),
-                                          left: isActive
-                                              ? const BorderSide(
+                                        ),
+                                        child: Row(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            // Time label
+                                            SizedBox(
+                                              width: 48,
+                                              child: Text(
+                                                SubtitleParser.formatDisplayTime(cue.start),
+                                                style: TextStyle(
+                                                  color: isActive
+                                                      ? PlayerTheme.accent
+                                                      : PlayerTheme.inkSubtle,
+                                                  fontSize: 11.5,
+                                                  fontWeight: isActive
+                                                      ? FontWeight.w700
+                                                      : FontWeight.normal,
+                                                  fontFeatures: const [
+                                                    FontFeature.tabularFigures(),
+                                                  ],
+                                                ),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+
+                                            // Dialogue text
+                                            Expanded(
+                                              child: _buildHighlightedText(
+                                                cue.text,
+                                                _searchQuery,
+                                                isActive,
+                                              ),
+                                            ),
+
+                                            const SizedBox(width: 8),
+
+                                            // Right badge
+                                            if (pointNum != null)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                decoration: BoxDecoration(
                                                   color: PlayerTheme.accent,
-                                                  width: 3.5,
-                                                )
-                                              : BorderSide.none,
+                                                  borderRadius: BorderRadius.circular(999),
+                                                ),
+                                                child: Text(
+                                                  'P$pointNum',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 9.5,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                              )
+                                            else if (isActive)
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                  horizontal: 6,
+                                                  vertical: 2,
+                                                ),
+                                                decoration: BoxDecoration(
+                                                  color: PlayerTheme.accent,
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: const Text(
+                                                  'NOW',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 9,
+                                                    fontWeight: FontWeight.w800,
+                                                    letterSpacing: 0.5,
+                                                  ),
+                                                ),
+                                              )
+                                            else if (inSegment)
+                                              const Icon(
+                                                Icons.check_rounded,
+                                                color: PlayerTheme.accent,
+                                                size: 16,
+                                              ),
+                                          ],
                                         ),
                                       ),
+                                    ),
+                                  ),
+
+                                  // Expanded Action Box for Selected Line
+                                  if (isSelected)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 20,
+                                        vertical: 8,
+                                      ),
+                                      color: PlayerTheme.raised,
                                       child: Row(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
-                                          // Time label
-                                          SizedBox(
-                                            width: 48,
-                                            child: Text(
-                                              SubtitleParser.formatDisplayTime(cue.start),
-                                              style: TextStyle(
-                                                color: isActive
-                                                    ? PlayerTheme.accent
-                                                    : PlayerTheme.inkSubtle,
-                                                fontSize: 11.5,
-                                                fontWeight: isActive
-                                                    ? FontWeight.w700
-                                                    : FontWeight.normal,
-                                                fontFeatures: const [
-                                                  FontFeature.tabularFigures(),
-                                                ],
-                                              ),
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-
-                                          // Dialogue text
-                                          Expanded(
-                                            child: _buildHighlightedText(
-                                              cue.text,
-                                              _searchQuery,
-                                              isActive,
-                                            ),
-                                          ),
-
-                                          const SizedBox(width: 8),
-
-                                          // Right badge
-                                          if (pointNum != null)
-                                            Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              decoration: BoxDecoration(
-                                                color: PlayerTheme.accent,
-                                                borderRadius: BorderRadius.circular(999),
-                                              ),
-                                              child: Text(
-                                                'P$pointNum',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 9.5,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                            )
-                                          else if (isActive)
-                                            Container(
+                                          ElevatedButton.icon(
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: PlayerTheme.accent,
+                                              foregroundColor: Colors.white,
                                               padding: const EdgeInsets.symmetric(
-                                                horizontal: 6,
-                                                vertical: 2,
+                                                horizontal: 12,
+                                                vertical: 6,
                                               ),
-                                              decoration: BoxDecoration(
-                                                color: PlayerTheme.accent,
-                                                borderRadius: BorderRadius.circular(6),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(8),
                                               ),
-                                              child: const Text(
-                                                'NOW',
-                                                style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 9,
-                                                  fontWeight: FontWeight.w800,
-                                                  letterSpacing: 0.5,
-                                                ),
-                                              ),
-                                            )
-                                          else if (inSegment)
-                                            const Icon(
-                                              Icons.check_rounded,
-                                              color: PlayerTheme.accent,
-                                              size: 16,
                                             ),
+                                            icon: const Icon(Icons.check_rounded, size: 15),
+                                            label: const Text(
+                                              'Sync from here',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                            onPressed: () => _handleSyncFromHere(index),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          OutlinedButton.icon(
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: PlayerTheme.inkMuted,
+                                              side: const BorderSide(
+                                                color: PlayerTheme.edgeSoft,
+                                              ),
+                                              padding: const EdgeInsets.symmetric(
+                                                horizontal: 10,
+                                                vertical: 6,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                            icon: const Icon(Icons.play_arrow_rounded, size: 15),
+                                            label: const Text(
+                                              'Jump here',
+                                              style: TextStyle(fontSize: 12),
+                                            ),
+                                            onPressed: () => _handleSeekTo(index),
+                                          ),
                                         ],
                                       ),
                                     ),
-                                  ),
-                                ),
-
-                                // Expanded Action Box for Selected Line
-                                if (isSelected)
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 20,
-                                      vertical: 8,
-                                    ),
-                                    color: PlayerTheme.raised,
-                                    child: Row(
-                                      children: [
-                                        ElevatedButton.icon(
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: PlayerTheme.accent,
-                                            foregroundColor: Colors.white,
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 12,
-                                              vertical: 6,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          icon: const Icon(Icons.check_rounded, size: 15),
-                                          label: const Text(
-                                            'Sync from here',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                          onPressed: () => _handleSyncFromHere(index),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        OutlinedButton.icon(
-                                          style: OutlinedButton.styleFrom(
-                                            foregroundColor: PlayerTheme.inkMuted,
-                                            side: const BorderSide(
-                                              color: PlayerTheme.edgeSoft,
-                                            ),
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 6,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                          ),
-                                          icon: const Icon(Icons.play_arrow_rounded, size: 15),
-                                          label: const Text(
-                                            'Jump here',
-                                            style: TextStyle(fontSize: 12),
-                                          ),
-                                          onPressed: () => _handleSeekTo(index),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                              ],
-                            );
-                          },
+                                ],
+                              );
+                            }),
+                          ),
                         ),
 
                         // Floating Jump to now button
@@ -853,9 +1022,9 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
         TextSpan(
           text: text.substring(index, index + query.length),
           style: const TextStyle(
-            backgroundColor: Color(0x66FFC107),
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
+            backgroundColor: Color(0xFFFFC107),
+            color: Color(0xFF000000),
+            fontWeight: FontWeight.w900,
           ),
         ),
       );
