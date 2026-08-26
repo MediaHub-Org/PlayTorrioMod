@@ -42,6 +42,7 @@ dependencies:
   torrserver_flutter: ^0.0.4
   fvp: ^0.38.1
   video_player: ^2.11.1
+  video_player_platform_interface: ^6.2.2
   archive: ^4.0.9
   path_provider: ^2.1.6
   liquid_glass_easy: ^4.1.1
@@ -74,7 +75,14 @@ dev_dependencies:
 flutter_launcher_icons:
   android: true
   ios: true
+  remove_alpha_ios: true
   windows:
+    generate: true
+    image_path: "assets/icon.png"
+  macos:
+    generate: true
+    image_path: "assets/icon.png"
+  linux:
     generate: true
     image_path: "assets/icon.png"
   image_path: "assets/icon.png"

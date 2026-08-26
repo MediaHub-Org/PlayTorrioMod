@@ -23,6 +23,9 @@ import '../scraper/sites/movy.dart';
 import '../scraper/sites/vuflix.dart';
 import '../scraper/sites/rivestream.dart';
 import '../scraper/sites/cinejoy.dart';
+import '../anime/anime_scraper_service.dart';
+import '../anime_arabic/anime_arabic_service.dart';
+import '../anime_arabic/anime_arabic_extractor.dart';
 
 /// Service that fetches playback streams from all installed Stremio addons
 /// and built-in scrapers.
@@ -68,13 +71,16 @@ class StreamService {
     int pending = addons.length + 1; // addons + local scrapers
 
     // Local scrapers
+    final isImdb = id.startsWith('tt');
+    final cleanImdbId = isImdb ? id.split(':')[0] : null;
+
     ScraperManager.instance.scrapeAll(
       type: type,
       title: title,
       year: year,
       season: season,
       episode: episode,
-      imdbId: id.split(':')[0],
+      imdbId: cleanImdbId,
     ).listen((source) {
       if (!controller.isClosed) controller.add(source);
     }, onDone: () {
@@ -117,6 +123,78 @@ class StreamService {
     final controller = StreamController<StreamSource>();
     final normalizedTarget = targetAddonName.trim().toLowerCase();
 
+    final isArabicAnime = id.startsWith('arabic_anime:') ||
+        normalizedTarget == 'arabicanime' ||
+        normalizedTarget.contains('arabic');
+
+    if (isArabicAnime) {
+      () async {
+        try {
+          String slug = '';
+          if (id.startsWith('arabic_anime:')) {
+            final parts = id.split(':');
+            if (parts.length >= 2) slug = parts[1];
+          } else if (id.isNotEmpty) {
+            slug = id;
+          }
+          if (slug.isEmpty && title.isNotEmpty) {
+            final searchResults = await AnimeArabicService.instance.search(title);
+            if (searchResults.isNotEmpty) {
+              slug = searchResults.first.slug;
+            }
+          }
+          final epNum = episode ?? 1;
+          if (slug.isNotEmpty) {
+            final details = await AnimeArabicService.instance.getDetails(slug);
+            final targetEp = details.episodes.firstWhere(
+              (e) => e.number == epNum,
+              orElse: () => ArabicEpisode(
+                number: epNum,
+                title: 'الحلقة $epNum',
+                encodedHref: '',
+                watchPath: '/e/$slug-$epNum#tok',
+              ),
+            );
+            final hits = await AnimeArabicExtractor.instance.resolveEpisode(targetEp);
+            final sources = AnimeArabicExtractor.toSources(
+              hits,
+              animeTitle: details.title,
+              episodeNumber: epNum,
+            );
+            for (final s in sources) {
+              if (!controller.isClosed) controller.add(s);
+            }
+          }
+        } catch (_) {}
+        if (!controller.isClosed) controller.close();
+      }();
+      return controller.stream;
+    }
+
+    // Check if targeting general anime providers
+    final isAnime = type == 'anime' ||
+        id.startsWith('anilist:') ||
+        normalizedTarget == 'megaplay' ||
+        normalizedTarget == 'anidb' ||
+        normalizedTarget == 'watchhentai' ||
+        normalizedTarget == 'hentaini' ||
+        normalizedTarget == 'anime';
+
+    if (isAnime) {
+      int? anilistId;
+      if (id.startsWith('anilist:')) {
+        final parts = id.split(':');
+        if (parts.length >= 2) {
+          anilistId = int.tryParse(parts[1]);
+        }
+      }
+      return AnimeScraperService.instance.scrapeStreamsByDetails(
+        title: title,
+        anilistId: anilistId,
+        episodeNumber: episode ?? 1,
+      );
+    }
+
     // Check if targeting built-in PlayTorrioHTTP / PlayTorrio
     final isLocalPlayTorrio = normalizedTarget == 'playtorriohttp' ||
         normalizedTarget == 'playtorrio' ||
@@ -125,13 +203,16 @@ class StreamService {
     if (isLocalPlayTorrio) {
       _registerBuiltInScrapers();
 
+      final isImdb = id.startsWith('tt');
+      final cleanImdbId = isImdb ? id.split(':')[0] : null;
+
       ScraperManager.instance.scrapeAll(
         type: type,
         title: title,
         year: year,
         season: season,
         episode: episode,
-        imdbId: id.split(':')[0],
+        imdbId: cleanImdbId,
       ).listen(
         (source) {
           if (!controller.isClosed) {
@@ -198,8 +279,19 @@ class StreamService {
     String id,
   ) async {
     try {
-      final needsEncoding = id.contains('://') || id.contains('/');
-      final pathId = needsEncoding ? Uri.encodeComponent(id) : id;
+      // Check idPrefixes filtering if declared by addon
+      if (addon.manifest.idPrefixes.isNotEmpty) {
+        final matchesPrefix = addon.manifest.idPrefixes.any((p) => id.startsWith(p));
+        if (!matchesPrefix) return [];
+      }
+
+      // Check types filtering if declared by addon
+      if (addon.manifest.types.isNotEmpty) {
+        final matchesType = addon.manifest.types.contains(type);
+        if (!matchesType) return [];
+      }
+
+      final pathId = Uri.encodeComponent(id);
       final url = '${addon.baseUrl}/stream/$type/$pathId.json';
 
       final response = await http.get(

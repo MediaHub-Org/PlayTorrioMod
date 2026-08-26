@@ -39,6 +39,8 @@ class StremioSubtitleProvider extends SubtitleProvider {
     'ru': 'Russian',
     'por': 'Portuguese',
     'pt': 'Portuguese',
+    'pob': 'Portuguese (BR)',
+    'pb': 'Portuguese (BR)',
     'chi': 'Chinese',
     'zho': 'Chinese',
     'zh': 'Chinese',
@@ -68,18 +70,67 @@ class StremioSubtitleProvider extends SubtitleProvider {
     'heb': 'Hebrew',
     'he': 'Hebrew',
     'ces': 'Czech',
+    'cze': 'Czech',
     'cs': 'Czech',
     'ell': 'Greek',
+    'gre': 'Greek',
     'el': 'Greek',
     'hun': 'Hungarian',
     'hu': 'Hungarian',
     'ron': 'Romanian',
+    'rum': 'Romanian',
     'ro': 'Romanian',
     'ukr': 'Ukrainian',
     'uk': 'Ukrainian',
     'per': 'Persian',
     'fas': 'Persian',
     'fa': 'Persian',
+    'hrv': 'Croatian',
+    'scr': 'Croatian',
+    'hr': 'Croatian',
+    'bul': 'Bulgarian',
+    'bg': 'Bulgarian',
+    'est': 'Estonian',
+    'et': 'Estonian',
+    'mac': 'Macedonian',
+    'mkd': 'Macedonian',
+    'mk': 'Macedonian',
+    'slv': 'Slovenian',
+    'sl': 'Slovenian',
+    'srp': 'Serbian',
+    'scc': 'Serbian',
+    'sr': 'Serbian',
+    'bos': 'Bosnian',
+    'bs': 'Bosnian',
+    'alb': 'Albanian',
+    'sqi': 'Albanian',
+    'sq': 'Albanian',
+    'slk': 'Slovak',
+    'slo': 'Slovak',
+    'sk': 'Slovak',
+    'lit': 'Lithuanian',
+    'lt': 'Lithuanian',
+    'lav': 'Latvian',
+    'lv': 'Latvian',
+    'ice': 'Icelandic',
+    'isl': 'Icelandic',
+    'is': 'Icelandic',
+    'tam': 'Tamil',
+    'ta': 'Tamil',
+    'tel': 'Telugu',
+    'te': 'Telugu',
+    'mal': 'Malayalam',
+    'ml': 'Malayalam',
+    'ben': 'Bengali',
+    'bn': 'Bengali',
+    'fil': 'Tagalog',
+    'tgl': 'Tagalog',
+    'tl': 'Tagalog',
+    'msa': 'Malay',
+    'may': 'Malay',
+    'ms': 'Malay',
+    'cat': 'Catalan',
+    'ca': 'Catalan',
   };
 
   @override
@@ -90,11 +141,20 @@ class StremioSubtitleProvider extends SubtitleProvider {
     int? episode,
     int? year,
   }) async {
-    if (imdbId == null || imdbId.isEmpty) {
+    String? cleanImdbId = imdbId;
+    if (cleanImdbId == null || cleanImdbId.isEmpty) {
+      final match = RegExp(r'\b(tt\d{7,8})\b').firstMatch(movieName);
+      if (match != null) cleanImdbId = match.group(1);
+    }
+
+    if (cleanImdbId == null || cleanImdbId.isEmpty) {
       return [];
     }
 
-    final cleanImdbId = imdbId.startsWith('tt') ? imdbId : 'tt$imdbId';
+    if (!cleanImdbId.startsWith('tt')) {
+      cleanImdbId = 'tt$cleanImdbId';
+    }
+
     final isEpisode = season != null && episode != null;
     final type = isEpisode ? 'series' : 'movie';
     final id = isEpisode ? '$cleanImdbId:$season:$episode' : cleanImdbId;
@@ -107,7 +167,10 @@ class StremioSubtitleProvider extends SubtitleProvider {
     for (final addon in activeAddons) {
       try {
         final url = '${addon.baseUrl}/subtitles/$type/$id.json';
-        final res = await http.get(Uri.parse(url), headers: _headers).timeout(const Duration(seconds: 4));
+        print('[StremioSubtitleProvider] Querying ${addon.manifest.name}: $url');
+        final res = await http
+            .get(Uri.parse(url), headers: _headers)
+            .timeout(const Duration(seconds: 6));
 
         if (res.statusCode == 200) {
           final data = jsonDecode(utf8.decode(res.bodyBytes));
@@ -123,24 +186,41 @@ class StremioSubtitleProvider extends SubtitleProvider {
 
             idx++;
             final rawLang = (map['lang'] ?? 'en').toString().toLowerCase();
-            final language = _iso3ToLangName[rawLang] ?? (rawLang.length <= 3 ? rawLang.toUpperCase() : rawLang);
-            final format = (map['SubFormat']?.toString() ?? 'srt').toLowerCase();
+            final language = _iso3ToLangName[rawLang] ??
+                (rawLang.length <= 3 ? rawLang.toUpperCase() : rawLang);
+
+            final fileTitle = map['subtitleFileName']?.toString() ??
+                map['movieReleaseName']?.toString() ??
+                map['title']?.toString();
+            final title = fileTitle?.isNotEmpty == true
+                ? fileTitle!
+                : '${addon.manifest.name} #$idx';
+
+            final format = (map['SubFormat']?.toString() ??
+                    (title.toLowerCase().endsWith('.vtt') ? 'vtt' : 'srt'))
+                .toLowerCase();
 
             results.add(
               SubtitleVariant(
                 providerName: addon.manifest.name,
                 language: language,
-                title: '${addon.manifest.name} #$idx',
+                title: title,
                 downloadUrl: subUrl,
                 format: format,
                 extraData: {
                   'id': map['id'],
+                  'subEncoding': map['SubEncoding'],
+                  'fpsMilli': map['fpsMilli'],
+                  'releaseGroup': map['releaseGroup'],
                 },
               ),
             );
           }
+          print('[StremioSubtitleProvider] ${addon.manifest.name} returned $idx subtitles');
         }
-      } catch (_) {}
+      } catch (e) {
+        print('[StremioSubtitleProvider] Error querying ${addon.manifest.name}: $e');
+      }
     }
 
     return results;

@@ -1,6 +1,7 @@
 
 import 'package:playtorrio/models/subtitle/subtitle_model.dart';
 import './providers/subdl_provider.dart';
+import './providers/subtitlecat_provider.dart';
 import './providers/wyzie_provider.dart';
 import './providers/opensubtitles_provider.dart';
 import './providers/stremio_subtitle_provider.dart';
@@ -13,6 +14,7 @@ class SubtitleService {
 
   final List<SubtitleProvider> _providers = [
     WyzieProvider(),
+    SubtitleCatProvider(),
     OpenSubtitlesProvider(),
     SubdlProvider(),
     StremioSubtitleProvider(),

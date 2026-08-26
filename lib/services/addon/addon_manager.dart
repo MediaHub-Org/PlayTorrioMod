@@ -144,8 +144,7 @@ class AddonManager {
 
     // 1. Kick off all network requests concurrently
     for (final addon in active) {
-      final catalogsToFetch = addon.manifest.catalogs
-          .where((c) => c.type == 'movie' || c.type == 'series' || c.type == 'anime');
+      final catalogsToFetch = addon.manifest.catalogs;
 
       for (final catalog in catalogsToFetch) {
         sectionFutures.add(() async {
@@ -183,10 +182,8 @@ class AddonManager {
   Future<List<MovieSection>> _fetchAddonSections(
     InstalledAddon addon,
   ) async {
-    // Fetch only catalogs that have content we can display
-    final catalogsToFetch = addon.manifest.catalogs
-        .where((c) => c.type == 'movie' || c.type == 'series' || c.type == 'anime')
-        .toList();
+    // Fetch all catalogs that the addon provides
+    final catalogsToFetch = addon.manifest.catalogs;
 
     final futures = catalogsToFetch.map((catalog) async {
       try {
@@ -293,9 +290,7 @@ class AddonManager {
       final searchCatalogs = addon.manifest.catalogs
           .where((c) =>
               c.supportsSearch &&
-              (contentType != null
-                  ? c.type == contentType
-                  : (c.type == 'movie' || c.type == 'series' || c.type == 'anime')))
+              (contentType == null || c.type == contentType))
           .toList();
 
       for (final catalog in searchCatalogs) {
@@ -357,14 +352,8 @@ class AddonManager {
     for (final addon in active) {
       // Find catalogs that explicitly support filtering by genre via their 'extra' properties.
       final genreCatalogs = addon.manifest.catalogs.where((c) {
-        if (c.type != 'movie' && c.type != 'series') return false;
-        
-        // Check if this catalog supports genres (parsed natively from extras in fromJson)
         final supportsGenre = c.genres.isNotEmpty;
-        
-        // Cinemeta often doesn't list extras properly in manifest, but its 'top' catalogs always support genre
         final isCinemetaTop = addon.manifest.id == 'com.linvo.cinemeta' && c.id == 'top';
-        
         return supportsGenre || isCinemetaTop;
       }).toList();
 
@@ -408,7 +397,11 @@ class AddonManager {
       return catalog.name!;
     }
 
-    final typeLabel = catalog.type == 'series' ? 'Series' : (catalog.type == 'anime' ? 'Anime' : 'Movies');
+    final typeLabel = catalog.type == 'series'
+        ? 'Series'
+        : (catalog.type == 'anime'
+            ? 'Anime'
+            : (catalog.type == 'movie' ? 'Movies' : catalog.type));
 
     switch (catalog.id) {
       case 'top':

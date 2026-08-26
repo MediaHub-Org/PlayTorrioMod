@@ -24,6 +24,7 @@ import './services/playback/playback_history_service.dart';
 import './services/player_settings.dart';
 import './services/tmdb/tmdb_settings.dart';
 import './services/stream/local_stream_proxy.dart';
+import './services/stream/torrent_stream_service.dart';
 import './services/env_service.dart';
 import './services/window/window_service.dart';
 import './widgets/update_dialog.dart';
@@ -81,6 +82,7 @@ void main() async {
     TmdbSettings.initialize(),
     LocalStreamProxy.instance.start(),
     DownloadService.instance.initialize(),
+    TorrentStreamService().start(),
   ]);
   runApp(const PlayTorrioApp());
 }

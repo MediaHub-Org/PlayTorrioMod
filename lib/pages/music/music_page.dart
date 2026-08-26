@@ -3588,7 +3588,175 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer> with SingleT
     final order = MusicSettings.componentOrderFullscreen.value;
 
     final screenSize = MediaQuery.sizeOf(context);
-    final artSize = math.min(screenSize.width * 0.75, screenSize.height * 0.38);
+    final isDesktop = screenSize.width >= 800;
+    final artSize = isDesktop
+        ? 230.0
+        : math.min(screenSize.width * 0.75, screenSize.height * 0.38);
+
+    final playerBody = Column(
+      children: [
+        // Top Navigation & Actions Bar
+        Row(
+          children: [
+            _MusicHoverable(
+              scaleFactor: 1.1,
+              child: IconButton(
+                icon: Icon(
+                  isDesktop ? Icons.close_rounded : Icons.keyboard_arrow_down_rounded,
+                  color: Colors.white,
+                  size: isDesktop ? 24 : 32,
+                ),
+                onPressed: widget.onCollapse,
+              ),
+            ),
+            const Spacer(),
+            InkWell(
+              onTap: () => _AudioSourceSelectorButton._showAudioSourceDialog(context),
+              borderRadius: BorderRadius.circular(12),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                decoration: BoxDecoration(
+                  color: widget.playerController.isCurrentTrackLossless
+                      ? const Color(0xFF00D2EF).withValues(alpha: 0.15)
+                      : const Color(0xFFFF3366).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: widget.playerController.isCurrentTrackLossless
+                        ? const Color(0xFF00D2EF).withValues(alpha: 0.4)
+                        : const Color(0xFFFF3366).withValues(alpha: 0.4),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      widget.playerController.isCurrentTrackLossless
+                          ? Icons.diamond_rounded
+                          : Icons.play_circle_fill_rounded,
+                      size: 13,
+                      color: widget.playerController.isCurrentTrackLossless
+                          ? const Color(0xFF00D2EF)
+                          : const Color(0xFFFF6688),
+                    ),
+                    const SizedBox(width: 5),
+                    Text(
+                      widget.playerController.currentQualityLabel.toUpperCase(),
+                      style: TextStyle(
+                        color: widget.playerController.isCurrentTrackLossless
+                            ? const Color(0xFF00D2EF)
+                            : const Color(0xFFFF6688),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    Icon(
+                      Icons.arrow_drop_down_rounded,
+                      size: 16,
+                      color: widget.playerController.isCurrentTrackLossless
+                          ? const Color(0xFF00D2EF)
+                          : const Color(0xFFFF6688),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Spacer(),
+            _MusicHoverable(
+              scaleFactor: 1.1,
+              child: IconButton(
+                icon: const Icon(Icons.more_horiz_rounded, color: Colors.white),
+                onPressed: widget.onAddToPlaylist,
+              ),
+            ),
+          ],
+        ),
+        if (!isDesktop) const Spacer() else const SizedBox(height: 12),
+
+        // Preset-based or Custom Arranged Body
+        if (preset == MusicFullscreenPreset.customStudio)
+          ...order.map((key) => _buildCustomComponent(key, track, palette, seekStyle, artStyle, artSize))
+        else
+          ..._buildPresetBody(preset, track, palette, seekStyle, artSize),
+
+        if (!isDesktop) const Spacer() else const SizedBox(height: 12),
+      ],
+    );
+
+    if (isDesktop) {
+      return Stack(
+        alignment: Alignment.center,
+        children: [
+          // Dismissible Scrim with blur
+          Positioned.fill(
+            child: GestureDetector(
+              onTap: widget.onCollapse,
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.65),
+                ),
+              ),
+            ),
+          ),
+          // Floating Modal Card
+          Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxWidth: 540,
+                maxHeight: math.min(740, screenSize.height * 0.88),
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0B0D14),
+                  borderRadius: BorderRadius.circular(28),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.12), width: 1.2),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.75),
+                      blurRadius: 40,
+                      spreadRadius: 8,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(28),
+                  child: Stack(
+                    children: [
+                      // Ambient blurred cover backdrop
+                      Positioned.fill(
+                        child: Opacity(
+                          opacity: 0.25,
+                          child: CachedNetworkImage(
+                            imageUrl: track.coverUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                          ),
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 50, sigmaY: 50),
+                          child: Container(
+                            color: const Color(0xFF0B0D14).withValues(alpha: 0.85),
+                          ),
+                        ),
+                      ),
+                      SingleChildScrollView(
+                        padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 20.0),
+                        child: playerBody,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     // Rebuild on playback/position changes so the progress slider and times
     // stay live inside the expanded player.
@@ -3624,92 +3792,7 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer> with SingleT
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 14.0),
-              child: Column(
-                children: [
-                  // Top Navigation & Actions Bar
-                  Row(
-                    children: [
-                      _MusicHoverable(
-                        scaleFactor: 1.1,
-                        child: IconButton(
-                          icon: const Icon(Icons.keyboard_arrow_down_rounded, color: Colors.white, size: 32),
-                          onPressed: widget.onCollapse,
-                        ),
-                      ),
-                      const Spacer(),
-                      InkWell(
-                        onTap: () => _AudioSourceSelectorButton._showAudioSourceDialog(context),
-                        borderRadius: BorderRadius.circular(12),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: widget.playerController.isCurrentTrackLossless
-                                ? const Color(0xFF00D2EF).withValues(alpha: 0.15)
-                                : const Color(0xFFFF3366).withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: widget.playerController.isCurrentTrackLossless
-                                  ? const Color(0xFF00D2EF).withValues(alpha: 0.4)
-                                  : const Color(0xFFFF3366).withValues(alpha: 0.4),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(
-                                widget.playerController.isCurrentTrackLossless
-                                    ? Icons.diamond_rounded
-                                    : Icons.play_circle_fill_rounded,
-                                size: 13,
-                                color: widget.playerController.isCurrentTrackLossless
-                                    ? const Color(0xFF00D2EF)
-                                    : const Color(0xFFFF6688),
-                              ),
-                              const SizedBox(width: 5),
-                              Text(
-                                widget.playerController.currentQualityLabel.toUpperCase(),
-                                style: TextStyle(
-                                  color: widget.playerController.isCurrentTrackLossless
-                                      ? const Color(0xFF00D2EF)
-                                      : const Color(0xFFFF6688),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: 0.8,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.arrow_drop_down_rounded,
-                                size: 16,
-                                color: widget.playerController.isCurrentTrackLossless
-                                    ? const Color(0xFF00D2EF)
-                                    : const Color(0xFFFF6688),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      const Spacer(),
-                      _MusicHoverable(
-                        scaleFactor: 1.1,
-                        child: IconButton(
-                          icon: const Icon(Icons.more_horiz_rounded, color: Colors.white),
-                          onPressed: widget.onAddToPlaylist,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const Spacer(),
-
-                  // Preset-based or Custom Arranged Body
-                  if (preset == MusicFullscreenPreset.customStudio)
-                    ...order.map((key) => _buildCustomComponent(key, track, palette, seekStyle, artStyle, artSize))
-                  else
-                    ..._buildPresetBody(preset, track, palette, seekStyle, artSize),
-
-                  const Spacer(),
-                ],
-              ),
+              child: playerBody,
             ),
           ),
         ],

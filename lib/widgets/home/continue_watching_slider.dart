@@ -7,6 +7,8 @@ import '../../models/movie/movie.dart';
 import '../../models/anime/anime_media.dart';
 import '../../pages/details/details_page.dart';
 import '../../pages/anime/anime_details_page.dart';
+import '../../pages/anime_arabic/anime_arabic_details_page.dart';
+import '../../services/anime_arabic/anime_arabic_service.dart';
 import '../../utils/route_transitions.dart';
 import '../../services/app_theme_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
@@ -95,9 +97,15 @@ class _ContinueWatchingSliderState extends State<ContinueWatchingSlider> {
       builder: (context, allItems, _) {
         final items = allItems.where((i) {
           if (widget.typeFilter == 'main') {
-            return i.type != 'anime' && !i.id.startsWith('anilist:');
+            return i.type != 'anime' && !i.id.startsWith('anilist:') && !i.id.startsWith('arabic_anime:');
           } else if (widget.typeFilter == 'anime') {
-            return i.type == 'anime' || i.id.startsWith('anilist:');
+            return i.type == 'anime' || i.id.startsWith('anilist:') || i.id.startsWith('arabic_anime:') || i.addonName == 'ArabicAnime';
+          } else if (widget.typeFilter == 'arabic_anime') {
+            return i.id.startsWith('arabic_anime:') || i.addonName == 'ArabicAnime';
+          } else if (widget.typeFilter == 'general_anime') {
+            return (i.type == 'anime' || i.id.startsWith('anilist:')) &&
+                !i.id.startsWith('arabic_anime:') &&
+                i.addonName != 'ArabicAnime';
           }
           return true;
         }).toList();
@@ -266,6 +274,26 @@ class _ContinueWatchingCardState extends State<_ContinueWatchingCard> {
 
   void _openDetails(BuildContext context) {
     final item = widget.item;
+    if (item.id.startsWith('arabic_anime:') || item.addonName == 'ArabicAnime') {
+      final slug = item.id.replaceAll('arabic_anime:', '');
+      final card = ArabicAnimeCard(
+        slug: slug,
+        title: item.title,
+        cover: item.posterUrl ?? item.backdropUrl,
+      );
+
+      Navigator.push(
+        context,
+        CinematicSlideRoute(
+          page: AnimeArabicDetailsPage(
+            anime: card,
+            initialEpisodeNumber: item.episode,
+          ),
+        ),
+      );
+      return;
+    }
+
     if (item.type == 'anime' || item.id.startsWith('anilist:')) {
       final anilistId = int.tryParse(item.id.replaceAll('anilist:', '')) ?? 0;
       final anime = AnimeMedia(

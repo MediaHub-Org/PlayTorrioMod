@@ -31,15 +31,29 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
 
   List<int> _seasons = [];
   Map<int, List<Video>> _seasonEpisodes = {};
+  Map<int, String> _seasonLabels = {};
 
   @override
   void initState() {
     super.initState();
     _organizeSeasons();
 
-    _selectedSeason = widget.currentEpisode?.season ??
-        (_seasons.isNotEmpty ? _seasons.first : 1);
     _selectedEpisodeId = widget.currentEpisode?.id;
+
+    // Find the season/batch containing the current episode
+    int initialSeason = _seasons.isNotEmpty ? _seasons.first : 1;
+    if (widget.currentEpisode != null) {
+      for (final entry in _seasonEpisodes.entries) {
+        final hasEp = entry.value.any((v) =>
+            v.id == widget.currentEpisode?.id ||
+            (v.episode != null && v.episode == widget.currentEpisode?.episode));
+        if (hasEp) {
+          initialSeason = entry.key;
+          break;
+        }
+      }
+    }
+    _selectedSeason = initialSeason;
 
     // Auto-scroll to currently playing episode on open
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -49,18 +63,52 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
 
   void _organizeSeasons() {
     final map = <int, List<Video>>{};
-    for (final video in widget.videos) {
-      final s = video.season ?? 1;
-      map.putIfAbsent(s, () => []).add(video);
-    }
+    final distinctSeasons = widget.videos.map((v) => v.season ?? 1).toSet();
 
-    final seasons = map.keys.toList()..sort();
-    for (final s in seasons) {
-      map[s]!.sort((a, b) => (a.episode ?? 0).compareTo(b.episode ?? 0));
-    }
+    if (distinctSeasons.length > 1) {
+      for (final video in widget.videos) {
+        final s = video.season ?? 1;
+        map.putIfAbsent(s, () => []).add(video);
+      }
+      final seasons = map.keys.toList()..sort();
+      for (final s in seasons) {
+        map[s]!.sort((a, b) => (a.episode ?? 0).compareTo(b.episode ?? 0));
+      }
+      _seasons = seasons;
+      _seasonEpisodes = map;
+      _seasonLabels = {for (final s in seasons) s: 'Season $s'};
+    } else if (widget.videos.length > 50) {
+      // Group single season with 50+ episodes into 50-episode tabs (e.g. 1-50, 51-100)
+      const chunkSize = 50;
+      final sortedVideos = List<Video>.from(widget.videos)
+        ..sort((a, b) => (a.episode ?? 0).compareTo(b.episode ?? 0));
 
-    _seasons = seasons;
-    _seasonEpisodes = map;
+      final batchKeys = <int>[];
+      final batchLabels = <int, String>{};
+
+      for (int i = 0; i < sortedVideos.length; i += chunkSize) {
+        final batchNum = (i ~/ chunkSize) + 1;
+        final end = (i + chunkSize < sortedVideos.length) ? i + chunkSize : sortedVideos.length;
+        final chunk = sortedVideos.sublist(i, end);
+        final startEp = chunk.first.episode ?? (i + 1);
+        final endEp = chunk.last.episode ?? end;
+
+        map[batchNum] = chunk;
+        batchKeys.add(batchNum);
+        batchLabels[batchNum] = '$startEp - $endEp';
+      }
+
+      _seasons = batchKeys;
+      _seasonEpisodes = map;
+      _seasonLabels = batchLabels;
+    } else {
+      final s = 1;
+      map[s] = List<Video>.from(widget.videos)
+        ..sort((a, b) => (a.episode ?? 0).compareTo(b.episode ?? 0));
+      _seasons = [s];
+      _seasonEpisodes = map;
+      _seasonLabels = {s: 'Season 1'};
+    }
   }
 
   void _scrollToCurrentEpisode({bool immediate = false}) {
@@ -287,7 +335,7 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
                   ),
                 ),
                 Text(
-                  'Season $_selectedSeason • $episodeCount Episodes',
+                  '${_seasonLabels[_selectedSeason] ?? "Season $_selectedSeason"} • $episodeCount Episodes',
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.55),
                     fontSize: 12,
@@ -323,6 +371,7 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
         itemBuilder: (context, index) {
           final season = _seasons[index];
           final isActive = season == _selectedSeason;
+          final tabLabel = _seasonLabels[season] ?? 'Season $season';
 
           return Material(
             color: Colors.transparent,
@@ -355,7 +404,7 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  'Season $season',
+                  tabLabel,
                   style: TextStyle(
                     color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.70),
                     fontSize: 12.5,

@@ -6,6 +6,7 @@ import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import '../../models/anime/anime_media.dart';
 import '../../services/anime/anilist_service.dart';
 import '../../services/anime/anime_library_service.dart';
+import '../../services/anime_arabic/anime_arabic_service.dart';
 import '../../services/glass_settings.dart';
 import '../../utils/route_transitions.dart';
 import '../../widgets/anime/anime_card.dart';
@@ -13,10 +14,12 @@ import '../../widgets/anime/anime_slider_section.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/hero_carousel_auto_rotate.dart';
-import '../../widgets/common/page_search_button.dart';
 import '../../widgets/home/continue_watching_slider.dart';
 import 'anime_details_page.dart';
 import 'anime_stream_sheet.dart';
+import 'anime_search_page.dart';
+import '../anime_arabic/anime_arabic_details_page.dart';
+import '../anime_arabic/anime_arabic_stream_sheet.dart';
 
 const _kAnimeGenres = [
   'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror',
@@ -34,11 +37,14 @@ class AnimePage extends StatefulWidget {
 class _AnimePageState extends State<AnimePage> {
   final AnilistService _anilistService = AnilistService.instance;
   final AnimeLibraryService _libraryService = AnimeLibraryService.instance;
+  final AnimeArabicService _arabicService = AnimeArabicService.instance;
   final ScrollController _scrollController = ScrollController();
 
+  bool _isArabicMode = false;
   bool _loading = true;
   String? _error;
 
+  // General Anime data
   List<AnimeMedia> _trending = [];
   List<AnimeMedia> _popularSeason = [];
   List<AnimeMedia> _topRated = [];
@@ -51,6 +57,10 @@ class _AnimePageState extends State<AnimePage> {
   String? _genreFilter;
   List<AnimeMedia> _genreResults = [];
   bool _genreLoading = false;
+
+  // Arabic Anime data
+  HomeFeed? _arabicFeed;
+  final Map<int, ArabicAnimeCard> _arabicCards = {};
 
   @override
   void initState() {
@@ -76,6 +86,42 @@ class _AnimePageState extends State<AnimePage> {
       _loading = true;
       _error = null;
     });
+
+    if (_isArabicMode) {
+      try {
+        final feed = await _arabicService.getHome();
+        _arabicCards.clear();
+        void registerCards(List<ArabicAnimeCard> list) {
+          for (final c in list) {
+            _arabicCards[c.slug.hashCode.abs()] = c;
+          }
+        }
+        registerCards(feed.spotlight);
+        registerCards(feed.recentEpisodes);
+        registerCards(feed.trending);
+        registerCards(feed.popularMovies);
+        registerCards(feed.topSeasonal);
+        registerCards(feed.seasonal);
+        registerCards(feed.legendary);
+        registerCards(feed.upcoming);
+
+        if (mounted) {
+          setState(() {
+            _arabicFeed = feed;
+            _loading = false;
+          });
+        }
+      } catch (e) {
+        debugPrint('Error loading Arabic Anime data: $e');
+        if (mounted) {
+          setState(() {
+            _error = 'Failed to load Arabic Anime catalog. Check your internet connection.';
+            _loading = false;
+          });
+        }
+      }
+      return;
+    }
 
     // Each section fetches independently: one bad/rate-limited/timed-out
     // AniList call shouldn't blank the whole page when the other 7 succeed.
@@ -139,7 +185,49 @@ class _AnimePageState extends State<AnimePage> {
     }
   }
 
+  void _onModeChanged(bool arabic) {
+    if (_isArabicMode == arabic) return;
+    setState(() {
+      _isArabicMode = arabic;
+    });
+    _loadAnimeData();
+  }
+
   void _playEpisode(AnimeMedia anime, int episodeNumber) {
+    if (_isArabicMode || _arabicCards.containsKey(anime.id)) {
+      final card = _arabicCards[anime.id] ??
+          ArabicAnimeCard(
+            slug: anime.titleEnglish.toLowerCase().replaceAll(' ', '-'),
+            title: anime.displayTitle,
+            cover: anime.coverUrl,
+          );
+      _arabicService.getDetails(card.slug).then((details) {
+        if (!mounted) return;
+        final ep = details.episodes.firstWhere(
+          (e) => e.number == episodeNumber,
+          orElse: () => details.episodes.isNotEmpty
+              ? details.episodes.first
+              : ArabicEpisode(
+                  number: episodeNumber,
+                  title: 'الحلقة $episodeNumber',
+                  encodedHref: '',
+                  watchPath: '/e/${card.slug}-$episodeNumber#tok',
+                ),
+        );
+        showModalBottomSheet(
+          context: context,
+          backgroundColor: Colors.transparent,
+          isScrollControlled: true,
+          builder: (_) => AnimeArabicStreamSheet(
+            details: details,
+            episode: ep,
+            autoPlay: false,
+          ),
+        );
+      });
+      return;
+    }
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -185,11 +273,41 @@ class _AnimePageState extends State<AnimePage> {
     );
   }
 
-  void _openDetails(AnimeMedia anime) {
+  void _openDetails(AnimeMedia anime, [int? preferredEpisode]) {
+    if (_isArabicMode || _arabicCards.containsKey(anime.id)) {
+      final card = _arabicCards[anime.id] ??
+          ArabicAnimeCard(
+            slug: anime.titleEnglish.toLowerCase().replaceAll(' ', '-'),
+            title: anime.displayTitle,
+            cover: anime.coverUrl,
+          );
+      final epNum = preferredEpisode ?? (anime.totalEpisodes > 0 ? anime.totalEpisodes : null);
+      Navigator.push(
+        context,
+        CinematicSlideRoute(
+          page: AnimeArabicDetailsPage(
+            anime: card,
+            initialEpisodeNumber: epNum,
+          ),
+        ),
+      );
+      return;
+    }
+
     Navigator.push(
       context,
       CinematicSlideRoute(
         page: AnimeDetailsPage(anime: anime),
+      ),
+    );
+  }
+
+  void _navigateToSearch(Offset? tapPosition) {
+    Navigator.push(
+      context,
+      LiquidRevealRoute(
+        page: AnimeSearchPage(initialArabicMode: _isArabicMode),
+        tapPosition: tapPosition,
       ),
     );
   }
@@ -231,11 +349,11 @@ class _AnimePageState extends State<AnimePage> {
                   child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
                 )
               : _buildGenreGrid()
-        else if (_loading && _trending.isEmpty)
+        else if (_loading && (_isArabicMode ? _arabicFeed == null : _trending.isEmpty))
           const Center(
             child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
           )
-        else if (_error != null && _trending.isEmpty)
+        else if (_error != null && (_isArabicMode ? _arabicFeed == null : _trending.isEmpty))
           Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -278,73 +396,152 @@ class _AnimePageState extends State<AnimePage> {
                 parent: AlwaysScrollableScrollPhysics(),
               ),
               children: [
-                // 1. Full Bleed Hero Carousel (Matching Home Page)
-                if (_trending.isNotEmpty)
-                  _AnimeHeroCarousel(
-                    animeList: _trending.take(6).toList(),
-                    onWatchNow: (anime) => _playEpisode(anime, 1),
-                    onDetailsTap: _openDetails,
+                if (_isArabicMode) ...[
+                  // 1. Arabic Hero Carousel (Matching Home Page)
+                  if (_arabicFeed != null &&
+                      (_arabicFeed!.spotlight.isNotEmpty || _arabicFeed!.trending.isNotEmpty))
+                    _AnimeHeroCarousel(
+                      animeList: (_arabicFeed!.spotlight.isNotEmpty
+                              ? _arabicFeed!.spotlight
+                              : _arabicFeed!.trending)
+                          .take(6)
+                          .map((c) => c.toAnimeMedia())
+                          .toList(),
+                      onWatchNow: (anime) => _playEpisode(anime, 1),
+                      onDetailsTap: _openDetails,
+                    ),
+
+                  const SizedBox(height: 16),
+
+                  // 2. Anime Continue Watching Slider
+                  const ContinueWatchingSlider(
+                    typeFilter: 'arabic_anime',
+                    title: 'متابعة المشاهدة',
                   ),
 
-                const SizedBox(height: 16),
+                  const SizedBox(height: 8),
 
-                // 2. Anime Continue Watching Slider
-                const ContinueWatchingSlider(
-                  typeFilter: 'anime',
-                  title: 'Continue Watching',
-                ),
+                  // 3. Arabic Sliders with Desktop Scroll Arrows
+                  if (_arabicFeed != null) ...[
+                    if (_arabicFeed!.recentEpisodes.isNotEmpty)
+                      AnimeSliderSection(
+                        title: '⚡ آخر الحلقات المعروضة',
+                        subtitle: 'أحدث الحلقات المضافة المترجمة للعربية',
+                        animeList: _arabicFeed!.recentEpisodes.map((c) => c.toAnimeMedia()).toList(),
+                        onAnimeTap: (anime) => _openDetails(anime, anime.totalEpisodes > 0 ? anime.totalEpisodes : null),
+                      ),
+                    if (_arabicFeed!.trending.isNotEmpty)
+                      AnimeSliderSection(
+                        title: '🔥 الأكثر شهرة وتداولاً',
+                        subtitle: 'الأنميات الأكثر مشاهدة حالياً',
+                        animeList: _arabicFeed!.trending.map((c) => c.toAnimeMedia()).toList(),
+                        onAnimeTap: _openDetails,
+                      ),
+                    if (_arabicFeed!.popularMovies.isNotEmpty)
+                      AnimeSliderSection(
+                        title: '🎬 الأفلام الأكثر شعبية',
+                        subtitle: 'أفلام الأنمي المميزة',
+                        animeList: _arabicFeed!.popularMovies.map((c) => c.toAnimeMedia()).toList(),
+                        onAnimeTap: _openDetails,
+                      ),
+                    if (_arabicFeed!.topSeasonal.isNotEmpty)
+                      AnimeSliderSection(
+                        title: '👑 أفضل الأنميات',
+                        subtitle: 'أنميات ذات تقييمات استثنائية',
+                        animeList: _arabicFeed!.topSeasonal.map((c) => c.toAnimeMedia()).toList(),
+                        onAnimeTap: _openDetails,
+                      ),
+                    if (_arabicFeed!.seasonal.isNotEmpty)
+                      AnimeSliderSection(
+                        title: '🌟 أنميات موسمية',
+                        subtitle: 'عروض الموسم الحالي',
+                        animeList: _arabicFeed!.seasonal.map((c) => c.toAnimeMedia()).toList(),
+                        onAnimeTap: _openDetails,
+                      ),
+                    if (_arabicFeed!.legendary.isNotEmpty)
+                      AnimeSliderSection(
+                        title: '⚔️ أنميات أسطورية',
+                        subtitle: 'أعمال خالدة يجب ألا تفوتك',
+                        animeList: _arabicFeed!.legendary.map((c) => c.toAnimeMedia()).toList(),
+                        onAnimeTap: _openDetails,
+                      ),
+                    if (_arabicFeed!.upcoming.isNotEmpty)
+                      AnimeSliderSection(
+                        title: '🚀 المنتظرة قريباً',
+                        subtitle: 'أنميات قادمة قريباً',
+                        animeList: _arabicFeed!.upcoming.map((c) => c.toAnimeMedia()).toList(),
+                        onAnimeTap: _openDetails,
+                      ),
+                  ],
+                ] else ...[
+                  // 1. Full Bleed Hero Carousel (Matching Home Page)
+                  if (_trending.isNotEmpty)
+                    _AnimeHeroCarousel(
+                      animeList: _trending.take(6).toList(),
+                      onWatchNow: (anime) => _playEpisode(anime, 1),
+                      onDetailsTap: _openDetails,
+                    ),
 
-                const SizedBox(height: 8),
+                  const SizedBox(height: 16),
 
-                // 3. Sliders with Desktop Scroll Arrows
-                AnimeSliderSection(
-                  title: '🔥 Trending Anime',
-                  subtitle: 'Top popular and trending series',
-                  animeList: _trending,
-                  onAnimeTap: _openDetails,
-                ),
-                AnimeSliderSection(
-                  title: '🌟 Popular This Season (${AnilistService.currentSeason()})',
-                  subtitle: 'Currently airing hits',
-                  animeList: _popularSeason,
-                  onAnimeTap: _openDetails,
-                ),
-                AnimeSliderSection(
-                  title: '⭐ All-Time Masterpieces',
-                  subtitle: 'Critically acclaimed top rated anime',
-                  animeList: _topRated,
-                  onAnimeTap: _openDetails,
-                ),
-                AnimeSliderSection(
-                  title: '🚀 Anticipated Next Season',
-                  subtitle: 'Upcoming anime you cannot miss',
-                  animeList: _upcoming,
-                  onAnimeTap: _openDetails,
-                ),
-                AnimeSliderSection(
-                  title: '⚔️ Action & Adventure',
-                  subtitle: 'High octane battles and epic journeys',
-                  animeList: _actionAnime,
-                  onAnimeTap: _openDetails,
-                ),
-                AnimeSliderSection(
-                  title: '💖 Romance & Drama',
-                  subtitle: 'Heartfelt emotional stories',
-                  animeList: _romanceAnime,
-                  onAnimeTap: _openDetails,
-                ),
-                AnimeSliderSection(
-                  title: '🔮 Fantasy & Isekai',
-                  subtitle: 'Magical realms and alternate worlds',
-                  animeList: _fantasyAnime,
-                  onAnimeTap: _openDetails,
-                ),
-                AnimeSliderSection(
-                  title: '🤖 Sci-Fi & Cyberpunk',
-                  subtitle: 'Futuristic technologies and dystopian worlds',
-                  animeList: _sciFiAnime,
-                  onAnimeTap: _openDetails,
-                ),
+                  // 2. Anime Continue Watching Slider
+                  const ContinueWatchingSlider(
+                    typeFilter: 'general_anime',
+                    title: 'Continue Watching',
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // 3. Sliders with Desktop Scroll Arrows
+                  AnimeSliderSection(
+                    title: '🔥 Trending Anime',
+                    subtitle: 'Top popular and trending series',
+                    animeList: _trending,
+                    onAnimeTap: _openDetails,
+                  ),
+                  AnimeSliderSection(
+                    title: '🌟 Popular This Season (${AnilistService.currentSeason()})',
+                    subtitle: 'Currently airing hits',
+                    animeList: _popularSeason,
+                    onAnimeTap: _openDetails,
+                  ),
+                  AnimeSliderSection(
+                    title: '⭐ All-Time Masterpieces',
+                    subtitle: 'Critically acclaimed top rated anime',
+                    animeList: _topRated,
+                    onAnimeTap: _openDetails,
+                  ),
+                  AnimeSliderSection(
+                    title: '🚀 Anticipated Next Season',
+                    subtitle: 'Upcoming anime you cannot miss',
+                    animeList: _upcoming,
+                    onAnimeTap: _openDetails,
+                  ),
+                  AnimeSliderSection(
+                    title: '⚔️ Action & Adventure',
+                    subtitle: 'High octane battles and epic journeys',
+                    animeList: _actionAnime,
+                    onAnimeTap: _openDetails,
+                  ),
+                  AnimeSliderSection(
+                    title: '💖 Romance & Drama',
+                    subtitle: 'Heartfelt emotional stories',
+                    animeList: _romanceAnime,
+                    onAnimeTap: _openDetails,
+                  ),
+                  AnimeSliderSection(
+                    title: '🔮 Fantasy & Isekai',
+                    subtitle: 'Magical realms and alternate worlds',
+                    animeList: _fantasyAnime,
+                    onAnimeTap: _openDetails,
+                  ),
+                  AnimeSliderSection(
+                    title: '🤖 Sci-Fi & Cyberpunk',
+                    subtitle: 'Futuristic technologies and dystopian worlds',
+                    animeList: _sciFiAnime,
+                    onAnimeTap: _openDetails,
+                  ),
+                ],
 
                 SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom),
               ],
@@ -379,10 +576,30 @@ class _AnimePageState extends State<AnimePage> {
             const SizedBox(width: 10),
             DecoratedBox(
               decoration: BoxDecoration(
+                color: _isArabicMode
+                    ? const Color(0xFF7C5CFF).withValues(alpha: 0.35)
+                    : Colors.black.withValues(alpha: 0.35),
+                shape: BoxShape.circle,
+              ),
+              child: IconButton(
+                tooltip: _isArabicMode ? 'Arabic anime (on)' : 'Arabic anime (off)',
+                icon: const Icon(Icons.language_rounded),
+                color: Colors.white.withValues(alpha: 0.75),
+                onPressed: () => _onModeChanged(!_isArabicMode),
+              ),
+            ),
+            const SizedBox(width: 10),
+            DecoratedBox(
+              decoration: BoxDecoration(
                 color: Colors.black.withValues(alpha: 0.35),
                 shape: BoxShape.circle,
               ),
-              child: const PageSearchButton(),
+              child: IconButton(
+                tooltip: 'Search',
+                icon: const Icon(Icons.search_rounded),
+                color: Colors.white.withValues(alpha: 0.75),
+                onPressed: () => _navigateToSearch(null),
+              ),
             ),
           ],
         ),

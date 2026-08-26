@@ -294,8 +294,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     }
 
     if (meta != null && meta.type.isNotEmpty) {
-      effectiveType = (meta.type == 'series' || meta.type == 'tv' || meta.type == 'anime' || meta.videos.isNotEmpty) ? 'series' : meta.type;
-      _resolvedType = effectiveType;
+      _resolvedType = meta.type;
     }
 
     if (mounted) {

@@ -5,6 +5,9 @@ import '../../models/movie/movie_detail.dart';
 import '../../models/movie/video.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/stream/stream_service.dart';
+import '../../services/anime/anime_scraper_service.dart';
+import '../../services/anime_arabic/anime_arabic_service.dart';
+import '../../services/anime_arabic/anime_arabic_extractor.dart';
 import 'player_glass.dart';
 
 /// Glassmorphic Sources Side Panel for selecting episode stream sources,
@@ -69,8 +72,121 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
         : '${detail?.id ?? ""}:${ep.season ?? 1}:${ep.episode ?? 1}';
     final title = detail?.name ?? ep.title;
     final year = int.tryParse(detail?.year ?? '');
+    final epNum = ep.episode ?? 1;
+
+    final isArabicAnime = id.startsWith('arabic_anime:') ||
+        (detail?.id.startsWith('arabic_anime:') ?? false) ||
+        widget.currentAddonName == 'ArabicAnime';
 
     _streamSub?.cancel();
+
+    if (isArabicAnime) {
+      String slug = '';
+      if (detail?.id.startsWith('arabic_anime:') == true) {
+        slug = detail!.id.replaceFirst('arabic_anime:', '');
+      } else if (id.startsWith('arabic_anime:')) {
+        final parts = id.split(':');
+        if (parts.length >= 2) slug = parts[1];
+      }
+
+      () async {
+        try {
+          if (slug.isEmpty && title.isNotEmpty) {
+            final searchResults = await AnimeArabicService.instance.search(title);
+            if (searchResults.isNotEmpty) {
+              slug = searchResults.first.slug;
+            }
+          }
+
+          if (slug.isNotEmpty) {
+            final arabicDetails = await AnimeArabicService.instance.getDetails(slug);
+            final targetEp = arabicDetails.episodes.firstWhere(
+              (e) => e.number == epNum,
+              orElse: () => ArabicEpisode(
+                number: epNum,
+                title: 'الحلقة $epNum',
+                encodedHref: '',
+                watchPath: '/e/$slug-$epNum#tok',
+              ),
+            );
+
+            final hits = await AnimeArabicExtractor.instance.resolveEpisode(targetEp);
+            final sources = AnimeArabicExtractor.toSources(
+              hits,
+              animeTitle: arabicDetails.title.isNotEmpty ? arabicDetails.title : title,
+              episodeNumber: epNum,
+            );
+
+            if (mounted) {
+              setState(() {
+                _sources.addAll(sources);
+                _isLoading = false;
+              });
+              widget.onSourcesLoaded(List.from(_sources));
+            }
+            return;
+          }
+        } catch (e) {
+          debugPrint('[PlayerSourcesPanel] Arabic anime scrape error: $e');
+        }
+
+        if (mounted) {
+          setState(() => _isLoading = false);
+        }
+      }();
+      return;
+    }
+
+    final isAnime = type == 'anime' ||
+        id.startsWith('anilist:') ||
+        (detail?.id.startsWith('anilist:') ?? false) ||
+        widget.currentAddonName == 'MegaPlay' ||
+        widget.currentAddonName == 'AniDB' ||
+        widget.currentAddonName == 'WatchHentai' ||
+        widget.currentAddonName == 'Hentaini';
+
+    if (isAnime) {
+      int? anilistId;
+      if (detail?.id.startsWith('anilist:') == true) {
+        anilistId = int.tryParse(detail!.id.replaceFirst('anilist:', ''));
+      } else if (id.startsWith('anilist:')) {
+        final parts = id.split(':');
+        if (parts.length >= 2) {
+          anilistId = int.tryParse(parts[1]);
+        }
+      }
+
+      _streamSub = AnimeScraperService.instance
+          .scrapeStreamsByDetails(
+        title: title,
+        anilistId: anilistId,
+        episodeNumber: epNum,
+      )
+          .listen(
+        (source) {
+          if (!mounted) return;
+          setState(() {
+            final exists = _sources.any((s) =>
+                (source.url != null && s.url == source.url) ||
+                (s.name == source.name && s.title == source.title));
+            if (!exists) {
+              _sources.add(source);
+            }
+          });
+        },
+        onError: (_) {
+          if (mounted) setState(() => _isLoading = false);
+        },
+        onDone: () {
+          if (mounted) {
+            setState(() => _isLoading = false);
+            widget.onSourcesLoaded(List.from(_sources));
+          }
+        },
+      );
+      return;
+    }
+
     _streamSub = StreamService.fetchStreamsForTargetAddon(
       targetAddonName: widget.currentAddonName,
       type: type,

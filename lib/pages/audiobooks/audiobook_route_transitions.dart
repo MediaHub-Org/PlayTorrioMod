@@ -6,6 +6,7 @@ class AudiobookPageRoute<T> extends PageRouteBuilder<T> {
 
   AudiobookPageRoute({required this.page})
       : super(
+          opaque: false,
           pageBuilder: (context, animation, secondaryAnimation) => page,
           transitionDuration: const Duration(milliseconds: 400),
           reverseTransitionDuration: const Duration(milliseconds: 350),

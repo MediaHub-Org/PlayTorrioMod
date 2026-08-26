@@ -1,49 +1,30 @@
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../models/audiobook/audiobook_model.dart';
+import '../debrid/debrid_service.dart';
+import '../stream/torrent_stream_service.dart';
 
 class AudiobookBayScraper {
   static const String _baseUrl = 'https://audiobookbay.lu';
 
   static Future<List<Audiobook>> search(String query) async {
     try {
-      // &tt=1 searches Title & Author, &sc=1 searches Description/Content
-      final searchUrl = '$_baseUrl/?s=${Uri.encodeComponent(query)}&tt=1&sc=1';
       final res = await http.get(
-        Uri.parse(searchUrl),
+        Uri.parse('$_baseUrl/?s=${Uri.encodeComponent(query)}&cat=undefined%2Cundefined'),
         headers: {
           'User-Agent':
               'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
       );
 
-      final RegExp postExp = RegExp(
-        r'<div class="post[^"]*">([\s\S]*?)(?:<div class=\x27postMeta\x27>|<div class="postMeta">|</div>\s*</div>)',
-        caseSensitive: false,
-      );
-
-      final matches = postExp.allMatches(res.body);
+      final blocks = res.body.split('<div class="post">');
       final books = <Audiobook>[];
 
-      for (final m in matches) {
-        var block = m.group(1)!;
+      for (int i = 1; i < blocks.length; i++) {
+        final block = blocks[i];
 
-        // Support for Base64 encoded post elements (e.g., class="post re-ab")
-        if (!block.contains('<a') && !block.contains('<img') && block.trim().length > 20) {
-          try {
-            final decoded = utf8.decode(
-              base64.decode(block.trim().replaceAll(RegExp(r'\s+'), '')),
-            );
-            if (decoded.contains('<a')) {
-              block = decoded;
-            }
-          } catch (_) {}
-        }
-
-        // Title and URL extraction
         final RegExp titleExp = RegExp(
-          r'<a[^>]*href="(/abss/[^"]+)"[^>]*>([^<]+)</a>',
+          r'<div class="postTitle">\s*<h2>\s*<a href="([^"]+)"[^>]*>([^<]+)</a>',
           caseSensitive: false,
         );
         final titleMatch = titleExp.firstMatch(block);
@@ -51,32 +32,18 @@ class AudiobookBayScraper {
 
         var url = titleMatch.group(1)!;
         if (url.startsWith('/')) url = '$_baseUrl$url';
-        final title = titleMatch.group(2)!.trim();
 
-        // Cover Poster extraction
-        final RegExp imgExp = RegExp(
-          r'<img[^>]*src="([^"]+)"',
-          caseSensitive: false,
-        );
-        String coverImage = '';
-        for (final imgM in imgExp.allMatches(block)) {
-          final src = imgM.group(1)!;
-          if (!src.contains('logo') &&
-              !src.contains('search.gif') &&
-              !src.contains('bz.jpg') &&
-              !src.contains('tlt.gif') &&
-              !src.contains('default_cover.jpg')) {
-            coverImage = src.startsWith('/') ? '$_baseUrl$src' : src;
-            break;
-          }
-        }
+        final RegExp imgExp = RegExp(r'<img[^>]*src="([^"]+)"', caseSensitive: false);
+        final imgMatch = imgExp.firstMatch(block);
+        var coverImage = imgMatch?.group(1) ?? '';
+        if (coverImage.startsWith('/')) coverImage = '$_baseUrl$coverImage';
 
         books.add(
           Audiobook(
             uuid: 'abb_${url.hashCode}',
             audioBookId: url,
             dynamicSlugId: url,
-            title: title,
+            title: titleMatch.group(2)!.trim(),
             coverImage: coverImage,
             source: 'audiobookbay',
             pageUrl: url,
@@ -130,16 +97,20 @@ class AudiobookBayScraper {
 
       final magnetString = magnetUri.toString();
 
-      // Robust file regex matching audio files
+      // Extract files from HTML page
       final RegExp fileExp = RegExp(
-        r'<td[^>]*>\s*([^<]+\.(?:mp3|m4b|m4a|aac|flac|ogg|opus|wav|wma))',
+        r"(?:<td>|<li>|<code>|<pre>|class=\x22torrent_files\x22|class=\x22file_list\x22|>|\n|^)\s*([a-zA-Z0-9_\-\.\s\(\)\[\]\,']+\.(?:mp3|m4b|m4a|aac|flac|ogg|opus|wav|wma))",
         caseSensitive: false,
       );
 
       final chapters = <AudiobookChapter>[];
+      final seenFiles = <String>{};
       int fileIndex = 0;
+
       for (final m in fileExp.allMatches(res.body)) {
         final filename = m.group(1)!.trim();
+        if (filename.isEmpty || !seenFiles.add(filename.toLowerCase())) continue;
+
         chapters.add(
           AudiobookChapter(
             title: filename,
@@ -149,6 +120,64 @@ class AudiobookBayScraper {
           ),
         );
         fileIndex++;
+      }
+
+      // If HTML scraping couldn't find multi-file chapters, auto-expand via Debrid or local Torrent engine
+      if (chapters.length <= 1) {
+        try {
+          final isDebrid = await DebridService().isDebridActiveForStreams();
+          if (isDebrid) {
+            final debridFiles = await DebridService().resolveMagnet(magnet: magnetString);
+            if (debridFiles.isNotEmpty && debridFiles.length > 1) {
+              chapters.clear();
+              for (int i = 0; i < debridFiles.length; i++) {
+                final fname = debridFiles[i].filename;
+                chapters.add(
+                  AudiobookChapter(
+                    title: fname.split('/').last.split('\\').last,
+                    url: magnetString,
+                    isTorrent: true,
+                    torrentFileIndex: i,
+                  ),
+                );
+              }
+            }
+          } else {
+            // Debrid is OFF -> try local torrent engine metadata to extract all audio files
+            final torrentInfo = await TorrentStreamService().getTorrentMetadata(magnetString);
+            if (torrentInfo != null &&
+                torrentInfo.fileStats.isNotEmpty &&
+                torrentInfo.fileStats.length > 1) {
+              final audioFiles = torrentInfo.fileStats.where((f) {
+                final l = f.path.toLowerCase();
+                return l.endsWith('.mp3') ||
+                    l.endsWith('.m4b') ||
+                    l.endsWith('.m4a') ||
+                    l.endsWith('.aac') ||
+                    l.endsWith('.flac') ||
+                    l.endsWith('.ogg') ||
+                    l.endsWith('.opus') ||
+                    l.endsWith('.wav');
+              }).toList();
+              if (audioFiles.isNotEmpty) {
+                chapters.clear();
+                for (final fileInfo in audioFiles) {
+                  final name = fileInfo.path.split('/').last.split('\\').last;
+                  chapters.add(
+                    AudiobookChapter(
+                      title: name,
+                      url: magnetString,
+                      isTorrent: true,
+                      torrentFileIndex: fileInfo.id,
+                    ),
+                  );
+                }
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('AudiobookBay chapter auto-expansion error: $e');
+        }
       }
 
       if (chapters.isEmpty) {

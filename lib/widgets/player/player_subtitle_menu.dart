@@ -6,6 +6,8 @@ import 'player_glass.dart';
 /// Full-featured subtitle selection, search, and timing menu.
 class PlayerSubtitleMenu extends StatefulWidget {
   final List<SubtitleLanguageGroup> groups;
+  final List<PlayerEmbeddedSubtitle> embeddedSubtitles;
+  final int? selectedEmbeddedIndex;
   final SubtitleVariant? selectedVariant;
   final bool isSubtitleEnabled;
   final String movieTitle;
@@ -15,6 +17,7 @@ class PlayerSubtitleMenu extends StatefulWidget {
   final int? year;
   final double delaySec;
   final ValueChanged<SubtitleVariant?> onSelectVariant;
+  final ValueChanged<PlayerEmbeddedSubtitle> onSelectEmbedded;
   final VoidCallback onToggleOff;
   final VoidCallback onOpenSyncBar;
   final VoidCallback onOpenStyleBar;
@@ -24,6 +27,8 @@ class PlayerSubtitleMenu extends StatefulWidget {
   const PlayerSubtitleMenu({
     super.key,
     required this.groups,
+    this.embeddedSubtitles = const [],
+    this.selectedEmbeddedIndex,
     this.selectedVariant,
     required this.isSubtitleEnabled,
     required this.movieTitle,
@@ -33,6 +38,7 @@ class PlayerSubtitleMenu extends StatefulWidget {
     this.year,
     required this.delaySec,
     required this.onSelectVariant,
+    required this.onSelectEmbedded,
     required this.onToggleOff,
     required this.onOpenSyncBar,
     required this.onOpenStyleBar,
@@ -53,36 +59,82 @@ class _PlayerSubtitleMenuState extends State<PlayerSubtitleMenu> {
   bool _isLoadingSearch = false;
   String? _searchQuery;
 
+  static String cleanMediaTitle(String raw) {
+    var name = raw;
+    name = name.replaceAll(RegExp(r'\.(mkv|mp4|avi|webm|ts|mov|m4v|srt|vtt)$', caseSensitive: false), '');
+    name = name.replaceAll(RegExp(r'[._]'), ' ');
+    name = name.replaceAll(RegExp(r'\b(2160p|1080p|720p|480p|4k|uhd|ds4k|webrip|web-dl|bluray|brrip|h264|x264|h265|x265|hevc|10bit|ddp5\.1|dd5\.1|atmos|aac|ac3|dts|flac|remux|hdr|dv|proper|repack|hdtv)\b', caseSensitive: false), ' ');
+    name = name.replaceAll(RegExp(r'-[a-zA-Z0-9]+$'), '');
+    return name.trim().replaceAll(RegExp(r'\s+'), ' ');
+  }
+
   @override
   void initState() {
     super.initState();
     _dynamicGroups = List.from(widget.groups);
-    if (_dynamicGroups.isNotEmpty) {
-      if (widget.selectedVariant != null) {
-        _selectedLanguage = widget.selectedVariant!.language;
-      } else {
-        _selectedLanguage = _dynamicGroups.first.language;
-      }
+    if (widget.selectedEmbeddedIndex != null) {
+      _selectedLanguage = '__embedded__';
+    } else if (widget.selectedVariant != null) {
+      _selectedLanguage = widget.selectedVariant!.language;
+    } else if (widget.embeddedSubtitles.isNotEmpty) {
+      _selectedLanguage = '__embedded__';
+    } else if (_dynamicGroups.isNotEmpty) {
+      _selectedLanguage = _dynamicGroups.first.language;
+    } else {
+      _selectedLanguage = '__all__';
+    }
+
+    if (_dynamicGroups.isEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _searchOnline();
+      });
+    }
+  }
+
+  @override
+  void didUpdateWidget(PlayerSubtitleMenu oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.groups.isNotEmpty && widget.groups != oldWidget.groups) {
+      setState(() {
+        _dynamicGroups = List.from(widget.groups);
+        _selectedLanguage ??= _dynamicGroups.first.language;
+      });
     }
   }
 
   Future<void> _searchOnline() async {
     setState(() => _isLoadingSearch = true);
     try {
+      int? year = widget.year;
+      final rawTitle = widget.movieTitle;
+      if (year == null) {
+        final yMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(rawTitle);
+        if (yMatch != null) year = int.tryParse(yMatch.group(1)!);
+      }
+
+      final query = _searchQuery?.isNotEmpty == true
+          ? _searchQuery!
+          : cleanMediaTitle(rawTitle);
+
+      print('[PlayerSubtitleMenu] Searching subtitles online for: "$query" (year: $year, imdb: ${widget.imdbId})');
       final results = await SubtitleService().fetchAllSubtitles(
-        _searchQuery?.isNotEmpty == true ? _searchQuery! : widget.movieTitle,
+        query,
         imdbId: widget.imdbId,
         season: widget.season,
         episode: widget.episode,
-        year: widget.year,
+        year: year,
       );
-      setState(() {
-        _dynamicGroups = results;
-        if (_dynamicGroups.isNotEmpty && _selectedLanguage == null) {
-          _selectedLanguage = _dynamicGroups.first.language;
-        }
-      });
-    } catch (_) {
+      print('[PlayerSubtitleMenu] Found ${results.length} subtitle language groups');
+      if (mounted) {
+        setState(() {
+          _dynamicGroups = results;
+          if (_dynamicGroups.isNotEmpty && _selectedLanguage == null) {
+            _selectedLanguage = _dynamicGroups.first.language;
+          }
+        });
+      }
+    } catch (e) {
+      print('[PlayerSubtitleMenu] search error: $e');
     } finally {
       if (mounted) setState(() => _isLoadingSearch = false);
     }
@@ -185,19 +237,21 @@ class _PlayerSubtitleMenuState extends State<PlayerSubtitleMenu> {
                 // Header Action Icons
                 Row(
                   children: [
-                    // Subtitle Delay Bar
-                    PlayerIconButton(
-                      size: 34,
-                      iconSize: 17,
-                      icon: const Icon(Icons.timer_outlined),
-                      tooltip: 'Subtitle Sync Bar',
-                      showActiveBadge: widget.delaySec != 0,
-                      onPressed: () {
-                        widget.onClose();
-                        widget.onOpenSyncBar();
-                      },
-                    ),
-                    const SizedBox(width: 4),
+                    // Subtitle Delay Bar (external subtitles only)
+                    if (widget.selectedEmbeddedIndex == null) ...[
+                      PlayerIconButton(
+                        size: 34,
+                        iconSize: 17,
+                        icon: const Icon(Icons.timer_outlined),
+                        tooltip: 'Subtitle Sync Bar',
+                        showActiveBadge: widget.delaySec != 0,
+                        onPressed: () {
+                          widget.onClose();
+                          widget.onOpenSyncBar();
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                    ],
 
                     // Subtitle Appearance Style Bar
                     PlayerIconButton(
@@ -212,18 +266,20 @@ class _PlayerSubtitleMenuState extends State<PlayerSubtitleMenu> {
                     ),
                     const SizedBox(width: 4),
 
-                    // Text Sync to Speech
-                    PlayerIconButton(
-                      size: 34,
-                      iconSize: 17,
-                      icon: const Icon(Icons.text_fields_rounded),
-                      tooltip: 'Speech Text Sync',
-                      onPressed: () {
-                        widget.onClose();
-                        widget.onOpenTextSync();
-                      },
-                    ),
-                    const SizedBox(width: 8),
+                    // Text Sync to Speech (Actor Dialogue Listening Sync - external subtitles only)
+                    if (widget.selectedEmbeddedIndex == null) ...[
+                      PlayerIconButton(
+                        size: 34,
+                        iconSize: 17,
+                        icon: const Icon(Icons.text_fields_rounded),
+                        tooltip: 'Speech Text Sync',
+                        onPressed: () {
+                          widget.onClose();
+                          widget.onOpenTextSync();
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                    ],
 
                     // Close Button
                     PlayerIconButton(
@@ -301,6 +357,74 @@ class _PlayerSubtitleMenuState extends State<PlayerSubtitleMenu> {
                           ),
                         ),
                       ),
+
+                      // Embedded Subtitles Category (At the very top above all languages)
+                      if (widget.embeddedSubtitles.isNotEmpty) ...[
+                        const Padding(
+                          padding: EdgeInsets.only(left: 8, top: 12, bottom: 4),
+                          child: Text(
+                            'EMBEDDED',
+                            style: TextStyle(
+                              color: PlayerTheme.inkSubtle,
+                              fontSize: 9.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        ),
+                        Material(
+                          color: Colors.transparent,
+                          child: InkWell(
+                            borderRadius: BorderRadius.circular(8),
+                            onTap: () => setState(() => _selectedLanguage = '__embedded__'),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                              margin: const EdgeInsets.only(bottom: 2),
+                              decoration: BoxDecoration(
+                                color: _selectedLanguage == '__embedded__' ? PlayerTheme.raised : Colors.transparent,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(
+                                  color: _selectedLanguage == '__embedded__' ? PlayerTheme.edge : Colors.transparent,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  const Text('⚡', style: TextStyle(fontSize: 12)),
+                                  const SizedBox(width: 8),
+                                  const Expanded(
+                                    child: Text(
+                                      'Embedded',
+                                      style: TextStyle(
+                                        color: PlayerTheme.ink,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                    decoration: BoxDecoration(
+                                      color: PlayerTheme.accent.withValues(alpha: 0.35),
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text(
+                                      '${widget.embeddedSubtitles.length}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 9.5,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
 
                       if (_dynamicGroups.isNotEmpty) ...[
                         const Padding(
@@ -417,36 +541,165 @@ class _PlayerSubtitleMenuState extends State<PlayerSubtitleMenu> {
 
                 // Right Variants & Search Panel
                 Expanded(
-                  child: Column(
-                    children: [
-                      // Filter Chips Toolbar
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        decoration: const BoxDecoration(
-                          border: Border(bottom: BorderSide(color: PlayerTheme.edgeSoft)),
-                        ),
-                        child: Row(
+                  child: _selectedLanguage == '__embedded__'
+                      ? ListView.builder(
+                          padding: const EdgeInsets.all(8),
+                          itemCount: widget.embeddedSubtitles.length,
+                          itemBuilder: (context, i) {
+                            final track = widget.embeddedSubtitles[i];
+                            final isSelected = widget.isSubtitleEnabled &&
+                                widget.selectedEmbeddedIndex == track.index;
+
+                            return Material(
+                              color: Colors.transparent,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(10),
+                                onTap: () {
+                                  widget.onSelectEmbedded(track);
+                                  widget.onClose();
+                                },
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                                  margin: const EdgeInsets.only(bottom: 4),
+                                  decoration: BoxDecoration(
+                                    color: isSelected ? PlayerTheme.raised : Colors.transparent,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: isSelected ? PlayerTheme.edge : Colors.transparent,
+                                      width: 1,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        width: 18,
+                                        height: 18,
+                                        decoration: BoxDecoration(
+                                          color: isSelected ? PlayerTheme.accent : PlayerTheme.raised,
+                                          shape: BoxShape.circle,
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: isSelected
+                                            ? const Icon(Icons.check_rounded, size: 12, color: Colors.white)
+                                            : null,
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Row(
+                                              children: [
+                                                if (track.language != null) ...[
+                                                  Text(
+                                                    _getLanguageEmoji(track.language!),
+                                                    style: const TextStyle(fontSize: 12),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                ],
+                                                Expanded(
+                                                  child: Text(
+                                                    track.title,
+                                                    style: TextStyle(
+                                                      color: isSelected ? PlayerTheme.ink : PlayerTheme.inkMuted,
+                                                      fontSize: 12.5,
+                                                      fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                                                    ),
+                                                    maxLines: 1,
+                                                    overflow: TextOverflow.ellipsis,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                            const SizedBox(height: 3),
+                                            Row(
+                                              children: [
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                  decoration: BoxDecoration(
+                                                    color: PlayerTheme.accent.withValues(alpha: 0.18),
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: const Text(
+                                                    'EMBEDDED',
+                                                    style: TextStyle(
+                                                      color: PlayerTheme.accent,
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ),
+                                                if (track.language != null && track.language!.isNotEmpty) ...[
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    track.language!.toUpperCase(),
+                                                    style: const TextStyle(
+                                                      color: PlayerTheme.inkSubtle,
+                                                      fontSize: 9.5,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                                if (track.codec != null && track.codec!.isNotEmpty) ...[
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    track.codec!.toUpperCase(),
+                                                    style: const TextStyle(
+                                                      color: PlayerTheme.inkSubtle,
+                                                      fontSize: 9.5,
+                                                    ),
+                                                  ),
+                                                ],
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  '#${track.index + 1}',
+                                                  style: const TextStyle(
+                                                    color: PlayerTheme.inkDisabled,
+                                                    fontSize: 9.5,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        )
+                      : Column(
                           children: [
-                            PlayerToggleChip(
-                              active: _sourceFilter == 'all',
-                              label: 'All',
-                              onClick: () => setState(() => _sourceFilter = 'all'),
+                            // Filter Chips Toolbar
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              decoration: const BoxDecoration(
+                                border: Border(bottom: BorderSide(color: PlayerTheme.edgeSoft)),
+                              ),
+                              child: Row(
+                                children: [
+                                  PlayerToggleChip(
+                                    active: _sourceFilter == 'all',
+                                    label: 'All',
+                                    onClick: () => setState(() => _sourceFilter = 'all'),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  PlayerToggleChip(
+                                    active: _filterHI,
+                                    label: 'HI / CC',
+                                    onClick: () => setState(() => _filterHI = !_filterHI),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  PlayerToggleChip(
+                                    active: _filterForced,
+                                    label: 'Forced',
+                                    onClick: () => setState(() => _filterForced = !_filterForced),
+                                  ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(width: 6),
-                            PlayerToggleChip(
-                              active: _filterHI,
-                              label: 'HI / CC',
-                              onClick: () => setState(() => _filterHI = !_filterHI),
-                            ),
-                            const SizedBox(width: 6),
-                            PlayerToggleChip(
-                              active: _filterForced,
-                              label: 'Forced',
-                              onClick: () => setState(() => _filterForced = !_filterForced),
-                            ),
-                          ],
-                        ),
-                      ),
 
                       // Subtitles List
                       Expanded(

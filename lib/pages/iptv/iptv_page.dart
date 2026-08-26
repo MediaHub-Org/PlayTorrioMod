@@ -11,6 +11,7 @@ import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/iptv/iptv_hero_carousel.dart';
 import '../../widgets/iptv/iptv_slider_section.dart';
 import '../settings/settings_page.dart';
+import '../settings/addons_settings_page.dart';
 import 'iptv_channel_sheet.dart';
 import 'iptv_multiview_page.dart';
 import 'iptv_player_page.dart';

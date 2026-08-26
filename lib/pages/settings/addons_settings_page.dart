@@ -65,7 +65,7 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Paste the Stremio addon manifest.json URL to install catalogs and metadata.',
+                'Paste the Stremio addon manifest.json URL to install catalogs, metadata, streams, or subtitles.',
                 style: TextStyle(
                   fontSize: 13,
                   color: Colors.white.withValues(alpha: 0.50),
@@ -78,7 +78,7 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
                 autofocus: true,
                 style: const TextStyle(fontSize: 13.5, color: Colors.white),
                 decoration: InputDecoration(
-                  hintText: 'https://v3-cinemeta.strem.io/manifest.json',
+                  hintText: 'https://opensubtitles-v3.strem.io/manifest.json',
                   hintStyle: TextStyle(
                     color: Colors.white.withValues(alpha: 0.22),
                     fontSize: 12.5,
@@ -376,7 +376,9 @@ class _AddonCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'v${m.version}  ·  ${m.catalogs.length} catalog${m.catalogs.length == 1 ? '' : 's'}',
+                      m.supportsSubtitles && m.catalogs.isEmpty
+                          ? 'v${m.version}  ·  Subtitles Provider'
+                          : 'v${m.version}  ·  ${m.catalogs.length} catalog${m.catalogs.length == 1 ? '' : 's'}${m.supportsSubtitles ? '  ·  Subtitles' : ''}',
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.white.withValues(alpha: 0.4),
@@ -411,9 +413,35 @@ class _AddonCard extends StatelessWidget {
 
           const SizedBox(height: 12),
 
-          // Type badges + Remove
+          // Type badges + Subtitles badge + Remove
           Row(
             children: [
+              if (m.supportsSubtitles)
+                Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 3.5,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(7),
+                      border: Border.all(
+                        color: const Color(0xFF10B981).withValues(alpha: 0.35),
+                        width: 1,
+                      ),
+                    ),
+                    child: const Text(
+                      'Subtitles',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF34D399),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ),
               ...m.types.map(
                 (type) => Padding(
                   padding: const EdgeInsets.only(right: 6),

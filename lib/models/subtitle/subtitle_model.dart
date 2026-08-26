@@ -25,3 +25,19 @@ class SubtitleLanguageGroup {
     required this.variants,
   });
 }
+
+class PlayerEmbeddedSubtitle {
+  final int index;
+  final String title;
+  final String? language;
+  final String? codec;
+  final bool isDefault;
+
+  const PlayerEmbeddedSubtitle({
+    required this.index,
+    required this.title,
+    this.language,
+    this.codec,
+    this.isDefault = false,
+  });
+}
