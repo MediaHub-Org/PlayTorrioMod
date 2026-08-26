@@ -18,6 +18,8 @@ abstract final class PlaybackCoordinator {
   static VoidCallback? _onExpand;
   static VoidCallback? _onOpenArtist;
   static ValueChanged<Duration>? _onSeek;
+  static bool Function()? _isLiked;
+  static VoidCallback? _onToggleLike;
   static String? _title;
   static String? _subtitle;
   static String? _coverUrl;
@@ -43,6 +45,9 @@ abstract final class PlaybackCoordinator {
   /// not just pause. Falls back to [onStop] if not provided.
   /// [onTogglePlayPause] lets the universal play bar toggle this source.
   /// [onOpenArtist] lets the play bar's artist label open the artist view.
+  /// [isLiked]/[onToggleLike] let the play bar show and toggle a like
+  /// button for this source (music tracks only — leave both null for
+  /// video/audiobook/podcast sources, which have no like concept).
   static void activate(
     String sourceId,
     VoidCallback onStop, {
@@ -55,6 +60,8 @@ abstract final class PlaybackCoordinator {
     VoidCallback? onOpenArtist,
     ValueChanged<Duration>? onSeek,
     VoidCallback? onFullStop,
+    bool Function()? isLiked,
+    VoidCallback? onToggleLike,
   }) {
     if (_activeSourceId == sourceId) return;
     // Stop whatever was playing before.
@@ -70,6 +77,8 @@ abstract final class PlaybackCoordinator {
     _onExpand = onExpand;
     _onOpenArtist = onOpenArtist;
     _onSeek = onSeek;
+    _isLiked = isLiked;
+    _onToggleLike = onToggleLike;
     _position = Duration.zero;
     _duration = Duration.zero;
     _isPlaying = true;
@@ -91,6 +100,8 @@ abstract final class PlaybackCoordinator {
       _onExpand = null;
       _onOpenArtist = null;
       _onSeek = null;
+      _isLiked = null;
+      _onToggleLike = null;
       _position = Duration.zero;
       _duration = Duration.zero;
       _isPlaying = false;
@@ -118,6 +129,8 @@ abstract final class PlaybackCoordinator {
     _onExpand = null;
     _onOpenArtist = null;
     _onSeek = null;
+    _isLiked = null;
+    _onToggleLike = null;
     _position = Duration.zero;
     _duration = Duration.zero;
     _isPlaying = false;
@@ -158,6 +171,19 @@ abstract final class PlaybackCoordinator {
   /// Opens the artist for the active source (music tracks only).
   static void openArtist() => _onOpenArtist?.call();
 
+  /// Whether the active source supports liking (music tracks only).
+  static bool get canLike => _isLiked != null;
+
+  /// Whether the active source is currently liked. False if [canLike] is
+  /// false.
+  static bool get isLiked => _isLiked?.call() ?? false;
+
+  /// Toggles the active source's liked state via the universal play bar.
+  static void toggleLike() {
+    _onToggleLike?.call();
+    revision.value++;
+  }
+
   /// Dismisses the play bar without stopping playback (hides the bar only).
   static void dismiss() {
     _activeSourceId = null;
@@ -171,6 +197,8 @@ abstract final class PlaybackCoordinator {
     _onExpand = null;
     _onOpenArtist = null;
     _onSeek = null;
+    _isLiked = null;
+    _onToggleLike = null;
     _position = Duration.zero;
     _duration = Duration.zero;
     _isPlaying = false;

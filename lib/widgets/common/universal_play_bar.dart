@@ -121,6 +121,21 @@ class UniversalPlayBar extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
               ],
+              // Like (music tracks only)
+              if (PlaybackCoordinator.canLike)
+                IconButton(
+                  tooltip: PlaybackCoordinator.isLiked ? 'Unlike' : 'Like',
+                  icon: Icon(
+                    PlaybackCoordinator.isLiked
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    color: PlaybackCoordinator.isLiked
+                        ? const Color(0xFF7C5CFF)
+                        : Colors.white54,
+                    size: 20,
+                  ),
+                  onPressed: PlaybackCoordinator.toggleLike,
+                ),
               // Play / Pause
               IconButton(
                 icon: Icon(
