@@ -10,6 +10,7 @@ import './services/addon/addon_manager.dart';
 import './services/app_theme_service.dart';
 import './services/app_updater_service.dart';
 import './services/audiobook/audiobook_library_service.dart';
+import './services/backup/cloud_backup_settings.dart';
 import './services/download/download_service.dart';
 import './services/continue_watching/continue_watching_service.dart';
 import './services/glass_settings.dart';
@@ -69,6 +70,7 @@ void main() async {
     AudiobookLibraryService.instance.init(),
     AppThemeService.initialize(),
     AudiobookSettings.initialize(),
+    CloudBackupSettings.initialize(),
     ContinueWatchingService.initialize(),
     GlassSettings.initialize(),
     IptvController.instance.init(),
