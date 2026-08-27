@@ -17,9 +17,7 @@ import 'package:playtorrio/services/subtitles/subtitle_service.dart';
 import 'package:playtorrio/services/subtitles/subtitle_parser.dart';
 import 'package:playtorrio/services/subtitles/subtitle_sync_helper.dart';
 
-import '../../models/playback/playback_history_item.dart';
 import '../../models/stream/stream_model.dart';
-import '../../services/playback/playback_history_service.dart';
 import '../../services/playback_coordinator.dart';
 import '../../services/player_settings.dart';
 import '../../services/stream/torrent_stream_service.dart';
@@ -437,11 +435,11 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       // Resume from history if previously watched
       if (widget.detail != null) {
-        final historyItem = PlaybackHistoryService.getProgress(
+        final historyItem = ContinueWatchingService.getHistoryProgress(
           widget.episode?.id ?? widget.detail!.id,
         );
-        if (historyItem != null && historyItem.position.inSeconds > 10) {
-          await _controller!.seekTo(historyItem.position);
+        if (historyItem != null && historyItem.positionSeconds > 10) {
+          await _controller!.seekTo(Duration(seconds: historyItem.positionSeconds));
         }
       }
 
@@ -535,27 +533,6 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
     }
 
-    if (widget.detail != null) {
-      final pos = _controller!.value.position;
-      final dur = _controller!.value.duration;
-      if (dur.inSeconds > 0 && pos.inSeconds % 5 == 0) {
-        final itemId = widget.episode?.id ?? widget.detail!.id;
-        final historyItem = PlaybackHistoryItem(
-          id: itemId,
-          title: widget.detail!.name,
-          poster: widget.detail!.poster,
-          backdrop: widget.backdropUrl,
-          type: widget.detail!.type,
-          episodeTitle: widget.episode?.title,
-          seasonNumber: widget.episode?.season,
-          episodeNumber: widget.episode?.episode,
-          position: pos,
-          duration: dur,
-          lastWatched: DateTime.now(),
-        );
-        PlaybackHistoryService.saveProgress(historyItem);
-      }
-    }
   }
 
   /// Shows a countdown dialog near the end of an episode offering to play the

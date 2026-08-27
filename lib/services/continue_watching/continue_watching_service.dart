@@ -24,8 +24,17 @@ import '../simkl/simkl_continue_watching_service.dart';
 
 class ContinueWatchingService {
   static const _storageKey = 'continue_watching_sessions_v1';
+  static const _historyStorageKey = 'continue_watching_history_v1';
+  static const int _maxHistoryItems = 100;
 
   static final ValueNotifier<List<ContinueWatchingItem>> activeItems =
+      ValueNotifier<List<ContinueWatchingItem>>([]);
+
+  /// Every saved session, keyed per-episode (not deduped per-show) and never
+  /// purged when finished -- a full watch log, unlike [activeItems] which is
+  /// "pick up where you left off" only. Powers the Watch hub Library's
+  /// History tab.
+  static final ValueNotifier<List<ContinueWatchingItem>> historyItems =
       ValueNotifier<List<ContinueWatchingItem>>([]);
 
   static Future<void> initialize() async {
@@ -58,12 +67,74 @@ class ContinueWatchingService {
         items.sort((a, b) => b.lastWatchedAt.compareTo(a.lastWatchedAt));
         activeItems.value = items;
       }
+
+      final rawHistoryJson = prefs.getString(_historyStorageKey);
+      if (rawHistoryJson != null && rawHistoryJson.isNotEmpty) {
+        final list = jsonDecode(rawHistoryJson) as List<dynamic>;
+        final items = list
+            .whereType<Map<String, dynamic>>()
+            .map((j) => ContinueWatchingItem.fromJson(j))
+            .toList();
+        items.sort((a, b) => b.lastWatchedAt.compareTo(a.lastWatchedAt));
+        historyItems.value = items;
+      }
     } catch (e) {
       debugPrint('[ContinueWatchingService] Failed to load sessions: $e');
     }
 
     // Sync cloud items in background
     syncCloudSessions();
+  }
+
+  /// Unique per-episode key for the full history log (as opposed to
+  /// [ContinueWatchingItem.sessionKey], which is per-show).
+  static String _historyKeyOf(ContinueWatchingItem item) => item.episodeId ?? item.id;
+
+  static Future<void> _saveHistoryItem(ContinueWatchingItem item) async {
+    if (item.positionSeconds < 5) return;
+    final current = List<ContinueWatchingItem>.from(historyItems.value);
+    current.removeWhere((i) => _historyKeyOf(i) == _historyKeyOf(item));
+    current.insert(0, item);
+    current.sort((a, b) => b.lastWatchedAt.compareTo(a.lastWatchedAt));
+    final trimmed = current.take(_maxHistoryItems).toList();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      historyItems.value = trimmed;
+    });
+    WidgetsBinding.instance.scheduleFrame();
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonList = trimmed.map((e) => e.toJson()).toList();
+      await prefs.setString(_historyStorageKey, jsonEncode(jsonList));
+    } catch (e) {
+      debugPrint('[ContinueWatchingService] Failed to persist history: $e');
+    }
+  }
+
+  /// Looks up a saved position by the same per-episode key [_saveHistoryItem]
+  /// stores under -- used to resume playback when opening the player from
+  /// any entry point other than the Continue Watching row.
+  static ContinueWatchingItem? getHistoryProgress(String itemId) {
+    for (final item in historyItems.value) {
+      if (_historyKeyOf(item) == itemId) return item;
+    }
+    return null;
+  }
+
+  /// Removes a single entry from the History tab log (does not affect
+  /// [activeItems]/the Home page's Continue Watching row).
+  static Future<void> removeHistoryItem(ContinueWatchingItem item) async {
+    final current = List<ContinueWatchingItem>.from(historyItems.value);
+    current.removeWhere((i) => _historyKeyOf(i) == _historyKeyOf(item));
+    historyItems.value = current;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonList = current.map((e) => e.toJson()).toList();
+      await prefs.setString(_historyStorageKey, jsonEncode(jsonList));
+    } catch (e) {
+      debugPrint('[ContinueWatchingService] Failed to remove history item: $e');
+    }
   }
 
   /// Syncs continue watching entries from Trakt and Simkl
@@ -198,6 +269,7 @@ class ContinueWatchingService {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         activeItems.value = merged;
       });
+      WidgetsBinding.instance.scheduleFrame();
     } catch (e) {
       debugPrint('[ContinueWatchingService] Cloud sync error: $e');
     }
@@ -279,10 +351,14 @@ class ContinueWatchingService {
     // Limit to max 50 stored sessions
     final trimmed = current.take(50).toList();
 
-    // Schedule notification safely after current frame
+    // Schedule notification safely after current frame. scheduleFrame() is
+    // required alongside addPostFrameCallback -- the callback only runs when
+    // a frame actually happens, and nothing guarantees one is already
+    // pending at this point (e.g. a static screen with no other rebuilds).
     WidgetsBinding.instance.addPostFrameCallback((_) {
       activeItems.value = trimmed;
     });
+    WidgetsBinding.instance.scheduleFrame();
 
     // Persist to SharedPreferences
     try {
@@ -292,6 +368,11 @@ class ContinueWatchingService {
     } catch (e) {
       debugPrint('[ContinueWatchingService] Failed to persist session: $e');
     }
+
+    // Full history log: every episode/movie, never purged when finished --
+    // unlike activeItems above, which is deduped per-show and drops
+    // finished items.
+    _saveHistoryItem(newItem);
 
     // Push cloud scrobble / history to Trakt and Simkl
     _syncCloudPlayback(
@@ -393,6 +474,7 @@ class ContinueWatchingService {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       activeItems.value = current;
     });
+    WidgetsBinding.instance.scheduleFrame();
 
     try {
       final prefs = await SharedPreferences.getInstance();

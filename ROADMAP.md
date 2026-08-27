@@ -29,6 +29,18 @@ the OS kill the process while the proxy's HTTP server is still bound. Verified v
 confirming no dialog appears needs a human — no agent here can interact with a
 live window.
 
+**Implemented, awaiting manual confirmation — `ContinueWatchingService`/
+`PlaybackHistoryService` merge** (see CHANGELOG). Investigated first (three
+real behavioral differences found, not simple duplication), then merged with
+the user's go-ahead: `ContinueWatchingService` now carries a second
+`historyItems` log (per-episode, never purged) alongside the existing
+per-show `activeItems`, and `PlaybackHistoryService` is deleted entirely.
+Also fixed a real latent bug found while merging — every
+`addPostFrameCallback` write in that file needed an explicit `scheduleFrame()`
+it wasn't getting, caught by the new `continue_watching_service_test.dart`.
+`flutter analyze`/`flutter test` pass, but resume across movie/series/anime/
+torrent paths on a live device hasn't been confirmed yet.
+
 **Closed, unreproducible — mobile section chips overlapping the page search icon
 at narrow widths.** Retested 2026-08-27 by actually running the Windows build at a
 resized 390px phone-width window (screenshots via `PrintWindow`, live-driven) across
@@ -50,12 +62,11 @@ Everything below is what's left after that audit.
 | # | Task | Notes |
 |---|---|---|
 | 1 | **QA pass on all 5 platforms** (mobile, tablet, desktop, TV) | Verify no regressions; TV needs a dedicated D-pad/remote-input pass. Most of this work has only been verified on Windows desktop — blocks real confidence in everything else here. |
-| 2 | **Merge `ContinueWatchingService`/`PlaybackHistoryService`'s duplicate write** | Investigated 2026-08-27 (see CHANGELOG) — not simple duplication, kept separate for now. Both save on the same 5-second timer in `player_screen.dart`, a real duplicate write, but the two stores differ in three real ways (90%-completion purge, per-show vs. per-episode dedup, and `PlaybackHistoryService.getProgress` being the only resume fallback for entry points other than the Continue Watching row) that a merge would need to preserve correctly. **Blocked** on live-device playback testing across movie/series/anime/torrent resume paths to verify a merge doesn't regress any of the three. |
-| 3 | **Cast & direction with images** | Movies/Series and Anime (via AniList's `staff` field) both have cast+director photos now (see CHANGELOG). Manga (weebcentral.com, plain HTML, text-only author) and Audiobooks (`Audiobook` model has no author/narrator field) remain **blocked** on source data — fuzzy-matching manga titles against AniList's staff risks attaching the wrong photo. |
-| 4 | **Migrate the remaining 52 ad-hoc breakpoint checks onto `AppBreakpoints`** | `TopBar`/`SectionTopBar`'s token migration is done (see CHANGELOG). 52 files still do ad-hoc `MediaQuery.sizeOf(context).width` checks instead of `AppBreakpoints.of(context)`. Low-value to batch (52 independent call sites, no shared risk) — better done opportunistically as each file is next touched for another reason. |
-| 5 | **Unified hub + submenu navigation component** | No concrete problem yet — `TopBar` and `SectionTopBar` already sit stacked and read as one unit; no report has flagged this as confusing. Real trigger to watch for: mobile spends 88px of vertical chrome on two stacked 44px bars — a collapsed per-hub dropdown could reclaim that. Build only if that becomes a real complaint. |
-| 6 | **Filters for Audiobooks** | Movies/Series/Anime/Music all have real genre filters now (see CHANGELOG — Music's came from previously-unused Deezer API calls already in the codebase, no new source needed). Audiobooks has no genre/category concept and no clean path to one without the same title-matching risk flagged for manga in #3. **Blocked** on data. |
-| 7 | **Read hub: Comics data source** | Both prior scrape targets are dead: `rcostation.xyz` (DNS gone) and `readcomicsonline.ru` (HTTP 403 on every endpoint even with a matching User-Agent — verified via curl 2026-08-24/25). Need a working source — an alternate scrape target, or a Stremio-style comics addon (matches how Movies/Series/Manga already work). `ComicsPage` stays a placeholder until then. **Blocked** on a source; will also need the Books/Podcasts favorites treatment (see CHANGELOG) once unblocked. |
+| 2 | **Cast & direction with images** | Movies/Series and Anime (via AniList's `staff` field) both have cast+director photos now (see CHANGELOG). Manga (weebcentral.com, plain HTML, text-only author) and Audiobooks (`Audiobook` model has no author/narrator field) remain **blocked** on source data — fuzzy-matching manga titles against AniList's staff risks attaching the wrong photo. |
+| 3 | **Migrate the remaining 52 ad-hoc breakpoint checks onto `AppBreakpoints`** | `TopBar`/`SectionTopBar`'s token migration is done (see CHANGELOG). 52 files still do ad-hoc `MediaQuery.sizeOf(context).width` checks instead of `AppBreakpoints.of(context)`. Low-value to batch (52 independent call sites, no shared risk) — better done opportunistically as each file is next touched for another reason. |
+| 4 | **Unified hub + submenu navigation component** | No concrete problem yet — `TopBar` and `SectionTopBar` already sit stacked and read as one unit; no report has flagged this as confusing, and it doesn't personally bother the maintainer either (asked 2026-08-27). Real trigger to watch for: mobile spends 88px of vertical chrome on two stacked 44px bars — a collapsed per-hub dropdown could reclaim that. Build only if that becomes a real complaint. |
+| 5 | **Filters for Audiobooks** | Movies/Series/Anime/Music all have real genre filters now (see CHANGELOG — Music's came from previously-unused Deezer API calls already in the codebase, no new source needed). Audiobooks has no genre/category concept and no clean path to one without the same title-matching risk flagged for manga in #2. **Blocked** on data. |
+| 6 | **Read hub: Comics data source** | Both prior scrape targets are dead: `rcostation.xyz` (DNS gone) and `readcomicsonline.ru` (HTTP 403 on every endpoint even with a matching User-Agent — verified via curl 2026-08-24/25). Need a working source — an alternate scrape target, or a Stremio-style comics addon (matches how Movies/Series/Manga already work). `ComicsPage` stays a placeholder until then. **Blocked** on a source; will also need the Books/Podcasts favorites treatment (see CHANGELOG) once unblocked. |
 
 > **Declined/dropped ideas** (kept short so they don't get re-litigated): mobile
 > hub switching via a drawer — `TopBar`+`SectionTopBar` already cover every width

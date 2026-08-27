@@ -2,14 +2,14 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/anime/anime_media.dart';
+import '../../models/continue_watching/continue_watching_item.dart';
 import '../../models/download/download_task_model.dart';
 import '../../models/movie/movie.dart';
 import '../../models/my_list/my_list_item.dart';
-import '../../models/playback/playback_history_item.dart';
 import '../../services/anime/anime_library_service.dart';
+import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/download/download_service.dart';
 import '../../services/my_list/my_list_service.dart';
-import '../../services/playback/playback_history_service.dart';
 import '../../utils/route_transitions.dart';
 import '../../widgets/anime/anime_card.dart';
 import '../../widgets/common/library_tabs.dart';
@@ -313,8 +313,8 @@ class _CollectionPageState extends State<CollectionPage> {
   }
 
   Widget _buildHistoryTab() {
-    return ValueListenableBuilder<List<PlaybackHistoryItem>>(
-      valueListenable: PlaybackHistoryService.history,
+    return ValueListenableBuilder<List<ContinueWatchingItem>>(
+      valueListenable: ContinueWatchingService.historyItems,
       builder: (context, historyItems, _) {
         if (historyItems.isEmpty) {
           return LibraryEmptyState(
@@ -330,7 +330,7 @@ class _CollectionPageState extends State<CollectionPage> {
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final item = historyItems[index];
-            final progressPercent = (item.progressPercentage * 100).toInt();
+            final progressPercent = (item.progressPercent * 100).toInt();
 
             return Container(
               padding: const EdgeInsets.all(12),
@@ -343,9 +343,9 @@ class _CollectionPageState extends State<CollectionPage> {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(8),
-                    child: item.poster != null
+                    child: item.posterUrl != null
                         ? CachedNetworkImage(
-                            imageUrl: item.poster!,
+                            imageUrl: item.posterUrl!,
                             width: 50,
                             height: 75,
                             fit: BoxFit.cover,
@@ -377,7 +377,7 @@ class _CollectionPageState extends State<CollectionPage> {
                         if (item.episodeTitle != null) ...[
                           const SizedBox(height: 2),
                           Text(
-                            'S${item.seasonNumber ?? 1} E${item.episodeNumber ?? 1} • ${item.episodeTitle!}',
+                            'S${item.season ?? 1} E${item.episode ?? 1} • ${item.episodeTitle!}',
                             style: const TextStyle(color: Colors.white54, fontSize: 12),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -385,7 +385,7 @@ class _CollectionPageState extends State<CollectionPage> {
                         ],
                         const SizedBox(height: 8),
                         LinearProgressIndicator(
-                          value: item.progressPercentage,
+                          value: item.progressPercent,
                           backgroundColor: Colors.white10,
                           valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
                           borderRadius: BorderRadius.circular(4),
@@ -400,7 +400,7 @@ class _CollectionPageState extends State<CollectionPage> {
                   ),
                   IconButton(
                     icon: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
-                    onPressed: () => PlaybackHistoryService.removeProgress(item.id),
+                    onPressed: () => ContinueWatchingService.removeHistoryItem(item),
                   ),
                 ],
               ),

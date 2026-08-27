@@ -21,7 +21,6 @@ import './services/manga/manga_settings.dart';
 import './services/music/music_settings.dart';
 import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
-import './services/playback/playback_history_service.dart';
 import './services/player_settings.dart';
 import './services/tmdb/tmdb_settings.dart';
 import './services/stream/local_stream_proxy.dart';
@@ -79,7 +78,6 @@ void main() async {
     MusicSettings.initialize(),
     QobuzMusicService.instance.initialize(),
     MyListService.initialize(),
-    PlaybackHistoryService.initialize(),
     PlayerSettings.initialize(),
     TmdbSettings.initialize(),
     LocalStreamProxy.instance.start(),
