@@ -1,16 +1,22 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../models/audiobook/audiobook_model.dart';
 import '../../models/manga/manga.dart';
-import '../../models/playback/playback_history_item.dart';
+import '../../models/manga/manga_chapter.dart';
 import '../../services/audiobook/audiobook_library_service.dart';
+import '../../services/audiobook/audiobook_player_controller.dart';
+import '../../services/audiobook/audiobook_progress_service.dart';
+import '../../services/books/book_progress_service.dart';
 import '../../services/manga/manga_service.dart';
-import '../../services/playback/playback_history_service.dart';
 import '../../widgets/common/library_tabs.dart';
 import '../../widgets/manga/manga_card.dart';
 import '../audiobooks/audiobook_detail_page.dart';
 import '../audiobooks/audiobook_route_transitions.dart';
 import '../manga/manga_details_page.dart';
+import '../manga/manga_reader_page.dart';
+import '../read/book_reader_page.dart';
 import '../../utils/route_transitions.dart';
 
 /// The Books hub's Library: shows the user's liked manga, liked audiobooks,
@@ -27,11 +33,15 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
   List<Manga> _likedManga = [];
   bool _loadingManga = true;
 
+  List<_HistoryEntry> _historyEntries = [];
+  bool _loadingHistory = true;
+
   @override
   void initState() {
     super.initState();
     AudiobookLibraryService.instance.init();
     _loadLikedManga();
+    _loadHistory();
   }
 
   Future<void> _loadLikedManga() async {
@@ -42,6 +52,148 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
         _loadingManga = false;
       });
     }
+  }
+
+  Future<void> _loadHistory() async {
+    final results = await Future.wait([
+      AudiobookProgressService.instance.getAllProgress(),
+      BookProgressService.instance.loadAll(),
+      _mangaService.getReadingHistory(),
+    ]);
+    final audiobooks = results[0] as List<AudiobookProgress>;
+    final books = results[1] as List<BookProgress>;
+    final manga = results[2] as List<Map<String, dynamic>>;
+
+    final entries = <_HistoryEntry>[
+      for (final p in audiobooks) _historyEntryFromAudiobook(p),
+      for (final b in books) _historyEntryFromBook(b),
+      for (final m in manga) _historyEntryFromManga(m),
+    ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+
+    if (mounted) {
+      setState(() {
+        _historyEntries = entries;
+        _loadingHistory = false;
+      });
+    }
+  }
+
+  _HistoryEntry _historyEntryFromAudiobook(AudiobookProgress p) {
+    final percent = p.durationMs > 0 ? p.positionMs / p.durationMs : null;
+    return _HistoryEntry(
+      title: p.audiobook.title,
+      coverUrl: p.audiobook.coverImage.isNotEmpty ? p.audiobook.coverImage : null,
+      fallbackIcon: Icons.headphones_rounded,
+      subtitle: percent != null ? '${(percent * 100).toInt()}% listened' : 'Listening',
+      progress: percent,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(p.lastListenedTimestamp),
+      onTap: () {
+        AudiobookPlayerController.instance.play(
+          p.audiobook,
+          p.chapters,
+          chapterIndex: p.chapterIndex,
+          initialPosition: Duration(milliseconds: p.positionMs),
+        );
+      },
+      onDelete: () async {
+        await AudiobookProgressService.instance.removeProgress(p.key);
+        _loadHistory();
+      },
+    );
+  }
+
+  _HistoryEntry _historyEntryFromBook(BookProgress p) {
+    return _HistoryEntry(
+      title: p.book.title,
+      coverUrl: null,
+      fallbackIcon: Icons.menu_book_rounded,
+      subtitle: 'Chapter ${p.chapter + 1}',
+      progress: null,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(p.lastReadTimestamp),
+      onTap: () async {
+        final file = File(p.filePath);
+        if (file.existsSync() && file.lengthSync() > 1000) {
+          await Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => BookReaderPage(
+                file: file,
+                title: p.book.title,
+                bookResult: p.book,
+                initialChapter: p.chapter,
+              ),
+            ),
+          );
+          _loadHistory();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('File no longer available — redownload from Books.')),
+          );
+        }
+      },
+      onDelete: () async {
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF0F121C),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Delete Book', style: TextStyle(color: Colors.white)),
+            content: Text(
+              'Delete "${p.book.title}" and its reading progress?',
+              style: const TextStyle(color: Colors.white70),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true) {
+          await BookProgressService.instance.delete(p.book.editionId);
+          _loadHistory();
+        }
+      },
+    );
+  }
+
+  _HistoryEntry _historyEntryFromManga(Map<String, dynamic> entry) {
+    final manga = Manga.fromJson(entry['manga']);
+    final chapterIndex = entry['chapterIndex'] as int;
+    final pageIndex = entry['pageIndex'] as int;
+    final chapters = (entry['chapters'] as List).map((c) => MangaChapter.fromJson(c)).toList();
+    final percent = chapters.isNotEmpty ? (chapterIndex + 1) / chapters.length : null;
+    return _HistoryEntry(
+      title: manga.title,
+      coverUrl: manga.coverSmall.isNotEmpty ? manga.coverSmall : null,
+      fallbackIcon: Icons.auto_stories_rounded,
+      subtitle: chapters.isNotEmpty
+          ? 'Chapter ${chapterIndex + 1} of ${chapters.length}'
+          : 'Chapter ${chapterIndex + 1}',
+      progress: percent,
+      timestamp: DateTime.tryParse(entry['timestamp']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0),
+      onTap: () {
+        Navigator.of(context).push(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) => MangaReaderPage(
+              manga: manga,
+              chapters: chapters,
+              currentChapterIndex: chapterIndex,
+              resumePageIndex: pageIndex,
+            ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(opacity: animation, child: child);
+            },
+          ),
+        );
+      },
+      onDelete: () async {
+        await _mangaService.removeHistory(manga.id);
+        _loadHistory();
+      },
+    );
   }
 
   void _openManga(Manga manga) {
@@ -60,7 +212,7 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
 
   @override
   Widget build(BuildContext context) {
-    if (_loadingManga) {
+    if (_loadingManga || _loadingHistory) {
       return const Center(
         child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
       );
@@ -139,98 +291,113 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
   }
 
   Widget _buildHistoryTab() {
-    return ValueListenableBuilder<List<PlaybackHistoryItem>>(
-      valueListenable: PlaybackHistoryService.history,
-      builder: (context, history, _) {
-        if (history.isEmpty) {
-          return const LibraryEmptyState(
-            icon: Icons.history_rounded,
-            title: 'No playback history',
-            subtitle: 'Audiobooks you listen to will appear here.',
-          );
-        }
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          itemCount: history.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final item = history[index];
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF12151E),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: item.poster != null
-                        ? Image.network(
-                            item.poster!,
-                            width: 50,
-                            height: 75,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 50,
-                              height: 75,
-                              color: Colors.white10,
-                              child: const Icon(Icons.headphones_rounded,
-                                  color: Colors.white30),
-                            ),
-                          )
-                        : Container(
+    if (_historyEntries.isEmpty) {
+      return const LibraryEmptyState(
+        icon: Icons.history_rounded,
+        title: 'No reading history',
+        subtitle: 'Audiobooks, books, and manga you\'re partway through will appear here.',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      itemCount: _historyEntries.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final entry = _historyEntries[index];
+        return GestureDetector(
+          onTap: entry.onTap,
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF12151E),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: entry.coverUrl != null
+                      ? Image.network(
+                          entry.coverUrl!,
+                          width: 50,
+                          height: 75,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
                             width: 50,
                             height: 75,
                             color: Colors.white10,
-                            child: const Icon(Icons.headphones_rounded,
-                                color: Colors.white30),
+                            child: Icon(entry.fallbackIcon, color: Colors.white30),
                           ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 15),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        )
+                      : Container(
+                          width: 50,
+                          height: 75,
+                          color: Colors.white10,
+                          child: Icon(entry.fallbackIcon, color: Colors.white30),
                         ),
-                        const SizedBox(height: 8),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        entry.title,
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      if (entry.progress != null) ...[
                         LinearProgressIndicator(
-                          value: item.progressPercentage,
+                          value: entry.progress!.clamp(0.0, 1.0),
                           backgroundColor: Colors.white10,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                              Color(0xFF7C5CFF)),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         const SizedBox(height: 4),
-                        Text(
-                          '${(item.progressPercentage * 100).toInt()}% completed',
-                          style: const TextStyle(
-                              color: Colors.white38, fontSize: 11),
-                        ),
                       ],
-                    ),
+                      Text(
+                        entry.subtitle,
+                        style: const TextStyle(color: Colors.white38, fontSize: 11),
+                      ),
+                    ],
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded,
-                        color: Colors.white38, size: 20),
-                    onPressed: () =>
-                        PlaybackHistoryService.removeProgress(item.id),
-                  ),
-                ],
-              ),
-            );
-          },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
+                  onPressed: entry.onDelete,
+                ),
+              ],
+            ),
+          ),
         );
       },
     );
   }
+}
+
+class _HistoryEntry {
+  final String title;
+  final String? coverUrl;
+  final IconData fallbackIcon;
+  final String subtitle;
+  final double? progress;
+  final DateTime timestamp;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+
+  const _HistoryEntry({
+    required this.title,
+    required this.coverUrl,
+    required this.fallbackIcon,
+    required this.subtitle,
+    required this.progress,
+    required this.timestamp,
+    required this.onTap,
+    required this.onDelete,
+  });
 }
 
 class _LikedAudiobookCard extends StatelessWidget {
