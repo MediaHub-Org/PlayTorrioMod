@@ -64,7 +64,6 @@ class HubController extends ChangeNotifier {
           HubSection(id: 'movies', label: 'Movies', icon: Icons.movie_rounded),
           HubSection(id: 'series', label: 'Series', icon: Icons.live_tv_rounded),
           HubSection(id: 'anime', label: 'Anime', icon: Icons.animation_rounded),
-          HubSection(id: 'genres', label: 'Genres', icon: Icons.category_rounded),
           HubSection(id: 'iptv', label: 'Live TV', icon: Icons.live_tv_rounded),
           HubSection(id: 'collection', label: 'Library', icon: Icons.video_library_rounded),
         ];
@@ -79,7 +78,6 @@ class HubController extends ChangeNotifier {
       case AppHub.music:
         return const [
           HubSection(id: 'Music', label: 'Music', icon: Icons.music_note_rounded),
-          HubSection(id: 'Genres', label: 'Genres', icon: Icons.category_rounded),
           HubSection(id: 'Radio', label: 'Radio', icon: Icons.radio_rounded),
           HubSection(id: 'Podcasts', label: 'Podcasts', icon: Icons.podcasts_rounded),
           HubSection(id: 'Library', label: 'Library', icon: Icons.library_music_rounded),

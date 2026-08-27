@@ -6,7 +6,6 @@ import '../../utils/search_scope.dart';
 import '../anime/anime_page.dart';
 import '../collection/collection_page.dart';
 import '../catalog/type_catalog_page.dart';
-import '../catalog/genres_page.dart';
 import '../iptv/iptv_page.dart';
 
 /// Media hub: Movies, Series, Anime, and the user's media collection.
@@ -35,9 +34,6 @@ class MediaHub extends StatelessWidget {
       case 'anime':
         SearchScope.set('anime', label: 'Anime');
         return const AnimePage();
-      case 'genres':
-        SearchScope.set(null, label: 'Genres');
-        return const GenresPage();
       case 'iptv':
         SearchScope.set('iptv', label: 'Live TV');
         return const IptvPage();

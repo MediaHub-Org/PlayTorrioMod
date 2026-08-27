@@ -35,6 +35,11 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
   _CatalogSort _sort = _CatalogSort.titleAsc;
   int? _decadeFilter;
 
+  List<String> _availableGenres = [];
+  String? _genreFilter;
+  List<Movie> _genreItems = [];
+  bool _loadingGenre = false;
+
   static int? _decadeOf(Movie m) {
     final match = RegExp(r'\d{4}').firstMatch(m.year ?? '');
     if (match == null) return null;
@@ -42,9 +47,10 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
   }
 
   List<Movie> get _visibleItems {
+    final base = _genreFilter == null ? _items : _genreItems;
     var items = _decadeFilter == null
-        ? _items
-        : _items.where((m) => _decadeOf(m) == _decadeFilter).toList();
+        ? base
+        : base.where((m) => _decadeOf(m) == _decadeFilter).toList();
     items = List.of(items);
     switch (_sort) {
       case _CatalogSort.titleAsc:
@@ -90,9 +96,25 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
           if (seen.add(key)) items.add(typed);
         }
       }
+      final genres = <String>{};
+      for (final addon in _manager.activeAddons) {
+        for (final catalog in addon.manifest.catalogs) {
+          if (catalog.type != widget.type) continue;
+          genres.addAll(catalog.genres);
+        }
+      }
+      final filteredGenres = genres.where((g) {
+        final trimmed = g.trim();
+        if (trimmed.isEmpty) return false;
+        if (RegExp(r'^\d{4}$').hasMatch(trimmed)) return false;
+        return true;
+      }).toList()
+        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+
       if (!mounted) return;
       setState(() {
         _items = items;
+        _availableGenres = filteredGenres;
         _loading = false;
       });
     } catch (e) {
@@ -101,6 +123,48 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
         _error = e.toString();
         _loading = false;
       });
+    }
+  }
+
+  Future<void> _selectGenreFilter(String? genre) async {
+    if (genre == null) {
+      setState(() {
+        _genreFilter = null;
+        _genreItems = [];
+      });
+      return;
+    }
+    setState(() {
+      _genreFilter = genre;
+      _loadingGenre = true;
+    });
+    try {
+      final sections = await _manager.fetchByGenre(genre);
+      final seen = <String>{};
+      final items = <Movie>[];
+      for (final section in sections) {
+        if (section.contentType != widget.type) continue;
+        for (final movie in section.movies) {
+          final typed = Movie(
+            id: movie.id,
+            name: movie.name,
+            poster: movie.poster,
+            year: movie.year,
+            type: widget.type,
+            addonBaseUrl: movie.addonBaseUrl,
+          );
+          final key = '${typed.type}:${typed.id}';
+          if (seen.add(key)) items.add(typed);
+        }
+      }
+      if (!mounted || _genreFilter != genre) return;
+      setState(() {
+        _genreItems = items;
+        _loadingGenre = false;
+      });
+    } catch (e) {
+      if (!mounted || _genreFilter != genre) return;
+      setState(() => _loadingGenre = false);
     }
   }
 
@@ -151,10 +215,33 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                     const PageSearchButton(),
                   ],
                 ),
-                if (decades.isNotEmpty) ...[
+                if (decades.isNotEmpty || _availableGenres.isNotEmpty) ...[
                   const SizedBox(height: 14),
                   Row(
                     children: [
+                      if (_availableGenres.isNotEmpty) ...[
+                        FilterDropdown<String?>(
+                          label: _genreFilter ?? 'All genres',
+                          icon: Icons.category_rounded,
+                          items: [
+                            const PopupMenuItem(value: null, child: Text('All genres')),
+                            for (final g in _availableGenres)
+                              PopupMenuItem(value: g, child: Text(g)),
+                          ],
+                          onSelected: _selectGenreFilter,
+                        ),
+                        const SizedBox(width: 10),
+                        if (_loadingGenre)
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Color(0xFF7C5CFF),
+                            ),
+                          ),
+                        const SizedBox(width: 10),
+                      ],
                       FilterDropdown<int?>(
                         label: _decadeFilter == null ? 'All decades' : '${_decadeFilter}s',
                         icon: Icons.calendar_today_rounded,
@@ -189,14 +276,16 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
             ),
           ),
         ),
-        if (visible.isEmpty)
+        if (visible.isEmpty && !_loadingGenre)
           SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
               child: Text(
                 _items.isEmpty
                     ? 'No content found. Install more addons in Settings.'
-                    : 'No titles in the ${_decadeFilter}s.',
+                    : _genreFilter != null
+                        ? 'No titles found for $_genreFilter.'
+                        : 'No titles in the ${_decadeFilter}s.',
                 style: const TextStyle(color: Colors.white54, fontSize: 16),
               ),
             ),

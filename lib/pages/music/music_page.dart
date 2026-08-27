@@ -41,7 +41,7 @@ class _MusicPageState extends State<MusicPage> {
   final FocusNode _searchFocusNode = FocusNode();
   final FocusNode _keyboardFocusNode = FocusNode();
 
-  String _activeTab = 'Music'; // 'Music', 'Search', 'Genres', 'Radio', 'Library'
+  String _activeTab = 'Music'; // 'Music', 'Search', 'Radio', 'Podcasts', 'Library'
 
   Map<String, List<MusicTrack>> _sections = {};
   List<MusicArtist> _trendingArtists = [];
@@ -862,12 +862,15 @@ class _MusicPageState extends State<MusicPage> {
       );
     }
 
+    if (_selectedBrowseGenre != null) {
+      return _buildGenreArtistsView(_selectedBrowseGenre!);
+    }
+
     if (_activeTab == 'Search' || _hasSearched || _searchController.text.isNotEmpty) {
       SearchScope.set('music', label: 'Music');
       return _buildSearchView();
     }
 
-    if (_activeTab == 'Genres') return _buildBrowseView();
     if (_activeTab == 'Radio') return _buildRadioView();
     if (_activeTab == 'Podcasts') {
       SearchScope.set(null, label: 'Podcasts');
@@ -925,6 +928,7 @@ class _MusicPageState extends State<MusicPage> {
               albums: _newReleases,
               onAlbumTap: (album) => _openAlbumModal(album.id),
             ),
+          if (_genres.isNotEmpty) _buildGenresRow(),
           if (_curatedPlaylists.isNotEmpty)
             _MusicPlaylistsRow(
               title: '🎧 Curated Charts & Mixes',
@@ -1251,100 +1255,74 @@ class _MusicPageState extends State<MusicPage> {
     });
   }
 
-  Widget _buildBrowseView() {
-    final genre = _selectedBrowseGenre;
-    if (genre != null) return _buildGenreArtistsView(genre);
-
-    return ListView(
-      controller: _scrollController,
-      padding: const EdgeInsets.only(top: 80, left: 24, right: 24, bottom: 150),
-      children: [
-        const Text(
-          'Browse Genres',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 26,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.6,
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (_genres.isEmpty)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 24),
-            child: Center(
-              child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
-            ),
-          )
-        else
-          GridView.builder(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-              maxCrossAxisExtent: 220,
-              mainAxisSpacing: 16,
-              crossAxisSpacing: 16,
-              childAspectRatio: 1.6,
-            ),
-            itemCount: _genres.length,
-            itemBuilder: (context, index) {
-              final g = _genres[index];
-              return _MusicHoverable(
-                scaleFactor: 1.04,
-                child: GestureDetector(
-                  onTap: () => _selectGenre(g),
-                  child: PerformanceLiquidLens(
-                    style: PerformanceGlassStyles.menu,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(18),
-                      child: Stack(
-                        fit: StackFit.expand,
-                        children: [
-                          CachedNetworkImage(
-                            imageUrl: g.pictureUrl,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) =>
-                                Container(color: const Color(0xFF7C5CFF)),
+  Widget _buildGenresRow() {
+    return _MusicHorizontalScrollSection(
+      title: '🎵 Genres',
+      height: 130,
+      itemCount: _genres.length,
+      itemBuilder: (context, index) {
+        final g = _genres[index];
+        return Padding(
+          padding: const EdgeInsets.only(right: 12),
+          child: _MusicHoverable(
+            scaleFactor: 1.04,
+            child: GestureDetector(
+              onTap: () => _selectGenre(g),
+              child: PerformanceLiquidLens(
+                style: PerformanceGlassStyles.menu,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    width: 170,
+                    height: 130,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CachedNetworkImage(
+                          imageUrl: g.pictureUrl,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) =>
+                              Container(color: const Color(0xFF7C5CFF)),
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.black.withValues(alpha: 0.1),
+                                Colors.black.withValues(alpha: 0.75),
+                              ],
+                            ),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.15),
+                            ),
                           ),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                begin: Alignment.topCenter,
-                                end: Alignment.bottomCenter,
-                                colors: [
-                                  Colors.black.withValues(alpha: 0.1),
-                                  Colors.black.withValues(alpha: 0.75),
-                                ],
-                              ),
-                              border: Border.all(
-                                color: Colors.white.withValues(alpha: 0.15),
+                        ),
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Align(
+                            alignment: Alignment.bottomLeft,
+                            child: Text(
+                              g.name,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 15,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.3,
                               ),
                             ),
                           ),
-                          Padding(
-                            padding: const EdgeInsets.all(16),
-                            child: Align(
-                              alignment: Alignment.bottomLeft,
-                              child: Text(
-                                g.name,
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.w900,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
-              );
-            },
+              ),
+            ),
           ),
-      ],
+        );
+      },
     );
   }
 
