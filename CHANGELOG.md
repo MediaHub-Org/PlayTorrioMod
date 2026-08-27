@@ -4,6 +4,10 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Surface Anime's watchlist, delete its dead progress tracker (ROADMAP #2) — 2026-08-27
+- **`AnimeLibraryService.watchlist` had zero readers anywhere**: the only UI touching it was a status picker on the anime detail page (Watching/Plan to Watch/Completed) — setting a status was a write into a void. Added an Anime tab to the Watch hub's `CollectionPage`, reading `AnimeLibraryService.instance.watchlist`, rendered with the existing `AnimeCard`, routing to `AnimeDetailsPage` (not `DetailsPage`, which expects a `Movie`/`MovieDetail` shape anime doesn't have). Long-press to remove, matching the existing My List/Watchlist tabs' convention.
+- Deleted `AnimeLibraryService.updateProgress`/`_progressMap`/`recentHistory`/`getProgress`/`_saveHistory` — confirmed dead, anime resume already runs entirely through the shared `ContinueWatchingService`. Its one caller (`anime_stream_sheet.dart`, on every stream start) was writing placeholder values (`positionSeconds: 1, durationSeconds: 1440`) nothing ever read; removed along with the now-unused `_library` field.
+
 ### Fix Read hub Library History tab (ROADMAP #2) — 2026-08-27
 - **`BooksLibraryPage`'s History tab was reading the wrong data source**: it pulled from `PlaybackHistoryService`, written to only by the Watch hub's video player (`player_screen.dart`) — never by audiobook or book playback — so the tab was always empty despite being labeled "Audiobooks you listen to will appear here." Rewired to merge the three real, already-working progress sources: `AudiobookProgressService`, `BookProgressService`, and Manga's own continue-reading history, sorted by recency into one list. Resume reuses each subcategory's existing playback/reader entry point (`AudiobookPlayerController.play`, `BookReaderPage`, `MangaReaderPage`); a book whose downloaded file is missing shows a snackbar pointing back to Books instead of replicating the full re-download dialog.
 

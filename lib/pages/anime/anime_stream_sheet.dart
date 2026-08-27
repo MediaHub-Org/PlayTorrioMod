@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../models/anime/anime_media.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/anime/anime_scraper_service.dart';
-import '../../services/anime/anime_library_service.dart';
 import '../../utils/fullscreen_navigator.dart';
 import '../player/player_screen.dart';
 
@@ -31,7 +30,6 @@ class AnimeStreamSheet extends StatefulWidget {
 
 class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
   final AnimeScraperService _scraper = AnimeScraperService.instance;
-  final AnimeLibraryService _library = AnimeLibraryService.instance;
 
   final List<StreamSource> _allSources = [];
   String _selectedCategory = 'all'; // 'all', 'sub', 'dub'
@@ -115,13 +113,6 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
   }
 
   void _playSource(StreamSource source) {
-    _library.updateProgress(
-      anime: widget.anime,
-      episodeNumber: widget.episodeNumber,
-      positionSeconds: 1,
-      durationSeconds: 1440,
-    );
-
     final detail = AnimeScraperService.toMovieDetail(
       widget.anime,
       aniDbEpisodes: widget.aniDbEpisodes,

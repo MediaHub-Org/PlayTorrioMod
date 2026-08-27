@@ -1,15 +1,19 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import '../../models/anime/anime_media.dart';
 import '../../models/download/download_task_model.dart';
 import '../../models/movie/movie.dart';
 import '../../models/my_list/my_list_item.dart';
 import '../../models/playback/playback_history_item.dart';
+import '../../services/anime/anime_library_service.dart';
 import '../../services/download/download_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../services/playback/playback_history_service.dart';
 import '../../utils/route_transitions.dart';
+import '../../widgets/anime/anime_card.dart';
 import '../../widgets/common/library_tabs.dart';
+import '../anime/anime_details_page.dart';
 import '../details/details_page.dart';
 
 class CollectionPage extends StatefulWidget {
@@ -30,6 +34,12 @@ class _CollectionPageState extends State<CollectionPage> {
   String _filterType = 'all'; // 'all', 'movie', 'series', 'anime'
   String _sortBy = 'recent'; // 'recent', 'title', 'year'
   String _searchQuery = '';
+
+  @override
+  void initState() {
+    super.initState();
+    AnimeLibraryService.instance.init();
+  }
 
   @override
   void dispose() {
@@ -150,6 +160,11 @@ class _CollectionPageState extends State<CollectionPage> {
           builder: (context) => _buildWatchlistTab(),
         ),
         LibraryTab(
+          label: 'Anime',
+          icon: Icons.animation_rounded,
+          builder: (context) => _buildAnimeTab(),
+        ),
+        LibraryTab(
           label: 'History',
           icon: Icons.history_rounded,
           builder: (context) => _buildHistoryTab(),
@@ -218,6 +233,83 @@ class _CollectionPageState extends State<CollectionPage> {
         );
       },
     );
+  }
+
+  Widget _buildAnimeTab() {
+    return ListenableBuilder(
+      listenable: AnimeLibraryService.instance,
+      builder: (context, _) {
+        final items = AnimeLibraryService.instance.watchlist;
+        if (items.isEmpty) {
+          return const LibraryEmptyState(
+            icon: Icons.animation_rounded,
+            title: 'No anime in your watchlist',
+            subtitle: 'Set a watch status on an anime to see it here.',
+          );
+        }
+        return GridView.builder(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: _getCrossAxisCount(context),
+            childAspectRatio: 0.62,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 20,
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return GestureDetector(
+              onLongPress: () => _confirmRemoveAnime(item),
+              child: AnimeCard(
+                anime: item.anime,
+                onTap: () => Navigator.push(
+                  context,
+                  LiquidRevealRoute(
+                    page: AnimeDetailsPage(anime: item.anime),
+                    tapPosition: null,
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _confirmRemoveAnime(AnimeWatchlistItem item) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF151822),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Remove from Watchlist?',
+            style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
+        content: Text(
+          'Remove "${item.anime.displayTitle}" from your anime watchlist?',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFE50914),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Remove', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      AnimeLibraryService.instance.removeFromWatchlist(item.anime.id);
+    }
   }
 
   Widget _buildHistoryTab() {
