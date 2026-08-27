@@ -31,6 +31,23 @@ class AllDebridService {
     return key != null && key.isNotEmpty;
   }
 
+  Future<Map<String, dynamic>?> verifyKey(String key) async {
+    final trimmed = key.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      final res = await http.get(
+        Uri.parse('https://api.alldebrid.com/v4/user?agent=PlayTorrio&apikey=$trimmed'),
+      );
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        if (data['status'] == 'success') {
+          return data['data']?['user'] as Map<String, dynamic>?;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   void _flattenAdFiles(
     List<dynamic> nodes,
     String prefix,

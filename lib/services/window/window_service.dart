@@ -65,6 +65,9 @@ class WindowService with WindowListener {
     }
   }
 
+  /// Alias for toggleFullscreen
+  Future<void> toggleFullScreen() => toggleFullscreen();
+
   /// Forces exit from fullscreen (e.g. when leaving player screen).
   Future<void> exitFullscreen() async {
     if (!isDesktop) {

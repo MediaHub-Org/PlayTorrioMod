@@ -25,6 +25,7 @@ import '../search/search_page.dart';
 import '../settings/settings_page.dart';
 import '../settings/addons_settings_page.dart';
 import '../manga/manga_page.dart';
+import '../books/books_page.dart';
 import '../audiobooks/audiobooks_page.dart';
 import '../music/music_page.dart';
 import '../anime/anime_page.dart';
@@ -369,6 +370,19 @@ class _HomePageState extends State<HomePage> {
                     LiquidRevealRoute(
                       page: const MangaPage(),
                       tapPosition: null, // Reveals from center
+                    ),
+                  );
+                },
+              ),
+              DockItem(
+                icon: Icons.menu_book_rounded,
+                label: 'Books',
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    LiquidRevealRoute(
+                      page: const BooksPage(),
+                      tapPosition: null,
                     ),
                   );
                 },

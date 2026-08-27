@@ -31,6 +31,24 @@ class TorBoxService {
     return key != null && key.isNotEmpty;
   }
 
+  Future<Map<String, dynamic>?> verifyKey(String key) async {
+    final trimmed = key.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      final res = await http.get(
+        Uri.parse('https://api.torbox.app/v1/api/user/me'),
+        headers: {'Authorization': 'Bearer $trimmed'},
+      );
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        if (data['success'] == true) {
+          return data['data'] as Map<String, dynamic>?;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<List<DebridFile>> resolveMagnet(
     String magnet, {
     int? fileIndex,
