@@ -27,6 +27,8 @@ import '../../services/theme/dock_settings.dart';
 import '../../widgets/common/app_liquid_dock.dart';
 import '../../services/updater/app_updater_service.dart';
 import '../../widgets/updater/update_dialog.dart';
+import '../../services/p2p/p2p_settings_service.dart';
+import '../../widgets/p2p/p2p_warning_dialog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -64,19 +66,36 @@ class _HomePageState extends State<HomePage> {
     }
 
     _loadHome();
-    _checkAutoUpdate();
+    if (!_showIntro) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _runStartupDialogs();
+      });
+    }
   }
 
+  static bool _hasRunStartupDialogs = false;
   static bool _hasAutoCheckedUpdate = false;
+
+  Future<void> _runStartupDialogs() async {
+    if (_hasRunStartupDialogs || !mounted) return;
+    _hasRunStartupDialogs = true;
+
+    // 1. Check & show Update dialog first
+    await _checkAutoUpdate();
+    if (!mounted) return;
+
+    // 2. Check & show P2P warning dialog after update dialog
+    await _checkP2pWarning();
+  }
 
   Future<void> _checkAutoUpdate() async {
     if (_hasAutoCheckedUpdate) return;
+    _hasAutoCheckedUpdate = true;
     try {
       final updater = AppUpdaterService();
       final updateInfo = await updater.checkForUpdates();
       if (updateInfo != null && mounted) {
-        _hasAutoCheckedUpdate = true;
-        showDialog(
+        await showDialog(
           context: context,
           barrierDismissible: true,
           builder: (context) => UpdateDialog(updateInfo: updateInfo),
@@ -84,6 +103,21 @@ class _HomePageState extends State<HomePage> {
       }
     } catch (e) {
       debugPrint('[HomePage] Auto update check failed: $e');
+    }
+  }
+
+  Future<void> _checkP2pWarning() async {
+    try {
+      final shouldShow = await P2pSettingsService.shouldShowWarning();
+      if (shouldShow && mounted) {
+        await showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (context) => const P2pWarningDialog(),
+        );
+      }
+    } catch (e) {
+      debugPrint('[HomePage] P2P warning check failed: $e');
     }
   }
 
@@ -177,6 +211,9 @@ class _HomePageState extends State<HomePage> {
 
     if (mounted) {
       setState(() => _showIntro = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _runStartupDialogs();
+      });
     }
   }
 

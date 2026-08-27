@@ -1520,59 +1520,69 @@ class _PlayerScreenState extends State<PlayerScreen>
           // Floating Subtitle Menu Popover
           if (_activeMenu == 'subtitle' && !_isLoading)
             Positioned(
-              bottom: MediaQuery.sizeOf(context).width < 680 ? 76 : 96,
-              right: MediaQuery.sizeOf(context).width < 680 ? 16 : 28,
-              child: PlayerSubtitleMenu(
-                groups: _subtitleGroups,
-                embeddedSubtitles: _embeddedSubtitles,
-                selectedEmbeddedIndex: _selectedEmbeddedSubtitleIndex,
-                selectedVariant: _currentSubtitleVariant,
-                isSubtitleEnabled: _isSubtitleEnabled,
-                movieTitle: widget.detail?.name ?? widget.title,
-                imdbId: widget.detail?.id,
-                season: _currentEpisode?.season,
-                episode: _currentEpisode?.episode,
-                year: widget.detail?.year != null ? int.tryParse(widget.detail!.year!) : null,
-                delaySec: _subtitleDelayMs / 1000.0,
-                onSelectVariant: (v) {
-                  if (v != null) _loadSubtitle(v);
-                },
-                onSelectEmbedded: (emb) => _selectEmbeddedSubtitle(emb),
-                onToggleOff: _disableSubtitles,
-                onOpenSyncBar: () {
-                  if (_selectedEmbeddedSubtitleIndex != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Subtitle sync is not supported for embedded subtitles.'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                    return;
-                  }
-                  setState(() {
-                    _activeMenu = null;
-                    _showSubSyncBar = true;
-                  });
-                },
-                onOpenStyleBar: () {
-                  setState(() => _activeMenu = 'style');
-                },
-                onOpenTextSync: () {
-                  if (_selectedEmbeddedSubtitleIndex != null || _currentSubtitlePath == null || _currentCues.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Speech sync requires an external subtitle file.'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                    return;
-                  }
-                  setState(() {
-                    _activeMenu = null;
-                    _showTextSyncOverlay = true;
-                  });
-                },
-                onClose: () => setState(() => _activeMenu = null),
+              bottom: MediaQuery.sizeOf(context).width < 560
+                  ? 60
+                  : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96),
+              right: MediaQuery.sizeOf(context).width < 560
+                  ? 12
+                  : (MediaQuery.sizeOf(context).width < 680 ? 16 : 28),
+              left: MediaQuery.sizeOf(context).width < 560 ? 12 : null,
+              child: Align(
+                alignment: MediaQuery.sizeOf(context).width < 560
+                    ? Alignment.bottomCenter
+                    : Alignment.bottomRight,
+                child: PlayerSubtitleMenu(
+                  groups: _subtitleGroups,
+                  embeddedSubtitles: _embeddedSubtitles,
+                  selectedEmbeddedIndex: _selectedEmbeddedSubtitleIndex,
+                  selectedVariant: _currentSubtitleVariant,
+                  isSubtitleEnabled: _isSubtitleEnabled,
+                  movieTitle: widget.detail?.name ?? widget.title,
+                  imdbId: widget.detail?.id,
+                  season: _currentEpisode?.season,
+                  episode: _currentEpisode?.episode,
+                  year: widget.detail?.year != null ? int.tryParse(widget.detail!.year!) : null,
+                  delaySec: _subtitleDelayMs / 1000.0,
+                  onSelectVariant: (v) {
+                    if (v != null) _loadSubtitle(v);
+                  },
+                  onSelectEmbedded: (emb) => _selectEmbeddedSubtitle(emb),
+                  onToggleOff: _disableSubtitles,
+                  onOpenSyncBar: () {
+                    if (_selectedEmbeddedSubtitleIndex != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Subtitle sync is not supported for embedded subtitles.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+                    setState(() {
+                      _activeMenu = null;
+                      _showSubSyncBar = true;
+                    });
+                  },
+                  onOpenStyleBar: () {
+                    setState(() => _activeMenu = 'style');
+                  },
+                  onOpenTextSync: () {
+                    if (_selectedEmbeddedSubtitleIndex != null || _currentSubtitlePath == null || _currentCues.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Speech sync requires an external subtitle file.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+                    setState(() {
+                      _activeMenu = null;
+                      _showTextSyncOverlay = true;
+                    });
+                  },
+                  onClose: () => setState(() => _activeMenu = null),
+                ),
               ),
             ),
 

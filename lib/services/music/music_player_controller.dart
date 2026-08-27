@@ -1,9 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 import '../../models/music/music_track.dart';
+import 'music_download_service.dart';
 import 'music_library_service.dart';
 import 'music_service.dart';
 import 'youtube_stream_http.dart';
@@ -155,29 +157,43 @@ class MusicPlayerController extends ChangeNotifier {
     }
 
     try {
-      final streamResult = await MusicService.instance.getAudioStream(
-        track,
-        source: _audioSource,
-      );
-      if (streamResult == null || streamResult.url.isEmpty) {
-        throw Exception('Failed to extract audio stream');
+      final downloadedTrack = MusicDownloadService.instance.getDownloadedTrack(track.id);
+      final downloadedFile = downloadedTrack != null ? File(downloadedTrack.localAudioPath) : null;
+      final isOffline = downloadedFile != null && downloadedFile.existsSync() && downloadedFile.lengthSync() > 100;
+
+      final VideoPlayerController controller;
+
+      if (isOffline && downloadedTrack != null) {
+        _currentQualityLabel = downloadedTrack.quality.contains('FLAC')
+            ? 'FLAC Lossless (Offline)'
+            : 'HQ Audio (Offline)';
+        _isCurrentTrackLossless = downloadedTrack.format.toLowerCase() == 'flac';
+        controller = VideoPlayerController.file(downloadedFile);
+      } else {
+        final streamResult = await MusicService.instance.getAudioStream(
+          track,
+          source: _audioSource,
+        );
+        if (streamResult == null || streamResult.url.isEmpty) {
+          throw Exception('Failed to extract audio stream');
+        }
+
+        _currentQualityLabel = streamResult.quality;
+        _isCurrentTrackLossless = streamResult.isLossless;
+
+        final uri = Uri.parse(streamResult.url);
+        final headers = streamResult.isLossless
+            ? (streamResult.userAgent != null ? {'User-Agent': streamResult.userAgent!} : <String, String>{})
+            : YoutubeStreamHttp.streamHeaders(
+                streamResult.url,
+                userAgent: streamResult.userAgent,
+              );
+
+        controller = VideoPlayerController.networkUrl(
+          uri,
+          httpHeaders: headers,
+        );
       }
-
-      _currentQualityLabel = streamResult.quality;
-      _isCurrentTrackLossless = streamResult.isLossless;
-
-      final uri = Uri.parse(streamResult.url);
-      final headers = streamResult.isLossless
-          ? (streamResult.userAgent != null ? {'User-Agent': streamResult.userAgent!} : <String, String>{})
-          : YoutubeStreamHttp.streamHeaders(
-              streamResult.url,
-              userAgent: streamResult.userAgent,
-            );
-
-      final controller = VideoPlayerController.networkUrl(
-        uri,
-        httpHeaders: headers,
-      );
 
       await controller.initialize();
       controller.setVolume(_volume);

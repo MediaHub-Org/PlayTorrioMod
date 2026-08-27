@@ -26,6 +26,7 @@ import '../scraper/sites/cinejoy.dart';
 import '../anime/anime_scraper_service.dart';
 import '../anime_arabic/anime_arabic_service.dart';
 import '../anime_arabic/anime_arabic_extractor.dart';
+import '../p2p/p2p_settings_service.dart';
 
 /// Service that fetches playback streams from all installed Stremio addons
 /// and built-in scrapers.
@@ -33,8 +34,12 @@ class StreamService {
   StreamService._();
 
   static void _registerBuiltInScrapers() {
-    ScraperManager.instance.registerScraper(KnabenScraper());
-    ScraperManager.instance.registerScraper(TorrentGalaxyScraper());
+    if (P2pSettingsService.isP2pEnabled.value) {
+      ScraperManager.instance.registerScraper(KnabenScraper());
+      ScraperManager.instance.registerScraper(TorrentGalaxyScraper());
+    } else {
+      ScraperManager.instance.unregisterTorrentScrapers();
+    }
     ScraperManager.instance.registerScraper(FourKHDHubScraper());
     ScraperManager.instance.registerScraper(XDownloaderScraper());
     ScraperManager.instance.registerScraper(VideasyScraper());

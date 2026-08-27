@@ -21,6 +21,7 @@ import './services/home/home_page_settings.dart';
 import './services/iptv/iptv_controller.dart';
 import './services/iptv/iptv_settings.dart';
 import './services/manga/manga_settings.dart';
+import './services/music/music_download_service.dart';
 import './services/music/music_settings.dart';
 import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
@@ -30,6 +31,7 @@ import './services/player/player_settings.dart';
 import './services/download/download_service.dart';
 import './services/config/env_service.dart';
 import './services/window/window_service.dart';
+import './services/p2p/p2p_settings_service.dart';
 import './widgets/updater/update_dialog.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
@@ -59,8 +61,10 @@ void main() async {
     IptvSettings.initialize(),
     MangaSettings.initialize(),
     MusicSettings.initialize(),
+    MusicDownloadService.instance.init(),
     QobuzMusicService.instance.initialize(),
     MyListService.initialize(),
+    P2pSettingsService.initialize(),
     LocalStreamProxy.instance.start(),
     DownloadService.instance.initialize(),
     TorrentStreamService().start(),

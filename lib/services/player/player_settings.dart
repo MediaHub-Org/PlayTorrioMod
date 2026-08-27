@@ -253,10 +253,6 @@ abstract final class PlayerSettings {
         },
         if (hardwareAudioClock.value) 'sync': 'audio',
       },
-      'global': {
-        'subtitle.fonts.file': 'assets://flutter_assets/assets/subfont.ttf',
-        'subtitle.fonts.family': 'GoNotoKurrent',
-      },
     };
   }
 
