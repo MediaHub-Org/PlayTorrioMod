@@ -2,8 +2,8 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../../services/app_theme_service.dart';
-import '../../services/home_page_settings.dart';
+import '../../services/theme/app_theme_service.dart';
+import '../../services/home/home_page_settings.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_settings.dart';
 

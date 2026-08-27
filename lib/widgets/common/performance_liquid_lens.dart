@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
-import '../../services/glass_settings.dart';
+import '../../services/theme/glass_settings.dart';
 
 /// Reusable styles keep the package render object from receiving a new
 /// style identity and repainting when an unrelated parent rebuilds.

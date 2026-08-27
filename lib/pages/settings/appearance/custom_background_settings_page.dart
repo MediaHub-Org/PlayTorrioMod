@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../../services/app_theme_service.dart';
-import '../../../services/custom_background_service.dart';
+import '../../../services/theme/app_theme_service.dart';
+import '../../../services/theme/custom_background_service.dart';
 import '../../../widgets/common/animated_ambient_background.dart';
 
 class CustomBackgroundSettingsPage extends StatefulWidget {

@@ -160,9 +160,7 @@ class StremioSubtitleProvider extends SubtitleProvider {
     final id = isEpisode ? '$cleanImdbId:$season:$episode' : cleanImdbId;
 
     final List<SubtitleVariant> results = [];
-    final activeAddons = AddonManager.instance.activeAddons.where((a) {
-      return a.manifest.resources.contains('subtitles');
-    }).toList();
+    final activeAddons = AddonManager.instance.activeSubtitleAddons;
 
     for (final addon in activeAddons) {
       try {

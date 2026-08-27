@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../services/glass_settings.dart';
+import '../../../services/theme/glass_settings.dart';
 
 class LiquidGlassSettingsPage extends StatefulWidget {
   const LiquidGlassSettingsPage({super.key});

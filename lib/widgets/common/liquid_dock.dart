@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
-import '../../services/glass_settings.dart';
+import '../../services/theme/glass_settings.dart';
 import 'performance_liquid_lens.dart';
 
 class DockItem {

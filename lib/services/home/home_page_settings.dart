@@ -3,18 +3,18 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../models/addon/addon.dart';
-import '../models/continue_watching/continue_watching_item.dart';
-import '../models/movie/movie.dart';
-import '../models/movie/movie_section.dart';
-import '../models/my_list/my_list_item.dart';
-import 'continue_watching/continue_watching_service.dart';
-import 'metadata/bestsimilar_scraper.dart';
-import 'my_list/my_list_service.dart';
-import 'simkl/simkl_list_source.dart';
-import 'simkl/simkl_service.dart';
-import 'trakt/trakt_list_source.dart';
-import 'trakt/trakt_service.dart';
+import '../../models/addon/addon.dart';
+import '../../models/continue_watching/continue_watching_item.dart';
+import '../../models/movie/movie.dart';
+import '../../models/movie/movie_section.dart';
+import '../../models/my_list/my_list_item.dart';
+import '../continue_watching/continue_watching_service.dart';
+import '../metadata/bestsimilar_scraper.dart';
+import '../my_list/my_list_service.dart';
+import '../simkl/simkl_list_source.dart';
+import '../simkl/simkl_service.dart';
+import '../trakt/trakt_list_source.dart';
+import '../trakt/trakt_service.dart';
 
 enum SimilarSectionPosition {
   top('Top (Below Hero Banner)'),

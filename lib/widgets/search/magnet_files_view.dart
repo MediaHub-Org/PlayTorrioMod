@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/stream/stream_model.dart';
 import '../../pages/player/player_screen.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
 

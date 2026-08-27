@@ -3,7 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/audiobook/audiobook_model.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/audiobook/audiobook_scraper_service.dart';
 import 'audiobook_player_screen.dart';
 import 'audiobook_route_transitions.dart';

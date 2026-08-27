@@ -8,8 +8,8 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../models/download/download_task_model.dart';
 import '../../models/stream/stream_model.dart';
-import '../../utils/download_path_helper.dart';
-import '../../utils/storage_space_helper.dart';
+import '../../utils/download/download_path_helper.dart';
+import '../../utils/platform/storage_space_helper.dart';
 import '../debrid/debrid_service.dart';
 import '../stream/torrent_stream_service.dart';
 import 'hls_download_engine.dart';

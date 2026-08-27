@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 
 import '../../models/movie/movie.dart';
 import '../../pages/details/details_page.dart';
-import '../../services/app_theme_service.dart';
-import '../../services/home_page_settings.dart';
-import '../../utils/route_transitions.dart';
+import '../../services/theme/app_theme_service.dart';
+import '../../services/home/home_page_settings.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../common/poster_skeleton.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────

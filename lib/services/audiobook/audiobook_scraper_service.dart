@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../models/audiobook/audiobook_model.dart';
-import '../../utils/relevance_scorer.dart';
+import '../../utils/search/relevance_scorer.dart';
 import 'audiobookbay_scraper.dart';
 
 class AudiobookScraperService {

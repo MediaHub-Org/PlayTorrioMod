@@ -7,7 +7,7 @@ import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../models/audiobook/audiobook_model.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/audiobook/audiobook_progress_service.dart';
 import '../../services/audiobook/audiobook_settings.dart';
 import '../../services/debrid/debrid_service.dart';

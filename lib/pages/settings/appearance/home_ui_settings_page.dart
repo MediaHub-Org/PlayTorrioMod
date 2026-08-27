@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../../../services/app_theme_service.dart';
-import '../../../services/custom_background_service.dart';
-import '../../../services/home_page_settings.dart';
+import '../../../services/theme/app_theme_service.dart';
+import '../../../services/theme/custom_background_service.dart';
+import '../../../services/home/home_page_settings.dart';
 import '../../../services/my_list/my_list_service.dart';
 import '../../../services/simkl/simkl_service.dart';
 import '../../../services/trakt/trakt_service.dart';

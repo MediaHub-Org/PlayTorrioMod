@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/audiobook/audiobook_settings.dart';
-import '../../services/custom_background_service.dart';
-import '../../services/glass_settings.dart';
+import '../../services/theme/custom_background_service.dart';
+import '../../services/theme/glass_settings.dart';
 import '../../services/iptv/iptv_settings.dart';
 import '../../services/manga/manga_settings.dart';
 import '../../services/music/music_settings.dart';

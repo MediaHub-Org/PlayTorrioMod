@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/anime_arabic/anime_arabic_extractor.dart';
 import '../../services/anime_arabic/anime_arabic_service.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../player/player_screen.dart';
 
 class AnimeArabicStreamSheet extends StatefulWidget {

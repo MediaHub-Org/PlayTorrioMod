@@ -7,7 +7,7 @@ import 'package:ota_update/ota_update.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
-import '../services/app_updater_service.dart';
+import '../../services/updater/app_updater_service.dart';
 
 class UpdateDialog extends StatefulWidget {
   final UpdateInfo updateInfo;

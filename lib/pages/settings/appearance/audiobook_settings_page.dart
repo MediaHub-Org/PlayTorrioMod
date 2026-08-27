@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
-import '../../../services/app_theme_service.dart';
+import '../../../services/theme/app_theme_service.dart';
 import '../../../services/audiobook/audiobook_settings.dart';
-import '../../../services/home_page_settings.dart';
+import '../../../services/home/home_page_settings.dart';
 import '../../../widgets/audiobook/audiobook_interactive_physics_button.dart';
 import '../../../widgets/audiobook/audiobook_waveform_seekbar.dart';
 import '../../../widgets/common/animated_ambient_background.dart';

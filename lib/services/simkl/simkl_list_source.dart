@@ -1,4 +1,4 @@
-import '../../models/stremio_addon.dart';
+import '../../models/stremio/stremio_meta.dart';
 import 'simkl_constants.dart';
 import 'simkl_item_transformer.dart';
 import 'simkl_service.dart';

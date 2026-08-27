@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../models/music/music_track.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/music/music_library_service.dart';
 import '../../services/music/music_player_controller.dart';
 import '../../services/music/music_service.dart';
@@ -20,7 +20,7 @@ import '../../widgets/music/music_waveform_seekbar.dart';
 import '../settings/appearance/music_player_studio_page.dart';
 import '../settings/appearance/music_settings_page.dart';
 import '../settings/settings_page.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 
 class MusicPage extends StatefulWidget {
   const MusicPage({super.key});

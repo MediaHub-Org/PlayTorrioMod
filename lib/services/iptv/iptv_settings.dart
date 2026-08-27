@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../home_page_settings.dart';
+import '../home/home_page_settings.dart';
 
 enum PortalCardStyle {
   rich('Rich Card with Badges'),

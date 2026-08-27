@@ -2,7 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:torrserver_flutter/torrserver_flutter.dart';
 
-import '../../utils/parse_torrent_title.dart';
+import '../../utils/torrent/parse_torrent_title.dart';
 import '../../models/download/download_task_model.dart';
 import '../download/download_service.dart';
 

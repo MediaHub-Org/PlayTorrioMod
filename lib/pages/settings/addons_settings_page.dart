@@ -299,6 +299,21 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
                         await _manager.toggleAddon(addon.manifest.id, enabled);
                         setState(() {});
                       },
+                      onUpdateFeature: ({
+                        enableCatalogs,
+                        enableSearch,
+                        enableSubtitles,
+                        enableStreams,
+                      }) async {
+                        await _manager.updateAddonFeature(
+                          addonId: addon.manifest.id,
+                          enableCatalogs: enableCatalogs,
+                          enableSearch: enableSearch,
+                          enableSubtitles: enableSubtitles,
+                          enableStreams: enableStreams,
+                        );
+                        setState(() {});
+                      },
                       onRemove: () => _confirmRemove(addon),
                     ),
                   ),
@@ -318,17 +333,30 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
 class _AddonCard extends StatelessWidget {
   final InstalledAddon addon;
   final ValueChanged<bool> onToggle;
+  final void Function({
+    bool? enableCatalogs,
+    bool? enableSearch,
+    bool? enableSubtitles,
+    bool? enableStreams,
+  }) onUpdateFeature;
   final VoidCallback onRemove;
 
   const _AddonCard({
     required this.addon,
     required this.onToggle,
+    required this.onUpdateFeature,
     required this.onRemove,
   });
 
   @override
   Widget build(BuildContext context) {
     final m = addon.manifest;
+
+    final hasCatalogs = m.supportsCatalog || m.catalogs.isNotEmpty;
+    final hasSearch = m.catalogs.any((c) => c.supportsSearch) || m.supportsCatalog;
+    final hasStreams = m.supportsStream;
+    final hasSubtitles = m.supportsSubtitles;
+    final hasAnyFeature = hasCatalogs || hasSearch || hasStreams || hasSubtitles;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -411,37 +439,94 @@ class _AddonCard extends StatelessWidget {
             ),
           ],
 
+          // Feature Toggles Section
+          if (addon.enabled && hasAnyFeature) ...[
+            const SizedBox(height: 14),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.25),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.05),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.tune_rounded,
+                        size: 13,
+                        color: Colors.white.withValues(alpha: 0.45),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        'FUNCTIONS',
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                          color: Colors.white.withValues(alpha: 0.45),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      if (hasCatalogs)
+                        _FeatureToggleChip(
+                          icon: Icons.grid_view_rounded,
+                          label: 'Catalogs',
+                          count: m.catalogs.isNotEmpty ? m.catalogs.length : null,
+                          isEnabled: addon.enableCatalogs,
+                          onTap: () => onUpdateFeature(
+                            enableCatalogs: !addon.enableCatalogs,
+                          ),
+                        ),
+                      if (hasSearch)
+                        _FeatureToggleChip(
+                          icon: Icons.search_rounded,
+                          label: 'Search',
+                          isEnabled: addon.enableSearch,
+                          onTap: () => onUpdateFeature(
+                            enableSearch: !addon.enableSearch,
+                          ),
+                        ),
+                      if (hasStreams)
+                        _FeatureToggleChip(
+                          icon: Icons.play_circle_outline_rounded,
+                          label: 'Sources',
+                          isEnabled: addon.enableStreams,
+                          onTap: () => onUpdateFeature(
+                            enableStreams: !addon.enableStreams,
+                          ),
+                        ),
+                      if (hasSubtitles)
+                        _FeatureToggleChip(
+                          icon: Icons.subtitles_rounded,
+                          label: 'Subtitles',
+                          isEnabled: addon.enableSubtitles,
+                          onTap: () => onUpdateFeature(
+                            enableSubtitles: !addon.enableSubtitles,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           const SizedBox(height: 12),
 
-          // Type badges + Subtitles badge + Remove
+          // Type badges + Remove
           Row(
             children: [
-              if (m.supportsSubtitles)
-                Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 3.5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF10B981).withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(7),
-                      border: Border.all(
-                        color: const Color(0xFF10B981).withValues(alpha: 0.35),
-                        width: 1,
-                      ),
-                    ),
-                    child: const Text(
-                      'Subtitles',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Color(0xFF34D399),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ),
               ...m.types.map(
                 (type) => Padding(
                   padding: const EdgeInsets.only(right: 6),
@@ -477,6 +562,108 @@ class _AddonCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _FeatureToggleChip extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final int? count;
+  final bool isEnabled;
+  final VoidCallback onTap;
+
+  const _FeatureToggleChip({
+    required this.icon,
+    required this.label,
+    this.count,
+    required this.isEnabled,
+    required this.onTap,
+  });
+
+  @override
+  State<_FeatureToggleChip> createState() => _FeatureToggleChipState();
+}
+
+class _FeatureToggleChipState extends State<_FeatureToggleChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    const activeColor = Color(0xFF7C5CFF);
+    final isEnabled = widget.isEnabled;
+
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isEnabled
+                ? (_hovered
+                    ? activeColor.withValues(alpha: 0.25)
+                    : activeColor.withValues(alpha: 0.15))
+                : (_hovered
+                    ? Colors.white.withValues(alpha: 0.08)
+                    : Colors.white.withValues(alpha: 0.03)),
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(
+              color: isEnabled
+                  ? activeColor.withValues(alpha: 0.50)
+                  : Colors.white.withValues(alpha: 0.08),
+              width: 1,
+            ),
+            boxShadow: isEnabled && _hovered
+                ? [
+                    BoxShadow(
+                      color: activeColor.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                widget.icon,
+                size: 14,
+                color: isEnabled
+                    ? activeColor
+                    : Colors.white.withValues(alpha: 0.35),
+              ),
+              const SizedBox(width: 6),
+              Text(
+                widget.count != null
+                    ? '${widget.label} (${widget.count})'
+                    : widget.label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: isEnabled ? FontWeight.w600 : FontWeight.w500,
+                  color: isEnabled
+                      ? Colors.white
+                      : Colors.white.withValues(alpha: 0.45),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(
+                isEnabled
+                    ? Icons.check_circle_rounded
+                    : Icons.cancel_outlined,
+                size: 13,
+                color: isEnabled
+                    ? const Color(0xFF34D399)
+                    : Colors.white.withValues(alpha: 0.25),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import '../../services/app_updater_service.dart';
-import '../../widgets/update_dialog.dart';
+import '../../services/updater/app_updater_service.dart';
+import '../../widgets/updater/update_dialog.dart';
 
 class UpdatesSettingsPage extends StatefulWidget {
   const UpdatesSettingsPage({super.key});

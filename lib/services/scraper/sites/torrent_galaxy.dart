@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as parser;
 import '../stream_scraper.dart';
 import '../../../models/stream/stream_model.dart';
-import '../../../utils/parse_torrent_title.dart';
+import '../../../utils/torrent/parse_torrent_title.dart';
 
 class TorrentGalaxyScraper extends StreamScraper {
   @override

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../home_page_settings.dart';
+import '../home/home_page_settings.dart';
 
 enum MusicMiniPlayerPreset {
   floatingGlassIsland('Floating Glass Island', 'Sleek floating glassmorphic dock with ambient glow and lossless badge'),

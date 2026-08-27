@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:playtorrio/utils/parse_torrent_title.dart';
+import 'package:playtorrio/utils/torrent/parse_torrent_title.dart';
 
 void main() {
   group('ParseTorrentTitle', () {

@@ -1,4 +1,4 @@
-import '../../models/stremio_addon.dart';
+import '../../models/stremio/stremio_meta.dart';
 import 'trakt_item_transformer.dart';
 import 'trakt_service.dart';
 

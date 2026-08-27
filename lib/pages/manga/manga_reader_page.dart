@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../services/manga/manga_settings.dart';
 import '../../widgets/common/custom_scroll_track.dart';

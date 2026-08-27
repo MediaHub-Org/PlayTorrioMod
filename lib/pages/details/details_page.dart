@@ -9,7 +9,7 @@ import '../../models/my_list/my_list_item.dart';
 import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/my_list/my_list_service.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../discover/discover_page.dart';
 import '../player/watch_screen.dart';
 // ---------------------------------------------------------------------------
@@ -295,12 +295,14 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
         _detail = meta;
         _isLoading = false;
 
-        if (meta != null && _isSeries && meta.videos.isNotEmpty) {
+        if (meta != null && (_isSeries || meta.videos.isNotEmpty) && meta.videos.isNotEmpty) {
           final seasons = meta.videos.map((v) => v.season).where((s) => s != null).toSet().toList();
           seasons.sort();
           if (seasons.isNotEmpty) {
             _selectedSeason = seasons.first;
             _updateEpisodesForSeason();
+          } else {
+            _currentSeasonEpisodes = List.from(meta.videos);
           }
         }
       });
@@ -470,9 +472,11 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
                             _buildCastRow(meta.cast),
                             const SizedBox(height: _Space.xl),
                           ],
-                          if (_isSeries && meta.videos.isNotEmpty) ...[
-                            _buildSeasonSelector(meta),
-                            const SizedBox(height: _Space.lg),
+                          if (meta.videos.isNotEmpty) ...[
+                            if (meta.videos.map((v) => v.season).where((s) => s != null).toSet().length > 1) ...[
+                              _buildSeasonSelector(meta),
+                              const SizedBox(height: _Space.lg),
+                            ],
                             AnimatedSwitcher(
                               duration: const Duration(milliseconds: 550),
                               switchInCurve: Curves.easeOutCubic,
@@ -894,9 +898,9 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   Widget _buildPlayButton({required bool fullWidth}) {
     return _HoverButton(
       onTap: () => _handlePlayAction(
-        _isSeries && _currentSeasonEpisodes.isNotEmpty
+        _currentSeasonEpisodes.isNotEmpty
             ? _currentSeasonEpisodes.first
-            : null,
+            : (_detail?.videos.isNotEmpty == true ? _detail!.videos.first : null),
       ),
       child: Container(
         width: fullWidth ? double.infinity : null,

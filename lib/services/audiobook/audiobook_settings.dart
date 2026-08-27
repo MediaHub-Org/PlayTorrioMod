@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../home_page_settings.dart';
+import '../home/home_page_settings.dart';
 
 enum AudiobookPlayerPreset {
   modernGlass('Modern Glass Island', 'Sleek floating glassmorphism player with waveform scrubber & ambient glow'),

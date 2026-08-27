@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../services/app_theme_service.dart';
-import '../../../services/home_page_settings.dart';
+import '../../../services/theme/app_theme_service.dart';
+import '../../../services/home/home_page_settings.dart';
 import '../../../services/manga/manga_settings.dart';
 import '../../../widgets/common/animated_ambient_background.dart';
 

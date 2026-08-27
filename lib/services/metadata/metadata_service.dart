@@ -84,7 +84,7 @@ class MetadataService {
 
     final result = metas
         .map((item) => Movie.fromJson(item as Map<String, dynamic>, effectiveBaseUrl))
-        .where((movie) => movie.poster != null && movie.poster!.isNotEmpty)
+        .where((movie) => movie.id.isNotEmpty && movie.name.isNotEmpty)
         .toList();
 
     _catalogCache[url] = result;
@@ -124,7 +124,7 @@ class MetadataService {
       
       final result = metas
           .map((item) => Movie.fromJson(item as Map<String, dynamic>, effectiveBaseUrl))
-          .where((movie) => movie.poster != null && movie.poster!.isNotEmpty)
+          .where((movie) => movie.id.isNotEmpty && movie.name.isNotEmpty)
           .toList();
           
       _catalogCache[url] = result;

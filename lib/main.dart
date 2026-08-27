@@ -8,15 +8,15 @@ import 'package:window_manager/window_manager.dart';
 
 import './pages/home/home_page.dart';
 import './services/addon/addon_manager.dart';
-import './services/app_theme_service.dart';
-import './services/app_updater_service.dart';
+import './services/theme/app_theme_service.dart';
+import './services/updater/app_updater_service.dart';
 import './services/books/continue_reading_service.dart';
 import './services/books/reader_settings.dart';
 import './services/continue_watching/continue_watching_service.dart';
-import './services/custom_background_service.dart';
-import './services/glass_settings.dart';
+import './services/theme/custom_background_service.dart';
+import './services/theme/glass_settings.dart';
 import './services/audiobook/audiobook_settings.dart';
-import './services/home_page_settings.dart';
+import './services/home/home_page_settings.dart';
 import './services/iptv/iptv_controller.dart';
 import './services/iptv/iptv_settings.dart';
 import './services/manga/manga_settings.dart';
@@ -26,9 +26,9 @@ import './services/my_list/my_list_service.dart';
 import './services/stream/local_stream_proxy.dart';
 import './services/stream/torrent_stream_service.dart';
 import './services/download/download_service.dart';
-import './services/env_service.dart';
+import './services/config/env_service.dart';
 import './services/window/window_service.dart';
-import './widgets/update_dialog.dart';
+import './widgets/updater/update_dialog.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 

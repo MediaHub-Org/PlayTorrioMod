@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:playtorrio/utils/relevance_scorer.dart';
+import 'package:playtorrio/utils/search/relevance_scorer.dart';
 
 void main() {
   group('RelevanceScorer', () {

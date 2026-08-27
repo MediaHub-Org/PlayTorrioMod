@@ -5,10 +5,10 @@ import 'package:playtorrio/models/movie/movie_detail.dart';
 import 'package:playtorrio/models/movie/video.dart';
 
 import '../../models/download/download_task_model.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/download/download_service.dart';
-import '../../utils/open_file_location_helper.dart';
-import '../../utils/download_path_helper.dart';
+import '../../utils/platform/open_file_location_helper.dart';
+import '../../utils/download/download_path_helper.dart';
 import '../player/player_screen.dart';
 
 class DownloadsPage extends StatefulWidget {

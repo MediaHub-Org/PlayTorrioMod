@@ -21,7 +21,7 @@ import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
 import '../../services/stream/local_stream_proxy.dart';
-import '../../services/glass_settings.dart';
+import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 
@@ -44,7 +44,7 @@ import '../../widgets/player/sub_sync_bar.dart';
 import '../../widgets/player/text_sync_overlay.dart';
 import '../../models/download/download_task_model.dart';
 import '../../services/download/download_service.dart';
-import '../../utils/download_path_helper.dart';
+import '../../utils/download/download_path_helper.dart';
 import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 class PlayerScreen extends StatefulWidget {
@@ -773,6 +773,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   int _getControllerId(VideoPlayerController c) {
     try {
+      // ignore: invalid_use_of_visible_for_testing_member
       return c.playerId;
     } catch (_) {
       return 0;

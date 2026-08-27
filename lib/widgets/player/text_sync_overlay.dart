@@ -46,7 +46,7 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
   List<int> _matchedIndices = [];
   int _currentMatchIndex = 0;
   GlobalKey _currentMatchKey = GlobalKey();
-  GlobalKey _activeCueKey = GlobalKey();
+  final GlobalKey _activeCueKey = GlobalKey();
 
   Timer? _positionUpdateTimer;
   Timer? _searchDebounceTimer;

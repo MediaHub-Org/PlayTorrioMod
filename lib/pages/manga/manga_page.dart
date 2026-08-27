@@ -5,7 +5,7 @@ import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../services/manga/manga_settings.dart';
 import '../../widgets/common/animated_ambient_background.dart';

@@ -4,7 +4,7 @@ import '../../models/anime/anime_media.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/anime/anime_scraper_service.dart';
 import '../../services/anime/anime_library_service.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../player/player_screen.dart';
 
 import '../../services/anime/extractors/anidb_extractor.dart';

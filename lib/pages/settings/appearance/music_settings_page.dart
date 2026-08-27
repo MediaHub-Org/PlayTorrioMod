@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../../services/app_theme_service.dart';
-import '../../../services/home_page_settings.dart';
+import '../../../services/theme/app_theme_service.dart';
+import '../../../services/home/home_page_settings.dart';
 import '../../../services/music/music_settings.dart';
 import '../../../widgets/music/music_waveform_seekbar.dart';
 import 'music_player_studio_page.dart';

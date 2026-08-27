@@ -3,8 +3,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/anime_arabic/anime_arabic_service.dart';
-import '../../services/app_theme_service.dart';
-import '../../utils/route_transitions.dart';
+import '../../services/theme/app_theme_service.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/animated_ambient_background.dart';
 import '../../widgets/common/slider_arrow.dart';
 import 'anime_arabic_stream_sheet.dart';
@@ -877,8 +877,8 @@ class _AnimeArabicDetailsPageState extends State<AnimeArabicDetailsPage>
           Row(
             children: [
               Icon(Icons.recommend_rounded, color: _Palette.accent, size: 22),
-              SizedBox(width: 10),
-              Text(
+              const SizedBox(width: 10),
+              const Text(
                 'أنميات ذات صلة',
                 style: TextStyle(
                   color: Colors.white,

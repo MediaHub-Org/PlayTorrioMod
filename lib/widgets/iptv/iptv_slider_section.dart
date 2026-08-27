@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import '../../services/home_page_settings.dart';
+import '../../services/home/home_page_settings.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_settings.dart';
 import '../common/section_header.dart';

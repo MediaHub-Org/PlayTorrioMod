@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 
 import '../../models/manga/manga.dart';
 import '../../pages/manga/manga_details_page.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/manga/manga_settings.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../common/poster_skeleton.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────

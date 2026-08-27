@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../home_page_settings.dart';
+import '../home/home_page_settings.dart';
 
 enum MangaCardDensity {
   compact('Compact (Dense Grid)', 0.88),

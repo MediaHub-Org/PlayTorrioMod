@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/iptv/iptv_controller.dart';
 import '../../services/iptv/iptv_settings.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import 'iptv_portal_browser_page.dart';
 
 class IptvPortalsModal extends StatefulWidget {

@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/anime/anime_media.dart';
 import '../../services/anime/anilist_service.dart';
-import '../../services/app_theme_service.dart';
-import '../../utils/route_transitions.dart';
+import '../../services/theme/app_theme_service.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/anime/anime_slider_section.dart';
 import '../../widgets/common/animated_ambient_background.dart';
 import 'anime_details_page.dart';
@@ -35,7 +35,6 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
   bool _allowAdult = false;
   List<AnimeMedia> _allResults = [];
   final Map<int, ArabicAnimeCard> _arabicCardsMap = {};
-  String _lastQuery = '';
 
   // Filter selections
   String? _genre;
@@ -156,7 +155,6 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
       setState(() {
         _allResults.clear();
         _isLoading = false;
-        _lastQuery = '';
       });
       return;
     }
@@ -170,7 +168,6 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
     final q = (query ?? _searchController.text).trim();
     setState(() {
       _isLoading = true;
-      _lastQuery = q;
     });
 
     try {

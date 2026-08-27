@@ -62,9 +62,7 @@ class StreamService {
   }) {
     final controller = StreamController<StreamSource>();
 
-    final addons = AddonManager.instance.activeAddons
-        .where((a) => a.manifest.supportsStream)
-        .toList();
+    final addons = AddonManager.instance.activeStreamAddons;
 
     _registerBuiltInScrapers();
 
@@ -239,12 +237,11 @@ class StreamService {
     }
 
     // Otherwise, find the matching Stremio addon
-    final matchingAddons = AddonManager.instance.activeAddons.where(
+    final matchingAddons = AddonManager.instance.activeStreamAddons.where(
       (a) =>
-          a.manifest.supportsStream &&
-          (a.manifest.name.toLowerCase() == normalizedTarget ||
-              a.manifest.name.toLowerCase().contains(normalizedTarget) ||
-              normalizedTarget.contains(a.manifest.name.toLowerCase())),
+          a.manifest.name.toLowerCase() == normalizedTarget ||
+          a.manifest.name.toLowerCase().contains(normalizedTarget) ||
+          normalizedTarget.contains(a.manifest.name.toLowerCase()),
     ).toList();
 
     if (matchingAddons.isNotEmpty) {

@@ -4,12 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../../models/iptv/iptv_models.dart';
 import '../../models/iptv/m3u_models.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_network.dart';
 import '../../services/iptv/iptv_settings.dart';
 import '../../services/iptv/iptv_storage.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import 'iptv_player_page.dart';
 
 class IptvPortalBrowserPage extends StatefulWidget {
