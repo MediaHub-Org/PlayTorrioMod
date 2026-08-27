@@ -56,14 +56,50 @@ jobs:
 
       - name: Install Inno Setup
         shell: pwsh
-        run: choco install innosetup -y --no-progress
+        run: |
+          choco install innosetup -y --no-progress
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          Write-Host "PATH refreshed for Inno Setup."
 
       - name: Compile Inno Setup Installer
         shell: pwsh
         run: |
+          $ErrorActionPreference = 'Stop'
           $cleanVersion = "${{ github.ref_name }}".TrimStart('v')
           if ([string]::IsNullOrWhiteSpace($cleanVersion)) { $cleanVersion = "1.0.0" }
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=$cleanVersion installer\windows\setup.iss
+
+          $isccCmd = (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source
+          if (-not $isccCmd) {
+            $candidates = @(
+              "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+              "C:\Program Files\Inno Setup 6\ISCC.exe",
+              "C:\ProgramData\chocolatey\bin\iscc.exe"
+            )
+            foreach ($candidate in $candidates) {
+              if (Test-Path $candidate) {
+                $isccCmd = $candidate
+                break
+              }
+            }
+          }
+          if (-not $isccCmd) {
+            throw "ISCC compiler executable could not be found!"
+          }
+          Write-Host "Using Inno Setup Compiler at: $isccCmd"
+
+          New-Item -ItemType Directory -Force -Path "installer\windows\Output"
+
+          & $isccCmd /DMyAppVersion=$cleanVersion installer\windows\setup.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup compilation failed with exit code $LASTEXITCODE"
+          }
+
+          if (Test-Path "installer\windows\Output\PlayTorrio-Windows-Setup.exe") {
+            Copy-Item "installer\windows\Output\PlayTorrio-Windows-Setup.exe" ".\PlayTorrio-Windows-Setup.exe" -Force
+            Write-Host "Verified and copied PlayTorrio-Windows-Setup.exe to root."
+          } else {
+            throw "PlayTorrio-Windows-Setup.exe was not found in Output directory after ISCC compile!"
+          }
 
       - name: Package Portable ZIP
         shell: pwsh
@@ -75,7 +111,7 @@ jobs:
         with:
           name: PlayTorrioV3-Windows
           path: |
-            installer/windows/Output/*.exe
+            PlayTorrio-Windows-Setup.exe
             PlayTorrio-Windows-x64-Portable.zip
 
   # ─── Linux x64 Build (AppImage & Tar.gz) ──────────────────────────────────
