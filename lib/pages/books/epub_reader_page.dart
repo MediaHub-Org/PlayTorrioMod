@@ -8,6 +8,7 @@ import '../../services/books/continue_reading_service.dart';
 import '../../services/books/epub_parser_service.dart';
 import '../../services/books/reader_settings.dart';
 import '../../services/window/window_service.dart';
+import '../../widgets/common/custom_scroll_track.dart';
 import 'widgets/comic_reader_view.dart';
 import 'widgets/epub_content_view.dart';
 import 'widgets/focus_mode_view.dart';
@@ -403,6 +404,14 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
                       ),
                     ),
                   ),
+
+                  // ── Custom Scroll Track (Desktop Only) ──
+                  if (!isComicMode && !_loading && _error == null && _bookData != null && MediaQuery.sizeOf(context).width > 800)
+                    Positioned(
+                      right: 24,
+                      bottom: 40,
+                      child: CustomScrollTrack(controller: _scrollController),
+                    ),
 
                 // ── Hairline Progress Bar Pinned to Absolute Bottom (Always Visible) ──
                 Positioned(

@@ -5,6 +5,7 @@ import '../../models/book/book_result.dart';
 import '../../services/books/bookracy_service.dart';
 import '../../services/books/continue_reading_service.dart';
 import '../../widgets/common/animated_ambient_background.dart';
+import '../../widgets/common/custom_scroll_track.dart';
 import 'book_detail_sheet.dart';
 import 'widgets/continue_reading_slider.dart';
 import 'widgets/reader_design_tokens.dart';
@@ -300,6 +301,13 @@ class _BooksPageState extends State<BooksPage> {
               ],
             ),
           ),
+          // ── Custom Scroll Track (Desktop Only) ──
+          if (MediaQuery.sizeOf(context).width > 800)
+            Positioned(
+              right: 24,
+              bottom: 40,
+              child: CustomScrollTrack(controller: _scrollController),
+            ),
         ],
       ),
     );
