@@ -8,7 +8,9 @@ import '../../models/manga/manga_chapter.dart';
 import '../../services/audiobook/audiobook_library_service.dart';
 import '../../services/audiobook/audiobook_player_controller.dart';
 import '../../services/audiobook/audiobook_progress_service.dart';
+import '../../services/books/book_library_service.dart';
 import '../../services/books/book_progress_service.dart';
+import '../../services/books/books_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../widgets/common/library_tabs.dart';
 import '../../widgets/manga/manga_card.dart';
@@ -40,8 +42,33 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
   void initState() {
     super.initState();
     AudiobookLibraryService.instance.init();
+    BookLibraryService.instance.init();
     _loadLikedManga();
     _loadHistory();
+  }
+
+  Future<void> _openLikedBook(BookResult book) async {
+    final progress = await BookProgressService.instance.loadAll();
+    if (!mounted) return;
+    final entry = progress.where((p) => p.book.editionId == book.editionId).firstOrNull;
+    if (entry != null && File(entry.filePath).existsSync() && File(entry.filePath).lengthSync() > 1000) {
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => BookReaderPage(
+            file: File(entry.filePath),
+            title: book.title,
+            bookResult: book,
+            initialChapter: entry.chapter,
+          ),
+        ),
+      );
+      _loadHistory();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Search for "${book.title}" in Books to download it.')),
+      );
+    }
   }
 
   Future<void> _loadLikedManga() async {
@@ -228,6 +255,11 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
           builder: (_) => _buildAudiobooksTab(),
         ),
         LibraryTab(
+          label: 'Books',
+          icon: Icons.import_contacts_rounded,
+          builder: (_) => _buildBooksTab(),
+        ),
+        LibraryTab(
           label: 'Manga',
           icon: Icons.auto_stories_rounded,
           builder: (_) => _buildMangaTab(),
@@ -286,6 +318,31 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
       itemBuilder: (context, index) {
         final book = liked[index];
         return _LikedAudiobookCard(book: book, onTap: () => _openAudiobook(book));
+      },
+    );
+  }
+
+  Widget _buildBooksTab() {
+    final liked = BookLibraryService.instance.liked;
+    if (liked.isEmpty) {
+      return const LibraryEmptyState(
+        icon: Icons.import_contacts_rounded,
+        title: 'No liked books',
+        subtitle: 'Tap the heart on a book to save it here.',
+      );
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 200,
+        mainAxisSpacing: 24,
+        crossAxisSpacing: 16,
+        mainAxisExtent: 300,
+      ),
+      itemCount: liked.length,
+      itemBuilder: (context, index) {
+        final book = liked[index];
+        return _LikedBookCard(book: book, onTap: () => _openLikedBook(book));
       },
     );
   }
@@ -433,6 +490,45 @@ class _LikedAudiobookCard extends StatelessWidget {
                       child: const Icon(Icons.headphones_rounded,
                           color: Colors.white24, size: 40),
                     ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            book.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LikedBookCard extends StatelessWidget {
+  final BookResult book;
+  final VoidCallback onTap;
+
+  const _LikedBookCard({required this.book, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                color: const Color(0xFF141824),
+                child: const Icon(Icons.menu_book_rounded, color: Colors.white24, size: 40),
+              ),
             ),
           ),
           const SizedBox(height: 8),

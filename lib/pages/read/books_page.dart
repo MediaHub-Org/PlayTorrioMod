@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import '../../services/books/book_library_service.dart';
 import '../../services/books/book_progress_service.dart';
 import '../../services/books/books_service.dart';
 import 'book_reader_page.dart';
@@ -31,8 +32,14 @@ class _BooksPageState extends State<BooksPage> {
   @override
   void initState() {
     super.initState();
+    BookLibraryService.instance.init();
     _loadReadingList();
     _loadBrowse();
+  }
+
+  Future<void> _toggleLike(BookResult book) async {
+    await BookLibraryService.instance.toggleLike(book);
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadBrowse() async {
@@ -200,7 +207,12 @@ class _BooksPageState extends State<BooksPage> {
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
-                (context, index) => _BookRow(book: _results[index], onTap: () => _openDownloadDialog(_results[index])),
+                (context, index) => _BookRow(
+                  book: _results[index],
+                  onTap: () => _openDownloadDialog(_results[index]),
+                  isLiked: BookLibraryService.instance.isLiked(_results[index].editionId),
+                  onToggleLike: () => _toggleLike(_results[index]),
+                ),
                 childCount: _results.length,
               ),
             ),
@@ -254,7 +266,12 @@ class _BooksPageState extends State<BooksPage> {
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
         sliver: SliverList(
           delegate: SliverChildBuilderDelegate(
-            (context, index) => _BookRow(book: _browsing[index], onTap: () => _openDownloadDialog(_browsing[index])),
+            (context, index) => _BookRow(
+              book: _browsing[index],
+              onTap: () => _openDownloadDialog(_browsing[index]),
+              isLiked: BookLibraryService.instance.isLiked(_browsing[index].editionId),
+              onToggleLike: () => _toggleLike(_browsing[index]),
+            ),
             childCount: _browsing.length,
           ),
         ),
@@ -296,8 +313,15 @@ class _BooksPageState extends State<BooksPage> {
 class _BookRow extends StatelessWidget {
   final BookResult book;
   final VoidCallback onTap;
+  final bool isLiked;
+  final VoidCallback onToggleLike;
 
-  const _BookRow({required this.book, required this.onTap});
+  const _BookRow({
+    required this.book,
+    required this.onTap,
+    required this.isLiked,
+    required this.onToggleLike,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -346,6 +370,14 @@ class _BookRow extends StatelessWidget {
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  icon: Icon(
+                    isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                    color: isLiked ? const Color(0xFFE50914) : Colors.white38,
+                    size: 20,
+                  ),
+                  onPressed: onToggleLike,
                 ),
                 const Icon(Icons.download_rounded, color: Colors.white38, size: 20),
               ],

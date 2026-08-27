@@ -4,6 +4,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Add favorites to Books (ROADMAP #2) — 2026-08-27
+- **Books was the only Read-hub subcategory with no like/favorite feature**: new `BookLibraryService` (mirrors `AudiobookLibraryService`'s shape exactly). A heart icon on each `_BookRow` in `books_page.dart` (search results and the "Recently Added" browse grid both use it) toggles the like; a new "Books" tab in `BooksLibraryPage` shows the liked list, matching the existing Audiobooks/Manga tabs. Tapping a liked book resumes reading if it's already downloaded (cross-referencing `BookProgressService`), otherwise points back to Books to search and download it — Books has no dedicated detail page to route to, unlike Audiobooks/Manga, so this reuses the same "file missing" fallback pattern already added for the History tab.
+
 ### Surface Anime's watchlist, delete its dead progress tracker (ROADMAP #2) — 2026-08-27
 - **`AnimeLibraryService.watchlist` had zero readers anywhere**: the only UI touching it was a status picker on the anime detail page (Watching/Plan to Watch/Completed) — setting a status was a write into a void. Added an Anime tab to the Watch hub's `CollectionPage`, reading `AnimeLibraryService.instance.watchlist`, rendered with the existing `AnimeCard`, routing to `AnimeDetailsPage` (not `DetailsPage`, which expects a `Movie`/`MovieDetail` shape anime doesn't have). Long-press to remove, matching the existing My List/Watchlist tabs' convention.
 - Deleted `AnimeLibraryService.updateProgress`/`_progressMap`/`recentHistory`/`getProgress`/`_saveHistory` — confirmed dead, anime resume already runs entirely through the shared `ContinueWatchingService`. Its one caller (`anime_stream_sheet.dart`, on every stream start) was writing placeholder values (`positionSeconds: 1, durationSeconds: 1440`) nothing ever read; removed along with the now-unused `_library` field.
