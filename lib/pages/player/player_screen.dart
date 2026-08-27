@@ -24,6 +24,7 @@ import '../../services/stream/local_stream_proxy.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
+import '../../services/player/player_settings.dart';
 
 import '../../widgets/player/player_glass.dart';
 import '../../widgets/player/player_top_bar.dart';
@@ -75,6 +76,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     with SingleTickerProviderStateMixin {
   VideoPlayerController? _controller;
   bool _isLoading = true;
+  bool _wasBuffering = false;
   String _statusMessage = 'Initializing...';
   bool _showControls = true;
   bool _isHoveringUI = false;
@@ -168,7 +170,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         _controller = VideoPlayerController.file(localFile);
         _controller!.addListener(_onControllerError);
         _controller!.addListener(_onPlaybackTick);
+        PlayerSettings.applyToController(_controller!);
         await _controller!.initialize();
+        PlayerSettings.applyToController(_controller!);
         _controller!.play();
         if (mounted) setState(() => _isLoading = false);
         return;
@@ -289,6 +293,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       );
       _controller!.addListener(_onControllerError);
       _controller!.addListener(_onPlaybackTick);
+      PlayerSettings.applyToController(_controller!);
 
       try {
         await _controller!.initialize();
@@ -308,11 +313,14 @@ class _PlayerScreenState extends State<PlayerScreen>
           );
           _controller!.addListener(_onControllerError);
           _controller!.addListener(_onPlaybackTick);
+          PlayerSettings.applyToController(_controller!);
           await _controller!.initialize();
         } else {
           rethrow;
         }
       }
+
+      PlayerSettings.applyToController(_controller!);
 
       _setSubtitleScale(_subtitleScale);
       _applyVolume(_isMuted ? 0.0 : _volume);
@@ -991,7 +999,22 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _onPlaybackTick() {
-    if (_controller == null || !_controller!.value.isInitialized || _skipSegments.isEmpty) return;
+    if (_controller == null || !_controller!.value.isInitialized) return;
+
+    // Auto-Resync master clock when recovering from buffer stalls
+    final isBuffering = _controller!.value.isBuffering;
+    if (_wasBuffering && !isBuffering && PlayerSettings.autoResyncOnStall.value) {
+      try {
+        if (PlayerSettings.hardwareAudioClock.value) {
+          _controller?.setProperty('sync', 'audio');
+        }
+      } catch (e) {
+        debugPrint('[PlayerScreen] Auto-resync error: $e');
+      }
+    }
+    _wasBuffering = isBuffering;
+
+    if (_skipSegments.isEmpty) return;
 
     final pos = _controller!.value.position;
     final dur = _controller!.value.duration;

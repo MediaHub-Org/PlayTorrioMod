@@ -26,6 +26,7 @@ import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
 import './services/stream/local_stream_proxy.dart';
 import './services/stream/torrent_stream_service.dart';
+import './services/player/player_settings.dart';
 import './services/download/download_service.dart';
 import './services/config/env_service.dart';
 import './services/window/window_service.dart';
@@ -41,29 +42,8 @@ void main() async {
   }
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await EnvService.initialize();
-  fvp.registerWith(options: {
-    'platforms': ['windows', 'linux', 'macos', 'android', 'ios'],
-    'video.decoders': Platform.isWindows
-        ? ['MFT:d3d=11:copy=0', 'D3D11:copy=0', 'CUDA:copy=0', 'DXVA', 'dav1d', 'FFmpeg']
-        : Platform.isMacOS || Platform.isIOS
-            ? ['VT:copy=0', 'dav1d', 'FFmpeg']
-            : Platform.isAndroid
-                ? ['AMediaCodec:copy=0', 'dav1d', 'FFmpeg']
-                : ['VAAPI:copy=0', 'CUDA:copy=0', 'dav1d', 'FFmpeg'],
-    'lowLatency': 0,
-    'demux.format.allowed_extensions': 'ALL',
-    'demux.format.protocol_whitelist': 'file,http,https,tcp,tls,crypto,data',
-    'subtitleFontFile': 'assets/subfont.ttf',
-    'player': {
-      'sub-ass-override': 'scale',
-      'sub-font-size': '32',
-      'sub-scale': '1.0',
-    },
-    'global': {
-      'subtitle.fonts.file': 'assets://flutter_assets/assets/subfont.ttf',
-      'subtitle.fonts.family': 'GoNotoKurrent',
-    },
-  });
+  await PlayerSettings.initialize();
+  fvp.registerWith(options: PlayerSettings.getFvpRegisterOptions());
   await Future.wait([
     AddonManager.instance.initialize(),
     AppThemeService.initialize(),
