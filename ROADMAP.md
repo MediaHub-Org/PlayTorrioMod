@@ -1,7 +1,8 @@
 # Project Roadmap — PlayTorrioV3
 
-This document lists the **outstanding** work for PlayTorrioV3. Completed work is
-consolidated into `CHANGELOG.md`.
+This document lists the **outstanding** work for PlayTorrioV3. Completed work,
+shipped features, and resolved cleanup are consolidated into `CHANGELOG.md` —
+this file only stays about what's left.
 
 ## Navigation principle (2026-08-27)
 
@@ -20,107 +21,62 @@ subcategories should be checked against this principle first.
 
 **Implemented, awaiting manual confirmation — "Unknown error" dialog after closing
 the Windows app** (see CHANGELOG). `WindowService` now calls `setPreventClose(true)`
-on init and runs a real shutdown sequence in a new `onWindowClose` handler
+on init and runs a real shutdown sequence in `onWindowClose`
 (`PlaybackCoordinator.stopActive()`, `LocalStreamProxy.instance.stop()`,
 `TorrentStreamService().stop()`, then `windowManager.destroy()`) instead of letting
 the OS kill the process while the proxy's HTTP server is still bound. Verified via
-`flutter analyze`/`flutter test`/a Windows release build, but actually clicking the
-close button and confirming no dialog appears needs a human — no agent in this loop
-can interact with a live window.
+`flutter analyze`/`flutter test`/a release build, but clicking the close button and
+confirming no dialog appears needs a human — no agent here can interact with a
+live window.
 
-**Closed, unreproducible — mobile section chips overlap the page search icon at
-narrow widths.** Originally confirmed via testing 2026-08-26; retested 2026-08-27
-by actually running the Windows build at a resized 390px phone-width window
-(screenshots via `PrintWindow`, live-driven, not just code review) across Movies,
-Audiobooks, and Anime — one page per composition shape (`PageSearchButton` inline,
-plain title row, custom `Positioned(top:16,right:16)` row matching `manga_page.dart`).
-In every case `SectionTopBar` and the page's own icon row sit in separate rows via
-`SectionedHubScaffold`'s `Column[SectionTopBar(), Expanded(section)]` — no Z-overlap
-is structurally possible there. What *is* real: the chip strip itself clips at 390px
-(trailing chip cut off, reachable only by scrolling) — expected horizontal-scroll
-behavior, not a collision. Reopen with the exact device/width/font-scale if seen
-again; current build shows no overlap.
+**Closed, unreproducible — mobile section chips overlapping the page search icon
+at narrow widths.** Retested 2026-08-27 by actually running the Windows build at a
+resized 390px phone-width window (screenshots via `PrintWindow`, live-driven) across
+Movies, Audiobooks, and Anime — one page per composition shape. `SectionTopBar` and
+each page's own icon row sit in separate rows via `SectionedHubScaffold`'s
+`Column[SectionTopBar(), Expanded(section)]` — no Z-overlap is structurally
+possible there. The chip strip does clip at 390px (trailing chip cut off, reachable
+by scrolling) — expected horizontal-scroll behavior, not a collision. Reopen with
+the exact device/width/font-scale if seen again.
 
 ## Upcoming (priority order)
 
-Reordered 2026-08-27: testing-confirmed, concrete items first; speculative
-architecture and data-blocked items pushed toward the end. Seven items shipped
-across this day's passes (Windows-close crash, Music back-button, play-bar like
-button, download-from-source-card button, dead-code cleanup, mixed page-transitions,
-Books browse view) — see CHANGELOG. Reprioritized again 2026-08-27 evening: a
-favorites/progress-consistency audit across all three hubs replaced the old #7
-("audit cross-section UX consistency") with five concrete, ungated findings.
+Testing-confirmed, concrete items first; speculative and data-blocked items
+pushed toward the end. A favorites/progress-consistency audit across all three
+hubs (2026-08-27) found the same class of bug in Anime and the Read hub, and
+two missing favorites features — items #2–#6 below.
 
 | # | Task | Notes |
 |---|---|---|
-| 1 | **QA pass on all 5 platforms** (mobile, tablet, desktop, TV) | Verify no regressions; TV in particular needs a dedicated D-pad/remote-input pass — reported as needing improvement generally. Still blocking real confidence in everything else on this list, since most of this session's work has only been verified on Windows desktop. |
-| 10 | **Fix Read hub's "History" tab reading the wrong data source** | Found 2026-08-27: `BooksLibraryPage`'s History tab is labeled "Audiobooks you listen to will appear here" but reads from `PlaybackHistoryService`, which is written to only by `player_screen.dart` (the Watch hub's video player) — never by audiobook or book playback. It's the same tab pattern correctly wired in `CollectionPage` (where the video player *does* feed it), apparently copy-pasted into the Read hub without swapping the source. Real progress already exists and is correctly read elsewhere: `AudiobookProgressService` (used in `audiobooks_page.dart`), `BookProgressService` (used in `books_page.dart`), and Manga's own continue-reading state (used in `manga_page.dart`) — none of the three ever reach the shared Library. Rewire the tab to merge all three into one real progress list. No new data needed, this is a wiring bug. |
-| 11 | **Fix Anime's invisible watchlist** | Found 2026-08-27: `AnimeLibraryService.watchlist`/`watchingList`/`planToWatchList`/`completedList` have zero readers anywhere in the app. The only UI touching this service is a per-item status picker on the anime detail page (Watching/Plan to Watch/Completed) — there is no screen that ever shows the resulting list, so setting a status is currently a write into a void. Add an Anime section to the Watch hub's `CollectionPage`, reading `AnimeLibraryService.instance.watchlist`, rendered with the existing `AnimeCard`, routing to `AnimeDetailsPage` on tap (not `DetailsPage`, which expects a `Movie`/`MovieDetail` shape anime doesn't have). Same pass: delete `AnimeLibraryService.updateProgress`/`_progressMap`/`recentHistory`/`getProgress`/`_saveHistory` — confirmed dead, since anime resume already runs through the shared `ContinueWatchingService`; this parallel progress writer has no reader and never needed to exist. |
-| 12 | **Add favorites to Books** | Found 2026-08-27: Books is the only Read-hub subcategory with no like/favorite feature at all. Manga (`_mangaService.getLikedManga()`) and Audiobooks (`AudiobookLibraryService.liked`) both have one, both correctly surfaced as tabs in `BooksLibraryPage`. Add the same heart-button convention to Books' catalog/detail UI, backed by a small local liked-books store mirroring `AudiobookLibraryService`'s shape, plus a Books tab in `BooksLibraryPage` alongside Audiobooks/Manga. |
-| 13 | **Add favorites to Podcasts** | Found 2026-08-27: `podcast_service.dart` has no favorite/subscribe concept anywhere — the only Listen-hub subcategory without one (Music has `MusicLibraryService.likedTracks`, correctly surfaced in `music_page.dart`'s own Library tab). Add a like/subscribe button on podcast cards and the detail page, backed by a small local store mirroring the Manga/Audiobook pattern, surfaced alongside liked tracks and playlists in Music's Library tab. |
-| 14 | **Investigate `ContinueWatchingService`/`PlaybackHistoryService` duplication** | Found 2026-08-27 while chasing the Read-hub History-tab bug above: the Watch hub has two separate, unreconciled progress stores. `ContinueWatchingService` (own `continue_watching_sessions_v1` storage) powers the Home page's "Continue Watching" row and already handles Anime resume. `PlaybackHistoryService` (`playback_history_v1`) powers `CollectionPage`'s History tab and is written only by `player_screen.dart`. Neither reads from or writes to the other. Needs its own investigation pass before deciding whether they should merge into one store, or are deliberately separate for a reason not yet identified — not a quick patch. |
-| 2 | **Cast & direction with images** | Narrowed 2026-08-27, anime piece shipped (see CHANGELOG): Movies/Series already had cast+director photos; anime had a "Characters & Cast" row but no director/staff, added via AniList's `staff` field (same API already used for characters, no new data source). What remains is genuinely blocked: manga is scraped from weebcentral.com (plain HTML, text author only, no photo) — a photo would need fuzzy-matching manga titles against AniList's staff data, real risk of attaching the wrong person's photo, held rather than shipped speculatively. Audiobooks' `Audiobook` model has no author/narrator field at all — audiobookbay's scrape doesn't expose the name, let alone a photo. **Blocked** on source data for both. |
-| 4 | **Migrate the remaining 52 ad-hoc breakpoint checks onto `AppBreakpoints`** | Narrowed 2026-08-27 — the other two parts of this item are done (see CHANGELOG): `TopBar`/`SectionTopBar` now use `AppSpacing`/`AppRadii` wherever the values actually matched (16px padding, 12px radius; values that didn't cleanly match a token, like 22px/6px, were left as literals rather than force-fit), and `TopBar` now reads hub labels/icons from `AppHub.navLabel`/`.navIcon` instead of its own separate hardcoded list. What's left: 52 files still doing ad-hoc `MediaQuery.sizeOf(context).width >= 900`-style checks instead of `AppBreakpoints.of(context)`. Genuinely low-value to batch into one pass (52 independent call sites, no shared risk) — better done opportunistically as each file is next touched for another reason, per the original nav-chrome spec's own migration strategy. |
-| 5 | **Unified hub + submenu navigation component** | Reconsidered 2026-08-27: originally framed as "the global `TopBar` and per-hub `SectionTopBar` are two disconnected bars, consolidate into one component." On reflection this is architecture-for-its-own-sake unless paired with a concrete problem — the two bars already sit stacked directly under each other and read as one unit visually; no testing session has actually flagged this as confusing, unlike the transition-consistency and back-button items that came from direct user reports and are now shipped. Kept on the list as a real idea worth another look once #4 lands (the token work might reveal a natural merge point), but deliberately ranked below every item with actual evidence behind it. |
-| 6 | **Filters for Audiobooks** | Narrowed 2026-08-27, Music shipped, Radio dropped: Movies/Series got a decade filter + sort dropdown, and Anime got a genre filter (see CHANGELOG) — both reusing the shared `FilterDropdown` widget. Music genre browsing shipped 2026-08-27 too (see CHANGELOG) — turned out not to be a data gap at all: `DeezerApiClient.getGenres()`/`.getGenreArtists()` already existed, unused, wired to Deezer's real public genre API. Radio was removed from this item earlier — it's 8 hardcoded mood tiles, not a filterable catalog, so a filter doesn't apply there regardless of data. What's left: Audiobooks has no genre/category concept at all and no clean path to one (see recommendation below). **Blocked** on data for Audiobooks only. |
-| 8 | **Read hub: Comics data source** | Looked at porting `ayman708-UX/PlayTorrioV2`'s comics feature (`comics_service.dart`, `readcomicsonline_scraper.dart`, `comic_page_extractor.dart`, browse/details/reader screens — same Dart/Flutter stack, would've been directly adaptable) but **both sources it depends on are dead**: `rcostation.xyz` doesn't resolve (DNS gone), and the fallback `readcomicsonline.ru` returns HTTP 403 on every endpoint even with the exact matching User-Agent (looks like Cloudflare/bot-protection blocking plain HTTP requests, which would block the app's `http` client identically) — verified directly via `curl` on 2026-08-24 and re-verified 2026-08-25, no change. Porting as-is would ship a Comics section that just errors out. Holding until a working source is found — either a fixed/alternate scrape target, or a Stremio-style addon (comics addons exist in that ecosystem, matching how Movies/Series/Manga already work here) instead of raw HTML scraping a single site that can vanish. `ComicsPage` (`lib/pages/catalog/comics_page.dart`) stays a placeholder until then. V2 has no other comics source and no podcast feature at all, so neither could be cross-checked against a second port target. **Blocked** on a source. Note the same "does this site have a real browse endpoint, not just search" check that unblocked Books (2026-08-27, see CHANGELOG) is worth re-trying here if a replacement fiction/comics source is ever found. Once unblocked, Comics will also need the same favorites/progress treatment as #12/#13 above. |
-| 9 | **Cloud sync for the JSON backup** | Local export/import shipped (see CHANGELOG) as a flat, versioned JSON envelope specifically so this is a transport change, not a rewrite — wire it up to a cloud backend (own server, or a drop-in like a user's own cloud storage) instead of only writing to a local file. Lowest urgency on this list: local backup already works, this is a convenience upgrade, not a gap. Whatever backend is picked, the envelope will need to cover the new favorite stores from #12/#13 once they exist, not just `MyListService`/`AnimeLibraryService`. |
+| 1 | **QA pass on all 5 platforms** (mobile, tablet, desktop, TV) | Verify no regressions; TV needs a dedicated D-pad/remote-input pass. Most of this work has only been verified on Windows desktop — blocks real confidence in everything else here. |
+| 2 | **Fix Read hub's "History" tab reading the wrong data source** | `BooksLibraryPage`'s History tab is labeled "Audiobooks you listen to will appear here" but reads `PlaybackHistoryService`, written only by the Watch hub's video player (`player_screen.dart`) — never by audiobook or book playback, so it's always empty. Real progress already exists and is correctly read elsewhere: `AudiobookProgressService` (`audiobooks_page.dart`), `BookProgressService` (`books_page.dart`), and Manga's own continue-reading state (`manga_page.dart`) — none reach the shared Library. Rewire the tab to merge all three. Wiring bug, no new data needed. |
+| 3 | **Fix Anime's invisible watchlist** | `AnimeLibraryService.watchlist`/status-list getters have zero readers anywhere — the only UI is a status picker on the anime detail page (Watching/Plan to Watch/Completed); no screen ever shows the resulting list. Add an Anime section to the Watch hub's `CollectionPage`, reading `AnimeLibraryService.instance.watchlist`, rendered with `AnimeCard`, routing to `AnimeDetailsPage` (not `DetailsPage`, which expects a `Movie`). Same pass: delete `AnimeLibraryService.updateProgress`/`_progressMap`/`recentHistory`/`getProgress` — confirmed dead, anime resume already runs through the shared `ContinueWatchingService`. |
+| 4 | **Add favorites to Books** | The only Read-hub subcategory with no like/favorite feature at all — Manga and Audiobooks both have one, both correctly surfaced in `BooksLibraryPage`. Add the same heart-button convention, backed by a small local store mirroring `AudiobookLibraryService`, plus a Books tab in `BooksLibraryPage`. |
+| 5 | **Add favorites to Podcasts** | The only Listen-hub subcategory with no favorite/subscribe concept — Music has `MusicLibraryService.likedTracks`, correctly surfaced in its own Library tab. Add a like/subscribe button backed by a small local store mirroring the Manga/Audiobook pattern, surfaced alongside Music's liked tracks and playlists. |
+| 6 | **Investigate `ContinueWatchingService`/`PlaybackHistoryService` duplication** | Found while chasing #2: two separate, unreconciled progress stores exist for Watch-hub content. `ContinueWatchingService` (own storage) powers the Home page's Continue Watching row and already handles Anime. `PlaybackHistoryService` powers `CollectionPage`'s History tab, written only by `player_screen.dart`. Neither reads from or writes to the other. Needs its own investigation before deciding whether to merge or if the split is deliberate. |
+| 7 | **Cast & direction with images** | Movies/Series and Anime (via AniList's `staff` field) both have cast+director photos now (see CHANGELOG). Manga (weebcentral.com, plain HTML, text-only author) and Audiobooks (`Audiobook` model has no author/narrator field) remain **blocked** on source data — fuzzy-matching manga titles against AniList's staff risks attaching the wrong photo. |
+| 8 | **Migrate the remaining 52 ad-hoc breakpoint checks onto `AppBreakpoints`** | `TopBar`/`SectionTopBar`'s token migration is done (see CHANGELOG). 52 files still do ad-hoc `MediaQuery.sizeOf(context).width` checks instead of `AppBreakpoints.of(context)`. Low-value to batch (52 independent call sites, no shared risk) — better done opportunistically as each file is next touched for another reason. |
+| 9 | **Unified hub + submenu navigation component** | No concrete problem yet — `TopBar` and `SectionTopBar` already sit stacked and read as one unit; no report has flagged this as confusing. Real trigger to watch for: mobile spends 88px of vertical chrome on two stacked 44px bars — a collapsed per-hub dropdown could reclaim that. Build only if that becomes a real complaint. |
+| 10 | **Filters for Audiobooks** | Movies/Series/Anime/Music all have real genre filters now (see CHANGELOG — Music's came from previously-unused Deezer API calls already in the codebase, no new source needed). Audiobooks has no genre/category concept and no clean path to one without the same title-matching risk flagged for manga in #7. **Blocked** on data. |
+| 11 | **Read hub: Comics data source** | Both prior scrape targets are dead: `rcostation.xyz` (DNS gone) and `readcomicsonline.ru` (HTTP 403 on every endpoint even with a matching User-Agent — verified via curl 2026-08-24/25). Need a working source — an alternate scrape target, or a Stremio-style comics addon (matches how Movies/Series/Manga already work). `ComicsPage` stays a placeholder until then. **Blocked** on a source; will also need #4/#5's favorites treatment once unblocked. |
+| 12 | **Cloud sync for the JSON backup** | Local export/import already works as a flat, versioned JSON envelope (see CHANGELOG) — this is a transport change, not a rewrite. Options: full OAuth to Google Drive/OneDrive (heavy, per-platform); a generic WebDAV/S3 endpoint pointed at the user's own server (light, no vendor lock-in — leaning here); GitHub Gist via a personal access token (zero setup, good bonus alongside WebDAV). Whichever is picked needs to cover #4/#5's new favorite stores too. Lowest urgency — local backup already works. |
 
-### Recommendations (brainstormed 2026-08-27, not yet approved/scoped)
-
-Thinking-only pass over the undesigned items above — no code changed, nothing
-here is committed to. Recommendations, not decisions.
-
-- **#5 Unified nav** — still no concrete problem per the note above. One real
-  trigger to watch for: mobile spends 88px of vertical chrome on two stacked
-  44px bars (hub tabs + section chips). A collapsed version — tap "Watch" opens
-  a dropdown of Movies/Series/Anime instead of an always-visible chip row —
-  would reclaim that space on phones specifically. Worth building only if that
-  trigger becomes a real complaint, not speculatively.
-- **#6 Filters** — Music shipped 2026-08-27 (see CHANGELOG): the recommendation
-  here was to try MusicBrainz/Last.fm for genre tags, but a spike found
-  something better first — `DeezerApiClient.getGenres()`/`.getGenreArtists()`
-  and the `MusicGenre` model already existed in the codebase, wired to Deezer's
-  real public `/genre` and `/genre/{id}/artists` endpoints, completely unused.
-  No new source needed. Wired into `music_page.dart`'s Genres tab, replacing
-  its hardcoded mood-tile fake-search with real genre -> artist browsing.
-  Radio — checked: there's no Radio Browser API integration to begin with.
-  `music_page.dart`'s Radio tab (`_buildRadioView`) is 8 hardcoded mood tiles
-  (Pop Radio, Rap & Hip-Hop, ...) whose `onTap` just fills the search box and
-  runs a normal Qobuz search (`_onGenreTap`) — there's no live station catalog
-  and no per-item genre data to expose, so a `FilterDropdown` doesn't map onto
-  this feature the way it does for Movies/Anime. The ROADMAP #6 framing of
-  Radio needing "genre/category data sourced" was wrong — it's not a data gap,
-  it's a different shape of feature (curated tiles, not a filterable catalog).
-  Drop Radio from #6 rather than trying to unblock it.
-  Audiobooks — no clean path found; would need title-matching against Open
-  Library/Google Books subject tags, same fuzzy-match risk already flagged for
-  manga cast in #2.
-- **#8 Comics** — beyond the two dead scrape sources already ruled out, a
-  Stremio-style comics addon is the cleaner path (matches how Movies/Series/
-  Manga already work here). Worth naming honestly: legal comics-reading sources
-  are scarce industry-wide, so this may stay blocked longer than a typical
-  "find a better scraper" problem — not purely a technical gap.
-- **#9 Cloud sync** — three shapes: full OAuth to Google Drive/OneDrive (heavy,
-  per-platform work); a generic WebDAV/S3 endpoint the user points at their own
-  server (light, no vendor lock-in, fits the "own server" framing already in
-  the note above — leaning here); or GitHub Gist via a personal access token
-  (zero setup, fits this app's self-hosted-tool audience as a bonus option
-  alongside WebDAV, not a replacement for it).
-
-> **Mobile hub switching via drawer** was dropped: the leftover bottom nav bar it referred to is already gone, and the global `TopBar` (3 fixed hub tabs) + `SectionTopBar` (horizontally-scrolling section chips) already cover every screen width, including mobile — a drawer would duplicate that, not fix a gap.
->
-> **IPTV multi-view** shipped (see CHANGELOG) as an original grid feature, not a port of `interneto/tv-multiview` (a pure JS/PWA project, not pullable as a Flutter dependency). Scoped to channels with an already-cached stream, not fresh scans — see the CHANGELOG entry for why.
->
-> **`interneto/tv-multiview`'s channel data** (`json-tv/tv-channels.json` -- 96 channels with direct m3u8 URLs, name/logo/category/country) was evaluated as a source for more IPTV channels. Declined: mostly minor national/public broadcasters (34 news, 23 general), the data has no stated license (from `Alplox/json-tv`, marked "(No license)" in their own NOTICE.md), and `HardcodedChannel` has no direct-stream-URL field -- these channels already have a working URL, so bolting them into the existing name+keyword portal-scan model would mean scanning portals for niche broadcasters unlikely to be in that catalog. Using it properly needs a second, direct-play path bypassing the scan entirely -- a real new subsystem, not proportionate to what ~88 working channels (mostly minor) add.
+> **Declined/dropped ideas** (kept short so they don't get re-litigated): mobile
+> hub switching via a drawer — `TopBar`+`SectionTopBar` already cover every width
+> including mobile, a drawer would duplicate that. IPTV multi-view shipped as an
+> original grid feature (see CHANGELOG), not a port of `interneto/tv-multiview`
+> (pure JS/PWA, not a Flutter dependency). That project's channel data (96
+> channels, no stated license, no direct-stream-URL field on `HardcodedChannel`)
+> was evaluated and declined — not proportionate to what ~88 mostly-minor
+> channels would add.
 
 ## Architecture: consistency, SOLID, modularity
 
-Cross-cutting cleanup requested — applied consistently rather than as one-off patches.
+- **Playback progress/state syncing to `PlaybackCoordinator`**: Music/audiobook
+  drive it from their own custom controllers; video/IPTV share a duplicated
+  2-line fragment. Forcing all four into one contract costs a real adapter per
+  controller type to save two lines, with no current bug. Left as-is; revisit
+  if a fifth playback type actually forgets the sync.
 
-- **Duplicated widgets with independently-drifting behavior**: `IptvSliderSection`/`MovieSliderSection` scroll-arrow logic, `IptvChannelCard`/`MovieCard` hover-press animation, `IptvHeroCarousel`/the anime hero carousel's PageController+Timer auto-rotate logic, and `MediaHub`/`BooksHub`'s scaffold shell are all done (see CHANGELOG). `MusicHub`/`music_page.dart` stays a deliberately separate third shape (ambient background, keyboard listener, queue/lyrics drawer overlays) rather than being forced into the same abstraction.
-- **Playback progress/state syncing to `PlaybackCoordinator`**: evaluated formalizing this into the `activate()` contract. Music and audiobook drive it from their own custom controllers' internal state; video and IPTV share a duplicated 2-line fragment (`setProgress`+`setPlaying` off a `VideoPlayerController`'s `value`) inside otherwise-unrelated listeners. Forcing all four into one contract would mean an adapter per controller type to paper over genuinely different underlying APIs — real design cost to save two lines, with no current bug from the gap. Left as-is; revisit if a fifth playback type actually forgets the sync.
-- **Dead code found 2026-08-27**: resolved same day (see CHANGELOG) — `DownloadItem` deleted, `AppRadii` now has a real consumer, `_MobileTopBar` reuses `SidebarLogo`.
-
-> Completed items are in the CHANGELOG — pull latest `upstream/main` and confirm the
-> working tree is clean before any commit.
+> Completed items are in the CHANGELOG — pull latest `upstream/main` and confirm
+> the working tree is clean before any commit.
