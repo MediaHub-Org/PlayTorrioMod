@@ -112,9 +112,15 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     try {
       final updater = AppUpdaterService();
       final updateInfo = await updater.checkForUpdates();
-      final context = navigatorKey.currentContext;
+      if (updateInfo == null) return;
 
-      if (updateInfo != null && context != null && context.mounted) {
+      BuildContext? context = navigatorKey.currentContext;
+      for (int i = 0; i < 6 && (context == null || !context.mounted); i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        context = navigatorKey.currentContext;
+      }
+
+      if (context != null && context.mounted && !_isShowingUpdateDialog) {
         _isShowingUpdateDialog = true;
         await showDialog(
           context: context,

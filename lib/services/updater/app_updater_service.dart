@@ -135,7 +135,7 @@ class AppUpdaterService {
     return apks.first['browser_download_url'];
   }
 
-  /// Windows: match x64 or arm64 installer
+  /// Windows: match x64 or arm64 installer (.exe prioritized over .zip)
   String? _findWindowsAsset(List assets, Abi? abi) {
     final windowsAssets = assets.where((a) {
       final name = (a['name'] as String).toLowerCase();
@@ -145,10 +145,26 @@ class AppUpdaterService {
 
     if (windowsAssets.isEmpty) return null;
 
-    if (windowsAssets.length == 1) {
-      return windowsAssets.first['browser_download_url'];
+    // 1. Look for installer .exe matching setup/installer
+    final setupExe = windowsAssets
+        .where((a) => (a['name'] as String).toLowerCase().endsWith('.exe') &&
+            ((a['name'] as String).toLowerCase().contains('setup') || (a['name'] as String).toLowerCase().contains('install')))
+        .firstOrNull;
+    if (setupExe != null) {
+      debugPrint('Selected Windows Setup installer: ${setupExe['name']}');
+      return setupExe['browser_download_url'];
     }
 
+    // 2. Look for any .exe
+    final anyExe = windowsAssets
+        .where((a) => (a['name'] as String).toLowerCase().endsWith('.exe'))
+        .firstOrNull;
+    if (anyExe != null) {
+      debugPrint('Selected Windows exe: ${anyExe['name']}');
+      return anyExe['browser_download_url'];
+    }
+
+    // 3. Match architecture in remaining assets (.zip/.msix)
     List<String> archKeywords;
     if (abi == Abi.windowsArm64) {
       archKeywords = ['arm64', 'aarch64'];

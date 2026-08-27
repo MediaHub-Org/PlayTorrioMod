@@ -25,6 +25,8 @@ import '../search/search_page.dart';
 import '../settings/settings_page.dart';
 import '../../services/theme/dock_settings.dart';
 import '../../widgets/common/app_liquid_dock.dart';
+import '../../services/updater/app_updater_service.dart';
+import '../../widgets/updater/update_dialog.dart';
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -62,6 +64,27 @@ class _HomePageState extends State<HomePage> {
     }
 
     _loadHome();
+    _checkAutoUpdate();
+  }
+
+  static bool _hasAutoCheckedUpdate = false;
+
+  Future<void> _checkAutoUpdate() async {
+    if (_hasAutoCheckedUpdate) return;
+    try {
+      final updater = AppUpdaterService();
+      final updateInfo = await updater.checkForUpdates();
+      if (updateInfo != null && mounted) {
+        _hasAutoCheckedUpdate = true;
+        showDialog(
+          context: context,
+          barrierDismissible: true,
+          builder: (context) => UpdateDialog(updateInfo: updateInfo),
+        );
+      }
+    } catch (e) {
+      debugPrint('[HomePage] Auto update check failed: $e');
+    }
   }
 
   @override
