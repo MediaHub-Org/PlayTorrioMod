@@ -53,12 +53,20 @@ Books browse view) — see CHANGELOG.
 Thinking-only pass over the undesigned items above — no code changed, nothing
 here is committed to. Recommendations, not decisions.
 
-- **#3 Nest Genres** — trivial once picked up: reuse the existing `FilterDropdown`
-  pattern (already live for decade/sort on Movies/Series, genre on Anime). Add a
-  Genre `FilterDropdown` to the Movies/Series catalog and the Music catalog,
-  sourced from whatever `GenresPage` already queries, then delete the top-level
-  Genres chip from `HubController.currentSections` on both hubs. No deep-links
-  point at Genres today, so no migration risk. Lowest-effort item on the list.
+- **#3 Nest Genres** — revised 2026-08-27, not as trivial as first assessed: the
+  decade filter it was meant to mirror is a pure client-side filter over
+  already-loaded `Movie` items (parses year off a field the model already has).
+  Genre is different — the `Movie` catalog-list model has **no genre field at
+  all**; genre browsing today (`GenresPage` -> `DiscoverPage`) works by
+  re-fetching from addons scoped by a genre extra-parameter
+  (`AddonManager.fetchByGenre`), which returns a different shape (grouped
+  sections, mixed movie+series) than `TypeCatalogPage`'s flat `List<Movie>`.
+  Nesting a genre `FilterDropdown` into the catalog means wiring a real second
+  fetch path and merging/filtering that result shape into the existing list —
+  real plumbing, not a one-line addition. The Music side (`music_page.dart`'s
+  separate tab-based Genres view) hasn't been inspected yet either. No deep-
+  links point at the current Genres chip, so no migration risk either way —
+  needs a proper bounded-design pass before implementation, not a quick patch.
 - **#7 Unify Movies/Series/Anime catalog** — three shapes, ranked:
   (A) **True merge** — one grid, one query, Type/Genre/Year as combinable tags;
   closest to the Stremio feel but means merging pagination across three APIs
