@@ -17,6 +17,22 @@ class PodcastResult {
     required this.artworkUrl,
     required this.feedUrl,
   });
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'artistName': artistName,
+        'artworkUrl': artworkUrl,
+        'feedUrl': feedUrl,
+      };
+
+  factory PodcastResult.fromJson(Map<String, dynamic> json) => PodcastResult(
+        id: json['id']?.toString() ?? '',
+        name: json['name']?.toString() ?? '',
+        artistName: json['artistName']?.toString() ?? '',
+        artworkUrl: json['artworkUrl']?.toString() ?? '',
+        feedUrl: json['feedUrl']?.toString() ?? '',
+      );
 }
 
 /// A single episode parsed out of a podcast's RSS feed.

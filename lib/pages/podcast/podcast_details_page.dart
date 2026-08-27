@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
+import '../../services/podcast/podcast_library_service.dart';
 import '../../services/podcast/podcast_player_controller.dart';
 import '../../services/podcast/podcast_service.dart';
 
@@ -20,12 +21,15 @@ class _PodcastDetailsPageState extends State<PodcastDetailsPage> {
 
   List<PodcastEpisode> _episodes = [];
   bool _loading = true;
+  bool _isLiked = false;
 
   @override
   void initState() {
     super.initState();
     _load();
     _player.addListener(_onPlayerChanged);
+    PodcastLibraryService.instance.init();
+    _isLiked = PodcastLibraryService.instance.isLiked(widget.podcast.id);
   }
 
   @override
@@ -36,6 +40,13 @@ class _PodcastDetailsPageState extends State<PodcastDetailsPage> {
 
   void _onPlayerChanged() {
     if (mounted) setState(() {});
+  }
+
+  Future<void> _toggleLike() async {
+    await PodcastLibraryService.instance.toggleLike(widget.podcast);
+    if (mounted) {
+      setState(() => _isLiked = PodcastLibraryService.instance.isLiked(widget.podcast.id));
+    }
   }
 
   Future<void> _load() async {
@@ -55,6 +66,15 @@ class _PodcastDetailsPageState extends State<PodcastDetailsPage> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF080A0F),
         title: Text(widget.podcast.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+        actions: [
+          IconButton(
+            icon: Icon(
+              _isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              color: _isLiked ? const Color(0xFFE50914) : Colors.white70,
+            ),
+            onPressed: _toggleLike,
+          ),
+        ],
       ),
       body: _loading
           ? const Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF)))

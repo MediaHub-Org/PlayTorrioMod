@@ -17,7 +17,9 @@ import '../../utils/fullscreen_navigator.dart';
 import '../../utils/hub_controller.dart';
 import '../../utils/search_scope.dart';
 import '../../main.dart' show navigatorKey;
+import '../podcast/podcast_details_page.dart';
 import '../podcast/podcasts_page.dart';
+import '../../services/podcast/podcast_library_service.dart';
 import '../../services/music/music_player_controller.dart';
 import '../../services/music/music_service.dart';
 import '../../services/music/music_settings.dart';
@@ -74,10 +76,12 @@ class _MusicPageState extends State<MusicPage> {
     super.initState();
     _playerController.addListener(_onStateChanged);
     _libraryService.addListener(_onStateChanged);
+    PodcastLibraryService.instance.addListener(_onStateChanged);
     HubController.instance.addListener(_onHubChanged);
     MusicSettings.changeNotifier.addListener(_onStateChanged);
     AppThemeService.currentPalette.addListener(_onStateChanged);
     _libraryService.init();
+    PodcastLibraryService.instance.init();
     // Sync the initial tab from the controller (in case a chip is already active).
     _activeTab = HubController.instance.musicTab;
     // Let the universal play bar open the full player when tapped.
@@ -96,6 +100,7 @@ class _MusicPageState extends State<MusicPage> {
     _toastTimer?.cancel();
     _playerController.removeListener(_onStateChanged);
     _libraryService.removeListener(_onStateChanged);
+    PodcastLibraryService.instance.removeListener(_onStateChanged);
     HubController.instance.removeListener(_onHubChanged);
     MusicSettings.changeNotifier.removeListener(_onStateChanged);
     AppThemeService.currentPalette.removeListener(_onStateChanged);
@@ -1548,7 +1553,65 @@ class _MusicPageState extends State<MusicPage> {
           icon: Icons.history_rounded,
           builder: (_) => _buildRecentTab(recent),
         ),
+        LibraryTab(
+          label: 'Podcasts',
+          icon: Icons.podcasts_rounded,
+          builder: (_) => _buildLikedPodcastsTab(),
+        ),
       ],
+    );
+  }
+
+  Widget _buildLikedPodcastsTab() {
+    final liked = PodcastLibraryService.instance.liked;
+    if (liked.isEmpty) {
+      return const LibraryEmptyState(
+        icon: Icons.podcasts_rounded,
+        title: 'No liked podcasts',
+        subtitle: 'Tap the heart on a podcast to save it here.',
+      );
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 200,
+        mainAxisSpacing: 24,
+        crossAxisSpacing: 16,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: liked.length,
+      itemBuilder: (context, index) {
+        final podcast = liked[index];
+        return GestureDetector(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => PodcastDetailsPage(podcast: podcast)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: podcast.artworkUrl.isNotEmpty
+                      ? CachedNetworkImage(imageUrl: podcast.artworkUrl, fit: BoxFit.cover, width: double.infinity)
+                      : Container(
+                          color: Colors.white10,
+                          child: const Icon(Icons.podcasts_rounded, color: Colors.white24, size: 40),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                podcast.name,
+                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 

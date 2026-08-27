@@ -4,6 +4,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Add favorites to Podcasts (ROADMAP #2) — 2026-08-27
+- **Podcasts was the only Listen-hub subcategory with no favorite/subscribe concept**: new `PodcastLibraryService` (mirrors `AudiobookLibraryService`/`BookLibraryService`'s shape). `PodcastResult` gained `toJson`/`fromJson` for persistence. A heart icon in `PodcastDetailsPage`'s app bar toggles the like — the natural spot, matching Audiobooks/Manga's "like lives on the detail page" convention. A new "Podcasts" tab in Music's own Library view (`_buildLibraryView`) shows the liked list alongside Liked Songs/Playlists/Recent, tapping opens `PodcastDetailsPage`.
+
 ### Add favorites to Books (ROADMAP #2) — 2026-08-27
 - **Books was the only Read-hub subcategory with no like/favorite feature**: new `BookLibraryService` (mirrors `AudiobookLibraryService`'s shape exactly). A heart icon on each `_BookRow` in `books_page.dart` (search results and the "Recently Added" browse grid both use it) toggles the like; a new "Books" tab in `BooksLibraryPage` shows the liked list, matching the existing Audiobooks/Manga tabs. Tapping a liked book resumes reading if it's already downloaded (cross-referencing `BookProgressService`), otherwise points back to Books to search and download it — Books has no dedicated detail page to route to, unlike Audiobooks/Manga, so this reuses the same "file missing" fallback pattern already added for the History tab.
 
