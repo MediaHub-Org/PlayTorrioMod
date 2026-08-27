@@ -15,16 +15,18 @@ the OS kill the process while the proxy's HTTP server is still bound. Verified v
 close button and confirming no dialog appears needs a human — no agent in this loop
 can interact with a live window.
 
-**Open — mobile section chips overlap the page search icon at narrow widths.**
-Confirmed via testing 2026-08-26. Each catalog/section page (`anime_page.dart`,
-`manga_page.dart`, `music_page.dart`, `audiobooks_page.dart`, `type_catalog_page.dart`,
-`genres_page.dart`) floats its own `PageSearchButton` (and often a `FilterDropdown`)
-as a `Positioned(top: 16, right: 16, ...)` overlay independent of `SectionTopBar`'s
-horizontally-scrolling chip row above it — neither reserves clearance against the
-other's actual rendered width, so on phone-width screens the chip strip's trailing
-label and the floating search icon collide. Needs an investigation pass across the
-~6 pages using this pattern (not a single-file fix) — the same per-page-pattern-
-reuse-without-a-shared-component root cause as the dead code cleaned up 2026-08-27.
+**Closed, unreproducible — mobile section chips overlap the page search icon at
+narrow widths.** Originally confirmed via testing 2026-08-26; retested 2026-08-27
+by actually running the Windows build at a resized 390px phone-width window
+(screenshots via `PrintWindow`, live-driven, not just code review) across Movies,
+Audiobooks, and Anime — one page per composition shape (`PageSearchButton` inline,
+plain title row, custom `Positioned(top:16,right:16)` row matching `manga_page.dart`).
+In every case `SectionTopBar` and the page's own icon row sit in separate rows via
+`SectionedHubScaffold`'s `Column[SectionTopBar(), Expanded(section)]` — no Z-overlap
+is structurally possible there. What *is* real: the chip strip itself clips at 390px
+(trailing chip cut off, reachable only by scrolling) — expected horizontal-scroll
+behavior, not a collision. Reopen with the exact device/width/font-scale if seen
+again; current build shows no overlap.
 
 ## Upcoming (priority order)
 
