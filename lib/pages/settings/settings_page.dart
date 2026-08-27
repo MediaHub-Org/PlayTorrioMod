@@ -253,8 +253,8 @@ class _SettingsPageState extends State<SettingsPage> {
               _SettingsCategoryTile(
                 icon: Icons.extension_rounded,
                 iconColor: const Color(0xFF10B981),
-                title: 'Metadata Addons',
-                subtitle: 'Stremio catalogs, movie/series metadata providers',
+                title: 'Addons',
+                subtitle: 'Stremio catalogs and content providers',
                 badgeText: '$addonCount Installed',
                 badgeColor: const Color(0xFF10B981),
                 onTap: () => _navigateTo(const AddonsSettingsPage()),

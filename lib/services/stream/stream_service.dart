@@ -23,6 +23,8 @@ import '../scraper/sites/movy.dart';
 import '../scraper/sites/vuflix.dart';
 import '../scraper/sites/rivestream.dart';
 import '../scraper/sites/cinejoy.dart';
+import '../scraper/sites/a111477.dart';
+import '../scraper/sites/vadapav.dart';
 import '../anime/anime_scraper_service.dart';
 import '../anime_arabic/anime_arabic_service.dart';
 import '../anime_arabic/anime_arabic_extractor.dart';
@@ -40,6 +42,8 @@ class StreamService {
     } else {
       ScraperManager.instance.unregisterTorrentScrapers();
     }
+    ScraperManager.instance.registerScraper(A111477Scraper());
+    ScraperManager.instance.registerScraper(VadapavScraper());
     ScraperManager.instance.registerScraper(FourKHDHubScraper());
     ScraperManager.instance.registerScraper(XDownloaderScraper());
     ScraperManager.instance.registerScraper(VideasyScraper());

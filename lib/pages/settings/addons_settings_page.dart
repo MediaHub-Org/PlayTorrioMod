@@ -204,7 +204,7 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Metadata Addons',
+          'Addons',
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
         ),
       ),
@@ -282,7 +282,7 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Click "Add Metadata Addon" above to install a Stremio manifest URL.',
+                        'Click "Add Addon" above to install a Stremio manifest URL.',
                         textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 12.5, color: Colors.white.withValues(alpha: 0.4)),
                       ),
@@ -709,7 +709,7 @@ class _AddAddonButton extends StatelessWidget {
               const Icon(Icons.add_rounded, color: Color(0xFF7C5CFF), size: 22),
             const SizedBox(width: 10),
             Text(
-              isLoading ? 'Installing...' : 'Add Metadata Addon',
+              isLoading ? 'Installing...' : 'Add Addon',
               style: const TextStyle(
                 fontSize: 14.5,
                 fontWeight: FontWeight.w700,

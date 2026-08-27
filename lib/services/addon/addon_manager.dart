@@ -75,6 +75,16 @@ class AddonManager {
   /// Install an addon by its base URL or manifest URL.
   Future<InstalledAddon> addAddon(String url) async {
     String baseUrl = url.trim();
+
+    // Convert stremio:// or stremio: URI scheme to https://
+    if (baseUrl.startsWith('stremio://')) {
+      baseUrl = 'https://${baseUrl.substring('stremio://'.length)}';
+    } else if (baseUrl.startsWith('stremio:')) {
+      baseUrl = 'https://${baseUrl.substring('stremio:'.length)}';
+    } else if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      baseUrl = 'https://$baseUrl';
+    }
+
     if (baseUrl.endsWith('/manifest.json')) {
       baseUrl = baseUrl.substring(0, baseUrl.length - '/manifest.json'.length);
     }
