@@ -9,6 +9,8 @@
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>PlayTorrio streams video and audio from local network services and torrent streaming engines.</string>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

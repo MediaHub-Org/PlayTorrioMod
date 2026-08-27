@@ -212,7 +212,7 @@ abstract final class PlayerSettings {
         if (Platform.isWindows) {
           return ['MFT:d3d=11:copy=0', 'D3D11:copy=0', 'CUDA:copy=0', 'DXVA', 'dav1d', 'FFmpeg'];
         } else if (Platform.isMacOS || Platform.isIOS) {
-          return ['VT:copy=0', 'dav1d', 'FFmpeg'];
+          return ['VT:copy=1', 'VT', 'dav1d', 'FFmpeg'];
         } else if (Platform.isAndroid) {
           return ['AMediaCodec:copy=0', 'AMediaCodec', 'dav1d', 'FFmpeg'];
         } else {

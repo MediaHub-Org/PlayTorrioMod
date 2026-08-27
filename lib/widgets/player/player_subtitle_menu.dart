@@ -205,7 +205,7 @@ class _PlayerSubtitleMenuState extends State<PlayerSubtitleMenu> {
 
     final double cardHeight;
     if (isLandscapeMobile) {
-      cardHeight = (screen.height - 36).clamp(250.0, 360.0);
+      cardHeight = (screen.height - 56).clamp(200.0, screen.height - 48);
     } else if (isCompact) {
       cardHeight = (screen.height * 0.65).clamp(340.0, 520.0);
     } else {

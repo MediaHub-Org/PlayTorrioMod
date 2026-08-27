@@ -1255,8 +1255,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                   child: FittedBox(
                     fit: _videoFit,
                     child: SizedBox(
-                      width: _controller!.value.size.width,
-                      height: _controller!.value.size.height,
+                      width: (_controller!.value.size.width > 0)
+                          ? _controller!.value.size.width
+                          : 1920,
+                      height: (_controller!.value.size.height > 0)
+                          ? _controller!.value.size.height
+                          : 1080,
                       child: VideoPlayer(_controller!),
                     ),
                   ),
@@ -1520,13 +1524,15 @@ class _PlayerScreenState extends State<PlayerScreen>
           // Floating Subtitle Menu Popover
           if (_activeMenu == 'subtitle' && !_isLoading)
             Positioned(
-              bottom: MediaQuery.sizeOf(context).width < 560
-                  ? 60
-                  : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96),
+              bottom: MediaQuery.sizeOf(context).height < 500
+                  ? 44
+                  : (MediaQuery.sizeOf(context).width < 560
+                      ? 60
+                      : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96)),
               right: MediaQuery.sizeOf(context).width < 560
-                  ? 12
-                  : (MediaQuery.sizeOf(context).width < 680 ? 16 : 28),
-              left: MediaQuery.sizeOf(context).width < 560 ? 12 : null,
+                  ? 8
+                  : (MediaQuery.sizeOf(context).width < 680 ? 12 : 28),
+              left: MediaQuery.sizeOf(context).width < 560 ? 8 : null,
               child: Align(
                 alignment: MediaQuery.sizeOf(context).width < 560
                     ? Alignment.bottomCenter
@@ -1589,8 +1595,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           // Floating Audio Menu Popover
           if (_activeMenu == 'audio' && !_isLoading)
             Positioned(
-              bottom: MediaQuery.sizeOf(context).width < 680 ? 76 : 96,
-              right: MediaQuery.sizeOf(context).width < 680 ? 16 : 28,
+              bottom: MediaQuery.sizeOf(context).height < 500
+                  ? 46
+                  : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96),
+              right: MediaQuery.sizeOf(context).width < 680 ? 12 : 28,
               child: PlayerAudioMenu(
                 audioTracks: _audioTracks,
                 selectedIndex: _selectedAudioTrackIndex,
@@ -1610,8 +1618,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           // Floating Speed Menu Popover
           if (_activeMenu == 'speed' && !_isLoading)
             Positioned(
-              bottom: MediaQuery.sizeOf(context).width < 680 ? 76 : 96,
-              right: MediaQuery.sizeOf(context).width < 680 ? 16 : 28,
+              bottom: MediaQuery.sizeOf(context).height < 500
+                  ? 46
+                  : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96),
+              right: MediaQuery.sizeOf(context).width < 680 ? 12 : 28,
               child: PlayerSpeedMenu(
                 currentRate: _playbackRate,
                 onRateSelected: (rate) {
@@ -1625,8 +1635,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           // Floating Aspect Ratio Popover
           if (_activeMenu == 'aspect' && !_isLoading)
             Positioned(
-              bottom: MediaQuery.sizeOf(context).width < 680 ? 76 : 96,
-              right: MediaQuery.sizeOf(context).width < 680 ? 16 : 28,
+              bottom: MediaQuery.sizeOf(context).height < 500
+                  ? 46
+                  : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96),
+              right: MediaQuery.sizeOf(context).width < 680 ? 12 : 28,
               child: PlayerAspectMenu(
                 currentFit: _videoFit,
                 subtitleScale: _subtitleScale,
