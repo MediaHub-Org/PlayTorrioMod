@@ -4,7 +4,9 @@
 ; ──────────────────────────────────────────────────────────────────────────────
 
 #define MyAppName      "PlayTorrio"
+#ifndef MyAppVersion
 #define MyAppVersion   "1.0.0"
+#endif
 #define MyAppPublisher "ayman708-UX"
 #define MyAppExeName   "playtorrio.exe"
 #define MyAppURL       "https://github.com/ayman708-UX/PlayTorrioV3"

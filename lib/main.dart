@@ -87,7 +87,9 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_hasCheckedInitialUpdate) {
         _hasCheckedInitialUpdate = true;
-        _checkForUpdates();
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) _checkForUpdates();
+        });
       }
     });
   }
