@@ -6,9 +6,11 @@ import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
 import '../../services/theme/app_theme_service.dart';
+import '../../services/theme/dock_settings.dart';
 import '../../services/manga/manga_service.dart';
 import '../../services/manga/manga_settings.dart';
 import '../../widgets/common/animated_ambient_background.dart';
+import '../../widgets/common/app_liquid_dock.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/common/slider_arrow.dart';
 import '../../widgets/manga/manga_card.dart';
@@ -378,6 +380,16 @@ class _MangaPageState extends State<MangaPage> {
                     bottom: 40,
                     child: CustomScrollTrack(controller: _scrollController),
                   ),
+
+                // ── Bottom Liquid Dock Navbar ──
+                Positioned(
+                  bottom: 12.0 + MediaQuery.paddingOf(context).bottom,
+                  left: 0,
+                  right: 0,
+                  child: const Center(
+                    child: AppLiquidDock(currentDestination: DockItemKey.manga),
+                  ),
+                ),
               ],
             ),
           ),
@@ -475,7 +487,7 @@ class _MangaPageState extends State<MangaPage> {
             padding: EdgeInsets.symmetric(horizontal: sizing.sidePadding, vertical: 8.0),
             sliver: SliverGrid(
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: sizing.cardWidth + (sizing.spacing / 2),
+                maxCrossAxisExtent: sizing.cardWidth + sizing.spacing * 2,
                 mainAxisSpacing: 32.0,
                 crossAxisSpacing: sizing.spacing,
                 mainAxisExtent: sizing.totalHeight,

@@ -2261,34 +2261,36 @@ class _MusicTopHeader extends StatelessWidget {
             ),
             SizedBox(width: isMobile ? 6 : 12),
             const _AudioSourceSelectorButton(),
-            SizedBox(width: isMobile ? 4 : 8),
-            _MusicHoverable(
-              scaleFactor: 1.1,
-              child: IconButton(
-                tooltip: 'Music Player Studio',
-                icon: const Icon(Icons.dashboard_customize_rounded, color: Colors.white70, size: 20),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MusicPlayerStudioPage()),
-                  );
-                },
+            if (!isMobile) ...[
+              SizedBox(width: isMobile ? 4 : 8),
+              _MusicHoverable(
+                scaleFactor: 1.1,
+                child: IconButton(
+                  tooltip: 'Music Player Studio',
+                  icon: const Icon(Icons.dashboard_customize_rounded, color: Colors.white70, size: 20),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MusicPlayerStudioPage()),
+                    );
+                  },
+                ),
               ),
-            ),
-            SizedBox(width: isMobile ? 2 : 6),
-            _MusicHoverable(
-              scaleFactor: 1.1,
-              child: IconButton(
-                tooltip: 'Music Atmosphere Settings',
-                icon: const Icon(Icons.palette_rounded, color: Colors.white70, size: 20),
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const MusicSettingsPage()),
-                  );
-                },
+              SizedBox(width: isMobile ? 2 : 6),
+              _MusicHoverable(
+                scaleFactor: 1.1,
+                child: IconButton(
+                  tooltip: 'Music Atmosphere Settings',
+                  icon: const Icon(Icons.palette_rounded, color: Colors.white70, size: 20),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const MusicSettingsPage()),
+                    );
+                  },
+                ),
               ),
-            ),
+            ],
             SizedBox(width: isMobile ? 2 : 6),
             _MusicHoverable(
               scaleFactor: 1.1,
@@ -2598,26 +2600,32 @@ class _MusicMobileBottomNav extends StatelessWidget {
 
   Widget _navItem(String label, IconData icon) {
     final isSelected = activeTab == label;
-    return GestureDetector(
-      onTap: () => onTabSelected(label),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            icon,
-            color: isSelected ? const Color(0xFF7C5CFF) : Colors.white54,
-            size: 24,
+    return Expanded(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => onTabSelected(label),
+        child: SizedBox(
+          height: 60,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                color: isSelected ? const Color(0xFF7C5CFF) : Colors.white54,
+                size: 24,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.white54,
+                  fontSize: 10,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.white54,
-              fontSize: 10,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }

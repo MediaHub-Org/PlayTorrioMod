@@ -4,7 +4,9 @@ import 'package:flutter/material.dart';
 import '../../models/book/book_result.dart';
 import '../../services/books/bookracy_service.dart';
 import '../../services/books/continue_reading_service.dart';
+import '../../services/theme/dock_settings.dart';
 import '../../widgets/common/animated_ambient_background.dart';
+import '../../widgets/common/app_liquid_dock.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import 'book_detail_sheet.dart';
 import 'widgets/continue_reading_slider.dart';
@@ -308,6 +310,16 @@ class _BooksPageState extends State<BooksPage> {
               bottom: 40,
               child: CustomScrollTrack(controller: _scrollController),
             ),
+
+          // ── Bottom Liquid Dock Navbar ──
+          Positioned(
+            bottom: 12.0 + MediaQuery.paddingOf(context).bottom,
+            left: 0,
+            right: 0,
+            child: const Center(
+              child: AppLiquidDock(currentDestination: DockItemKey.books),
+            ),
+          ),
         ],
       ),
     );

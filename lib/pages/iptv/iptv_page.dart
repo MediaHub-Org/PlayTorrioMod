@@ -2,25 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
 import '../../services/theme/app_theme_service.dart';
+import '../../services/theme/dock_settings.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_controller.dart';
 import '../../services/iptv/iptv_settings.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/animated_ambient_background.dart';
+import '../../widgets/common/app_liquid_dock.dart';
 import '../../widgets/common/custom_scroll_track.dart';
-import '../../widgets/common/liquid_dock.dart';
 import '../../widgets/iptv/iptv_hero_carousel.dart';
 import '../../widgets/iptv/iptv_slider_section.dart';
-import '../anime/anime_page.dart';
-import '../audiobooks/audiobooks_page.dart';
-import '../books/books_page.dart';
-import '../downloads/downloads_page.dart';
-import '../manga/manga_page.dart';
-import '../music/music_page.dart';
-import '../my_list/my_list_page.dart';
 import '../settings/settings_page.dart';
-import '../settings/addons_settings_page.dart';
 import 'iptv_channel_sheet.dart';
 import 'iptv_player_page.dart';
 import 'iptv_portals_modal.dart';
@@ -248,115 +241,10 @@ class _IptvPageState extends State<IptvPage> {
         left: 0,
         right: 0,
         child: Center(
-          child: LiquidDock(
-            items: [
-              DockItem(
-                icon: Icons.home_rounded,
-                label: 'Home',
-                onTap: () => Navigator.pop(context),
-              ),
-              DockItem(
-                icon: Icons.auto_stories_rounded,
-                label: 'Manga',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(page: const MangaPage(), tapPosition: null),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.menu_book_rounded,
-                label: 'Books',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(page: const BooksPage(), tapPosition: null),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.headphones_rounded,
-                label: 'Audiobooks',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(page: const AudiobooksPage(), tapPosition: null),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.music_note_rounded,
-                label: 'Music',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(page: const MusicPage(), tapPosition: null),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.animation_rounded,
-                label: 'Anime',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(page: const AnimePage(), tapPosition: null),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.live_tv_rounded,
-                label: 'Live TV',
-                onTap: () {},
-              ),
-              DockItem(
-                icon: Icons.extension_rounded,
-                label: 'Addons',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    LiquidRevealRoute(
-                      page: const AddonsSettingsPage(),
-                      tapPosition: null,
-                    ),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.download_rounded,
-                label: 'Downloads',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    LiquidRevealRoute(
-                      page: const DownloadsPage(),
-                      tapPosition: null,
-                    ),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.favorite_rounded,
-                label: 'My List',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(page: const MyListPage(), tapPosition: null),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.settings_rounded,
-                label: 'Settings',
-                onTap: () => _navigateToSettings(null),
-              ),
-              DockItem(
-                icon: Icons.search_rounded,
-                label: 'Search',
-                onTap: () => _navigateToSearch(null),
-              ),
-            ],
+          child: AppLiquidDock(
+            currentDestination: DockItemKey.liveTv,
+            onSettingsTap: () => _navigateToSettings(null),
+            onSearchTap: () => _navigateToSearch(null),
           ),
         ),
       ),

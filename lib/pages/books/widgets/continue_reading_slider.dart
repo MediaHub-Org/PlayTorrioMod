@@ -369,8 +369,8 @@ class _ContinueReadingCardState extends State<_ContinueReadingCard> {
                     ),
                   ),
 
-                  // Remove Button Top-Right on hover
-                  if (_hovered)
+                  // Remove Button Top-Right (always on mobile, hover-only on desktop)
+                  if (_hovered || !(defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux))
                     Positioned(
                       top: 6,
                       right: 6,

@@ -97,8 +97,8 @@ abstract final class CustomBackgroundService {
     CustomBackgroundPreset(
       id: 'moody_forest',
       title: 'Moody Forest Mist',
-      previewUrl: 'https://images.unsplash.com/photo-1511497584788-87676104235f?w=400&q=80',
-      fullUrl: 'https://images.unsplash.com/photo-1511497584788-87676104235f?w=1920&q=90',
+      previewUrl: 'https://images.unsplash.com/photo-1506452305024-9d3f02d1c9b5?w=400&q=80&auto=format&fit=crop',
+      fullUrl: 'https://images.unsplash.com/photo-1506452305024-9d3f02d1c9b5?w=1920&q=90&auto=format&fit=crop',
     ),
     CustomBackgroundPreset(
       id: 'abstract_geometry',

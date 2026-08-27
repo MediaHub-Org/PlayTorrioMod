@@ -8,22 +8,15 @@ import '../../services/anime/anilist_service.dart';
 import '../../services/anime/anime_library_service.dart';
 import '../../services/anime_arabic/anime_arabic_service.dart';
 import '../../services/theme/app_theme_service.dart';
+import '../../services/theme/dock_settings.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/anime/anime_slider_section.dart';
 import '../../widgets/common/animated_ambient_background.dart';
+import '../../widgets/common/app_liquid_dock.dart';
 import '../../widgets/common/custom_scroll_track.dart';
-import '../../widgets/common/liquid_dock.dart';
 import '../../widgets/home/continue_watching_slider.dart';
-import '../audiobooks/audiobooks_page.dart';
-import '../books/books_page.dart';
-import '../manga/manga_page.dart';
-import '../music/music_page.dart';
-import '../iptv/iptv_page.dart';
-import '../my_list/my_list_page.dart';
-import '../downloads/downloads_page.dart';
 import '../settings/settings_page.dart';
-import '../settings/addons_settings_page.dart';
 import 'anime_details_page.dart';
 import 'anime_stream_sheet.dart';
 import 'anime_search_page.dart';
@@ -513,133 +506,10 @@ class _AnimePageState extends State<AnimePage> {
             left: 0,
             right: 0,
             child: Center(
-              child: LiquidDock(
-                items: [
-                  DockItem(
-                    icon: Icons.home_rounded,
-                    label: 'Home',
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  DockItem(
-                    icon: Icons.auto_stories_rounded,
-                    label: 'Manga',
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        LiquidRevealRoute(
-                          page: const MangaPage(),
-                          tapPosition: null,
-                        ),
-                      );
-                    },
-                  ),
-                  DockItem(
-                    icon: Icons.menu_book_rounded,
-                    label: 'Books',
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        LiquidRevealRoute(
-                          page: const BooksPage(),
-                          tapPosition: null,
-                        ),
-                      );
-                    },
-                  ),
-                  DockItem(
-                    icon: Icons.headphones_rounded,
-                    label: 'Audiobooks',
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        LiquidRevealRoute(
-                          page: const AudiobooksPage(),
-                          tapPosition: null,
-                        ),
-                      );
-                    },
-                  ),
-                  DockItem(
-                    icon: Icons.music_note_rounded,
-                    label: 'Music',
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        LiquidRevealRoute(
-                          page: const MusicPage(),
-                          tapPosition: null,
-                        ),
-                      );
-                    },
-                  ),
-                  DockItem(
-                    icon: Icons.animation_rounded,
-                    label: 'Anime',
-                    onTap: () {},
-                  ),
-                  DockItem(
-                    icon: Icons.live_tv_rounded,
-                    label: 'Live TV',
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        LiquidRevealRoute(
-                          page: const IptvPage(),
-                          tapPosition: null,
-                        ),
-                      );
-                    },
-                  ),
-                  DockItem(
-                    icon: Icons.extension_rounded,
-                    label: 'Addons',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        LiquidRevealRoute(
-                          page: const AddonsSettingsPage(),
-                          tapPosition: null,
-                        ),
-                      );
-                    },
-                  ),
-                  DockItem(
-                    icon: Icons.download_rounded,
-                    label: 'Downloads',
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        LiquidRevealRoute(
-                          page: const DownloadsPage(),
-                          tapPosition: null,
-                        ),
-                      );
-                    },
-                  ),
-                  DockItem(
-                    icon: Icons.favorite_rounded,
-                    label: 'My List',
-                    onTap: () {
-                      Navigator.pushReplacement(
-                        context,
-                        LiquidRevealRoute(
-                          page: const MyListPage(),
-                          tapPosition: null,
-                        ),
-                      );
-                    },
-                  ),
-                  DockItem(
-                    icon: Icons.settings_rounded,
-                    label: 'Settings',
-                    onTap: () => _navigateToSettings(null),
-                  ),
-                  DockItem(
-                    icon: Icons.search_rounded,
-                    label: 'Search',
-                    onTap: () => _navigateToSearch(null),
-                  ),
-                ],
+              child: AppLiquidDock(
+                currentDestination: DockItemKey.anime,
+                onSettingsTap: () => _navigateToSettings(null),
+                onSearchTap: () => _navigateToSearch(null),
               ),
             ),
           ),
@@ -700,13 +570,14 @@ class _AnimeGlassAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDesktop = MediaQuery.sizeOf(context).width > 700;
+    final isMobile = MediaQuery.sizeOf(context).width < 430;
 
     return RepaintBoundary(
       child: Container(
         padding: EdgeInsets.only(
           top: topPadding + 10,
           bottom: 14,
-          left: 20,
+          left: isMobile ? 8 : 20,
           right: 8,
         ),
         decoration: BoxDecoration(
@@ -730,36 +601,38 @@ class _AnimeGlassAppBar extends StatelessWidget {
               ),
               onPressed: () => Navigator.pop(context),
             ),
-            const SizedBox(width: 4),
+            if (!isMobile) ...[
+              const SizedBox(width: 4),
 
-            // Logo
-            Image.asset(
-              'assets/icon.png',
-              width: 32,
-              height: 32,
-              fit: BoxFit.contain,
-            ),
-            const SizedBox(width: 10),
-            RichText(
-              text: TextSpan(
-                text: 'PlayTorrio ',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -0.5,
-                  color: Colors.white,
-                ),
-                children: [
-                  TextSpan(
-                    text: isArabicMode ? 'Anime • Arabic' : 'Anime',
-                    style: TextStyle(
-                      color: AppThemeService.currentPalette.value.primaryColor,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
+              // Logo
+              Image.asset(
+                'assets/icon.png',
+                width: 32,
+                height: 32,
+                fit: BoxFit.contain,
               ),
-            ),
+              const SizedBox(width: 10),
+              RichText(
+                text: TextSpan(
+                  text: 'PlayTorrio ',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                    color: Colors.white,
+                  ),
+                  children: [
+                    TextSpan(
+                      text: isArabicMode ? 'Anime • Arabic' : 'Anime',
+                      style: TextStyle(
+                        color: AppThemeService.currentPalette.value.primaryColor,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const Spacer(),
 
             // Mode Switcher (General Anime vs Arabic Anime)

@@ -44,7 +44,14 @@ class MangaCardSizing {
       baseWidth = 205;
     }
 
-    final cardWidth = baseWidth * density.scale;
+    // Apply density scaling only when not standard (compact shrinks, cinematic grows)
+    if (density == MangaCardDensity.compact) {
+      baseWidth *= 0.85;
+    } else if (density == MangaCardDensity.spacious) {
+      baseWidth *= 1.20;
+    }
+
+    final cardWidth = baseWidth;
     final posterHeight = cardWidth * 1.48;
     final totalHeight = posterHeight + 66;
 

@@ -447,8 +447,8 @@ class _ContinueWatchingCardState extends State<_ContinueWatchingCard> {
                       ),
                     ),
 
-                    // Action Buttons (Top-Right on Hover: Details + Dismiss)
-                    if (_isHovered)
+                    // Action Buttons (Top-Right: always on mobile, hover-only on desktop)
+                    if (_isHovered || !(defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux))
                       Positioned(
                         top: 6,
                         right: 6,

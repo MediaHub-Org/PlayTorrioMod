@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/audiobook/audiobook_settings.dart';
 import '../../services/theme/custom_background_service.dart';
+import '../../services/theme/dock_settings.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../services/iptv/iptv_settings.dart';
 import '../../services/manga/manga_settings.dart';
 import '../../services/music/music_settings.dart';
 import 'appearance/audiobook_settings_page.dart';
 import 'appearance/custom_background_settings_page.dart';
+import 'appearance/dock_settings_page.dart';
 import 'appearance/home_ui_settings_page.dart';
 import 'appearance/liquid_glass_settings_page.dart';
 import 'appearance/live_tv_settings_page.dart';
@@ -119,7 +121,34 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage> {
 
               const SizedBox(height: 14),
 
-              // Button 2: Home Page UI & Themes
+              // Button 2: Liquid Dock / Navbar Items
+              ValueListenableBuilder<Map<String, bool>>(
+                valueListenable: DockSettings.enabledNotifier,
+                builder: (context, enabledMap, _) {
+                  final activeCount = enabledMap.values.where((v) => v).length;
+                  return _buildSectionButton(
+                    icon: Icons.dock_rounded,
+                    iconColor: const Color(0xFF7C5CFF),
+                    title: 'Liquid Dock / Deck Navbar',
+                    subtitle: 'Choose which navigation shortcuts appear in the bottom liquid glass dock across all screens',
+                    badgeText: '$activeCount / ${DockItemKey.values.length} Items',
+                    badgeColor: const Color(0xFF7C5CFF),
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const DockSettingsPage(),
+                        ),
+                      );
+                      setState(() {});
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(height: 14),
+
+              // Button 3: Home Page UI & Themes
               ValueListenableBuilder<AppThemePalette>(
                 valueListenable: AppThemeService.currentPalette,
                 builder: (context, currentPalette, _) {
