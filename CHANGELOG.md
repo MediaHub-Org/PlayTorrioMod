@@ -4,6 +4,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Real Music genre browsing — 2026-08-27
+- **Music genre filter, half of ROADMAP #6**: the Listen hub's "Genres" tab (`music_page.dart`) previously showed 12 hardcoded mood tiles whose tap just filled the search box and ran a text search — not real genre browsing. Replaced with `DeezerApiClient.getGenres()`/`.getGenreArtists()`, existing methods (and the `MusicGenre` model) that were already wired to Deezer's real public genre API but had zero call sites anywhere in the app. Tiles now show each genre's actual art; tapping one fetches real artists in that genre and shows them in-place (back arrow to return), tapping an artist reuses the existing, unchanged `_openArtistModal` artist-detail flow. `MusicService` gained a `fetchGenreArtists()` wrapper; its dead, search-hack-based `fetchGenreTracks()` was removed as directly superseded. Radio's identical hardcoded-tile pattern (`_buildRadioView`) was left alone — confirmed separately that it isn't a filterable catalog and a genre filter doesn't apply there regardless of data source.
+
 ### Anime director & staff photos — 2026-08-27
 - **Director/staff row on anime detail pages (ROADMAP #2, narrowed)**: `AnimeMedia` gained a `staff` field (new `AnimeStaff` model — id, name, image, role), populated from AniList's `staff(sort: RELEVANCE)` edges in `AnilistService.fetchAnimeDetails` — the same GraphQL API already supplying the existing "Characters & Cast" row, just not previously queried for staff. `AnimeDetailsPage` renders it as a new "Staff" row beneath Characters & Cast, shown only when staff data exists.
 - Manga and Audiobooks stay out of scope: manga is scraped from plain HTML with only a text author (no photo, and fuzzy-matching titles against AniList carries real mismatch risk); the `Audiobook` model has no author/narrator field at all. Both remain **blocked** on source data — see ROADMAP #2.

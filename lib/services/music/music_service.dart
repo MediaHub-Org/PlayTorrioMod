@@ -147,8 +147,8 @@ class MusicService {
     return _deezer.getGenres();
   }
 
-  Future<List<MusicTrack>> fetchGenreTracks(String genreName) async {
-    return _deezer.searchTracks('$genreName Top Hits', limit: 25);
+  Future<List<MusicArtist>> fetchGenreArtists(String genreId) async {
+    return _deezer.getGenreArtists(genreId);
   }
 
   Future<MusicStreamResult?> getAudioStream(

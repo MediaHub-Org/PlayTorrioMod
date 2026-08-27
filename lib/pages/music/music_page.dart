@@ -47,6 +47,11 @@ class _MusicPageState extends State<MusicPage> {
   List<MusicArtist> _trendingArtists = [];
   List<MusicAlbum> _newReleases = [];
   List<MusicPlaylist> _curatedPlaylists = [];
+  List<MusicGenre> _genres = [];
+
+  MusicGenre? _selectedBrowseGenre;
+  List<MusicArtist> _genreArtists = [];
+  bool _loadingGenreArtists = false;
   MusicTrack? _heroTrack;
 
   MusicSearchData _searchData = MusicSearchData.empty;
@@ -137,18 +142,21 @@ class _MusicPageState extends State<MusicPage> {
       final artistsFuture = _musicService.fetchTrendingArtists();
       final releasesFuture = _musicService.fetchNewReleases();
       final playlistsFuture = _musicService.fetchCuratedPlaylists();
+      final genresFuture = _musicService.fetchGenres();
 
       final results = await Future.wait([
         sectionsFuture,
         artistsFuture,
         releasesFuture,
         playlistsFuture,
+        genresFuture,
       ]);
 
       final sections = results[0] as Map<String, List<MusicTrack>>;
       final artists = results[1] as List<MusicArtist>;
       final releases = results[2] as List<MusicAlbum>;
       final playlists = results[3] as List<MusicPlaylist>;
+      final genres = results[4] as List<MusicGenre>;
 
       MusicTrack? hero;
       if (sections.isNotEmpty && sections.values.first.isNotEmpty) {
@@ -161,6 +169,7 @@ class _MusicPageState extends State<MusicPage> {
           _trendingArtists = artists;
           _newReleases = releases;
           _curatedPlaylists = playlists;
+          _genres = genres;
           _heroTrack = hero;
           _isLoading = false;
         });
@@ -1221,26 +1230,37 @@ class _MusicPageState extends State<MusicPage> {
     );
   }
 
+  Future<void> _selectGenre(MusicGenre genre) async {
+    setState(() {
+      _selectedBrowseGenre = genre;
+      _loadingGenreArtists = true;
+      _genreArtists = [];
+    });
+    final artists = await _musicService.fetchGenreArtists(genre.id);
+    if (!mounted || _selectedBrowseGenre?.id != genre.id) return;
+    setState(() {
+      _genreArtists = artists;
+      _loadingGenreArtists = false;
+    });
+  }
+
+  void _backToGenres() {
+    setState(() {
+      _selectedBrowseGenre = null;
+      _genreArtists = [];
+    });
+  }
+
   Widget _buildBrowseView() {
-    final genres = [
-      {'title': 'Pop Hits', 'color': const Color(0xFF7C5CFF), 'query': 'Pop Hits'},
-      {'title': 'Hip-Hop & Rap', 'color': const Color(0xFF7850FF), 'query': 'Hip-Hop'},
-      {'title': 'Electronic & EDM', 'color': const Color(0xFF00D294), 'query': 'EDM Dance'},
-      {'title': 'Chill Lofi Beats', 'color': const Color(0xFF00D2EF), 'query': 'Chill Lofi'},
-      {'title': 'Rock Classics', 'color': const Color(0xFFF99C00), 'query': 'Rock Classics'},
-      {'title': 'R&B & Soul', 'color': const Color(0xFFE12AFB), 'query': 'R&B Soul'},
-      {'title': 'Soundtracks & Gaming', 'color': const Color(0xFFFF6568), 'query': 'Soundtracks'},
-      {'title': 'Heavy Metal', 'color': const Color(0xFFFB2C36), 'query': 'Heavy Metal'},
-      {'title': 'Jazz & Blues', 'color': const Color(0xFF625FFF), 'query': 'Jazz Blues'},
-      {'title': 'Classical Piano', 'color': const Color(0xFFFAC800), 'query': 'Classical Piano'},
-    ];
+    final genre = _selectedBrowseGenre;
+    if (genre != null) return _buildGenreArtistsView(genre);
 
     return ListView(
       controller: _scrollController,
       padding: const EdgeInsets.only(top: 80, left: 24, right: 24, bottom: 150),
       children: [
         const Text(
-          'Browse Moods & Genres',
+          'Browse Genres',
           style: TextStyle(
             color: Colors.white,
             fontSize: 26,
@@ -1249,59 +1269,180 @@ class _MusicPageState extends State<MusicPage> {
           ),
         ),
         const SizedBox(height: 16),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 220,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 1.6,
-          ),
-          itemCount: genres.length,
-          itemBuilder: (context, index) {
-            final g = genres[index];
-            final color = g['color'] as Color;
-            return _MusicHoverable(
-              scaleFactor: 1.04,
-              child: GestureDetector(
-                onTap: () => _onGenreTap(g['query'] as String),
-                child: PerformanceLiquidLens(
-                  style: PerformanceGlassStyles.menu,
-                  child: Container(
-                    decoration: BoxDecoration(
+        if (_genres.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
+            ),
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 220,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 1.6,
+            ),
+            itemCount: _genres.length,
+            itemBuilder: (context, index) {
+              final g = _genres[index];
+              return _MusicHoverable(
+                scaleFactor: 1.04,
+                child: GestureDetector(
+                  onTap: () => _selectGenre(g),
+                  child: PerformanceLiquidLens(
+                    style: PerformanceGlassStyles.menu,
+                    child: ClipRRect(
                       borderRadius: BorderRadius.circular(18),
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          color.withValues(alpha: 0.85),
-                          color.withValues(alpha: 0.40),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          CachedNetworkImage(
+                            imageUrl: g.pictureUrl,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) =>
+                                Container(color: const Color(0xFF7C5CFF)),
+                          ),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.1),
+                                  Colors.black.withValues(alpha: 0.75),
+                                ],
+                              ),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.15),
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Align(
+                              alignment: Alignment.bottomLeft,
+                              child: Text(
+                                g.name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: -0.3,
+                                ),
+                              ),
+                            ),
+                          ),
                         ],
-                      ),
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.15),
-                      ),
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    child: Align(
-                      alignment: Alignment.bottomLeft,
-                      child: Text(
-                        g['title'] as String,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: -0.3,
-                        ),
                       ),
                     ),
                   ),
                 ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildGenreArtistsView(MusicGenre genre) {
+    return ListView(
+      controller: _scrollController,
+      padding: const EdgeInsets.only(top: 80, left: 24, right: 24, bottom: 150),
+      children: [
+        Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+              onPressed: _backToGenres,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              genre.name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 26,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.6,
               ),
-            );
-          },
+            ),
+          ],
         ),
+        const SizedBox(height: 16),
+        if (_loadingGenreArtists)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
+            ),
+          )
+        else if (_genreArtists.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 24),
+            child: Center(
+              child: Text(
+                'No artists found for this genre.',
+                style: TextStyle(color: Colors.white54),
+              ),
+            ),
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 130,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 0.8,
+            ),
+            itemCount: _genreArtists.length,
+            itemBuilder: (context, index) {
+              final artist = _genreArtists[index];
+              return _MusicHoverable(
+                scaleFactor: 1.06,
+                child: GestureDetector(
+                  onTap: () => _openArtistModal(artist.id),
+                  child: Column(
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: const Color(0xFF7C5CFF).withValues(alpha: 0.5),
+                            width: 2,
+                          ),
+                        ),
+                        child: ClipOval(
+                          child: CachedNetworkImage(
+                            imageUrl: artist.pictureUrl,
+                            width: 90,
+                            height: 90,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        artist.name,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
       ],
     );
   }
