@@ -7,13 +7,16 @@ import '../../models/anime/anime_media.dart';
 import '../../services/anime/anilist_service.dart';
 import '../../services/anime/anime_library_service.dart';
 import '../../services/anime_arabic/anime_arabic_service.dart';
+import '../../services/app_theme_service.dart';
 import '../../services/glass_settings.dart';
 import '../../utils/route_transitions.dart';
 import '../../widgets/anime/anime_slider_section.dart';
+import '../../widgets/common/animated_ambient_background.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/common/liquid_dock.dart';
 import '../../widgets/home/continue_watching_slider.dart';
 import '../audiobooks/audiobooks_page.dart';
+import '../books/books_page.dart';
 import '../manga/manga_page.dart';
 import '../music/music_page.dart';
 import '../iptv/iptv_page.dart';
@@ -272,413 +275,405 @@ class _AnimePageState extends State<AnimePage> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
 
-    final backgroundContent = Stack(
-      children: [
-        // Ambient background glows matching Home
-        Positioned(
-          top: -120,
-          right: -120,
-          child: Container(
-            width: 500,
-            height: 500,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF7C5CFF).withValues(alpha: 0.08),
-            ),
-          ),
-        ),
-        Positioned(
-          bottom: 100,
-          left: -100,
-          child: Container(
-            width: 450,
-            height: 450,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF00D2EF).withValues(alpha: 0.05),
-            ),
-          ),
-        ),
+    return ValueListenableBuilder<AppThemePalette>(
+      valueListenable: AppThemeService.currentPalette,
+      builder: (context, palette, _) {
+        final backgroundContent = AnimatedAmbientBackground(
+          child: Stack(
+            children: [
+              // Main scrollable content
+              if (_loading && (_isArabicMode ? _arabicFeed == null : _trending.isEmpty))
+                Center(
+                  child: CircularProgressIndicator(color: palette.primaryColor),
+                )
+              else if (_error != null && (_isArabicMode ? _arabicFeed == null : _trending.isEmpty))
+                Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(
+                        Icons.error_outline_rounded,
+                        color: Colors.redAccent,
+                        size: 48,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        _error!,
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: palette.primaryColor,
+                        ),
+                        onPressed: _loadAnimeData,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                RefreshIndicator(
+                  color: palette.primaryColor,
+                  backgroundColor: palette.cardBackgroundColor,
+                  onRefresh: _loadAnimeData,
+                  child: ListView(
+                    controller: _scrollController,
+                    clipBehavior: Clip.none,
+                    padding: EdgeInsets.zero,
+                    physics: const BouncingScrollPhysics(
+                      parent: AlwaysScrollableScrollPhysics(),
+                    ),
+                    children: [
+                      if (_isArabicMode) ...[
+                        // 1. Arabic Hero Carousel (Matching Home Page)
+                        if (_arabicFeed != null &&
+                            (_arabicFeed!.spotlight.isNotEmpty || _arabicFeed!.trending.isNotEmpty))
+                          _AnimeHeroCarousel(
+                            animeList: (_arabicFeed!.spotlight.isNotEmpty
+                                    ? _arabicFeed!.spotlight
+                                    : _arabicFeed!.trending)
+                                .take(6)
+                                .map((c) => c.toAnimeMedia())
+                                .toList(),
+                            onWatchNow: (anime) => _playEpisode(anime, 1),
+                            onDetailsTap: _openDetails,
+                          ),
 
-        // Main scrollable content
-        if (_loading && (_isArabicMode ? _arabicFeed == null : _trending.isEmpty))
-          const Center(
-            child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
-          )
-        else if (_error != null && (_isArabicMode ? _arabicFeed == null : _trending.isEmpty))
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.error_outline_rounded,
-                  color: Colors.redAccent,
-                  size: 48,
+                        const SizedBox(height: 16),
+
+                        // 2. Anime Continue Watching Slider
+                        const ContinueWatchingSlider(
+                          typeFilter: 'arabic_anime',
+                          title: 'متابعة المشاهدة',
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        // 3. Arabic Sliders with Desktop Scroll Arrows
+                        if (_arabicFeed != null) ...[
+                          if (_arabicFeed!.recentEpisodes.isNotEmpty)
+                            AnimeSliderSection(
+                              title: '⚡ آخر الحلقات المعروضة',
+                              subtitle: 'أحدث الحلقات المضافة المترجمة للعربية',
+                              animeList: _arabicFeed!.recentEpisodes.map((c) => c.toAnimeMedia()).toList(),
+                              onAnimeTap: (anime) => _openDetails(anime, anime.totalEpisodes > 0 ? anime.totalEpisodes : null),
+                            ),
+                          if (_arabicFeed!.trending.isNotEmpty)
+                            AnimeSliderSection(
+                              title: '🔥 الأكثر شهرة وتداولاً',
+                              subtitle: 'الأنميات الأكثر مشاهدة حالياً',
+                              animeList: _arabicFeed!.trending.map((c) => c.toAnimeMedia()).toList(),
+                              onAnimeTap: _openDetails,
+                            ),
+                          if (_arabicFeed!.popularMovies.isNotEmpty)
+                            AnimeSliderSection(
+                              title: '🎬 الأفلام الأكثر شعبية',
+                              subtitle: 'أفلام الأنمي المميزة',
+                              animeList: _arabicFeed!.popularMovies.map((c) => c.toAnimeMedia()).toList(),
+                              onAnimeTap: _openDetails,
+                            ),
+                          if (_arabicFeed!.topSeasonal.isNotEmpty)
+                            AnimeSliderSection(
+                              title: '👑 أفضل الأنميات',
+                              subtitle: 'أنميات ذات تقييمات استثنائية',
+                              animeList: _arabicFeed!.topSeasonal.map((c) => c.toAnimeMedia()).toList(),
+                              onAnimeTap: _openDetails,
+                            ),
+                          if (_arabicFeed!.seasonal.isNotEmpty)
+                            AnimeSliderSection(
+                              title: '🌟 أنميات موسمية',
+                              subtitle: 'عروض الموسم الحالي',
+                              animeList: _arabicFeed!.seasonal.map((c) => c.toAnimeMedia()).toList(),
+                              onAnimeTap: _openDetails,
+                            ),
+                          if (_arabicFeed!.legendary.isNotEmpty)
+                            AnimeSliderSection(
+                              title: '⚔️ أنميات أسطورية',
+                              subtitle: 'أعمال خالدة يجب ألا تفوتك',
+                              animeList: _arabicFeed!.legendary.map((c) => c.toAnimeMedia()).toList(),
+                              onAnimeTap: _openDetails,
+                            ),
+                          if (_arabicFeed!.upcoming.isNotEmpty)
+                            AnimeSliderSection(
+                              title: '🚀 المنتظرة قريباً',
+                              subtitle: 'أنميات قادمة قريباً',
+                              animeList: _arabicFeed!.upcoming.map((c) => c.toAnimeMedia()).toList(),
+                              onAnimeTap: _openDetails,
+                            ),
+                        ],
+                      ] else ...[
+                        // 1. Full Bleed Hero Carousel (Matching Home Page)
+                        if (_trending.isNotEmpty)
+                          _AnimeHeroCarousel(
+                            animeList: _trending.take(6).toList(),
+                            onWatchNow: (anime) => _playEpisode(anime, 1),
+                            onDetailsTap: _openDetails,
+                          ),
+
+                        const SizedBox(height: 16),
+
+                        // 2. Anime Continue Watching Slider
+                        const ContinueWatchingSlider(
+                          typeFilter: 'general_anime',
+                          title: 'Continue Watching',
+                        ),
+
+                        const SizedBox(height: 8),
+
+                        // 3. Sliders with Desktop Scroll Arrows
+                        AnimeSliderSection(
+                          title: '🔥 Trending Anime',
+                          subtitle: 'Top popular and trending series',
+                          animeList: _trending,
+                          onAnimeTap: _openDetails,
+                        ),
+                        AnimeSliderSection(
+                          title: '🌟 Popular This Season (${AnilistService.currentSeason()})',
+                          subtitle: 'Currently airing hits',
+                          animeList: _popularSeason,
+                          onAnimeTap: _openDetails,
+                        ),
+                        AnimeSliderSection(
+                          title: '⭐ All-Time Masterpieces',
+                          subtitle: 'Critically acclaimed top rated anime',
+                          animeList: _topRated,
+                          onAnimeTap: _openDetails,
+                        ),
+                        AnimeSliderSection(
+                          title: '🚀 Anticipated Next Season',
+                          subtitle: 'Upcoming anime you cannot miss',
+                          animeList: _upcoming,
+                          onAnimeTap: _openDetails,
+                        ),
+                        AnimeSliderSection(
+                          title: '⚔️ Action & Adventure',
+                          subtitle: 'High octane battles and epic journeys',
+                          animeList: _actionAnime,
+                          onAnimeTap: _openDetails,
+                        ),
+                        AnimeSliderSection(
+                          title: '💖 Romance & Drama',
+                          subtitle: 'Heartfelt emotional stories',
+                          animeList: _romanceAnime,
+                          onAnimeTap: _openDetails,
+                        ),
+                        AnimeSliderSection(
+                          title: '🔮 Fantasy & Isekai',
+                          subtitle: 'Magical realms and alternate worlds',
+                          animeList: _fantasyAnime,
+                          onAnimeTap: _openDetails,
+                        ),
+                        AnimeSliderSection(
+                          title: '🤖 Sci-Fi & Cyberpunk',
+                          subtitle: 'Futuristic technologies and dystopian worlds',
+                          animeList: _sciFiAnime,
+                          onAnimeTap: _openDetails,
+                        ),
+                      ],
+
+                      SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom),
+                    ],
+                  ),
                 ),
-                const SizedBox(height: 16),
-                Text(
-                  _error!,
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7C5CFF),
-                  ),
-                  onPressed: _loadAnimeData,
-                  child: const Text('Retry'),
-                ),
-              ],
-            ),
-          )
-        else
-          RefreshIndicator(
-            color: const Color(0xFF7C5CFF),
-            backgroundColor: const Color(0xFF151822),
-            onRefresh: _loadAnimeData,
-            child: ListView(
-              controller: _scrollController,
-              clipBehavior: Clip.none,
-              padding: EdgeInsets.zero,
-              physics: const BouncingScrollPhysics(
-                parent: AlwaysScrollableScrollPhysics(),
-              ),
-              children: [
-                if (_isArabicMode) ...[
-                  // 1. Arabic Hero Carousel (Matching Home Page)
-                  if (_arabicFeed != null &&
-                      (_arabicFeed!.spotlight.isNotEmpty || _arabicFeed!.trending.isNotEmpty))
-                    _AnimeHeroCarousel(
-                      animeList: (_arabicFeed!.spotlight.isNotEmpty
-                              ? _arabicFeed!.spotlight
-                              : _arabicFeed!.trending)
-                          .take(6)
-                          .map((c) => c.toAnimeMedia())
-                          .toList(),
-                      onWatchNow: (anime) => _playEpisode(anime, 1),
-                      onDetailsTap: _openDetails,
-                    ),
-
-                  const SizedBox(height: 16),
-
-                  // 2. Anime Continue Watching Slider
-                  const ContinueWatchingSlider(
-                    typeFilter: 'arabic_anime',
-                    title: 'متابعة المشاهدة',
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // 3. Arabic Sliders with Desktop Scroll Arrows
-                  if (_arabicFeed != null) ...[
-                    if (_arabicFeed!.recentEpisodes.isNotEmpty)
-                      AnimeSliderSection(
-                        title: '⚡ آخر الحلقات المعروضة',
-                        subtitle: 'أحدث الحلقات المضافة المترجمة للعربية',
-                        animeList: _arabicFeed!.recentEpisodes.map((c) => c.toAnimeMedia()).toList(),
-                        onAnimeTap: (anime) => _openDetails(anime, anime.totalEpisodes > 0 ? anime.totalEpisodes : null),
-                      ),
-                    if (_arabicFeed!.trending.isNotEmpty)
-                      AnimeSliderSection(
-                        title: '🔥 الأكثر شهرة وتداولاً',
-                        subtitle: 'الأنميات الأكثر مشاهدة حالياً',
-                        animeList: _arabicFeed!.trending.map((c) => c.toAnimeMedia()).toList(),
-                        onAnimeTap: _openDetails,
-                      ),
-                    if (_arabicFeed!.popularMovies.isNotEmpty)
-                      AnimeSliderSection(
-                        title: '🎬 الأفلام الأكثر شعبية',
-                        subtitle: 'أفلام الأنمي المميزة',
-                        animeList: _arabicFeed!.popularMovies.map((c) => c.toAnimeMedia()).toList(),
-                        onAnimeTap: _openDetails,
-                      ),
-                    if (_arabicFeed!.topSeasonal.isNotEmpty)
-                      AnimeSliderSection(
-                        title: '👑 أفضل الأنميات',
-                        subtitle: 'أنميات ذات تقييمات استثنائية',
-                        animeList: _arabicFeed!.topSeasonal.map((c) => c.toAnimeMedia()).toList(),
-                        onAnimeTap: _openDetails,
-                      ),
-                    if (_arabicFeed!.seasonal.isNotEmpty)
-                      AnimeSliderSection(
-                        title: '🌟 أنميات موسمية',
-                        subtitle: 'عروض الموسم الحالي',
-                        animeList: _arabicFeed!.seasonal.map((c) => c.toAnimeMedia()).toList(),
-                        onAnimeTap: _openDetails,
-                      ),
-                    if (_arabicFeed!.legendary.isNotEmpty)
-                      AnimeSliderSection(
-                        title: '⚔️ أنميات أسطورية',
-                        subtitle: 'أعمال خالدة يجب ألا تفوتك',
-                        animeList: _arabicFeed!.legendary.map((c) => c.toAnimeMedia()).toList(),
-                        onAnimeTap: _openDetails,
-                      ),
-                    if (_arabicFeed!.upcoming.isNotEmpty)
-                      AnimeSliderSection(
-                        title: '🚀 المنتظرة قريباً',
-                        subtitle: 'أنميات قادمة قريباً',
-                        animeList: _arabicFeed!.upcoming.map((c) => c.toAnimeMedia()).toList(),
-                        onAnimeTap: _openDetails,
-                      ),
-                  ],
-                ] else ...[
-                  // 1. Full Bleed Hero Carousel (Matching Home Page)
-                  if (_trending.isNotEmpty)
-                    _AnimeHeroCarousel(
-                      animeList: _trending.take(6).toList(),
-                      onWatchNow: (anime) => _playEpisode(anime, 1),
-                      onDetailsTap: _openDetails,
-                    ),
-
-                  const SizedBox(height: 16),
-
-                  // 2. Anime Continue Watching Slider
-                  const ContinueWatchingSlider(
-                    typeFilter: 'general_anime',
-                    title: 'Continue Watching',
-                  ),
-
-                  const SizedBox(height: 8),
-
-                  // 3. Sliders with Desktop Scroll Arrows
-                  AnimeSliderSection(
-                    title: '🔥 Trending Anime',
-                    subtitle: 'Top popular and trending series',
-                    animeList: _trending,
-                    onAnimeTap: _openDetails,
-                  ),
-                  AnimeSliderSection(
-                    title: '🌟 Popular This Season (${AnilistService.currentSeason()})',
-                    subtitle: 'Currently airing hits',
-                    animeList: _popularSeason,
-                    onAnimeTap: _openDetails,
-                  ),
-                  AnimeSliderSection(
-                    title: '⭐ All-Time Masterpieces',
-                    subtitle: 'Critically acclaimed top rated anime',
-                    animeList: _topRated,
-                    onAnimeTap: _openDetails,
-                  ),
-                  AnimeSliderSection(
-                    title: '🚀 Anticipated Next Season',
-                    subtitle: 'Upcoming anime you cannot miss',
-                    animeList: _upcoming,
-                    onAnimeTap: _openDetails,
-                  ),
-                  AnimeSliderSection(
-                    title: '⚔️ Action & Adventure',
-                    subtitle: 'High octane battles and epic journeys',
-                    animeList: _actionAnime,
-                    onAnimeTap: _openDetails,
-                  ),
-                  AnimeSliderSection(
-                    title: '💖 Romance & Drama',
-                    subtitle: 'Heartfelt emotional stories',
-                    animeList: _romanceAnime,
-                    onAnimeTap: _openDetails,
-                  ),
-                  AnimeSliderSection(
-                    title: '🔮 Fantasy & Isekai',
-                    subtitle: 'Magical realms and alternate worlds',
-                    animeList: _fantasyAnime,
-                    onAnimeTap: _openDetails,
-                  ),
-                  AnimeSliderSection(
-                    title: '🤖 Sci-Fi & Cyberpunk',
-                    subtitle: 'Futuristic technologies and dystopian worlds',
-                    animeList: _sciFiAnime,
-                    onAnimeTap: _openDetails,
-                  ),
-                ],
-
-                SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom),
-              ],
-            ),
-          ),
-      ],
-    );
-
-    final overlayChildren = <Widget>[
-      // Floating Glass App Bar (Home Page Style)
-      Positioned(
-        top: 0,
-        left: 0,
-        right: 0,
-        child: _AnimeGlassAppBar(
-          topPadding: topPadding,
-          isArabicMode: _isArabicMode,
-          onModeChanged: _onModeChanged,
-          onSearchTap: _navigateToSearch,
-          onSettingsTap: _navigateToSettings,
-        ),
-      ),
-
-      // Custom Scroll Track (Matching Home Page)
-      if (MediaQuery.sizeOf(context).width > 800)
-        Positioned(
-          right: 24,
-          bottom: 40,
-          child: CustomScrollTrack(controller: _scrollController),
-        ),
-
-      // Liquid Dock Navbar (Home Page Style)
-      Positioned(
-        bottom: 12.0 + MediaQuery.paddingOf(context).bottom,
-        left: 0,
-        right: 0,
-        child: Center(
-          child: LiquidDock(
-            items: [
-              DockItem(
-                icon: Icons.home_rounded,
-                label: 'Home',
-                onTap: () => Navigator.pop(context),
-              ),
-              DockItem(
-                icon: Icons.auto_stories_rounded,
-                label: 'Manga',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(
-                      page: const MangaPage(),
-                      tapPosition: null,
-                    ),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.headphones_rounded,
-                label: 'Audiobooks',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(
-                      page: const AudiobooksPage(),
-                      tapPosition: null,
-                    ),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.music_note_rounded,
-                label: 'Music',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(
-                      page: const MusicPage(),
-                      tapPosition: null,
-                    ),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.animation_rounded,
-                label: 'Anime',
-                onTap: () {},
-              ),
-              DockItem(
-                icon: Icons.live_tv_rounded,
-                label: 'Live TV',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(
-                      page: const IptvPage(),
-                      tapPosition: null,
-                    ),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.extension_rounded,
-                label: 'Addons',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    LiquidRevealRoute(
-                      page: const AddonsSettingsPage(),
-                      tapPosition: null,
-                    ),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.download_rounded,
-                label: 'Downloads',
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    LiquidRevealRoute(
-                      page: const DownloadsPage(),
-                      tapPosition: null,
-                    ),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.favorite_rounded,
-                label: 'My List',
-                onTap: () {
-                  Navigator.pushReplacement(
-                    context,
-                    LiquidRevealRoute(
-                      page: const MyListPage(),
-                      tapPosition: null,
-                    ),
-                  );
-                },
-              ),
-              DockItem(
-                icon: Icons.settings_rounded,
-                label: 'Settings',
-                onTap: () => _navigateToSettings(null),
-              ),
-              DockItem(
-                icon: Icons.search_rounded,
-                label: 'Search',
-                onTap: () => _navigateToSearch(null),
-              ),
             ],
           ),
-        ),
-      ),
-    ];
+        );
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF080A0F),
-      body: ValueListenableBuilder<bool>(
-        valueListenable: GlassSettings.enabled,
-        builder: (context, enabled, _) {
-          final overlays = Stack(children: overlayChildren);
-          if (enabled) {
-            return LiquidGlassView(
-              realTimeCapture: true,
-              useSync: true,
-              pixelRatio: 0.85,
-              refreshRate: LiquidGlassRefreshRate.deviceRefreshRate,
-              regionCapture: true,
-              backgroundWidget: backgroundContent,
-              child: overlays,
-            );
-          }
-
-          return Container(
-            color: const Color(0xFF080A0F),
-            child: Stack(
-              children: [
-                RepaintBoundary(child: backgroundContent),
-                ...overlayChildren,
-              ],
+        final overlayChildren = <Widget>[
+          // Floating Glass App Bar (Home Page Style)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: _AnimeGlassAppBar(
+              topPadding: topPadding,
+              isArabicMode: _isArabicMode,
+              onModeChanged: _onModeChanged,
+              onSearchTap: _navigateToSearch,
+              onSettingsTap: _navigateToSettings,
             ),
-          );
-        },
-      ),
+          ),
+
+          // Custom Scroll Track (Matching Home Page)
+          if (MediaQuery.sizeOf(context).width > 800)
+            Positioned(
+              right: 24,
+              bottom: 40,
+              child: CustomScrollTrack(controller: _scrollController),
+            ),
+
+          // Liquid Dock Navbar (Home Page Style)
+          Positioned(
+            bottom: 12.0 + MediaQuery.paddingOf(context).bottom,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: LiquidDock(
+                items: [
+                  DockItem(
+                    icon: Icons.home_rounded,
+                    label: 'Home',
+                    onTap: () => Navigator.pop(context),
+                  ),
+                  DockItem(
+                    icon: Icons.auto_stories_rounded,
+                    label: 'Manga',
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        LiquidRevealRoute(
+                          page: const MangaPage(),
+                          tapPosition: null,
+                        ),
+                      );
+                    },
+                  ),
+                  DockItem(
+                    icon: Icons.menu_book_rounded,
+                    label: 'Books',
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        LiquidRevealRoute(
+                          page: const BooksPage(),
+                          tapPosition: null,
+                        ),
+                      );
+                    },
+                  ),
+                  DockItem(
+                    icon: Icons.headphones_rounded,
+                    label: 'Audiobooks',
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        LiquidRevealRoute(
+                          page: const AudiobooksPage(),
+                          tapPosition: null,
+                        ),
+                      );
+                    },
+                  ),
+                  DockItem(
+                    icon: Icons.music_note_rounded,
+                    label: 'Music',
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        LiquidRevealRoute(
+                          page: const MusicPage(),
+                          tapPosition: null,
+                        ),
+                      );
+                    },
+                  ),
+                  DockItem(
+                    icon: Icons.animation_rounded,
+                    label: 'Anime',
+                    onTap: () {},
+                  ),
+                  DockItem(
+                    icon: Icons.live_tv_rounded,
+                    label: 'Live TV',
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        LiquidRevealRoute(
+                          page: const IptvPage(),
+                          tapPosition: null,
+                        ),
+                      );
+                    },
+                  ),
+                  DockItem(
+                    icon: Icons.extension_rounded,
+                    label: 'Addons',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        LiquidRevealRoute(
+                          page: const AddonsSettingsPage(),
+                          tapPosition: null,
+                        ),
+                      );
+                    },
+                  ),
+                  DockItem(
+                    icon: Icons.download_rounded,
+                    label: 'Downloads',
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        LiquidRevealRoute(
+                          page: const DownloadsPage(),
+                          tapPosition: null,
+                        ),
+                      );
+                    },
+                  ),
+                  DockItem(
+                    icon: Icons.favorite_rounded,
+                    label: 'My List',
+                    onTap: () {
+                      Navigator.pushReplacement(
+                        context,
+                        LiquidRevealRoute(
+                          page: const MyListPage(),
+                          tapPosition: null,
+                        ),
+                      );
+                    },
+                  ),
+                  DockItem(
+                    icon: Icons.settings_rounded,
+                    label: 'Settings',
+                    onTap: () => _navigateToSettings(null),
+                  ),
+                  DockItem(
+                    icon: Icons.search_rounded,
+                    label: 'Search',
+                    onTap: () => _navigateToSearch(null),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ];
+
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: ValueListenableBuilder<bool>(
+            valueListenable: GlassSettings.enabled,
+            builder: (context, enabled, _) {
+              final overlays = Stack(children: overlayChildren);
+              if (enabled) {
+                return LiquidGlassView(
+                  realTimeCapture: true,
+                  useSync: true,
+                  pixelRatio: 0.85,
+                  refreshRate: LiquidGlassRefreshRate.deviceRefreshRate,
+                  regionCapture: true,
+                  backgroundWidget: backgroundContent,
+                  child: overlays,
+                );
+              }
+
+              return Stack(
+                fit: StackFit.expand,
+                children: [
+                  RepaintBoundary(child: backgroundContent),
+                  ...overlayChildren,
+                ],
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }
@@ -757,8 +752,8 @@ class _AnimeGlassAppBar extends StatelessWidget {
                 children: [
                   TextSpan(
                     text: isArabicMode ? 'Anime • Arabic' : 'Anime',
-                    style: const TextStyle(
-                      color: Color(0xFF7C5CFF),
+                    style: TextStyle(
+                      color: AppThemeService.currentPalette.value.primaryColor,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -848,12 +843,12 @@ class _AnimeGlassAppBar extends StatelessWidget {
         curve: Curves.easeOutCubic,
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: isActive ? const Color(0xFF7C5CFF) : Colors.transparent,
+          color: isActive ? AppThemeService.currentPalette.value.primaryColor : Colors.transparent,
           borderRadius: BorderRadius.circular(16),
           boxShadow: isActive
               ? [
                   BoxShadow(
-                    color: const Color(0xFF7C5CFF).withValues(alpha: 0.4),
+                    color: AppThemeService.currentPalette.value.primaryColor.withValues(alpha: 0.4),
                     blurRadius: 10,
                     offset: const Offset(0, 2),
                   )
@@ -1010,12 +1005,12 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel> {
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(4),
                           color: active
-                              ? const Color(0xFF7C5CFF)
+                              ? AppThemeService.currentPalette.value.primaryColor
                               : Colors.white.withValues(alpha: 0.30),
                           boxShadow: active
                               ? [
                                   BoxShadow(
-                                    color: const Color(0xFF7C5CFF)
+                                    color: AppThemeService.currentPalette.value.primaryColor
                                         .withValues(alpha: 0.55),
                                     blurRadius: 8,
                                   ),
@@ -1330,7 +1325,7 @@ class _AnimeHeroSlide extends StatelessWidget {
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF7C5CFF),
+                          backgroundColor: AppThemeService.currentPalette.value.primaryColor,
                           foregroundColor: Colors.white,
                           padding: EdgeInsets.symmetric(
                             horizontal: isCompact ? 18 : 28,
@@ -1340,7 +1335,7 @@ class _AnimeHeroSlide extends StatelessWidget {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           elevation: 12,
-                          shadowColor: const Color(0xFF7C5CFF).withValues(alpha: 0.45),
+                          shadowColor: AppThemeService.currentPalette.value.primaryColor.withValues(alpha: 0.45),
                         ),
                       ),
                       SizedBox(width: isCompact ? 8 : 12),

@@ -3,23 +3,21 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/anime_arabic/anime_arabic_service.dart';
+import '../../services/app_theme_service.dart';
 import '../../utils/route_transitions.dart';
+import '../../widgets/common/animated_ambient_background.dart';
 import '../../widgets/common/slider_arrow.dart';
 import 'anime_arabic_stream_sheet.dart';
 
 class _Space {
-  static const xs = 8.0;
-  static const sm = 12.0;
   static const md = 16.0;
-  static const lg = 24.0;
   static const xl = 32.0;
 }
 
 class _Palette {
-  static const bg = Color(0xFF0B0D12);
-  static const surface = Color(0xFF15171F);
-  static const accent = Color(0xFF7C5CFF);
-  static const accentDim = Color(0xFF5A3BC8);
+  static Color get bg => AppThemeService.currentPalette.value.scaffoldBackgroundColor;
+  static Color get surface => AppThemeService.currentPalette.value.cardBackgroundColor;
+  static Color get accent => AppThemeService.currentPalette.value.primaryColor;
   static const gold = Color(0xFFFFC107);
 }
 
@@ -200,9 +198,10 @@ class _AnimeArabicDetailsPageState extends State<AnimeArabicDetailsPage>
     final title = _details?.title ?? widget.anime.title;
 
     return Scaffold(
-      backgroundColor: _Palette.bg,
-      body: Stack(
-        children: [
+      backgroundColor: Colors.transparent,
+      body: AnimatedAmbientBackground(
+        child: Stack(
+          children: [
           // 1. Dynamic Ambient Glowing Backdrop
           Positioned(
             top: 0,
@@ -257,7 +256,7 @@ class _AnimeArabicDetailsPageState extends State<AnimeArabicDetailsPage>
           SafeArea(
             bottom: false,
             child: _loading && _details == null
-                ? const Center(child: CircularProgressIndicator(color: _Palette.accent))
+                ? Center(child: CircularProgressIndicator(color: _Palette.accent))
                 : _error != null && _details == null
                     ? Center(
                         child: Column(
@@ -387,6 +386,7 @@ class _AnimeArabicDetailsPageState extends State<AnimeArabicDetailsPage>
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -589,7 +589,7 @@ class _AnimeArabicDetailsPageState extends State<AnimeArabicDetailsPage>
                     padding: const EdgeInsets.only(top: 6),
                     child: Text(
                       _isSynopsisExpanded ? 'عرض أقل' : 'عرض المزيد',
-                      style: const TextStyle(
+                      style: TextStyle(
                         color: _Palette.accent,
                         fontWeight: FontWeight.bold,
                         fontSize: 13,
@@ -632,7 +632,7 @@ class _AnimeArabicDetailsPageState extends State<AnimeArabicDetailsPage>
         // Section Header
         Row(
           children: [
-            const Icon(Icons.video_library_rounded, color: _Palette.accent, size: 22),
+            Icon(Icons.video_library_rounded, color: _Palette.accent, size: 22),
             const SizedBox(width: 10),
             Text(
               'الحلقات ($totalEpisodes)',
@@ -666,7 +666,7 @@ class _AnimeArabicDetailsPageState extends State<AnimeArabicDetailsPage>
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
-                      borderSide: const BorderSide(color: _Palette.accent),
+                      borderSide: BorderSide(color: _Palette.accent),
                     ),
                   ),
                 ),
@@ -874,7 +874,7 @@ class _AnimeArabicDetailsPageState extends State<AnimeArabicDetailsPage>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Icon(Icons.recommend_rounded, color: _Palette.accent, size: 22),
               SizedBox(width: 10),

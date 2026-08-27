@@ -1,10 +1,14 @@
+import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../services/app_theme_service.dart';
+import '../../services/custom_background_service.dart';
 import '../../services/home_page_settings.dart';
 
 /// GPU-accelerated animated ambient background with moving soft-faded
-/// light orbs, aurora waves, and gradient meshes themed dynamically.
+/// light orbs, aurora waves, gradient meshes, and custom user wallpaper blending.
 class AnimatedAmbientBackground extends StatefulWidget {
   final Widget? child;
 
@@ -31,6 +35,7 @@ class _AnimatedAmbientBackgroundState extends State<AnimatedAmbientBackground>
 
     HomePageSettings.changeNotifier.addListener(_onSettingsChanged);
     AppThemeService.currentPalette.addListener(_onSettingsChanged);
+    CustomBackgroundService.notifier.addListener(_onSettingsChanged);
   }
 
   void _onSettingsChanged() {
@@ -42,8 +47,50 @@ class _AnimatedAmbientBackgroundState extends State<AnimatedAmbientBackground>
   void dispose() {
     HomePageSettings.changeNotifier.removeListener(_onSettingsChanged);
     AppThemeService.currentPalette.removeListener(_onSettingsChanged);
+    CustomBackgroundService.notifier.removeListener(_onSettingsChanged);
     _controller.dispose();
     super.dispose();
+  }
+
+  Widget _buildWallpaperImage(CustomBackgroundData customBg) {
+    Widget imageWidget;
+    if (customBg.imagePath != null && customBg.imagePath!.isNotEmpty) {
+      imageWidget = Image.file(
+        File(customBg.imagePath!),
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        gaplessPlayback: true,
+        errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+      );
+    } else if (customBg.imageUrl != null && customBg.imageUrl!.isNotEmpty) {
+      imageWidget = CachedNetworkImage(
+        imageUrl: customBg.imageUrl!,
+        fit: BoxFit.cover,
+        width: double.infinity,
+        height: double.infinity,
+        placeholder: (_, __) => const SizedBox.shrink(),
+        errorWidget: (_, __, ___) => const SizedBox.shrink(),
+      );
+    } else {
+      return const SizedBox.shrink();
+    }
+
+    if (customBg.blur > 0.1) {
+      imageWidget = ImageFiltered(
+        imageFilter: ImageFilter.blur(
+          sigmaX: customBg.blur,
+          sigmaY: customBg.blur,
+          tileMode: TileMode.clamp,
+        ),
+        child: imageWidget,
+      );
+    }
+
+    return Opacity(
+      opacity: customBg.opacity,
+      child: imageWidget,
+    );
   }
 
   @override
@@ -51,32 +98,65 @@ class _AnimatedAmbientBackgroundState extends State<AnimatedAmbientBackground>
     return ValueListenableBuilder<AppThemePalette>(
       valueListenable: AppThemeService.currentPalette,
       builder: (context, palette, _) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: HomePageSettings.enableAmbientLights,
-          builder: (context, enabled, _) {
-            if (!enabled) {
-              return Container(
-                color: palette.scaffoldBackgroundColor,
-                child: widget.child,
-              );
-            }
+        return ValueListenableBuilder<CustomBackgroundData>(
+          valueListenable: CustomBackgroundService.notifier,
+          builder: (context, customBg, _) {
+            final hasWallpaper = customBg.hasCustomBackground;
 
-            return AnimatedBuilder(
-              animation: _controller,
-              builder: (context, _) {
-                final speed = HomePageSettings.ambientLightSpeed.value;
-                final intensity = HomePageSettings.ambientLightIntensity.value;
-                final pattern = HomePageSettings.ambientLightPattern.value;
-                final t = (_controller.value * speed) % 1.0;
+            return ValueListenableBuilder<bool>(
+              valueListenable: HomePageSettings.enableAmbientLights,
+              builder: (context, lightsEnabled, _) {
+                return Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 1. Base solid scaffold background color
+                    Container(color: palette.scaffoldBackgroundColor),
 
-                return CustomPaint(
-                  painter: _AmbientBackgroundPainter(
-                    t: t,
-                    palette: palette,
-                    pattern: pattern,
-                    intensity: intensity,
-                  ),
-                  child: widget.child,
+                    // 2. Custom Background Wallpaper (if active)
+                    if (hasWallpaper) ...[
+                      Positioned.fill(
+                        child: _buildWallpaperImage(customBg),
+                      ),
+                      // Theme color tint layer blending over the photo
+                      Positioned.fill(
+                        child: Container(
+                          color: palette.scaffoldBackgroundColor.withValues(
+                            alpha: customBg.themeTintOpacity,
+                          ),
+                        ),
+                      ),
+                    ],
+
+                    // 3. Moving Ambient Lights & Glows (GPU Canvas)
+                    if (lightsEnabled && (!hasWallpaper || customBg.blendThemeLights))
+                      Positioned.fill(
+                        child: AnimatedBuilder(
+                          animation: _controller,
+                          builder: (context, _) {
+                            final speed = HomePageSettings.ambientLightSpeed.value;
+                            final intensity = HomePageSettings.ambientLightIntensity.value;
+                            final pattern = HomePageSettings.ambientLightPattern.value;
+                            final t = (_controller.value * speed) % 1.0;
+
+                            return CustomPaint(
+                              painter: _AmbientBackgroundPainter(
+                                t: t,
+                                palette: palette,
+                                pattern: pattern,
+                                intensity: intensity,
+                                isOverlay: hasWallpaper,
+                              ),
+                            );
+                          },
+                        ),
+                      ),
+
+                    // 4. Foreground Content
+                    if (widget.child != null)
+                      Positioned.fill(
+                        child: widget.child!,
+                      ),
+                  ],
                 );
               },
             );
@@ -92,21 +172,25 @@ class _AmbientBackgroundPainter extends CustomPainter {
   final AppThemePalette palette;
   final AmbientLightPattern pattern;
   final double intensity;
+  final bool isOverlay;
 
   _AmbientBackgroundPainter({
     required this.t,
     required this.palette,
     required this.pattern,
     required this.intensity,
+    this.isOverlay = false,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
     final rect = Offset.zero & size;
 
-    // 1. Draw base deep background tint
-    final bgPaint = Paint()..color = palette.scaffoldBackgroundColor;
-    canvas.drawRect(rect, bgPaint);
+    // If not acting as an overlay on top of a wallpaper, draw base deep background
+    if (!isOverlay) {
+      final bgPaint = Paint()..color = palette.scaffoldBackgroundColor;
+      canvas.drawRect(rect, bgPaint);
+    }
 
     final angle = t * 2 * math.pi;
     final primary = palette.primaryColor;
@@ -178,91 +262,63 @@ class _AmbientBackgroundPainter extends CustomPainter {
           accent.withValues(alpha: intensity * 0.45),
           Colors.transparent,
         ],
-        stops: const [0.0, 0.40, 1.0],
+        stops: const [0.0, 0.55, 1.0],
       ).createShader(Rect.fromCircle(center: c1, radius: r1));
 
     canvas.drawCircle(c1, r1, p1);
 
     // Crest 2
-    final c2 = Offset(size.width * (0.75 - wave2), size.height * (0.15 + wave1));
-    final r2 = size.width * 0.55;
+    final c2 = Offset(size.width * (0.75 - wave2), size.height * (0.15 - wave1));
+    final r2 = size.width * 0.60;
     final p2 = Paint()
       ..shader = RadialGradient(
         colors: [
-          accent.withValues(alpha: intensity * 0.95),
-          primary.withValues(alpha: intensity * 0.35),
+          accent.withValues(alpha: intensity * 0.90),
+          primary.withValues(alpha: intensity * 0.30),
           Colors.transparent,
         ],
-        stops: const [0.0, 0.45, 1.0],
+        stops: const [0.0, 0.50, 1.0],
       ).createShader(Rect.fromCircle(center: c2, radius: r2));
 
     canvas.drawCircle(c2, r2, p2);
   }
 
   void _drawFullMesh(Canvas canvas, Size size, double angle, Color primary, Color accent) {
-    final pA = Offset(
-      size.width * (0.15 + 0.10 * math.sin(angle)),
-      size.height * (0.25 + 0.08 * math.cos(angle * 1.1)),
-    );
-    final pB = Offset(
-      size.width * (0.85 - 0.10 * math.cos(angle * 0.7)),
-      size.height * (0.35 + 0.10 * math.sin(angle * 0.9)),
-    );
-    final pC = Offset(
-      size.width * (0.50 + 0.12 * math.sin(angle * 1.4)),
-      size.height * (0.80 - 0.10 * math.cos(angle * 0.6)),
-    );
+    final cx = size.width * 0.5;
+    final cy = size.height * 0.45;
+    final r = math.max(size.width, size.height) * 0.70;
 
-    final rA = math.max(size.width, size.height) * 0.42;
-    final rB = math.max(size.width, size.height) * 0.45;
-    final rC = math.max(size.width, size.height) * 0.50;
-
-    final paintA = Paint()
+    final p1 = Paint()
       ..shader = RadialGradient(
+        center: Alignment(math.sin(angle) * 0.3, math.cos(angle * 0.7) * 0.25),
         colors: [
           primary.withValues(alpha: intensity * 0.85),
-          Colors.transparent,
+          accent.withValues(alpha: intensity * 0.40),
+          palette.scaffoldBackgroundColor.withValues(alpha: 0.0),
         ],
-      ).createShader(Rect.fromCircle(center: pA, radius: rA));
+        stops: const [0.0, 0.40, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r));
 
-    final paintB = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          accent.withValues(alpha: intensity * 0.80),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromCircle(center: pB, radius: rB));
-
-    final paintC = Paint()
-      ..shader = RadialGradient(
-        colors: [
-          primary.withValues(alpha: intensity * 0.75),
-          accent.withValues(alpha: intensity * 0.35),
-          Colors.transparent,
-        ],
-      ).createShader(Rect.fromCircle(center: pC, radius: rC));
-
-    canvas.drawCircle(pA, rA, paintA);
-    canvas.drawCircle(pB, rB, paintB);
-    canvas.drawCircle(pC, rC, paintC);
+    canvas.drawRect(Offset.zero & size, p1);
   }
 
   void _drawCenterPulse(Canvas canvas, Size size, double angle, Color primary, Color accent) {
-    final pulse = 0.85 + 0.15 * math.sin(angle * 1.5);
-    final center = Offset(size.width * 0.5, size.height * 0.38);
-    final radius = math.max(size.width, size.height) * 0.55 * pulse;
+    final pulse = 0.85 + 0.15 * math.sin(angle);
+    final cx = size.width * 0.5;
+    final cy = size.height * 0.38;
+    final r = math.min(size.width, size.height) * 0.65 * pulse;
 
-    final paint = Paint()
+    final p = Paint()
       ..shader = RadialGradient(
         colors: [
-          primary.withValues(alpha: intensity * 1.15 * pulse),
-          accent.withValues(alpha: intensity * 0.50 * pulse),
+          primary.withValues(alpha: intensity * 1.25),
+          accent.withValues(alpha: intensity * 0.50),
           Colors.transparent,
         ],
-        stops: const [0.0, 0.40, 1.0],
-      ).createShader(Rect.fromCircle(center: center, radius: radius));
+        stops: const [0.0, 0.45, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: r));
 
-    canvas.drawCircle(center, radius, paint);
+    canvas.drawCircle(Offset(cx, cy), r, p);
   }
 
   @override
@@ -270,6 +326,7 @@ class _AmbientBackgroundPainter extends CustomPainter {
     return oldDelegate.t != t ||
         oldDelegate.palette != palette ||
         oldDelegate.pattern != pattern ||
-        oldDelegate.intensity != intensity;
+        oldDelegate.intensity != intensity ||
+        oldDelegate.isOverlay != isOverlay;
   }
 }

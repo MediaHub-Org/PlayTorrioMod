@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/anime/anime_media.dart';
+import '../../services/app_theme_service.dart';
 import '../common/poster_skeleton.dart';
 
 class AnimeCard extends StatefulWidget {
@@ -151,7 +152,7 @@ class _AnimePosterFrame extends StatelessWidget {
           ),
           if (hovered)
             BoxShadow(
-              color: const Color(0xFF7C5CFF).withValues(alpha: 0.24),
+              color: AppThemeService.currentPalette.value.primaryColor.withValues(alpha: 0.28),
               blurRadius: 34,
               spreadRadius: 1,
               offset: const Offset(0, 8),
@@ -238,7 +239,7 @@ class _AnimePosterFrame extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF7C5CFF).withValues(alpha: 0.85),
+                  color: AppThemeService.currentPalette.value.primaryColor.withValues(alpha: 0.90),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(

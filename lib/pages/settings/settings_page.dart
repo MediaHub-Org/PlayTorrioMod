@@ -16,6 +16,8 @@ import 'simkl_settings_page.dart';
 import 'updates_settings_page.dart';
 import 'about_settings_page.dart';
 
+import '../../widgets/common/animated_ambient_background.dart';
+
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
@@ -75,9 +77,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF080A0F),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0D1017),
+        backgroundColor: const Color(0xFF0D1017).withValues(alpha: 0.85),
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
@@ -88,7 +90,8 @@ class _SettingsPageState extends State<SettingsPage> {
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
         ),
       ),
-      body: Center(
+      body: AnimatedAmbientBackground(
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),
           child: ListView(
@@ -270,6 +273,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }

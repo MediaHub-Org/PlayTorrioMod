@@ -4,6 +4,7 @@ import '../../models/anime/anime_media.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/anime/anime_scraper_service.dart';
 import '../../services/anime/anime_library_service.dart';
+import '../../services/app_theme_service.dart';
 import '../player/player_screen.dart';
 
 import '../../services/anime/extractors/anidb_extractor.dart';
@@ -189,19 +190,19 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
                       Row(
                         children: [
                           if (_isScraping) ...[
-                            const SizedBox(
+                            SizedBox(
                               width: 12,
                               height: 12,
                               child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: Color(0xFF7C5CFF),
+                                color: AppThemeService.currentPalette.value.primaryColor,
                               ),
                             ),
                             const SizedBox(width: 8),
-                            const Text(
+                            Text(
                               'Cascading native anime extractors...',
                               style: TextStyle(
-                                color: Color(0xFF7C5CFF),
+                                color: AppThemeService.currentPalette.value.primaryColor,
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -414,6 +415,7 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
 
   Widget _buildFilterChip(String label, String category) {
     final isSelected = _selectedCategory == category;
+    final primaryColor = AppThemeService.currentPalette.value.primaryColor;
     return GestureDetector(
       onTap: () => setState(() => _selectedCategory = category),
       child: AnimatedContainer(
@@ -421,12 +423,12 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFF7C5CFF)
+              ? primaryColor
               : Colors.white.withValues(alpha: 0.08),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF7C5CFF)
+                ? primaryColor
                 : Colors.white.withValues(alpha: 0.12),
           ),
         ),

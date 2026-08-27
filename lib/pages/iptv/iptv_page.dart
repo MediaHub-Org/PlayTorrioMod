@@ -14,6 +14,8 @@ import '../../widgets/iptv/iptv_hero_carousel.dart';
 import '../../widgets/iptv/iptv_slider_section.dart';
 import '../anime/anime_page.dart';
 import '../audiobooks/audiobooks_page.dart';
+import '../books/books_page.dart';
+import '../downloads/downloads_page.dart';
 import '../manga/manga_page.dart';
 import '../music/music_page.dart';
 import '../my_list/my_list_page.dart';
@@ -264,6 +266,16 @@ class _IptvPageState extends State<IptvPage> {
                 },
               ),
               DockItem(
+                icon: Icons.menu_book_rounded,
+                label: 'Books',
+                onTap: () {
+                  Navigator.pushReplacement(
+                    context,
+                    LiquidRevealRoute(page: const BooksPage(), tapPosition: null),
+                  );
+                },
+              ),
+              DockItem(
                 icon: Icons.headphones_rounded,
                 label: 'Audiobooks',
                 onTap: () {
@@ -314,7 +326,15 @@ class _IptvPageState extends State<IptvPage> {
               DockItem(
                 icon: Icons.download_rounded,
                 label: 'Downloads',
-                onTap: () {},
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    LiquidRevealRoute(
+                      page: const DownloadsPage(),
+                      tapPosition: null,
+                    ),
+                  );
+                },
               ),
               DockItem(
                 icon: Icons.favorite_rounded,

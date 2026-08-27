@@ -8,7 +8,9 @@ import '../../models/anime/anime_media.dart';
 import '../../services/anime/anilist_service.dart';
 import '../../services/anime/anime_library_service.dart';
 import '../../services/anime/extractors/anidb_extractor.dart';
+import '../../services/app_theme_service.dart';
 import '../../utils/route_transitions.dart';
+import '../../widgets/common/animated_ambient_background.dart';
 import '../../widgets/common/slider_arrow.dart';
 import 'anime_stream_sheet.dart';
 
@@ -22,10 +24,10 @@ class _Space {
 }
 
 class _Palette {
-  static const bg = Color(0xFF0B0D12);
-  static const surface = Color(0xFF15171F);
-  static const accent = Color(0xFF7C5CFF);
-  static const accentDim = Color(0xFF5A3BC8);
+  static Color get bg => AppThemeService.currentPalette.value.scaffoldBackgroundColor;
+  static Color get surface => AppThemeService.currentPalette.value.cardBackgroundColor;
+  static Color get accent => AppThemeService.currentPalette.value.primaryColor;
+  static Color get accentDim => AppThemeService.currentPalette.value.primaryColor.withValues(alpha: 0.7);
   static const gold = Color(0xFFFFC107);
 }
 
@@ -277,10 +279,11 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
     final overlap = isDesktop ? 120.0 : 70.0;
 
     return Scaffold(
-      backgroundColor: _Palette.bg,
-      body: Stack(
-        children: [
-          if (bgUrl.isNotEmpty) _buildBackdrop(bgUrl, screenSize),
+      backgroundColor: Colors.transparent,
+      body: AnimatedAmbientBackground(
+        child: Stack(
+          children: [
+            if (bgUrl.isNotEmpty) _buildBackdrop(bgUrl, screenSize),
 
           Positioned.fill(
             child: SingleChildScrollView(
@@ -365,6 +368,7 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
           ),
         ],
       ),
+    ),
     );
   }
 
@@ -384,27 +388,27 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
               imageUrl: bgUrl,
               fit: BoxFit.cover,
               alignment: Alignment.topCenter,
-              errorWidget: (_, __, ___) => const ColoredBox(color: _Palette.surface),
+              errorWidget: (_, __, ___) => ColoredBox(color: _Palette.surface),
             ),
             // Horizontal wash: darkens where the title sits
-            const DecoratedBox(
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.centerLeft,
                   end: Alignment.centerRight,
-                  colors: [_Palette.bg, Color(0x991A1D26), Colors.transparent],
-                  stops: [0.0, 0.42, 0.82],
+                  colors: [_Palette.bg, const Color(0x991A1D26), Colors.transparent],
+                  stops: const [0.0, 0.42, 0.82],
                 ),
               ),
             ),
             // Slow bottom fade: resolves smoothly to solid background
-            const DecoratedBox(
+            DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
-                  colors: [Colors.transparent, Color(0x661A1D26), _Palette.bg],
-                  stops: [0.0, 0.62, 0.94],
+                  colors: [Colors.transparent, const Color(0x661A1D26), _Palette.bg],
+                  stops: const [0.0, 0.62, 0.94],
                 ),
               ),
             ),
@@ -460,7 +464,7 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
                         imageUrl: posterUrl,
                         fit: BoxFit.cover,
                         errorWidget: (_, __, ___) =>
-                            const ColoredBox(color: _Palette.surface),
+                            ColoredBox(color: _Palette.surface),
                       ),
                     ),
                   ),
@@ -696,7 +700,7 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
         width: fullWidth ? double.infinity : null,
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
+          gradient: LinearGradient(
             colors: [_Palette.accent, _Palette.accentDim],
           ),
           borderRadius: BorderRadius.circular(10),
@@ -1103,7 +1107,7 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
                       ),
                       suffixIcon: IconButton(
                         padding: EdgeInsets.zero,
-                        icon: const Icon(
+                        icon: Icon(
                           Icons.arrow_forward_rounded,
                           color: _Palette.accent,
                           size: 16,
@@ -1138,7 +1142,7 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
                         fontSize: 12,
                         fontWeight: FontWeight.bold,
                       ),
-                      icon: const Icon(
+                      icon: Icon(
                         Icons.expand_more_rounded,
                         color: _Palette.accent,
                         size: 16,
@@ -1338,7 +1342,7 @@ class _AnimeDetailsPageState extends State<AnimeDetailsPage>
                               ),
                               child: Text(
                                 rel.relationType.replaceAll('_', ' '),
-                                style: const TextStyle(
+                                style: TextStyle(
                                   color: _Palette.accent,
                                   fontSize: 9.5,
                                   fontWeight: FontWeight.w900,

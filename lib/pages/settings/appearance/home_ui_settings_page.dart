@@ -1,11 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../../services/app_theme_service.dart';
+import '../../../services/custom_background_service.dart';
 import '../../../services/home_page_settings.dart';
 import '../../../services/my_list/my_list_service.dart';
 import '../../../services/simkl/simkl_service.dart';
 import '../../../services/trakt/trakt_service.dart';
 import '../../../widgets/common/animated_ambient_background.dart';
+import 'custom_background_settings_page.dart';
 
 class HomeUiSettingsPage extends StatefulWidget {
   const HomeUiSettingsPage({super.key});
@@ -66,6 +68,95 @@ class _HomeUiSettingsPageState extends State<HomeUiSettingsPage> {
               ),
               const SizedBox(height: 12),
               _buildAmbientLightsCard(),
+
+              const SizedBox(height: 28),
+
+              // ── 2b. Custom Wallpaper & Background Photo ──
+              Text(
+                'CUSTOM BACKGROUND & WALLPAPER',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.35),
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ValueListenableBuilder<CustomBackgroundData>(
+                valueListenable: CustomBackgroundService.notifier,
+                builder: (context, customBg, _) {
+                  final hasWallpaper = customBg.hasCustomBackground;
+                  final palette = AppThemeService.currentPalette.value;
+
+                  return InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const CustomBackgroundSettingsPage(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF12151E),
+                        borderRadius: BorderRadius.circular(16),
+                        border: Border.all(
+                          color: hasWallpaper
+                              ? palette.primaryColor.withValues(alpha: 0.40)
+                              : Colors.white.withValues(alpha: 0.08),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              color: palette.primaryColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              Icons.wallpaper_rounded,
+                              color: palette.primaryColor,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Custom Wallpaper & Lighting Blend',
+                                  style: TextStyle(
+                                    fontSize: 14.5,
+                                    fontWeight: FontWeight.w700,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  hasWallpaper
+                                      ? 'Custom background active with ambient light blending'
+                                      : 'Upload photos or choose curated dark wallpapers',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.white.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.arrow_forward_ios_rounded, color: Colors.white38, size: 16),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
 
               const SizedBox(height: 28),
 

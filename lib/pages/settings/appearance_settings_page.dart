@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../services/app_theme_service.dart';
 import '../../services/audiobook/audiobook_settings.dart';
+import '../../services/custom_background_service.dart';
 import '../../services/glass_settings.dart';
 import '../../services/iptv/iptv_settings.dart';
 import '../../services/manga/manga_settings.dart';
 import '../../services/music/music_settings.dart';
 import 'appearance/audiobook_settings_page.dart';
+import 'appearance/custom_background_settings_page.dart';
 import 'appearance/home_ui_settings_page.dart';
 import 'appearance/liquid_glass_settings_page.dart';
 import 'appearance/live_tv_settings_page.dart';
@@ -46,7 +48,7 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 20),
                 child: Text(
-                  'Fine-tune the visual atmosphere, custom color palettes, liquid glass shader physics, and home page layout.',
+                  'Fine-tune the visual atmosphere, custom wallpaper background, color palettes, and interface layouts.',
                   style: TextStyle(
                     fontSize: 13.5,
                     color: Colors.white.withValues(alpha: 0.5),
@@ -54,6 +56,37 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage> {
                   ),
                 ),
               ),
+
+              // Button 0: Custom Wallpaper & Atmosphere Background
+              ValueListenableBuilder<CustomBackgroundData>(
+                valueListenable: CustomBackgroundService.notifier,
+                builder: (context, customBg, _) {
+                  return ValueListenableBuilder<AppThemePalette>(
+                    valueListenable: AppThemeService.currentPalette,
+                    builder: (context, currentPalette, _) {
+                      return _buildSectionButton(
+                        icon: Icons.wallpaper_rounded,
+                        iconColor: currentPalette.primaryColor,
+                        title: 'Custom Background & Wallpaper',
+                        subtitle: 'Upload custom photos, choose curated dark wallpapers, and blend theme ambient lighting',
+                        badgeText: customBg.hasCustomBackground ? 'Custom Active' : 'Default Theme',
+                        badgeColor: customBg.hasCustomBackground ? currentPalette.primaryColor : Colors.white38,
+                        onTap: () async {
+                          await Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const CustomBackgroundSettingsPage(),
+                            ),
+                          );
+                          setState(() {});
+                        },
+                      );
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(height: 14),
 
               // Button 1: Liquid Glass Setup
               ValueListenableBuilder<bool>(
