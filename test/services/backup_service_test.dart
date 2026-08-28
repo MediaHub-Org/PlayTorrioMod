@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path_provider_platform_interface/path_provider_platform_interface.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:playtorrio/services/backup/backup_service.dart';
+import 'package:playtorrio/services/backup/cloud_backup_settings.dart';
 
 class _FakePathProvider extends PathProviderPlatform {
   _FakePathProvider(this.tempDir);
@@ -54,5 +55,53 @@ void main() {
 
   test('import throws when no backup file exists', () async {
     expect(BackupService.import(), throwsException);
+  });
+
+  group('isPrivateOrLoopbackHost', () {
+    test('accepts localhost and loopback', () {
+      expect(isPrivateOrLoopbackHost('localhost'), isTrue);
+      expect(isPrivateOrLoopbackHost('127.0.0.1'), isTrue);
+    });
+
+    test('accepts RFC1918 private ranges', () {
+      expect(isPrivateOrLoopbackHost('192.168.1.50'), isTrue);
+      expect(isPrivateOrLoopbackHost('10.0.0.5'), isTrue);
+      expect(isPrivateOrLoopbackHost('172.16.0.1'), isTrue);
+      expect(isPrivateOrLoopbackHost('172.31.255.255'), isTrue);
+    });
+
+    test('accepts .local mDNS hostnames', () {
+      expect(isPrivateOrLoopbackHost('nas.local'), isTrue);
+    });
+
+    test('rejects a public IP or real hostname', () {
+      expect(isPrivateOrLoopbackHost('8.8.8.8'), isFalse);
+      expect(isPrivateOrLoopbackHost('cloud.example.com'), isFalse);
+    });
+
+    test('rejects an out-of-range 172.x address (not the /12 private block)', () {
+      expect(isPrivateOrLoopbackHost('172.32.0.1'), isFalse);
+      expect(isPrivateOrLoopbackHost('172.15.0.1'), isFalse);
+    });
+  });
+
+  group('secure-URL enforcement (cloud backup)', () {
+    test('uploadToCloud rejects plain http to a public host', () {
+      expect(
+        BackupService.uploadToCloud(
+          const CloudBackupConfig(url: 'http://cloud.example.com/backup.json', username: 'u', password: 'p'),
+        ),
+        throwsException,
+      );
+    });
+
+    test('downloadFromCloud rejects plain http to a public host', () {
+      expect(
+        BackupService.downloadFromCloud(
+          const CloudBackupConfig(url: 'http://cloud.example.com/backup.json', username: 'u', password: 'p'),
+        ),
+        throwsException,
+      );
+    });
   });
 }
