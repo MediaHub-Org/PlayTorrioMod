@@ -156,7 +156,6 @@ class _PlayerScreenState extends State<PlayerScreen>
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
 
-    PlayerSettings.applyPreOpenProperties(_player);
     PlayerSettings.changeNotifier.addListener(_onPlayerSettingsChanged);
 
     _subscriptions.addAll([
@@ -332,29 +331,36 @@ class _PlayerScreenState extends State<PlayerScreen>
           lowerClean.contains('/live/') ||
           lowerClean.contains('/hls/live');
 
-      await PlayerSettings.applyPreOpenProperties(_player, isLive: isLive);
+      final bool isTorrentStream = isTorrent ||
+          sanitizedUrlStr.contains(':8090') ||
+          sanitizedUrlStr.contains('/stream?link=') ||
+          sanitizedUrlStr.contains('/stream?');
 
-      // Set native MPV properties for referer and user-agent directly on the player
-      try {
-        final dynamic platform = _player.platform;
-        if (platform != null) {
-          final referer = playerHeaders['Referer'] ?? playerHeaders['referer'];
-          if (referer != null && referer.isNotEmpty) {
-            await platform.setProperty('referrer', referer);
+      await PlayerSettings.applyPreOpenProperties(_player, isLive: isLive, isTorrent: isTorrentStream);
+
+      // Set native MPV properties for referer and user-agent directly on the player for web streams
+      if (!isTorrentStream) {
+        try {
+          final dynamic platform = _player.platform;
+          if (platform != null) {
+            final referer = playerHeaders['Referer'] ?? playerHeaders['referer'];
+            if (referer != null && referer.isNotEmpty) {
+              await platform.setProperty('referrer', referer);
+            }
+            final ua = playerHeaders['User-Agent'] ?? playerHeaders['user-agent'];
+            if (ua != null && ua.isNotEmpty) {
+              await platform.setProperty('user-agent', ua);
+            }
           }
-          final ua = playerHeaders['User-Agent'] ?? playerHeaders['user-agent'];
-          if (ua != null && ua.isNotEmpty) {
-            await platform.setProperty('user-agent', ua);
-          }
+        } catch (e) {
+          print('[PlayerScreen] Warning setting native header properties: $e');
         }
-      } catch (e) {
-        print('[PlayerScreen] Warning setting native header properties: $e');
       }
 
       await _player.open(
         Media(
           cleanUri.toString(),
-          httpHeaders: playerHeaders,
+          httpHeaders: isTorrentStream ? null : playerHeaders,
           start: widget.initialPosition,
         ),
         play: true,

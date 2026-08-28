@@ -483,7 +483,7 @@ abstract final class PlayerSettings {
 
   /// Pre-Open Properties: Demuxer, hardware decoder, cache buffer, disk cache dir,
   /// and FFmpeg fast-decode flags that MUST be configured before opening media.
-  static Future<void> applyPreOpenProperties(Player player, {bool isLive = false}) async {
+  static Future<void> applyPreOpenProperties(Player player, {bool isLive = false, bool isTorrent = false}) async {
     try {
       final dynamic platform = player.platform;
       if (platform == null) return;
@@ -496,36 +496,15 @@ abstract final class PlayerSettings {
         } catch (_) {}
       }
 
-      // 2. Audio Filter (scaletempo2 for smooth pitch-preserving speed changes)
+      // 1. Audio Filter & Volume
       await platform.setProperty('af', 'scaletempo2=max-speed=8');
+      await platform.setProperty('volume-max', '200');
 
-      // 3. Hardware Decoder selection
+      // 2. Hardware Decoder selection
       final effectiveHwdec = getEffectiveHwdecString();
       await platform.setProperty('hwdec', effectiveHwdec);
 
-      // 4. Video Decoder Optimizations (AnymeX)
-      await platform.setProperty('vd-lavc-fast', enableFastDecode.value ? 'yes' : 'no');
-      await platform.setProperty('vd-lavc-skiploopfilter', skipLoopFilter.value);
-      if (lavcThreads.value > 0) {
-        await platform.setProperty('vd-lavc-threads', '${lavcThreads.value}');
-      } else {
-        await platform.setProperty('vd-lavc-threads', 'auto');
-      }
-
-      // 5. Buffer & Demuxer Cache Configuration
-      await platform.setProperty('cache', 'yes');
-      await platform.setProperty('demuxer-max-bytes', '${getEffectiveMaxBytes()}');
-      await platform.setProperty('demuxer-max-back-bytes', '${getEffectiveMaxBackBytes()}');
-      await platform.setProperty('cache-secs', '${getEffectiveCacheSecs()}');
-      await platform.setProperty('demuxer-readahead-secs', '${getEffectiveCacheSecs()}');
-
-      // 6. Network Stream Continuity (Live IPTV vs VOD separation)
-      await applyStreamContinuity(player, isLive: isLive);
-
-      // 7. Max volume boost limit (allow boosting up to 200%)
-      await platform.setProperty('volume-max', '200');
-
-      // 8. Libass Engine & Font directory pre-configuration
+      // 3. Libass Engine & Font directory pre-configuration
       if (useLibass.value) {
         if (_extractedFontDir != null) {
           await platform.setProperty('sub-fonts-dir', _extractedFontDir!);
@@ -539,12 +518,45 @@ abstract final class PlayerSettings {
         await platform.setProperty('sub-visibility', 'no');
       }
 
-      // 9. Default Audio Delay
+      // 4. Default Audio Delay
       if (audioDelayDefault.value != 0.0) {
         await platform.setProperty('audio-delay', audioDelayDefault.value.toString());
       }
 
-      // 10. Native HLS & image-disguised (.jpg/.png) stream probing
+      // For torrent streams: DO NOT override anything else. Leave MPV on pure built-in defaults!
+      if (isTorrent) {
+        return;
+      }
+
+      // 5. Demuxer disk cache directory (Smooth AnymeX chunk buffering)
+      if (enableDiskCache.value) {
+        try {
+          final tempDir = await getTemporaryDirectory();
+          await platform.setProperty('demuxer-cache-dir', tempDir.path);
+        } catch (_) {}
+      }
+
+      // 6. Video Decoder Optimizations (AnymeX)
+      await platform.setProperty('vd-lavc-fast', enableFastDecode.value ? 'yes' : 'no');
+      await platform.setProperty('vd-lavc-skiploopfilter', skipLoopFilter.value);
+      if (lavcThreads.value > 0) {
+        await platform.setProperty('vd-lavc-threads', '${lavcThreads.value}');
+      } else {
+        await platform.setProperty('vd-lavc-threads', 'auto');
+      }
+
+      // 7. Buffer & Demuxer Cache Configuration (HTTP VOD only)
+      await platform.setProperty('cache', 'yes');
+      await platform.setProperty('demuxer-max-bytes', '${getEffectiveMaxBytes()}');
+      await platform.setProperty('demuxer-max-back-bytes', '${getEffectiveMaxBackBytes()}');
+      await platform.setProperty('cache-secs', '${getEffectiveCacheSecs()}');
+      await platform.setProperty('demuxer-readahead-secs', '${getEffectiveCacheSecs()}');
+      await platform.setProperty('network-timeout', '30');
+
+      // 8. Network Stream Continuity (Live IPTV vs VOD separation)
+      await applyStreamContinuity(player, isLive: isLive);
+
+      // 9. Native HLS & image-disguised (.jpg/.png) stream probing
       await platform.setProperty('hls-bitrate', 'max');
       await platform.setProperty('demuxer-lavf-probesize', '32768000');
       await platform.setProperty('demuxer-lavf-analyzeduration', '20');
