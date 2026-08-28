@@ -3,18 +3,23 @@ import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 import 'package:media_kit/media_kit.dart';
 
 import '../../models/audiobook/audiobook_model.dart';
+import '../../models/download/download_task_model.dart';
+import '../../models/stream/stream_model.dart';
 import '../../services/audiobook/audiobook_player_controller.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/audiobook/audiobook_progress_service.dart';
+import '../../services/download/download_service.dart';
 import '../../services/playback_coordinator.dart';
 import '../../services/audiobook/audiobook_settings.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
+import '../../utils/download/download_path_helper.dart';
 import '../../widgets/audiobook/audiobook_interactive_physics_button.dart';
 import '../../widgets/audiobook/audiobook_waveform_seekbar.dart';
 import '../settings/appearance/audiobook_player_studio_page.dart';
@@ -337,6 +342,65 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     final newSpeed = _speeds[nextIdx];
     setState(() => _playbackSpeed = newSpeed);
     _player?.setRate(newSpeed);
+  }
+
+  Future<void> _handleDownloadChapter() async {
+    final chapter = widget.chapters[_currentChapterIndex];
+    final mediaId = '${widget.audiobook.uuid}:$_currentChapterIndex';
+
+    final existing = DownloadService.instance.tasksNotifier.value
+        .where((t) => t.mediaId == mediaId)
+        .firstOrNull;
+    if (existing != null) {
+      if (existing.status == DownloadStatus.downloading) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Download already in progress in background.')),
+        );
+        return;
+      } else if (existing.status == DownloadStatus.completed) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('This chapter is already downloaded.')),
+        );
+        return;
+      }
+    }
+
+    try {
+      String? customDir;
+      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+        customDir = await DownloadPathHelper.pickDownloadsDirectory();
+        if (customDir == null) return; // User canceled folder selection
+      }
+
+      await DownloadService.instance.startDownload(
+        title: '${widget.audiobook.title} - ${chapter.title}',
+        mediaId: mediaId,
+        type: 'audiobook',
+        posterUrl: widget.audiobook.coverImage,
+        source: StreamSource(
+          url: chapter.url,
+          fileIdx: chapter.torrentFileIndex,
+          addonName: widget.audiobook.source,
+          headers: chapter.httpHeaders,
+        ),
+        customDownloadDir: customDir,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Download started in background. Track progress in Downloads tab.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Download failed to start: $e')),
+        );
+      }
+    }
   }
 
   void _showPlayerCustomizer(BuildContext context) {
@@ -778,6 +842,23 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
             palette: palette,
             tooltip: 'Chapters List',
             onTap: () => setState(() => _showChaptersDrawer = true),
+          ),
+          const SizedBox(width: 6),
+          // Download Chapter Button
+          ValueListenableBuilder<List<DownloadTask>>(
+            valueListenable: DownloadService.instance.tasksNotifier,
+            builder: (context, tasks, _) {
+              final mediaId = '${widget.audiobook.uuid}:$_currentChapterIndex';
+              final isDownloading = tasks.any(
+                (t) => t.mediaId == mediaId && t.status == DownloadStatus.downloading,
+              );
+              return _PlayerIconButton(
+                icon: isDownloading ? Icons.downloading_rounded : Icons.download_rounded,
+                palette: palette,
+                tooltip: isDownloading ? 'Downloading...' : 'Download Chapter',
+                onTap: isDownloading ? null : _handleDownloadChapter,
+              );
+            },
           ),
         ],
       ),
