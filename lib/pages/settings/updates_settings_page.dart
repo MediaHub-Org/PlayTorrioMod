@@ -96,8 +96,8 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
               FutureBuilder<PackageInfo>(
                 future: PackageInfo.fromPlatform(),
                 builder: (context, snapshot) {
-                  final version = snapshot.hasData ? snapshot.data!.version : '1.0.3';
-                  final buildNumber = snapshot.hasData ? snapshot.data!.buildNumber : '3';
+                  final version = snapshot.hasData ? snapshot.data!.version : '1.0.4';
+                  final buildNumber = snapshot.hasData ? snapshot.data!.buildNumber : '5';
                   final appName = snapshot.hasData ? snapshot.data!.appName : 'PlayTorrio';
 
                   return Container(

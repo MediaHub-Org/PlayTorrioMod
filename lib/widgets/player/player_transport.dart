@@ -14,6 +14,8 @@ class PlayerTransport extends StatelessWidget {
   final Duration position;
   final Duration duration;
   final Duration? buffered;
+  final ValueListenable<Duration>? positionListenable;
+  final ValueListenable<Duration?>? bufferedListenable;
   final List<MediaSkipSegment> skipSegments;
   final double volume;
   final bool isMuted;
@@ -50,6 +52,8 @@ class PlayerTransport extends StatelessWidget {
     required this.position,
     required this.duration,
     this.buffered,
+    this.positionListenable,
+    this.bufferedListenable,
     this.skipSegments = const [],
     required this.volume,
     required this.isMuted,
@@ -115,6 +119,8 @@ class PlayerTransport extends StatelessWidget {
             position: position,
             duration: duration,
             buffered: buffered,
+            positionListenable: positionListenable,
+            bufferedListenable: bufferedListenable,
             skipSegments: skipSegments,
             onSeek: onSeek,
             onScrubbingChanged: onScrubbingChanged,

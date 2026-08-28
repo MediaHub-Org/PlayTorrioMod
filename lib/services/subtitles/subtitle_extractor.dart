@@ -134,7 +134,7 @@ class SubtitleExtractor {
 
       final savePath = '${targetDir.path}/$fileName.$targetExt';
       final localFile = File(savePath);
-      await localFile.writeAsBytes(utf8Bytes);
+      await localFile.writeAsBytes(utf8Bytes, flush: true);
 
       print('[SubtitleExtractor SUCCESS] Extracted subtitle to $savePath (${utf8Bytes.length} bytes)');
       return savePath;

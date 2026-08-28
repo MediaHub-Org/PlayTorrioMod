@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../models/player/skip_segment_model.dart';
 import 'player_glass.dart';
@@ -7,6 +8,8 @@ class PlayerSeekBar extends StatefulWidget {
   final Duration position;
   final Duration duration;
   final Duration? buffered;
+  final ValueListenable<Duration>? positionListenable;
+  final ValueListenable<Duration?>? bufferedListenable;
   final List<MediaSkipSegment> skipSegments;
   final ValueChanged<Duration> onSeek;
   final ValueChanged<bool>? onScrubbingChanged;
@@ -16,6 +19,8 @@ class PlayerSeekBar extends StatefulWidget {
     required this.position,
     required this.duration,
     this.buffered,
+    this.positionListenable,
+    this.bufferedListenable,
     this.skipSegments = const [],
     required this.onSeek,
     this.onScrubbingChanged,
@@ -67,14 +72,32 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.positionListenable != null) {
+      return ValueListenableBuilder<Duration>(
+        valueListenable: widget.positionListenable!,
+        builder: (context, pos, _) {
+          if (widget.bufferedListenable != null) {
+            return ValueListenableBuilder<Duration?>(
+              valueListenable: widget.bufferedListenable!,
+              builder: (context, buf, _) => _buildRow(context, pos, buf),
+            );
+          }
+          return _buildRow(context, pos, widget.buffered);
+        },
+      );
+    }
+    return _buildRow(context, widget.position, widget.buffered);
+  }
+
+  Widget _buildRow(BuildContext context, Duration currentPosition, Duration? currentBuffered) {
     final totalMs = widget.duration.inMilliseconds;
-    final currentMs = widget.position.inMilliseconds;
+    final currentMs = currentPosition.inMilliseconds;
     final currentFraction = totalMs > 0 ? (currentMs / totalMs).clamp(0.0, 1.0) : 0.0;
-    final bufferedMs = widget.buffered?.inMilliseconds ?? 0;
+    final bufferedMs = currentBuffered?.inMilliseconds ?? 0;
     final bufferedFraction = totalMs > 0 ? (bufferedMs / totalMs).clamp(0.0, 1.0) : 0.0;
     final activeFraction = _scrubFraction ?? currentFraction;
 
-    final remainingDuration = widget.duration - widget.position;
+    final remainingDuration = widget.duration - currentPosition;
 
     return Row(
       children: [
@@ -84,7 +107,7 @@ class _PlayerSeekBarState extends State<PlayerSeekBar> {
           child: Text(
             _formatDuration(_scrubFraction != null
                 ? Duration(milliseconds: (_scrubFraction! * totalMs).round())
-                : widget.position),
+                : currentPosition),
             style: const TextStyle(
               color: PlayerTheme.inkMuted,
               fontSize: 12.5,

@@ -174,7 +174,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
     });
 
     try {
-      PlayerSettings.applyToPlayer(_player);
+      await PlayerSettings.applyToPlayer(_player, isLive: true);
 
       await _player.open(
         Media(
@@ -188,7 +188,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
         play: true,
       );
 
-      PlayerSettings.applyToPlayer(_player);
+      await PlayerSettings.applyToPlayer(_player, isLive: true);
       _player.setVolume(_isMuted ? 0.0 : _volume * 100.0);
 
       if (!mounted) return;

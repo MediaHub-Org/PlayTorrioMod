@@ -79,7 +79,7 @@ class SubtitleCatProvider extends SubtitleProvider {
 
         final outPath = '${dir.path}/subtitlecat_tr_${DateTime.now().millisecondsSinceEpoch}.srt';
         final file = File(outPath);
-        await file.writeAsString(srtText, encoding: utf8);
+        await file.writeAsString(srtText, encoding: utf8, flush: true);
         return outPath;
       } else {
         final req = await _httpClient.getUrl(Uri.parse(variant.downloadUrl));
@@ -95,7 +95,7 @@ class SubtitleCatProvider extends SubtitleProvider {
         final bytes = await res.fold<List<int>>([], (p, e) => p..addAll(e));
         final outPath = '${dir.path}/subtitlecat_${DateTime.now().millisecondsSinceEpoch}.srt';
         final file = File(outPath);
-        await file.writeAsBytes(bytes);
+        await file.writeAsBytes(bytes, flush: true);
         return outPath;
       }
     } catch (e) {

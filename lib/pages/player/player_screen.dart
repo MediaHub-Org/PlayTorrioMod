@@ -73,8 +73,14 @@ class PlayerScreen extends StatefulWidget {
 class _PlayerScreenState extends State<PlayerScreen>
     with SingleTickerProviderStateMixin {
   late final Player _player = Player(configuration: PlayerSettings.getMediaKitPlayerConfiguration());
-  late final mk.VideoController _videoController = mk.VideoController(_player);
+  late final mk.VideoController _videoController = mk.VideoController(
+    _player,
+    configuration: PlayerSettings.getVideoControllerConfiguration(),
+  );
   final List<StreamSubscription> _subscriptions = [];
+
+  final ValueNotifier<Duration> _positionNotifier = ValueNotifier<Duration>(Duration.zero);
+  final ValueNotifier<Duration?> _bufferNotifier = ValueNotifier<Duration?>(null);
 
   bool _isLoading = true;
   bool _isPlaying = false;
@@ -151,7 +157,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
 
-    PlayerSettings.applyToPlayer(_player);
+    PlayerSettings.applyPreOpenProperties(_player);
     PlayerSettings.changeNotifier.addListener(_onPlayerSettingsChanged);
 
     _subscriptions.addAll([
@@ -160,13 +166,15 @@ class _PlayerScreenState extends State<PlayerScreen>
       }),
       _player.stream.position.listen((pos) {
         _position = pos;
+        _positionNotifier.value = pos;
         _onPlaybackTick(pos);
       }),
       _player.stream.duration.listen((dur) {
         if (mounted) setState(() => _duration = dur);
       }),
       _player.stream.buffer.listen((buf) {
-        if (mounted) setState(() => _buffered = buf);
+        _buffered = buf;
+        _bufferNotifier.value = buf;
       }),
       _player.stream.buffering.listen((isBuffering) {
         if (_wasBuffering && !isBuffering && PlayerSettings.autoResyncOnStall.value) {
@@ -224,9 +232,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Handle offline downloaded file playback directly
       if (rawUrl != null && (File(rawUrl).existsSync() || _currentSource.name == 'Downloaded')) {
         print('[PlayerScreen] Initializing offline local file playback: $rawUrl');
-        PlayerSettings.applyToPlayer(_player);
+        await PlayerSettings.applyPreOpenProperties(_player);
         await _player.open(Media(rawUrl), play: true);
-        PlayerSettings.applyToPlayer(_player);
+        await PlayerSettings.applyPostOpenProperties(_player);
         _setSubtitleScale(_subtitleScale);
         _applyVolume(_isMuted ? 0.0 : _volume);
         if (mounted) setState(() => _isLoading = false);
@@ -342,7 +350,14 @@ class _PlayerScreenState extends State<PlayerScreen>
           : (widget.detail?.name ?? _currentTitle);
       setState(() => _statusMessage = 'Buffering $epLabel...');
 
-      PlayerSettings.applyToPlayer(_player);
+      final lowerClean = resolvedUrlStr.toLowerCase();
+      final bool isLive = _currentSource.behaviorHints?['isLive'] == true ||
+          _currentSource.addonName.toLowerCase() == 'iptv' ||
+          _currentSource.name?.toLowerCase() == 'iptv' ||
+          lowerClean.contains('/live/') ||
+          lowerClean.contains('/hls/live');
+
+      await PlayerSettings.applyPreOpenProperties(_player, isLive: isLive);
 
       try {
         await _player.open(
@@ -359,7 +374,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           print('[PlayerScreen] Direct playback failed, falling back to LocalStreamProxy: $initErr');
           resolvedUrlStr = LocalStreamProxy.instance.getProxiedUrl(sanitizedUrlStr, playerHeaders);
           cleanUri = Uri.parse(resolvedUrlStr);
-          PlayerSettings.applyToPlayer(_player);
+          await PlayerSettings.applyPreOpenProperties(_player, isLive: isLive);
           await _player.open(
             Media(
               cleanUri.toString(),
@@ -373,7 +388,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
       }
 
-      PlayerSettings.applyToPlayer(_player);
+      await PlayerSettings.applyPostOpenProperties(_player);
 
       _setSubtitleScale(_subtitleScale);
       _applyVolume(_isMuted ? 0.0 : _volume);
@@ -688,7 +703,8 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
 
     _currentSubtitlePath = path;
-    _player.setSubtitleTrack(SubtitleTrack.uri(path, title: variant.language));
+    final resolvedUri = _resolveSubtitleUri(path);
+    _player.setSubtitleTrack(SubtitleTrack.uri(resolvedUri, title: variant.language));
     _setSubtitleScale(_subtitleScale);
     PlayerSettings.applySubtitleStyling(_player);
 
@@ -704,6 +720,25 @@ class _PlayerScreenState extends State<PlayerScreen>
         ),
       );
     }
+  }
+
+  String _resolveSubtitleUri(String pathOrUrl) {
+    if (pathOrUrl.startsWith('http://') || pathOrUrl.startsWith('https://')) {
+      return pathOrUrl;
+    }
+    try {
+      final file = File(pathOrUrl);
+      if (file.existsSync()) {
+        final canonicalPath = file.resolveSymbolicLinksSync();
+        return Uri.file(canonicalPath).toString();
+      }
+    } catch (_) {}
+
+    final uri = Uri.tryParse(pathOrUrl);
+    if (uri != null && uri.hasScheme && !(Platform.isWindows && RegExp(r'^[a-zA-Z]:[\\/]').hasMatch(pathOrUrl))) {
+      return pathOrUrl;
+    }
+    return Uri.file(pathOrUrl).toString();
   }
 
   void _setSubtitleScale(double scale) {
@@ -735,9 +770,10 @@ class _PlayerScreenState extends State<PlayerScreen>
         '',
       );
       final newPath = '${cleanBase}_synced_${DateTime.now().millisecondsSinceEpoch}.$ext';
-      await File(newPath).writeAsString(content);
+      await File(newPath).writeAsString(content, flush: true);
       _currentSubtitlePath = newPath;
-      _player.setSubtitleTrack(SubtitleTrack.uri(newPath));
+      final resolvedUri = _resolveSubtitleUri(newPath);
+      _player.setSubtitleTrack(SubtitleTrack.uri(resolvedUri));
       _setSubtitleScale(_subtitleScale);
 
       if (mounted) {
@@ -752,6 +788,25 @@ class _PlayerScreenState extends State<PlayerScreen>
     if (!mounted) return;
     final errorMsg = err.toString();
     print('[PlayerScreen ERROR] Player error: $errorMsg');
+
+    // Ignore non-fatal subtitle track loading errors so video playback is not interrupted
+    final lower = errorMsg.toLowerCase();
+    if (lower.contains('can not open external file') ||
+        lower.contains('subtitle') ||
+        lower.contains('sub-add') ||
+        lower.contains('.srt') ||
+        lower.contains('.vtt') ||
+        lower.contains('.ass')) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Could not load subtitle: $errorMsg'),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
 
     if (_currentEpisode != null && widget.detail?.videos.isNotEmpty == true) {
       setState(() {
@@ -1020,6 +1075,8 @@ class _PlayerScreenState extends State<PlayerScreen>
       DeviceOrientation.landscapeRight,
     ]);
     PlayerSettings.changeNotifier.removeListener(_onPlayerSettingsChanged);
+    _positionNotifier.dispose();
+    _bufferNotifier.dispose();
     _player.dispose();
     _logoAnimController.dispose();
     TorrentStreamService().cleanup();
@@ -1365,6 +1422,8 @@ class _PlayerScreenState extends State<PlayerScreen>
                           position: _position,
                           duration: _duration,
                           buffered: buffered,
+                          positionListenable: _positionNotifier,
+                          bufferedListenable: _bufferNotifier,
                           skipSegments: _skipSegments,
                           volume: _volume,
                           isMuted: _isMuted || _volume == 0,
