@@ -1,9 +1,12 @@
 import 'dart:ui';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
+import '../../models/anime/anime_media.dart';
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
+import '../../services/anime/anilist_service.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../utils/fullscreen_navigator.dart';
@@ -26,6 +29,7 @@ class _MangaDetailsPageState extends State<MangaDetailsPage> {
   Manga? _fullDetails;
   List<MangaChapter>? _chapters;
   Map<String, dynamic>? _historyEntry;
+  List<AnimeStaff>? _staff;
   bool _isLoading = true;
   bool _isLiked = false;
 
@@ -40,11 +44,20 @@ class _MangaDetailsPageState extends State<MangaDetailsPage> {
     AppThemeService.currentPalette.addListener(_onThemeChanged);
     _loadDetails();
     _loadLikedState();
+    _loadStaff();
   }
 
   Future<void> _loadLikedState() async {
     final liked = await _mangaService.isLiked(widget.manga.id);
     if (mounted) setState(() => _isLiked = liked);
+  }
+
+  // Manga has no AniList id (unlike Anime) -- fuzzy-matched by title via
+  // AnilistService.fetchMangaStaff, which only returns a result on a
+  // confident normalized-exact title match. Silently absent otherwise.
+  Future<void> _loadStaff() async {
+    final staff = await AnilistService.instance.fetchMangaStaff(widget.manga.title);
+    if (mounted && staff != null) setState(() => _staff = staff);
   }
 
   Future<void> _toggleLike() async {
@@ -258,6 +271,90 @@ class _MangaDetailsPageState extends State<MangaDetailsPage> {
               ),
             ),
           ),
+
+        // Staff Section (author/artist photo, when a confident AniList match exists)
+        if (_staff != null && _staff!.isNotEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: horizontalPad),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Staff',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: isDesktop ? 22 : 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  SizedBox(
+                    height: 150,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: _staff!.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 14),
+                      itemBuilder: (context, index) {
+                        final member = _staff![index];
+                        return SizedBox(
+                          width: 90,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(12),
+                                child: CachedNetworkImage(
+                                  imageUrl: member.imageLarge,
+                                  width: 90,
+                                  height: 100,
+                                  fit: BoxFit.cover,
+                                  errorWidget: (_, __, ___) => Container(
+                                    width: 90,
+                                    height: 100,
+                                    color: Colors.white.withValues(alpha: 0.06),
+                                    child: const Icon(
+                                      Icons.person_rounded,
+                                      color: Colors.white24,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                member.nameFull,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                member.role,
+                                style: const TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 10,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+        if (_staff != null && _staff!.isNotEmpty)
+          SliverToBoxAdapter(child: SizedBox(height: isDesktop ? 36 : 24)),
 
         SliverToBoxAdapter(child: SizedBox(height: isDesktop ? 36 : 24)),
 

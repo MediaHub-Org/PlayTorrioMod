@@ -4,6 +4,12 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Manga staff photos (ROADMAP #2) — 2026-08-29
+- **Re-examined the "blocked" reasoning and found a real path**: Anime's cast+staff photos work via an exact AniList numeric id lookup (`fetchAnimeDetails`) — no matching risk at all. Manga has no such id (its catalog comes from a plain HTML scrape, weebcentral.com), so getting photos means fuzzy-matching a title against AniList's separate `type: MANGA` search — the actual risk the ROADMAP flagged, confirmed real via a live AniList query.
+- Added `AnilistService.fetchMangaStaff(title)`: searches AniList by title, then only accepts the match if the manga's own title *normalized-exact-matches* (case/punctuation/whitespace-insensitive) one of AniList's romaji/english/native/userPreferred titles — never a "closest guess". Returns `null` (no photos shown, falls back to the existing text-only author) on anything less than a confident match, same risk-averse shape as Books/Podcasts falling back gracefully rather than guessing.
+- `MangaDetailsPage` gained a "Staff" row (reusing `AnimeStaff`/`CachedNetworkImage`, same visual pattern as Anime's staff row) between Synopsis and Chapters, loaded async and simply absent when no confident match exists.
+- Audiobooks stays blocked on this same ROADMAP item — no equivalent photo source exists for narrators (see ROADMAP for what was checked).
+
 ### Closed, unreproducible — mobile section chips overlapping the page search icon — 2026-08-27
 - Retested by actually running the Windows build at a resized 390px phone-width window (screenshots via `PrintWindow`, live-driven) across Movies, Audiobooks, and Anime — one page per composition shape. `SectionTopBar` and each page's own icon row sit in separate rows via `SectionedHubScaffold`'s `Column[SectionTopBar(), Expanded(section)]` — no Z-overlap is structurally possible there. The chip strip does clip at 390px (trailing chip cut off, reachable by scrolling) — expected horizontal-scroll behavior, not a collision. Reopen with the exact device/width/font-scale if seen again.
 

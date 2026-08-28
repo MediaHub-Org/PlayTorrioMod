@@ -305,6 +305,71 @@ class AnilistService {
     );
   }
 
+  /// Looks up a manga's author/artist staff (with photos) by title.
+  ///
+  /// Manga has no AniList id of its own (the catalog source is a plain HTML
+  /// scrape, not AniList) — so this must fuzzy-match by title, unlike
+  /// Anime's exact id-based [fetchAnimeDetails]. To avoid attaching the
+  /// wrong person's photo to the wrong manga, this only accepts a
+  /// normalized-exact title match (case/punctuation/whitespace-insensitive)
+  /// against romaji, english, native, or userPreferred — never a "closest
+  /// guess". Returns null if no confident match or the match has no staff.
+  Future<List<AnimeStaff>?> fetchMangaStaff(String title) async {
+    if (title.trim().isEmpty) return null;
+
+    const query = '''
+      query (\$search: String) {
+        Media(search: \$search, type: MANGA) {
+          title {
+            romaji
+            english
+            native
+            userPreferred
+          }
+          staff(sort: RELEVANCE, perPage: 6) {
+            edges {
+              role
+              node {
+                id
+                name {
+                  full
+                  userPreferred
+                }
+                image {
+                  large
+                  medium
+                }
+              }
+            }
+          }
+        }
+      }
+    ''';
+
+    final data = await _postGraphQL(query, {'search': title.trim()});
+    final media = data?['Media'] as Map<String, dynamic>?;
+    if (media == null) return null;
+
+    final titles = (media['title'] as Map<String, dynamic>? ?? {})
+        .values
+        .whereType<String>();
+    final target = _normalizeTitle(title);
+    final isConfidentMatch =
+        titles.any((candidate) => _normalizeTitle(candidate) == target);
+    if (!isConfidentMatch) return null;
+
+    final staffEdges = (media['staff']?['edges'] as List?) ?? [];
+    final staff = staffEdges
+        .whereType<Map<String, dynamic>>()
+        .map(AnimeStaff.fromEdgeJson)
+        .toList();
+    return staff.isEmpty ? null : staff;
+  }
+
+  static String _normalizeTitle(String title) => title
+      .toLowerCase()
+      .replaceAll(RegExp(r'[^a-z0-9]'), '');
+
   /// Full Anime Details (Including Voice Actors/Characters, Relations, Recommendations)
   Future<AnimeMedia?> fetchAnimeDetails(int anilistId) async {
     const query = '''
