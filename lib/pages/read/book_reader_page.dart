@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
+import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
 
 import '../../services/books/book_progress_service.dart';
@@ -37,6 +38,19 @@ class BookReaderPage extends StatefulWidget {
 
   @override
   State<BookReaderPage> createState() => _BookReaderPageState();
+}
+
+/// Resolves a zip entry name against [extractRoot], rejecting (returns null)
+/// any entry whose normalized path would escape it -- e.g. `../../evil` or
+/// an absolute path baked into the entry name. Zip Slip guard: EPUBs are
+/// untrusted content from third-party scrape sources.
+String? safeExtractPath(String extractRoot, String entryName) {
+  final root = p.normalize(extractRoot);
+  final target = p.normalize(p.join(root, entryName));
+  if (p.equals(target, root) || p.isWithin(root, target)) {
+    return target;
+  }
+  return null;
 }
 
 class _Chapter {
@@ -105,13 +119,16 @@ class _BookReaderPageState extends State<BookReaderPage> {
 
       if (!extractDir.existsSync()) {
         extractDir.createSync(recursive: true);
+        final extractRoot = extractDir.absolute.path;
         for (final entry in archive) {
           final entryName = entry.name.replaceAll('\\', '/');
+          final targetPath = safeExtractPath(extractRoot, entryName);
+          if (targetPath == null) continue;
           if (entryName.endsWith('/') || !entry.isFile) {
-            Directory('${extractDir.path}/$entryName').createSync(recursive: true);
+            Directory(targetPath).createSync(recursive: true);
             continue;
           }
-          final f = File('${extractDir.path}/$entryName');
+          final f = File(targetPath);
           f.createSync(recursive: true);
           f.writeAsBytesSync(entry.content as List<int>);
         }
@@ -348,8 +365,15 @@ class _BookReaderPageState extends State<BookReaderPage> {
                 javaScriptEnabled: true,
                 transparentBackground: false,
                 supportZoom: true,
-                allowFileAccessFromFileURLs: true,
-                allowUniversalAccessFromFileURLs: true,
+                // Relative <img>/<link> references inside a chapter resolve
+                // fine against the extracted folder via normal same-origin
+                // file:// navigation -- these two flags are only needed for
+                // JS-initiated fetch()/XHR to *other* file:// origins, which
+                // this reader's injected JS never does. Left off since EPUBs
+                // are untrusted third-party content and either flag would
+                // let injected/malicious JS read arbitrary local files.
+                allowFileAccessFromFileURLs: false,
+                allowUniversalAccessFromFileURLs: false,
                 verticalScrollBarEnabled: false,
                 horizontalScrollBarEnabled: false,
                 disableHorizontalScroll: true,
