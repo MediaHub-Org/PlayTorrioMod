@@ -1744,7 +1744,6 @@ class _PlayerScreenState extends State<PlayerScreen>
                           isMuted: _isMuted || _volume == 0,
                           playbackRate: _playbackRate,
                           isSubtitlesActive: _isSubtitleEnabled && _currentSubtitleVariant != null,
-                          isSubSyncActive: _selectedEmbeddedSubtitleIndex == null && (_showSubSyncBar || _subtitleDelayMs != 0),
                           isAudioActive: _selectedAudioTrackIndex > 0,
                           isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
                           isFullscreen: isFs,
@@ -1767,30 +1766,6 @@ class _PlayerScreenState extends State<PlayerScreen>
                           onToggleSpeedMenu: () => _toggleMenu('speed'),
                           onToggleAudioMenu: () => _toggleMenu('audio'),
                           onToggleSubtitleMenu: () => _toggleMenu('subtitle'),
-                          onToggleSubSync: () {
-                            if (_selectedEmbeddedSubtitleIndex != null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Subtitle sync is not supported for embedded subtitles. Please select an external subtitle.'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                              return;
-                            }
-                            if (_currentSubtitlePath == null || _currentSubtitleVariant == null) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Text('Please load an external subtitle to use subtitle sync.'),
-                                  duration: Duration(seconds: 2),
-                                ),
-                              );
-                              return;
-                            }
-                            setState(() {
-                              _showSubSyncBar = !_showSubSyncBar;
-                              _activeMenu = null;
-                            });
-                          },
                           onToggleFullscreen: () => WindowService.instance.toggleFullscreen(),
                         );
                       },

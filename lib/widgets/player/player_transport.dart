@@ -21,7 +21,6 @@ class PlayerTransport extends StatelessWidget {
   final bool isMuted;
   final double playbackRate;
   final bool isSubtitlesActive;
-  final bool isSubSyncActive;
   final bool isAudioActive;
   final bool isEpisodesActive;
   final bool isFullscreen;
@@ -40,7 +39,6 @@ class PlayerTransport extends StatelessWidget {
   final VoidCallback onToggleSpeedMenu;
   final VoidCallback onToggleAudioMenu;
   final VoidCallback onToggleSubtitleMenu;
-  final VoidCallback onToggleSubSync;
   final VoidCallback onToggleFullscreen;
   final VoidCallback? onPrevEpisode;
   final VoidCallback? onNextEpisode;
@@ -59,7 +57,6 @@ class PlayerTransport extends StatelessWidget {
     required this.isMuted,
     required this.playbackRate,
     required this.isSubtitlesActive,
-    required this.isSubSyncActive,
     required this.isAudioActive,
     this.isEpisodesActive = false,
     required this.isFullscreen,
@@ -76,7 +73,6 @@ class PlayerTransport extends StatelessWidget {
     required this.onToggleSpeedMenu,
     required this.onToggleAudioMenu,
     required this.onToggleSubtitleMenu,
-    required this.onToggleSubSync,
     required this.onToggleFullscreen,
     this.onPrevEpisode,
     this.onNextEpisode,
@@ -236,17 +232,6 @@ class PlayerTransport extends StatelessWidget {
                     SizedBox(width: gap),
                   ],
 
-                  // Aspect Ratio Menu Trigger
-                  PlayerIconButton(
-                    size: btnSize,
-                    iconSize: btnIconSize,
-                    icon: const Icon(Icons.aspect_ratio_rounded),
-                    tooltip: 'Aspect Ratio',
-                    onPressed: onToggleAspectMenu,
-                  ),
-
-                  SizedBox(width: gap),
-
                   // Playback Speed Menu Trigger
                   PlayerIconButton(
                     size: btnSize,
@@ -283,15 +268,13 @@ class PlayerTransport extends StatelessWidget {
 
                   SizedBox(width: gap),
 
-                  // Subtitle Sync Trigger
+                  // Aspect Ratio Menu Trigger
                   PlayerIconButton(
                     size: btnSize,
                     iconSize: btnIconSize,
-                    icon: const Icon(Icons.tune_rounded),
-                    tooltip: 'Subtitle Sync',
-                    active: isSubSyncActive,
-                    activeColor: PlayerTheme.accent,
-                    onPressed: onToggleSubSync,
+                    icon: const Icon(Icons.aspect_ratio_rounded),
+                    tooltip: 'Aspect Ratio',
+                    onPressed: onToggleAspectMenu,
                   ),
 
                   // Fullscreen Button (Desktop only)
