@@ -41,16 +41,6 @@ it wasn't getting, caught by the new `continue_watching_service_test.dart`.
 `flutter analyze`/`flutter test` pass, but resume across movie/series/anime/
 torrent paths on a live device hasn't been confirmed yet.
 
-**Closed, unreproducible — mobile section chips overlapping the page search icon
-at narrow widths.** Retested 2026-08-27 by actually running the Windows build at a
-resized 390px phone-width window (screenshots via `PrintWindow`, live-driven) across
-Movies, Audiobooks, and Anime — one page per composition shape. `SectionTopBar` and
-each page's own icon row sit in separate rows via `SectionedHubScaffold`'s
-`Column[SectionTopBar(), Expanded(section)]` — no Z-overlap is structurally
-possible there. The chip strip does clip at 390px (trailing chip cut off, reachable
-by scrolling) — expected horizontal-scroll behavior, not a collision. Reopen with
-the exact device/width/font-scale if seen again.
-
 ## Upcoming (priority order)
 
 Testing-confirmed, concrete items first; speculative and data-blocked items
@@ -63,9 +53,7 @@ Everything below is what's left after that audit.
 |---|---|---|
 | 1 | **QA pass on all 5 platforms** (mobile, tablet, desktop, TV) | Verify no regressions; TV needs a dedicated D-pad/remote-input pass. Most of this work has only been verified on Windows desktop — blocks real confidence in everything else here. |
 | 2 | **Cast & direction with images** | Movies/Series and Anime (via AniList's `staff` field) both have cast+director photos now (see CHANGELOG). Manga (weebcentral.com, plain HTML, text-only author) and Audiobooks (`Audiobook` model has no author/narrator field) remain **blocked** on source data — fuzzy-matching manga titles against AniList's staff risks attaching the wrong photo. |
-| 3 | **Migrate the remaining 52 ad-hoc breakpoint checks onto `AppBreakpoints`** | `TopBar`/`SectionTopBar`'s token migration is done (see CHANGELOG). 52 files still do ad-hoc `MediaQuery.sizeOf(context).width` checks instead of `AppBreakpoints.of(context)`. Low-value to batch (52 independent call sites, no shared risk) — better done opportunistically as each file is next touched for another reason. |
-| 4 | **Unified hub + submenu navigation component** | No concrete problem yet — `TopBar` and `SectionTopBar` already sit stacked and read as one unit; no report has flagged this as confusing, and it doesn't personally bother the maintainer either (asked 2026-08-27). Real trigger to watch for: mobile spends 88px of vertical chrome on two stacked 44px bars — a collapsed per-hub dropdown could reclaim that. Build only if that becomes a real complaint. |
-| 5 | **Read hub: Comics data source** | Both prior scrape targets are dead: `rcostation.xyz` (DNS gone) and `readcomicsonline.ru` (HTTP 403 on every endpoint even with a matching User-Agent — verified via curl 2026-08-24/25). Checked 2026-08-27 whether a Stremio-style comics addon could work instead: it can't — Stremio's own client has no comics-reader UI at all, so there's no "comics" content type in its addon ecosystem to build against, confirmed against the public addon directory (stremio-addons.net lists Movies/Series/Anime/Live TV/Music categories, no Comics). `ComicsPage` stays a placeholder. **Blocked** on a source — needs either a new scrape target or a different distribution model entirely, not an addon. Will also need the Books/Podcasts favorites treatment (see CHANGELOG) once unblocked. |
+| 3 | **Read hub: Comics data source** | Both prior scrape targets are dead: `rcostation.xyz` (DNS gone) and `readcomicsonline.ru` (HTTP 403 on every endpoint even with a matching User-Agent — verified via curl 2026-08-24/25). Checked 2026-08-27 whether a Stremio-style comics addon could work instead: it can't — Stremio's own client has no comics-reader UI at all, so there's no "comics" content type in its addon ecosystem to build against, confirmed against the public addon directory (stremio-addons.net lists Movies/Series/Anime/Live TV/Music categories, no Comics). `ComicsPage` stays a placeholder. **Blocked** on a source — needs either a new scrape target or a different distribution model entirely, not an addon. Will also need the Books/Podcasts favorites treatment (see CHANGELOG) once unblocked. |
 
 > **Declined/dropped ideas** (kept short so they don't get re-litigated): mobile
 > hub switching via a drawer — `TopBar`+`SectionTopBar` already cover every width
@@ -74,7 +62,10 @@ Everything below is what's left after that audit.
 > (pure JS/PWA, not a Flutter dependency). That project's channel data (96
 > channels, no stated license, no direct-stream-URL field on `HardcodedChannel`)
 > was evaluated and declined — not proportionate to what ~88 mostly-minor
-> channels would add.
+> channels would add. Unified hub + submenu navigation component — no concrete
+> problem exists (`TopBar`/`SectionTopBar` already read as one stacked unit, no
+> report has flagged confusion); only real trigger to reopen is mobile's 88px of
+> stacked-bar chrome becoming an actual complaint.
 
 ## Architecture: consistency, SOLID, modularity
 
@@ -83,6 +74,11 @@ Everything below is what's left after that audit.
   2-line fragment. Forcing all four into one contract costs a real adapter per
   controller type to save two lines, with no current bug. Left as-is; revisit
   if a fifth playback type actually forgets the sync.
+- **52 files still do ad-hoc `MediaQuery.sizeOf(context).width` checks** instead
+  of `AppBreakpoints.of(context)` (`TopBar`/`SectionTopBar`'s own token
+  migration is done, see CHANGELOG). Not worth a dedicated batch pass — 52
+  independent call sites, no shared risk, no user-visible bug. Migrate
+  opportunistically whenever a file is next touched for another reason.
 
 > Completed items are in the CHANGELOG — pull latest `upstream/main` and confirm
 > the working tree is clean before any commit.

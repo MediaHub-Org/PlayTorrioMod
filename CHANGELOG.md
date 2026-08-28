@@ -4,6 +4,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Closed, unreproducible — mobile section chips overlapping the page search icon — 2026-08-27
+- Retested by actually running the Windows build at a resized 390px phone-width window (screenshots via `PrintWindow`, live-driven) across Movies, Audiobooks, and Anime — one page per composition shape. `SectionTopBar` and each page's own icon row sit in separate rows via `SectionedHubScaffold`'s `Column[SectionTopBar(), Expanded(section)]` — no Z-overlap is structurally possible there. The chip strip does clip at 390px (trailing chip cut off, reachable by scrolling) — expected horizontal-scroll behavior, not a collision. Reopen with the exact device/width/font-scale if seen again.
+
 ### Merge upstream's fvp/mdk → media_kit+libmpv engine swap (6 commits) — 2026-08-28
 - **A materially bigger merge than prior ones**: upstream fully replaced the video playback engine — `fvp`/`mdk` and `libass_plugin` are gone, replaced with `media_kit`/`media_kit_video` (a `Predidit/media-kit` fork adding native libmpv streaming headers). Flagged the scope and risk to the user before proceeding (this touches the single most-used feature, not just additive chrome); they chose full adoption over deferring it. Also bundled in the same commits: a new EPUB→audiobook TTS generation feature (`paper2audio_service.dart`, `custom_audiobook_service.dart`, `generate_audiobook_screen.dart`), torrent streaming/seeking fixes, and player UI polish.
 - **`lib/services/stream/local_stream_proxy.dart` is deleted upstream** — its HTTP-header-injection workaround is unneeded now that libmpv sets custom headers natively. Removed its now-dangling references from `WindowService`'s close-shutdown sequence and the old fallback path in `player_screen.dart`.
