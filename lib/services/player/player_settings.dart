@@ -471,13 +471,9 @@ abstract final class PlayerSettings {
           'stream-lavf-o',
           'reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_on_http_error=500,502,503,504,reconnect_delay_max=5',
         );
-      } else if (enableNetworkReconnect.value) {
-        // VOD stream continuity: safe reconnect without reconnect_streamed (prevents HLS chunk boundary stalls)
-        await platform.setProperty(
-          'stream-lavf-o',
-          'reconnect=1,reconnect_on_network_error=1,reconnect_on_http_error=500,502,503,504,reconnect_delay_max=${reconnectDelayMax.value}',
-        );
       } else {
+        // VOD / HLS / Movies / Episodes: DO NOT set reconnect=1 because FFmpeg treats HLS segments
+        // as unseekable streams when reconnect=1 is active. Keeping it clean enables full HLS seeking!
         await platform.setProperty('stream-lavf-o', '');
       }
     } catch (e) {
@@ -547,6 +543,12 @@ abstract final class PlayerSettings {
       if (audioDelayDefault.value != 0.0) {
         await platform.setProperty('audio-delay', audioDelayDefault.value.toString());
       }
+
+      // 10. Native HLS & image-disguised (.jpg/.png) stream probing
+      await platform.setProperty('hls-bitrate', 'max');
+      await platform.setProperty('demuxer-lavf-probesize', '32768000');
+      await platform.setProperty('demuxer-lavf-analyzeduration', '20');
+      await platform.setProperty('demuxer-lavf-o', 'strict=experimental');
     } catch (e) {
       debugPrint('[PlayerSettings] applyPreOpenProperties warning: $e');
     }
@@ -560,6 +562,78 @@ abstract final class PlayerSettings {
     } catch (e) {
       debugPrint('[PlayerSettings] applyPostOpenProperties warning: $e');
     }
+  }
+
+  /// Automatically resolves all required Referer, Origin, and User-Agent headers for known streaming CDNs.
+  static Map<String, String> resolveStreamHeaders(String url, [Map<String, String>? initialHeaders]) {
+    final h = <String, String>{
+      'Connection': 'keep-alive',
+      'Accept': '*/*',
+      'User-Agent':
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    };
+    if (initialHeaders != null) {
+      h.addAll(initialHeaders);
+    }
+
+    final lower = url.toLowerCase();
+    if (lower.contains('hakunaymatata.com')) {
+      h['User-Agent'] = 'Lavf/60.16.100';
+    } else if (lower.contains('movieboxnoob.cc') ||
+        lower.contains('moviebox.ph') ||
+        lower.contains('cinejoy.to') ||
+        lower.contains('cinejoy')) {
+      h['Referer'] = 'https://cinejoy.to/';
+      h['Origin'] = 'https://cinejoy.to';
+    } else if (lower.contains('peakstorm.top') ||
+        lower.contains('majorplay.net') ||
+        lower.contains('slast430did.com') ||
+        lower.contains('vidzy.cc') ||
+        lower.contains('vimeos.zip') ||
+        lower.contains('wecollege.net')) {
+      h['Referer'] = 'https://www.movy.bz/';
+      h['Origin'] = 'https://www.movy.bz';
+    } else if (lower.contains('chillflix.lol')) {
+      h['Referer'] = 'https://www.chillflix.lol/';
+      h['Origin'] = 'https://www.chillflix.lol';
+    } else if (lower.contains('hclod.qzz.io') || lower.contains('watchplay.shop')) {
+      h['Referer'] = 'https://v1.watchplay.shop/';
+      h['Origin'] = 'https://v1.watchplay.shop';
+    } else if (lower.contains('valhallastream') || lower.contains('1shows.app') || lower.contains('rivestream')) {
+      h['Referer'] = 'https://www.rivestream.app/';
+      h['Origin'] = 'https://www.rivestream.app';
+    } else if (lower.contains('videasy') || lower.contains('speedracelight')) {
+      h['Referer'] = 'https://player.videasy.to/';
+      h['Origin'] = 'https://player.videasy.to';
+    } else if (lower.contains('streamraiwind.stream') || lower.contains('vuflix.co')) {
+      h['Referer'] = 'https://vuflix.co/';
+      h['Origin'] = 'https://vuflix.co';
+    } else if (lower.contains('net77.cc') || lower.contains('nm-cdn4.top')) {
+      h['Referer'] = 'https://net77.cc/';
+      h['Origin'] = 'https://net77.cc';
+    } else if (lower.contains('gn1r5n.org') || lower.contains('owphbf24.com')) {
+      h['Referer'] = 'https://gn1r5n.org/';
+      h['Origin'] = 'https://gn1r5n.org';
+    } else if (lower.contains('watching.onl') ||
+        lower.contains('livedns.my') ||
+        lower.contains('sugevideo.xyz') ||
+        lower.contains('anivideo.sbs') ||
+        lower.contains('trycloud.pro') ||
+        lower.contains('cloudvideo.lat') ||
+        lower.contains('megaplay.buzz') ||
+        lower.contains('vidwish.live') ||
+        (initialHeaders != null && initialHeaders['Referer']?.contains('megaplay.buzz') == true) ||
+        (initialHeaders != null && initialHeaders['Referer']?.contains('vidwish') == true)) {
+      h['Referer'] = 'https://megaplay.buzz/';
+      h['Origin'] = 'https://megaplay.buzz';
+      h['Cookie'] = 'SITE_TOTAL_ID=ce655f0eea754f2888ea98ded373e3b5';
+    } else if (lower.contains('anidb.app') ||
+        lower.contains('hls.anidb.app') ||
+        (initialHeaders != null && initialHeaders['Referer']?.contains('anidb.app') == true)) {
+      h['Referer'] = 'https://anidb.app/';
+      h['Origin'] = 'https://anidb.app';
+    }
+    return h;
   }
 
   /// Convenience method that applies both pre-open and post-open properties to a media_kit [Player].

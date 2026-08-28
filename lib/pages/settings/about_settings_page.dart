@@ -68,7 +68,7 @@ class AboutSettingsPage extends StatelessWidget {
                     FutureBuilder<PackageInfo>(
                       future: PackageInfo.fromPlatform(),
                       builder: (context, snapshot) {
-                        final version = snapshot.hasData ? snapshot.data!.version : '1.0.5';
+                        final version = snapshot.hasData ? snapshot.data!.version : '1.0.6';
                         return Text(
                           'Version $version • Next-Gen Streaming Hub',
                           style: TextStyle(

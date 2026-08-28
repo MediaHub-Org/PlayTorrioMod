@@ -19,7 +19,6 @@ import '../../models/stream/stream_model.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
-import '../../services/stream/local_stream_proxy.dart';
 import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
@@ -305,47 +304,20 @@ class _PlayerScreenState extends State<PlayerScreen>
           ? streamUrl.replaceAll('::', '%3A%3A')
           : streamUrl;
 
-      final playerHeaders = <String, String>{
-        'Connection': 'keep-alive',
-        'Accept': '*/*',
-      };
-      if (sanitizedUrlStr.contains('hakunaymatata.com')) {
-        playerHeaders['User-Agent'] = 'Lavf/60.16.100';
-      } else {
-        playerHeaders['User-Agent'] =
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-      }
-      if (_currentSource.headers != null) {
-        playerHeaders.addAll(_currentSource.headers!);
+      // Automatically resolve complete CDN headers (Referer, Origin, User-Agent)
+      final playerHeaders = PlayerSettings.resolveStreamHeaders(
+        sanitizedUrlStr,
+        _currentSource.headers,
+      );
+
+      // Also merge any proxyHeaders from behaviorHints if present
+      final proxyReqHeaders = _currentSource.behaviorHints?['proxyHeaders']?['request'];
+      if (proxyReqHeaders is Map) {
+        playerHeaders.addAll(Map<String, String>.from(proxyReqHeaders));
       }
 
-      final lowerUrl = sanitizedUrlStr.toLowerCase();
-      final isDirectVideo = lowerUrl.contains('.mp4') ||
-          lowerUrl.contains('.mkv') ||
-          lowerUrl.contains('.avi') ||
-          lowerUrl.contains('.webm');
-
-      // Direct native path for anime streams and direct videos with playerHeaders
-      final isAnimeStream = _currentSource.addonName == 'MegaPlay' ||
-          _currentSource.addonName == 'AniDB' ||
-          _currentSource.addonName == 'WatchHentai' ||
-          _currentSource.addonName == 'Hentaini' ||
-          _currentSource.addonName == 'ArabicAnime' ||
-          sanitizedUrlStr.contains('watching.onl') ||
-          sanitizedUrlStr.contains('anidb.app');
-
-      final needsProxy = !isAnimeStream &&
-          !isDirectVideo &&
-          (_currentSource.behaviorHints?['notWebReady'] == true &&
-              _currentSource.headers != null &&
-              _currentSource.headers!.isNotEmpty);
-
-      String resolvedUrlStr = needsProxy
-          ? LocalStreamProxy.instance.getProxiedUrl(sanitizedUrlStr, playerHeaders)
-          : sanitizedUrlStr;
-
-      var cleanUri = Uri.parse(resolvedUrlStr);
-      print('[PlayerScreen] Attempting to open network stream URL: $cleanUri (headers: ${playerHeaders.keys})');
+      final cleanUri = Uri.parse(sanitizedUrlStr);
+      print('[PlayerScreen] Opening direct network stream URL: $cleanUri (headers: ${playerHeaders.keys})');
 
       if (!mounted) return;
       final epLabel = _currentEpisode != null
@@ -353,7 +325,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           : (widget.detail?.name ?? _currentTitle);
       setState(() => _statusMessage = 'Buffering $epLabel...');
 
-      final lowerClean = resolvedUrlStr.toLowerCase();
+      final lowerClean = sanitizedUrlStr.toLowerCase();
       final bool isLive = _currentSource.behaviorHints?['isLive'] == true ||
           _currentSource.addonName.toLowerCase() == 'iptv' ||
           _currentSource.name?.toLowerCase() == 'iptv' ||
@@ -362,34 +334,31 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       await PlayerSettings.applyPreOpenProperties(_player, isLive: isLive);
 
+      // Set native MPV properties for referer and user-agent directly on the player
       try {
-        await _player.open(
-          Media(
-            cleanUri.toString(),
-            httpHeaders: playerHeaders,
-            start: widget.initialPosition,
-          ),
-          play: true,
-        );
-      } catch (initErr) {
-        // Fallback: If direct playback failed with custom headers, try through LocalStreamProxy
-        if (!needsProxy && _currentSource.headers != null && _currentSource.headers!.isNotEmpty) {
-          print('[PlayerScreen] Direct playback failed, falling back to LocalStreamProxy: $initErr');
-          resolvedUrlStr = LocalStreamProxy.instance.getProxiedUrl(sanitizedUrlStr, playerHeaders);
-          cleanUri = Uri.parse(resolvedUrlStr);
-          await PlayerSettings.applyPreOpenProperties(_player, isLive: isLive);
-          await _player.open(
-            Media(
-              cleanUri.toString(),
-              httpHeaders: playerHeaders,
-              start: widget.initialPosition,
-            ),
-            play: true,
-          );
-        } else {
-          rethrow;
+        final dynamic platform = _player.platform;
+        if (platform != null) {
+          final referer = playerHeaders['Referer'] ?? playerHeaders['referer'];
+          if (referer != null && referer.isNotEmpty) {
+            await platform.setProperty('referrer', referer);
+          }
+          final ua = playerHeaders['User-Agent'] ?? playerHeaders['user-agent'];
+          if (ua != null && ua.isNotEmpty) {
+            await platform.setProperty('user-agent', ua);
+          }
         }
+      } catch (e) {
+        print('[PlayerScreen] Warning setting native header properties: $e');
       }
+
+      await _player.open(
+        Media(
+          cleanUri.toString(),
+          httpHeaders: playerHeaders,
+          start: widget.initialPosition,
+        ),
+        play: true,
+      );
 
       await PlayerSettings.applyPostOpenProperties(_player);
 
