@@ -6,6 +6,7 @@ import '../../models/audiobook/audiobook_model.dart';
 import '../../services/audiobook/audiobook_player_controller.dart';
 import '../../services/audiobook/audiobook_progress_service.dart';
 import '../../services/audiobook/audiobook_scraper_service.dart';
+import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/page_search_button.dart';
 import '../../services/app_theme_service.dart';
 import '../../services/audiobook/audiobook_settings.dart';
@@ -31,6 +32,24 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
   String? _errorMessage;
   int _searchSequence = 0;
   String _selectedCategory = 'All';
+
+  String? _genreFilter;
+
+  // AudiobookBay's own listing HTML already carries real genre data
+  // (book.categories, parsed in audiobookbay_scraper.dart) -- no separate
+  // fetch or title-matching needed, unlike Manga/Movies' external sources.
+  List<Audiobook> get _visibleResults {
+    if (_genreFilter == null) return _searchResults;
+    return _searchResults.where((book) => book.categories.contains(_genreFilter)).toList();
+  }
+
+  List<String> get _availableGenres {
+    final all = <String>{};
+    for (final book in _searchResults) {
+      all.addAll(book.categories);
+    }
+    return all.toList()..sort();
+  }
 
   final List<String> _categories = [
     'All',
@@ -119,6 +138,7 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
         setState(() {
           _searchResults = results;
           _isSearching = false;
+          _genreFilter = null;
         });
       }
     } catch (e) {
@@ -429,10 +449,22 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
-                          '${_searchResults.length} TITLES',
+                          '${_visibleResults.length} TITLES',
                           style: TextStyle(color: palette.primaryColor, fontSize: 10, fontWeight: FontWeight.bold),
                         ),
                       ),
+                      const Spacer(),
+                      if (_availableGenres.isNotEmpty)
+                        FilterDropdown<String?>(
+                          label: _genreFilter ?? 'All genres',
+                          icon: Icons.category_rounded,
+                          items: [
+                            const PopupMenuItem(value: null, child: Text('All genres')),
+                            for (final g in _availableGenres)
+                              PopupMenuItem(value: g, child: Text(g)),
+                          ],
+                          onSelected: (v) => setState(() => _genreFilter = v),
+                        ),
                     ],
                   ),
                 ),
@@ -466,13 +498,15 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
                     ),
                   ),
                 )
-              else if (_searchResults.isEmpty)
-                const SliverFillRemaining(
+              else if (_visibleResults.isEmpty)
+                SliverFillRemaining(
                   hasScrollBody: false,
                   child: Center(
                     child: Text(
-                      'No audiobooks found. Try another search query.',
-                      style: TextStyle(color: Colors.white54, fontSize: 16),
+                      _searchResults.isEmpty
+                          ? 'No audiobooks found. Try another search query.'
+                          : 'No titles found for $_genreFilter.',
+                      style: const TextStyle(color: Colors.white54, fontSize: 16),
                     ),
                   ),
                 )
@@ -493,7 +527,7 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
                     ),
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        final book = _searchResults[index];
+                        final book = _visibleResults[index];
                         final heroTag = 'audiobook-cover-$index-${book.uuid.isNotEmpty ? book.uuid : book.title}';
                         return _AudiobookCard(
                           key: ValueKey('book-$index-${book.uuid}'),
@@ -503,7 +537,7 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
                           onReturn: _loadContinueListening,
                         );
                       },
-                      childCount: _searchResults.length,
+                      childCount: _visibleResults.length,
                     ),
                   ),
                 ),

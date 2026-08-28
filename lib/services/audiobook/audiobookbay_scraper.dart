@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:html/parser.dart' as html_parser;
 import 'package:http/http.dart' as http;
 import '../../models/audiobook/audiobook_model.dart';
 import '../debrid/debrid_service.dart';
@@ -6,6 +7,24 @@ import '../stream/torrent_stream_service.dart';
 
 class AudiobookBayScraper {
   static const String _baseUrl = 'https://audiobookbay.lu';
+
+  /// Decodes HTML entities (&amp;, &#8217;, etc.) via a throwaway parse --
+  /// avoids pulling in a dedicated unescape package for a handful of tags.
+  static String _decodeEntities(String s) => html_parser.parseFragment(s).text ?? s;
+
+  /// AudiobookBay's own listing HTML already carries real genre data in its
+  /// "Category: X&nbsp; Y&nbsp;" line -- extracted here instead of trying to
+  /// guess genre from title text against an external source.
+  static List<String> _parseCategories(String block) {
+    final match = RegExp(r'Category:(.*?)<br', dotAll: true).firstMatch(block);
+    if (match == null) return const [];
+    return match
+        .group(1)!
+        .split('&nbsp;')
+        .map((c) => _decodeEntities(c).trim())
+        .where((c) => c.isNotEmpty)
+        .toList();
+  }
 
   static Future<List<Audiobook>> search(String query) async {
     try {
@@ -43,10 +62,11 @@ class AudiobookBayScraper {
             uuid: 'abb_${url.hashCode}',
             audioBookId: url,
             dynamicSlugId: url,
-            title: titleMatch.group(2)!.trim(),
+            title: _decodeEntities(titleMatch.group(2)!.trim()),
             coverImage: coverImage,
             source: 'audiobookbay',
             pageUrl: url,
+            categories: _parseCategories(block),
           ),
         );
       }

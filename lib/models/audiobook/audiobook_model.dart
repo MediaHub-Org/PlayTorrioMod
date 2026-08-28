@@ -6,6 +6,7 @@ class Audiobook {
   final String coverImage;
   final String source;
   final String pageUrl;
+  final List<String> categories;
 
   Audiobook({
     required this.uuid,
@@ -15,6 +16,7 @@ class Audiobook {
     required String coverImage,
     required this.source,
     required this.pageUrl,
+    this.categories = const [],
   }) : coverImage = coverImage.trim();
 
   Map<String, dynamic> toJson() => {
@@ -25,6 +27,7 @@ class Audiobook {
         'coverImage': coverImage,
         'source': source,
         'pageUrl': pageUrl,
+        'categories': categories,
       };
 
   factory Audiobook.fromJson(Map<String, dynamic> json) => Audiobook(
@@ -35,6 +38,7 @@ class Audiobook {
         coverImage: (json['coverImage'] ?? '').toString().trim(),
         source: (json['source'] ?? '').toString(),
         pageUrl: (json['pageUrl'] ?? '').toString(),
+        categories: (json['categories'] as List?)?.map((e) => e.toString()).toList() ?? const [],
       );
 }
 
