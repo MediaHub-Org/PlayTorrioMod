@@ -10,6 +10,7 @@ import 'package:flutter/services.dart';
 import '../../models/music/music_track.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/music/music_download_service.dart';
+import '../../widgets/music/music_track_download_button.dart';
 import '../../services/music/music_library_service.dart';
 import '../../widgets/common/library_tabs.dart';
 import '../../widgets/common/performance_liquid_lens.dart';
@@ -2589,7 +2590,7 @@ class _MusicTrackRow extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildDownloadButton(context),
+            MusicTrackDownloadButton(track: track),
             const SizedBox(width: 4),
             Text(
               track.formattedDuration,
@@ -2604,72 +2605,6 @@ class _MusicTrackRow extends StatelessWidget {
         ),
         onTap: onTap,
       ),
-    );
-  }
-
-  Widget _buildDownloadButton(BuildContext context) {
-    final isDownloaded = MusicDownloadService.instance.isDownloaded(track.id);
-    final task = MusicDownloadService.instance.getTask(track.id);
-    final isDownloading = task != null &&
-        (task.status == MusicDownloadStatus.extracting || task.status == MusicDownloadStatus.downloading);
-    final isQueued = task != null && task.status == MusicDownloadStatus.queued;
-
-    if (isDownloaded) {
-      return Tooltip(
-        message: 'Downloaded (Offline)',
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          child: const Icon(
-            Icons.download_done_rounded,
-            color: Color(0xFF00E5FF),
-            size: 18,
-          ),
-        ),
-      );
-    }
-
-    if (isDownloading) {
-      return Tooltip(
-        message: 'Downloading ${(task.progress * 100).toInt()}%',
-        child: Container(
-          width: 28,
-          height: 28,
-          padding: const EdgeInsets.all(5),
-          child: CircularProgressIndicator(
-            value: task.progress > 0.05 ? task.progress : null,
-            strokeWidth: 2.2,
-            color: const Color(0xFF00E5FF),
-          ),
-        ),
-      );
-    }
-
-    if (isQueued) {
-      return Tooltip(
-        message: 'Queued for download',
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          child: const Icon(
-            Icons.hourglass_top_rounded,
-            color: Colors.amberAccent,
-            size: 18,
-          ),
-        ),
-      );
-    }
-
-    return IconButton(
-      icon: const Icon(Icons.download_rounded, color: Colors.white38, size: 18),
-      tooltip: 'Download Track',
-      onPressed: () {
-        MusicDownloadService.instance.queueTrack(track);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Added "${track.title}" to download queue'),
-            duration: const Duration(seconds: 2),
-          ),
-        );
-      },
     );
   }
 }
@@ -4072,6 +4007,14 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer> with SingleT
               ),
             ),
             const Spacer(),
+            _MusicHoverable(
+              scaleFactor: 1.1,
+              child: MusicTrackDownloadButton(
+                track: track,
+                iconSize: 22,
+                idleColor: Colors.white,
+              ),
+            ),
             _MusicHoverable(
               scaleFactor: 1.1,
               child: IconButton(
