@@ -13,7 +13,7 @@ The items below are the ones worth looking at first — either because they're c
 
 | # | Finding | Domain | Why it matters |
 |---|---|---|---|
-| 1 | EPUB reader: Zip Slip path traversal + WebView universal file access | Security | A crafted EPUB from a scraped book source can write outside its extract dir, then JS in the reader's `file://` WebView can read/exfiltrate arbitrary local files. Realistic exploit chain, not theoretical. |
+| 1 | ~~EPUB reader: Zip Slip path traversal + WebView universal file access~~ **Fixed (`80eaa99`)** | Security | A crafted EPUB from a scraped book source can write outside its extract dir, then JS in the reader's `file://` WebView can read/exfiltrate arbitrary local files. Realistic exploit chain, not theoretical. |
 | 2 | Cloud backup can transmit all app secrets over plaintext HTTP | Security | The backup envelope includes every SharedPreferences key (Trakt/Simkl tokens, WebDAV password) and the app doesn't enforce `https://` on the WebDAV URL. |
 | 3 | `MusicPlayerController`/`AudiobookPlayerScreen` create a new native `Player()` per track/chapter with no reentrancy guard | Correctness | Rapid skip-button taps race two loads; the loser's native player handle leaks and both tracks can audibly overlap. Reachable by ordinary use, not an edge case. |
 | 4 | "Favorite/like" has 5 different icon/color/interaction schemes across content types | UX | Directly contradicts the ROADMAP's own stated principle that favorites/search/filters stay consistent across every section. Most visible inconsistency in the app. |
@@ -53,12 +53,12 @@ The items below are the ones worth looking at first — either because they're c
 
 ### WebView usage (`flutter_inappwebview`)
 
-- **`lib/pages/read/book_reader_page.dart:347-352`** — **High**. `InAppWebView` initialized with `javaScriptEnabled: true`, `allowFileAccessFromFileURLs: true`, and `allowUniversalAccessFromFileURLs: true`, loading `file://` HTML extracted from a downloaded EPUB. This is the classic dangerous WebView config: JS running in the `file://` origin gets same-origin access to the entire local filesystem and can exfiltrate arbitrary local files via a remote request from injected script. EPUBs here come from third-party book-scraping sites — untrusted remote content.
+- **`lib/pages/read/book_reader_page.dart:347-352`** — **Fixed (`80eaa99`)**, was High. `InAppWebView` was initialized with `javaScriptEnabled: true`, `allowFileAccessFromFileURLs: true`, and `allowUniversalAccessFromFileURLs: true`, loading `file://` HTML extracted from a downloaded EPUB — JS running in the `file://` origin got same-origin access to the entire local filesystem. Both flags are now `false`; chapter HTML's relative `<img>`/`<link>` references still resolve fine via normal same-origin `file://` navigation (the flags only matter for JS-initiated `fetch()`/XHR to *other* file:// origins, which this reader's injected JS never does).
 - Only other `InAppWebView` usage in the tree is this reader; no other `evaluateJavascript`/`loadUrl` call builds scripts from unsanitized external strings elsewhere.
 
 ### File system / path handling
 
-- **`lib/pages/read/book_reader_page.dart:104-117`** — **High — Zip Slip**. The EPUB (a ZIP) is extracted entry-by-entry with `File('${extractDir.path}/$entryName')` where `entryName` comes directly from the archive, with only backslashes normalized (no `..`/absolute-path rejection). A malicious/tampered EPUB can contain entries like `../../../somefile` to write outside `extractDir`. **Chains directly with the WebView finding above**: crafted EPUB → path-traversal write → JS with universal file access reads/exfiltrates the written file.
+- **`lib/pages/read/book_reader_page.dart:104-117`** — **Fixed (`80eaa99`)**, was High — Zip Slip. The EPUB (a ZIP) was extracted entry-by-entry with `File('${extractDir.path}/$entryName')` where `entryName` came directly from the archive with no traversal check — a malicious EPUB entry like `../../../somefile` could write outside `extractDir`, chaining directly with the WebView finding above. Now goes through a standalone `safeExtractPath()` helper (normalize + `p.isWithin` check against the extract root) with a 6-case unit test (`test/pages/book_reader_zip_slip_test.dart`) covering relative entries, traversal, and absolute-path entries.
 - `lib/services/download/download_service.dart:150` and `lib/utils/download/download_path_helper.dart:101-106` — download filenames go through `DownloadPathHelper.sanitizeFilename` (strips `\/:*?"<>|`); subtitle files use an app-generated timestamp filename, not scraped input. No traversal risk in these two paths.
 
 ### Android / iOS manifest permissions
