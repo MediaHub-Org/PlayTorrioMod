@@ -19,6 +19,16 @@ subcategories should be checked against this principle first.
 
 ## Known issues
 
+**Implemented, awaiting manual confirmation — media_kit/libmpv engine swap**
+(see CHANGELOG, 2026-08-28 merge). Upstream fully replaced fvp/mdk with
+media_kit+libmpv; merge conflicts resolved, `flutter analyze`/`flutter test`
+pass, and automated launch/close cycles against the built Windows exe are
+clean. What's *not* yet confirmed: actual playback correctness on a live
+device — torrent streaming, live IPTV, subtitle rendering (libass toggle),
+decoder presets, and the volume-boost gesture all changed under the hood and
+need a real hands-on pass across movie/series/anime/IPTV/music/audiobook
+before trusting this in production.
+
 **Implemented, awaiting manual confirmation — `ContinueWatchingService`/
 `PlaybackHistoryService` merge** (see CHANGELOG). Investigated first (three
 real behavioral differences found, not simple duplication), then merged with
