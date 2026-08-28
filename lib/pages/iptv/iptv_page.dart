@@ -31,9 +31,11 @@ class _IptvPageState extends State<IptvPage> {
   final ScrollController _scrollController = ScrollController();
 
   List<HardcodedChannel> _featured = [];
+  List<HardcodedChannel> _espnAndCollege = [];
+  List<HardcodedChannel> _usSports = [];
+  List<HardcodedChannel> _soccer = [];
   List<HardcodedChannel> _combat = [];
   List<HardcodedChannel> _racing = [];
-  List<HardcodedChannel> _sports = [];
   List<HardcodedChannel> _movies = [];
   List<HardcodedChannel> _news = [];
   List<HardcodedChannel> _arabic = [];
@@ -64,17 +66,47 @@ class _IptvPageState extends State<IptvPage> {
 
   void _loadSections() {
     _featured = [
+      HardcodedChannels.byId('espn_plus') ?? HardcodedChannels.byId('espn')!,
+      HardcodedChannels.byId('ncaa_cbb') ?? HardcodedChannels.byId('espn')!,
       HardcodedChannels.byId('ufc')!,
       HardcodedChannels.byId('bein_sports')!,
       HardcodedChannels.byId('champions_league')!,
       HardcodedChannels.byId('f1')!,
-      HardcodedChannels.byId('espn')!,
-      HardcodedChannels.byId('hbo')!,
       HardcodedChannels.byId('nba')!,
+      HardcodedChannels.byId('hbo')!,
     ];
+    _espnAndCollege = [
+      HardcodedChannels.byId('espn_plus')!,
+      HardcodedChannels.byId('espn')!,
+      HardcodedChannels.byId('espn2')!,
+      HardcodedChannels.byId('espnu')!,
+      HardcodedChannels.byId('ncaa_cbb')!,
+      HardcodedChannels.byId('ncaa_mens_cbb')!,
+      HardcodedChannels.byId('ncaa_womens_cbb')!,
+      HardcodedChannels.byId('sec_network')!,
+      HardcodedChannels.byId('acc_network')!,
+      HardcodedChannels.byId('big_ten_network')!,
+      HardcodedChannels.byId('pac_12_network')!,
+      HardcodedChannels.byId('espnews')!,
+      HardcodedChannels.byId('espn_deportes')!,
+      HardcodedChannels.byId('longhorn_network')!,
+      HardcodedChannels.byId('bally_sports')!,
+    ];
+    _usSports = [
+      HardcodedChannels.byId('nba')!,
+      HardcodedChannels.byId('nfl')!,
+      HardcodedChannels.byId('nfl_redzone')!,
+      HardcodedChannels.byId('mlb')!,
+      HardcodedChannels.byId('nhl')!,
+      HardcodedChannels.byId('fox_sports')!,
+      HardcodedChannels.byId('cbs_sports')!,
+      HardcodedChannels.byId('nbc_sports')!,
+      HardcodedChannels.byId('dazn')!,
+      HardcodedChannels.byId('eurosport')!,
+    ];
+    _soccer = HardcodedChannels.byCategory('Soccer');
     _combat = HardcodedChannels.byCategory('Combat');
     _racing = HardcodedChannels.byCategory('Racing');
-    _sports = HardcodedChannels.byCategory('Sports');
     _movies = HardcodedChannels.byCategory('Movies');
     _news = HardcodedChannels.byCategory('News');
     _arabic = HardcodedChannels.byCategory('Arabic');
@@ -131,9 +163,17 @@ class _IptvPageState extends State<IptvPage> {
         'Top worldwide sporting events and championship channels',
         _featured,
       ),
+      'ESPN & College Basketball (NCAA)': (
+        'ESPN+, ESPN, ESPN2, ESPNU, NCAA Men\'s & Women\'s CBB, SEC & ACC',
+        _espnAndCollege,
+      ),
+      'US Major Leagues & Sports': (
+        'NBA TV, NFL Network, RedZone, MLB, NHL, Fox Sports & CBS Sports',
+        _usSports,
+      ),
       'Global Football & Soccer': (
-        'UEFA Champions League, Premier League, La Liga, Serie A & more',
-        _sports,
+        'UEFA Champions League, Premier League, beIN Sports, La Liga & Serie A',
+        _soccer,
       ),
       'Combat & Martial Arts': (
         'UFC Fight Pass, WWE, AEW, World Boxing & PPV',

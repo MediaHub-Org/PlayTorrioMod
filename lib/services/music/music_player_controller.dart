@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:media_kit/media_kit.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:video_player/video_player.dart';
 import '../../models/music/music_track.dart';
 import 'music_download_service.dart';
 import 'music_library_service.dart';
@@ -18,7 +18,8 @@ class MusicPlayerController extends ChangeNotifier {
     _initSettings();
   }
 
-  VideoPlayerController? _videoPlayerController;
+  Player? _player;
+  final List<StreamSubscription> _subscriptions = [];
 
   MusicTrack? _currentTrack;
   List<MusicTrack> _playlist = [];
@@ -150,10 +151,14 @@ class MusicPlayerController extends ChangeNotifier {
     _fetchLyricsForTrack(track);
 
     // Dispose previous controller
-    if (_videoPlayerController != null) {
-      _videoPlayerController!.removeListener(_onPlayerStateChanged);
-      await _videoPlayerController!.dispose();
-      _videoPlayerController = null;
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    _subscriptions.clear();
+
+    if (_player != null) {
+      await _player!.dispose();
+      _player = null;
     }
 
     try {
@@ -161,14 +166,15 @@ class MusicPlayerController extends ChangeNotifier {
       final downloadedFile = downloadedTrack != null ? File(downloadedTrack.localAudioPath) : null;
       final isOffline = downloadedFile != null && downloadedFile.existsSync() && downloadedFile.lengthSync() > 100;
 
-      final VideoPlayerController controller;
+      final player = Player();
+      final Media media;
 
       if (isOffline && downloadedTrack != null) {
         _currentQualityLabel = downloadedTrack.quality.contains('FLAC')
             ? 'FLAC Lossless (Offline)'
             : 'HQ Audio (Offline)';
         _isCurrentTrackLossless = downloadedTrack.format.toLowerCase() == 'flac';
-        controller = VideoPlayerController.file(downloadedFile);
+        media = Media(downloadedFile.uri.toString());
       } else {
         final streamResult = await MusicService.instance.getAudioStream(
           track,
@@ -189,27 +195,53 @@ class MusicPlayerController extends ChangeNotifier {
                 userAgent: streamResult.userAgent,
               );
 
-        controller = VideoPlayerController.networkUrl(
-          uri,
+        media = Media(
+          uri.toString(),
           httpHeaders: headers,
         );
       }
 
-      await controller.initialize();
-      controller.setVolume(_volume);
-      controller.addListener(_onPlayerStateChanged);
+      _subscriptions.addAll([
+        player.stream.playing.listen((playing) {
+          _isPlaying = playing;
+          notifyListeners();
+        }),
+        player.stream.position.listen((pos) {
+          _position = pos;
+          _updateActiveLyricIndex();
+          notifyListeners();
+        }),
+        player.stream.duration.listen((dur) {
+          if (dur > Duration.zero) {
+            _duration = dur;
+            _isLoading = false;
+            notifyListeners();
+          }
+        }),
+        player.stream.completed.listen((completed) {
+          if (completed) {
+            _onTrackEnded();
+          }
+        }),
+        player.stream.error.listen((err) {
+          _isLoading = false;
+          _isPlaying = false;
+          _errorMessage = 'Could not load audio: $err';
+          debugPrint('Playback error for ${track.title}: $err');
+          notifyListeners();
+        }),
+      ]);
+
+      await player.open(media);
+      await player.setVolume(_volume * 100.0);
 
       if (startPosition != null && startPosition > Duration.zero) {
-        await controller.seekTo(startPosition);
+        await player.seek(startPosition);
       }
 
-      _videoPlayerController = controller;
-      if (controller.value.duration > Duration.zero) {
-        _duration = controller.value.duration;
-      }
+      _player = player;
       _isLoading = false;
       _isPlaying = true;
-      await controller.play();
       notifyListeners();
     } catch (e) {
       _isLoading = false;
@@ -239,30 +271,6 @@ class MusicPlayerController extends ChangeNotifier {
     }
   }
 
-  void _onPlayerStateChanged() {
-    final controller = _videoPlayerController;
-    if (controller == null) return;
-
-    final value = controller.value;
-    _position = value.position;
-    if (value.duration > Duration.zero) {
-      _duration = value.duration;
-    }
-    _isPlaying = value.isPlaying;
-
-    _updateActiveLyricIndex();
-
-    // Check track completed
-    if (value.isInitialized &&
-        _duration > Duration.zero &&
-        _position >= _duration - const Duration(milliseconds: 500) &&
-        !value.isPlaying) {
-      _onTrackEnded();
-    } else {
-      notifyListeners();
-    }
-  }
-
   void _updateActiveLyricIndex() {
     if (_currentLyrics.isSynced && _currentLyrics.syncedLines.isNotEmpty) {
       final newIndex = _currentLyrics.activeLineIndex(_position);
@@ -289,8 +297,8 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   Future<void> play() async {
-    if (_videoPlayerController != null) {
-      await _videoPlayerController!.play();
+    if (_player != null) {
+      await _player!.play();
       _isPlaying = true;
       notifyListeners();
     } else if (_currentTrack != null) {
@@ -299,8 +307,8 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   Future<void> pause() async {
-    if (_videoPlayerController != null) {
-      await _videoPlayerController!.pause();
+    if (_player != null) {
+      await _player!.pause();
       _isPlaying = false;
       notifyListeners();
     }
@@ -315,8 +323,8 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   Future<void> seekTo(Duration position) async {
-    if (_videoPlayerController != null) {
-      await _videoPlayerController!.seekTo(position);
+    if (_player != null) {
+      await _player!.seek(position);
       _position = position;
       _updateActiveLyricIndex();
       notifyListeners();
@@ -325,8 +333,8 @@ class MusicPlayerController extends ChangeNotifier {
 
   Future<void> setVolume(double volume) async {
     _volume = volume.clamp(0.0, 1.0);
-    if (_videoPlayerController != null) {
-      await _videoPlayerController!.setVolume(_volume);
+    if (_player != null) {
+      await _player!.setVolume(_volume * 100.0);
     }
     notifyListeners();
   }
@@ -413,8 +421,11 @@ class MusicPlayerController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _videoPlayerController?.removeListener(_onPlayerStateChanged);
-    _videoPlayerController?.dispose();
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    _subscriptions.clear();
+    _player?.dispose();
     super.dispose();
   }
 }

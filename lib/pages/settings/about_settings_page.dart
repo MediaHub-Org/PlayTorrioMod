@@ -68,7 +68,7 @@ class AboutSettingsPage extends StatelessWidget {
                     FutureBuilder<PackageInfo>(
                       future: PackageInfo.fromPlatform(),
                       builder: (context, snapshot) {
-                        final version = snapshot.hasData ? snapshot.data!.version : '1.0.2';
+                        final version = snapshot.hasData ? snapshot.data!.version : '1.0.3';
                         return Text(
                           'Version $version • Next-Gen Streaming Hub',
                           style: TextStyle(
@@ -135,7 +135,7 @@ class AboutSettingsPage extends StatelessWidget {
 
               _buildTechTile(
                 title: 'High-Performance Video Engine',
-                subtitle: 'Powered by embedded libmdk with hardware-accelerated decoding.',
+                subtitle: 'Powered by embedded media_kit / libmpv with hardware-accelerated decoding.',
               ),
               const SizedBox(height: 10),
               _buildTechTile(

@@ -5,7 +5,7 @@
 
 #define MyAppName      "PlayTorrio"
 #ifndef MyAppVersion
-#define MyAppVersion   "1.0.2"
+#define MyAppVersion   "1.0.3"
 #endif
 #define MyAppPublisher "ayman708-UX"
 #define MyAppExeName   "playtorrio.exe"

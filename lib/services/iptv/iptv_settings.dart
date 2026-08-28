@@ -48,6 +48,8 @@ abstract final class IptvSettings {
 
   static const List<String> defaultCategories = [
     'Premier Live Broadcasts',
+    'ESPN & College Basketball (NCAA)',
+    'US Major Leagues & Sports',
     'Global Football & Soccer',
     'Combat & Martial Arts',
     'Motorsport & Racing',

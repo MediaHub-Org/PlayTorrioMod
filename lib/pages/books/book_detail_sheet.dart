@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../../models/book/book_result.dart';
 import '../../services/books/book_download_service.dart';
 import '../../services/books/continue_reading_service.dart';
+import '../audiobooks/generate_audiobook_screen.dart';
 import 'epub_reader_page.dart';
 import 'pdf_reader_page.dart';
 
@@ -385,6 +386,28 @@ class _BookDetailSheetState extends State<BookDetailSheet> {
                           ),
                         ),
                       ),
+
+                      if (book.isEpub) ...[
+                        const SizedBox(width: 10),
+                        IconButton.filledTonal(
+                          icon: const Icon(Icons.record_voice_over_rounded, color: Color(0xFFA78BFA)),
+                          tooltip: 'Generate AI Audiobook (TTS)',
+                          onPressed: () async {
+                            Navigator.pop(context);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const GenerateAudiobookScreen()),
+                            );
+                          },
+                          style: IconButton.styleFrom(
+                            backgroundColor: const Color(0xFF7C3AED).withValues(alpha: 0.2),
+                            padding: const EdgeInsets.all(14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ],
 
                       if (_isDownloaded) ...[
                         const SizedBox(width: 10),

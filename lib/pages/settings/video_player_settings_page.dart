@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../widgets/common/animated_ambient_background.dart';
+import '../../widgets/player/player_sub_style_modal.dart';
 
 class VideoPlayerSettingsPage extends StatefulWidget {
   const VideoPlayerSettingsPage({super.key});
@@ -81,6 +82,13 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
                     _buildSectionHeader('A/V MASTER CLOCK & SYNC CALIBRATION'),
                     const SizedBox(height: 12),
                     _buildAudioSyncCard(palette),
+
+                    const SizedBox(height: 24),
+
+                    // ── Section 5: Subtitle Appearance & libass Styling ──
+                    _buildSectionHeader('SUBTITLE APPEARANCE & LIBASS STYLING'),
+                    const SizedBox(height: 12),
+                    _buildSubtitleAppearanceCard(palette),
 
                     const SizedBox(height: 32),
 
@@ -204,7 +212,7 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'libmdk hardware accelerated pipeline with auto software failover.',
+                      'libmpv hardware accelerated pipeline with auto software failover.',
                       style: TextStyle(
                         fontSize: 12.5,
                         color: Colors.white.withValues(alpha: 0.55),
@@ -762,6 +770,140 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
             onChanged: (val) => PlayerSettings.setLowLatency(val),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSubtitleAppearanceCard(AppThemePalette palette) {
+    final currentPreset = PlayerSettings.subStylePreset.value;
+    final fontName = PlayerSettings.subFont.value == 'subfont' ? 'Default (PlayTorrio Subfont)' : PlayerSettings.subFont.value;
+    final size = PlayerSettings.subFontSize.value;
+    final scale = (PlayerSettings.subScale.value * 100).round();
+
+    Color parseColor(String hex, {Color fallback = Colors.white}) {
+      var str = hex.replaceAll('#', '').trim();
+      if (str.length == 6) str = 'FF$str';
+      if (str.length == 8) {
+        final val = int.tryParse(str, radix: 16);
+        if (val != null) return Color(val);
+      }
+      return fallback;
+    }
+
+    final textColor = parseColor(PlayerSettings.subColor.value);
+    final boxColor = parseColor(PlayerSettings.subBackColor.value, fallback: Colors.transparent);
+    final borderColor = parseColor(PlayerSettings.subBorderColor.value, fallback: Colors.black);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12151E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: palette.primaryColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.subtitles_rounded, color: palette.primaryColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'libass Hardware Subtitle Styling',
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                      Text(
+                        'Preset: ${currentPreset.label} • $fontName (${size}pt / $scale%)',
+                        style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.tune_rounded, size: 16),
+                label: const Text('Customize'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: palette.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: _openSubtitleCustomizer,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          // Mini preview bar
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A0D14),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: boxColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'PlayTorrio • Sample Subtitle Preview',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: PlayerSettings.subFont.value == 'subfont' ? 'Poppins' : PlayerSettings.subFont.value,
+                        fontSize: 14,
+                        fontWeight: PlayerSettings.subBold.value ? FontWeight.bold : FontWeight.w600,
+                        fontStyle: PlayerSettings.subItalic.value ? FontStyle.italic : FontStyle.normal,
+                        color: textColor,
+                        shadows: [
+                          if (PlayerSettings.subBorderSize.value > 0) ...[
+                            Shadow(color: borderColor, offset: const Offset(-1.2, -1.2)),
+                            Shadow(color: borderColor, offset: const Offset(1.2, -1.2)),
+                            Shadow(color: borderColor, offset: const Offset(1.2, 1.2)),
+                            Shadow(color: borderColor, offset: const Offset(-1.2, 1.2)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openSubtitleCustomizer() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (ctx) => PlayerSubStyleModal(
+        onClose: () => Navigator.pop(ctx),
       ),
     );
   }

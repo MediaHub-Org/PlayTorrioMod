@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:video_player/video_player.dart';
-import 'package:fvp/fvp.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart' as mk;
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
@@ -14,7 +14,6 @@ import 'package:playtorrio/models/movie/movie_detail.dart';
 import 'package:playtorrio/models/subtitle/subtitle_model.dart';
 import 'package:playtorrio/services/subtitles/subtitle_service.dart';
 import 'package:playtorrio/services/subtitles/subtitle_parser.dart';
-import 'package:playtorrio/services/subtitles/subtitle_sync_helper.dart';
 
 import '../../models/stream/stream_model.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
@@ -36,7 +35,7 @@ import '../../services/player/skip_segments_service.dart';
 import '../../widgets/player/player_aspect_menu.dart';
 import '../../widgets/player/player_audio_menu.dart';
 import '../../widgets/player/player_subtitle_menu.dart';
-import '../../widgets/player/player_sub_style_bar.dart';
+import '../../widgets/player/player_sub_style_modal.dart';
 import '../../widgets/player/player_skip_button.dart';
 import '../../widgets/player/player_episodes_panel.dart';
 import '../../widgets/player/player_sources_panel.dart';
@@ -46,7 +45,6 @@ import '../../widgets/player/text_sync_overlay.dart';
 import '../../models/download/download_task_model.dart';
 import '../../services/download/download_service.dart';
 import '../../utils/download/download_path_helper.dart';
-import 'package:video_player_platform_interface/video_player_platform_interface.dart';
 
 class PlayerScreen extends StatefulWidget {
   final StreamSource source;
@@ -74,8 +72,15 @@ class PlayerScreen extends StatefulWidget {
 
 class _PlayerScreenState extends State<PlayerScreen>
     with SingleTickerProviderStateMixin {
-  VideoPlayerController? _controller;
+  late final Player _player = Player(configuration: PlayerSettings.getMediaKitPlayerConfiguration());
+  late final mk.VideoController _videoController = mk.VideoController(_player);
+  final List<StreamSubscription> _subscriptions = [];
+
   bool _isLoading = true;
+  bool _isPlaying = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  Duration? _buffered;
   bool _wasBuffering = false;
   String _statusMessage = 'Initializing...';
   bool _showControls = true;
@@ -101,6 +106,9 @@ class _PlayerScreenState extends State<PlayerScreen>
   List<PlayerAudioTrack> _audioTracks = [];
   int _selectedAudioTrackIndex = 0;
   double _audioDelaySec = 0.0;
+  bool _showAudioHud = false;
+  String _audioHudText = '';
+  Timer? _audioHudTimer;
 
   // Subtitle State
   List<SubtitleLanguageGroup> _subtitleGroups = [];
@@ -142,6 +150,56 @@ class _PlayerScreenState extends State<PlayerScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1500),
     )..repeat(reverse: true);
+
+    PlayerSettings.applyToPlayer(_player);
+    PlayerSettings.changeNotifier.addListener(_onPlayerSettingsChanged);
+
+    _subscriptions.addAll([
+      _player.stream.playing.listen((playing) {
+        if (mounted) setState(() => _isPlaying = playing);
+      }),
+      _player.stream.position.listen((pos) {
+        _position = pos;
+        _onPlaybackTick(pos);
+      }),
+      _player.stream.duration.listen((dur) {
+        if (mounted) setState(() => _duration = dur);
+      }),
+      _player.stream.buffer.listen((buf) {
+        if (mounted) setState(() => _buffered = buf);
+      }),
+      _player.stream.buffering.listen((isBuffering) {
+        if (_wasBuffering && !isBuffering && PlayerSettings.autoResyncOnStall.value) {
+          try {
+            if (PlayerSettings.hardwareAudioClock.value) {
+              final np = _player.platform as dynamic;
+              np.setProperty('video-sync', 'audio');
+            }
+          } catch (_) {}
+        }
+        _wasBuffering = isBuffering;
+      }),
+      _player.stream.tracks.listen((tracks) {
+        _updateMediaTracks(tracks);
+      }),
+      _player.stream.track.listen((track) {
+        if (!mounted) return;
+        final aid = track.audio.id;
+        final idx = int.tryParse(aid);
+        if (idx != null && _selectedAudioTrackIndex != idx) {
+          setState(() => _selectedAudioTrackIndex = idx);
+        }
+      }),
+      _player.stream.error.listen((error) {
+        _onControllerError(error);
+      }),
+      _player.stream.completed.listen((completed) {
+        if (completed && mounted) {
+          _savePlaybackProgress();
+        }
+      }),
+    ]);
+
     _initStream();
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
     SystemChrome.setPreferredOrientations([
@@ -166,14 +224,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       // Handle offline downloaded file playback directly
       if (rawUrl != null && (File(rawUrl).existsSync() || _currentSource.name == 'Downloaded')) {
         print('[PlayerScreen] Initializing offline local file playback: $rawUrl');
-        final localFile = File(rawUrl);
-        _controller = VideoPlayerController.file(localFile);
-        _controller!.addListener(_onControllerError);
-        _controller!.addListener(_onPlaybackTick);
-        PlayerSettings.applyToController(_controller!);
-        await _controller!.initialize();
-        PlayerSettings.applyToController(_controller!);
-        _controller!.play();
+        PlayerSettings.applyToPlayer(_player);
+        await _player.open(Media(rawUrl), play: true);
+        PlayerSettings.applyToPlayer(_player);
+        _setSubtitleScale(_subtitleScale);
+        _applyVolume(_isMuted ? 0.0 : _volume);
         if (mounted) setState(() => _isLoading = false);
         return;
       }
@@ -287,40 +342,38 @@ class _PlayerScreenState extends State<PlayerScreen>
           : (widget.detail?.name ?? _currentTitle);
       setState(() => _statusMessage = 'Buffering $epLabel...');
 
-      _controller = VideoPlayerController.networkUrl(
-        cleanUri,
-        httpHeaders: playerHeaders,
-      );
-      _controller!.addListener(_onControllerError);
-      _controller!.addListener(_onPlaybackTick);
-      PlayerSettings.applyToController(_controller!);
+      PlayerSettings.applyToPlayer(_player);
 
       try {
-        await _controller!.initialize();
+        await _player.open(
+          Media(
+            cleanUri.toString(),
+            httpHeaders: playerHeaders,
+            start: widget.initialPosition,
+          ),
+          play: true,
+        );
       } catch (initErr) {
         // Fallback: If direct playback failed with custom headers, try through LocalStreamProxy
         if (!needsProxy && _currentSource.headers != null && _currentSource.headers!.isNotEmpty) {
           print('[PlayerScreen] Direct playback failed, falling back to LocalStreamProxy: $initErr');
           resolvedUrlStr = LocalStreamProxy.instance.getProxiedUrl(sanitizedUrlStr, playerHeaders);
           cleanUri = Uri.parse(resolvedUrlStr);
-          _controller?.removeListener(_onControllerError);
-          _controller?.removeListener(_onPlaybackTick);
-          _controller?.dispose();
-
-          _controller = VideoPlayerController.networkUrl(
-            cleanUri,
-            httpHeaders: playerHeaders,
+          PlayerSettings.applyToPlayer(_player);
+          await _player.open(
+            Media(
+              cleanUri.toString(),
+              httpHeaders: playerHeaders,
+              start: widget.initialPosition,
+            ),
+            play: true,
           );
-          _controller!.addListener(_onControllerError);
-          _controller!.addListener(_onPlaybackTick);
-          PlayerSettings.applyToController(_controller!);
-          await _controller!.initialize();
         } else {
           rethrow;
         }
       }
 
-      PlayerSettings.applyToController(_controller!);
+      PlayerSettings.applyToPlayer(_player);
 
       _setSubtitleScale(_subtitleScale);
       _applyVolume(_isMuted ? 0.0 : _volume);
@@ -330,52 +383,12 @@ class _PlayerScreenState extends State<PlayerScreen>
 
       if (widget.initialPosition != null && widget.initialPosition! > Duration.zero) {
         print('[PlayerScreen] Seeking to saved position: ${widget.initialPosition}');
-        await _controller!.seekTo(widget.initialPosition!);
+        await _player.seek(widget.initialPosition!);
       }
 
-      print('[PlayerScreen SUCCESS] Video controller initialized successfully for $streamUrl');
+      print('[PlayerScreen SUCCESS] Player opened media successfully for $streamUrl');
 
-      // Fetch initial media tracks
-      try {
-        final mediaInfo = _controller?.getMediaInfo();
-        final audioList = mediaInfo?.audio;
-        if (audioList != null && audioList.isNotEmpty) {
-          _audioTracks = audioList.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final item = entry.value;
-            final lang = item.metadata['language'] ?? item.metadata['lang'];
-            final title = item.metadata['title'] ??
-                (lang != null ? lang.toUpperCase() : 'Track ${idx + 1}');
-            final codec = item.codec.codec;
-            return PlayerAudioTrack(
-              index: idx,
-              title: title,
-              language: lang,
-              codec: codec,
-              channels: item.codec.channels,
-            );
-          }).toList();
-        }
-
-        final subList = mediaInfo?.subtitle;
-        if (subList != null && subList.isNotEmpty) {
-          _embeddedSubtitles = subList.asMap().entries.map((entry) {
-            final idx = entry.key;
-            final item = entry.value;
-            final lang = item.metadata['language'] ?? item.metadata['lang'];
-            final title = item.metadata['title'] ?? item.metadata['handler_name'] ??
-                (lang != null ? lang.toUpperCase() : 'Track ${idx + 1}');
-            final codec = item.codec.codec;
-            return PlayerEmbeddedSubtitle(
-              index: idx,
-              title: title,
-              language: lang,
-              codec: codec,
-            );
-          }).toList();
-          print('[PlayerScreen] Found ${_embeddedSubtitles.length} embedded subtitle tracks');
-        }
-      } catch (_) {}
+      _updateMediaTracks(_player.state.tracks);
 
       // Pre-fetch subtitles in background
       _fetchInitialSubtitles();
@@ -385,7 +398,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         _isLoading = false;
       });
 
-      _controller!.play();
+      _player.play();
       _startHideControlsTimer();
 
       // Cloud Scrobble Start
@@ -396,7 +409,7 @@ class _PlayerScreenState extends State<PlayerScreen>
           final s = _currentEpisode?.season;
           final e = _currentEpisode?.episode;
           final initPos = widget.initialPosition?.inSeconds ?? 0;
-          final dur = _controller!.value.duration.inSeconds;
+          final dur = _player.state.duration.inSeconds;
           final progress = (dur > 0 ? (initPos / dur) * 100.0 : 0.0).clamp(0.0, 100.0);
 
           TraktService.instance.isAuthenticated().then((authed) {
@@ -445,6 +458,54 @@ class _PlayerScreenState extends State<PlayerScreen>
         _statusMessage = displayMessage;
       });
     }
+  }
+
+  void _updateMediaTracks(Tracks tracks) {
+    if (!mounted) return;
+    final audioList = tracks.audio;
+    final audioTracks = <PlayerAudioTrack>[];
+    for (int i = 0; i < audioList.length; i++) {
+      final t = audioList[i];
+      if (t.id == 'no' || t.id == 'auto') continue;
+      final lang = t.language;
+      final title = t.title ?? (lang != null ? lang.toUpperCase() : 'Track ${i + 1}');
+      final idx = int.tryParse(t.id) ?? (i + 1);
+      audioTracks.add(PlayerAudioTrack(
+        index: idx,
+        title: title,
+        language: lang,
+        channels: int.tryParse(t.channels?.toString() ?? ''),
+      ));
+    }
+
+    final subList = tracks.subtitle;
+    final embeddedSubs = <PlayerEmbeddedSubtitle>[];
+    for (int i = 0; i < subList.length; i++) {
+      final t = subList[i];
+      if (t.id == 'no' || t.id == 'auto') continue;
+      final lang = t.language;
+      final title = t.title ?? (lang != null ? lang.toUpperCase() : 'Track ${i + 1}');
+      final idx = int.tryParse(t.id) ?? (i + 1);
+      embeddedSubs.add(PlayerEmbeddedSubtitle(
+        index: idx,
+        title: title,
+        language: lang,
+      ));
+    }
+
+    int activeIdx = _selectedAudioTrackIndex;
+    if (activeIdx == 0 && audioTracks.isNotEmpty) {
+      final activeAid = _player.state.track.audio.id;
+      activeIdx = int.tryParse(activeAid) ?? audioTracks.first.index;
+    }
+
+    setState(() {
+      _audioTracks = audioTracks;
+      _embeddedSubtitles = embeddedSubs;
+      if (_selectedAudioTrackIndex == 0 && audioTracks.isNotEmpty) {
+        _selectedAudioTrackIndex = activeIdx;
+      }
+    });
   }
 
   static String cleanMediaTitle(String raw) {
@@ -506,8 +567,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     _hideTimer?.cancel();
     _hideTimer = Timer(const Duration(seconds: 4), () {
       if (mounted &&
-          _controller != null &&
-          _controller!.value.isPlaying &&
+          _isPlaying &&
           !_isHoveringUI &&
           _activeMenu == null &&
           !_showSubSyncBar &&
@@ -557,18 +617,16 @@ class _PlayerScreenState extends State<PlayerScreen>
         language: embedded.language ?? 'Embedded',
         title: embedded.title,
         downloadUrl: '',
-        format: embedded.codec ?? 'ass',
+        format: 'ass',
       );
       _isSubtitleEnabled = true;
       _currentSubtitlePath = null;
       _currentCues = [];
     });
 
-    if (_controller != null) {
-      _controller!.setExternalSubtitle('');
-      _controller!.setSubtitleTracks([embedded.index]);
-      _setSubtitleScale(_subtitleScale);
-    }
+    _player.setSubtitleTrack(SubtitleTrack(embedded.index.toString(), embedded.title, embedded.language));
+    _setSubtitleScale(_subtitleScale);
+    PlayerSettings.applySubtitleStyling(_player);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -588,15 +646,14 @@ class _PlayerScreenState extends State<PlayerScreen>
       _currentSubtitlePath = null;
       _currentCues = [];
     });
-    _controller?.setSubtitleTracks([-1]);
-    _controller?.setExternalSubtitle('');
+    _player.setSubtitleTrack(SubtitleTrack.no());
   }
 
   Future<void> _loadSubtitle(SubtitleVariant variant) async {
     _currentSubtitleVariant = variant;
     _selectedEmbeddedSubtitleIndex = null;
     _isSubtitleEnabled = true;
-    _controller?.setSubtitleTracks([-1]);
+    _player.setSubtitleTrack(SubtitleTrack.no());
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -630,14 +687,13 @@ class _PlayerScreenState extends State<PlayerScreen>
       print('[PlayerScreen] Subtitle cues parse error: $e');
     }
 
-    if (_controller != null) {
-      _currentSubtitlePath = path;
-      if (_subtitleDelayMs != 0) {
-        await _applyLiveDelay(_subtitleDelayMs / 1000.0);
-      } else {
-        _controller!.setExternalSubtitle(path);
-      }
-      _setSubtitleScale(_subtitleScale);
+    _currentSubtitlePath = path;
+    _player.setSubtitleTrack(SubtitleTrack.uri(path, title: variant.language));
+    _setSubtitleScale(_subtitleScale);
+    PlayerSettings.applySubtitleStyling(_player);
+
+    if (_subtitleDelayMs != 0) {
+      await _applyLiveDelay(_subtitleDelayMs / 1000.0);
     }
 
     if (mounted) {
@@ -653,51 +709,23 @@ class _PlayerScreenState extends State<PlayerScreen>
   void _setSubtitleScale(double scale) {
     final clamped = scale.clamp(0.5, 3.0);
     setState(() => _subtitleScale = clamped);
-
-    final s = clamped.toStringAsFixed(2);
-    final size = (32 * clamped).round().toString();
-
-    _controller?.setProperty('sub-scale', s);
-    _controller?.setProperty('subtitle.scale', s);
-    _controller?.setProperty('sub-font-size', size);
-    _controller?.setProperty('sub-ass-override', 'scale');
-    _controller?.setProperty('sub-ass-force-margins', 'yes');
-    _controller?.setProperty('sub-use-margins', 'yes');
+    PlayerSettings.setSubScale(clamped, player: _player);
   }
 
   Future<void> _applyLiveDelay(double delaySec) async {
     _subtitleDelayMs = delaySec * 1000.0;
-    if (_currentSubtitlePath != null && _controller != null) {
-      if (_currentCues.isNotEmpty) {
-        final syncedCues = SubtitleSyncHelper.applyLinearSync(
-          cues: _currentCues,
-          points: [],
-          nudge: delaySec,
-        );
-        final content = _currentSubFormat == SubFormat.vtt
-            ? SubtitleParser.toVtt(syncedCues)
-            : SubtitleParser.toSrt(syncedCues);
-        final ext = _currentSubFormat == SubFormat.vtt ? 'vtt' : 'srt';
-        final cleanBase = _currentSubtitlePath!.replaceAll(
-          RegExp(r'(_delayed.*|_synced.*)?\.(srt|vtt)$', caseSensitive: false),
-          '',
-        );
-        final newPath = '${cleanBase}_delayed_${DateTime.now().millisecondsSinceEpoch}.$ext';
-        await File(newPath).writeAsString(content);
-        _controller!.setExternalSubtitle(newPath);
-        _setSubtitleScale(_subtitleScale);
-      } else {
-        final newPath = await _shiftSubtitleTime(_currentSubtitlePath!, _subtitleDelayMs);
-        _controller!.setExternalSubtitle(newPath);
-        _setSubtitleScale(_subtitleScale);
-      }
+    final np = _player.platform as dynamic;
+    try {
+      np.setProperty('sub-delay', delaySec.toString());
+    } catch (e) {
+      print('[PlayerScreen] applyLiveDelay error: $e');
     }
   }
 
   Future<void> _saveTextSyncedCues(List<SubCue> syncedCues, double offsetSec) async {
     _currentCues = syncedCues;
     _subtitleDelayMs = 0.0; // Reset live delay since timestamps are now permanently baked into cues
-    if (_currentSubtitlePath != null && _controller != null) {
+    if (_currentSubtitlePath != null) {
       final content = _currentSubFormat == SubFormat.vtt
           ? SubtitleParser.toVtt(syncedCues)
           : SubtitleParser.toSrt(syncedCues);
@@ -709,7 +737,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       final newPath = '${cleanBase}_synced_${DateTime.now().millisecondsSinceEpoch}.$ext';
       await File(newPath).writeAsString(content);
       _currentSubtitlePath = newPath;
-      _controller!.setExternalSubtitle(newPath);
+      _player.setSubtitleTrack(SubtitleTrack.uri(newPath));
       _setSubtitleScale(_subtitleScale);
 
       if (mounted) {
@@ -720,72 +748,25 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  Future<String> _shiftSubtitleTime(String originalPath, double delayMs) async {
-    final file = File(originalPath);
-    if (!await file.exists()) return originalPath;
+  void _onControllerError(dynamic err) {
+    if (!mounted) return;
+    final errorMsg = err.toString();
+    print('[PlayerScreen ERROR] Player error: $errorMsg');
 
-    final content = await file.readAsString();
-    final delay = delayMs.toInt();
-    if (delay == 0) return originalPath;
-
-    final regex = RegExp(r'(\d{2}):(\d{2}):(\d{2})([,.])(\d{3})');
-    final newContent = content.replaceAllMapped(regex, (match) {
-      final hours = int.parse(match.group(1)!);
-      final minutes = int.parse(match.group(2)!);
-      final seconds = int.parse(match.group(3)!);
-      final sep = match.group(4)!;
-      final ms = int.parse(match.group(5)!);
-
-      var totalMs = (hours * 3600000) + (minutes * 60000) + (seconds * 1000) + ms + delay;
-      if (totalMs < 0) totalMs = 0;
-
-      final newHours = (totalMs ~/ 3600000).toString().padLeft(2, '0');
-      final newMinutes = ((totalMs % 3600000) ~/ 60000).toString().padLeft(2, '0');
-      final newSeconds = ((totalMs % 60000) ~/ 1000).toString().padLeft(2, '0');
-      final newMs = (totalMs % 1000).toString().padLeft(3, '0');
-
-      return '$newHours:$newMinutes:$newSeconds$sep$newMs';
-    });
-
-    final newPath = originalPath
-        .replaceAll('.srt', '_delayed.srt')
-        .replaceAll('.vtt', '_delayed.vtt');
-    final newFile = File(newPath);
-    await newFile.writeAsString(newContent);
-    return newPath;
-  }
-
-  void _onControllerError() {
-    if (!mounted || _controller == null) return;
-    final value = _controller!.value;
-    if (value.hasError && !_isLoading) {
-      final errorMsg = value.errorDescription ?? 'Unknown playback error';
-      print('[PlayerScreen ERROR] Video controller error: $errorMsg');
-
-      if (_currentEpisode != null && widget.detail?.videos.isNotEmpty == true) {
-        setState(() {
-          _isLoading = false;
-          _showSourcesPanel = true;
-          _sourcesEpisode = _currentEpisode;
-          _sourcesErrorMessage = 'Playback error: $errorMsg. Please select another source below.';
-        });
-        return;
-      }
-
+    if (_currentEpisode != null && widget.detail?.videos.isNotEmpty == true) {
       setState(() {
-        _isLoading = true;
-        _statusMessage = 'Playback error: $errorMsg';
+        _isLoading = false;
+        _showSourcesPanel = true;
+        _sourcesEpisode = _currentEpisode;
+        _sourcesErrorMessage = 'Playback error: $errorMsg. Please select another source below.';
       });
+      return;
     }
-  }
 
-  int _getControllerId(VideoPlayerController c) {
-    try {
-      // ignore: invalid_use_of_visible_for_testing_member
-      return c.playerId;
-    } catch (_) {
-      return 0;
-    }
+    setState(() {
+      _isLoading = true;
+      _statusMessage = 'Playback error: $errorMsg';
+    });
   }
 
   void _applyVolume(double vol, {bool showHud = false}) {
@@ -803,19 +784,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       });
     }
 
-    if (_controller != null) {
-      final id = _getControllerId(_controller!);
-      if (id > 0) {
-        try {
-          VideoPlayerPlatform.instance.setVolume(id, clamped);
-        } catch (e) {
-          if (kDebugMode) print('[PlayerScreen] Platform setVolume error: $e');
-          _controller!.setVolume(clamped.clamp(0.0, 1.0));
-        }
-      } else {
-        _controller!.setVolume(clamped.clamp(0.0, 1.0));
-      }
-    }
+    _player.setVolume(clamped * 100.0);
   }
 
   void _toggleMute({bool showHud = false}) {
@@ -825,18 +794,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         _isMuted = true;
         if (showHud) _showVolumeHud = true;
       });
-      if (_controller != null) {
-        final id = _getControllerId(_controller!);
-        if (id > 0) {
-          try {
-            VideoPlayerPlatform.instance.setVolume(id, 0.0);
-          } catch (_) {
-            _controller!.setVolume(0.0);
-          }
-        } else {
-          _controller!.setVolume(0.0);
-        }
-      }
+      _player.setVolume(0.0);
     } else {
       final restore = _lastVolumeBeforeMute > 0 ? _lastVolumeBeforeMute : 1.0;
       setState(() {
@@ -844,18 +802,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         _isMuted = false;
         if (showHud) _showVolumeHud = true;
       });
-      if (_controller != null) {
-        final id = _getControllerId(_controller!);
-        if (id > 0) {
-          try {
-            VideoPlayerPlatform.instance.setVolume(id, restore);
-          } catch (_) {
-            _controller!.setVolume(restore.clamp(0.0, 1.0));
-          }
-        } else {
-          _controller!.setVolume(restore.clamp(0.0, 1.0));
-        }
-      }
+      _player.setVolume(restore * 100.0);
     }
 
     if (showHud) {
@@ -867,26 +814,18 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _togglePlayPause() {
-    if (_controller == null || !_controller!.value.isInitialized) return;
-    setState(() {
-      if (_controller!.value.isPlaying) {
-        _controller!.pause();
-      } else {
-        _controller!.play();
-      }
-    });
+    _player.playOrPause();
     _startHideControlsTimer();
   }
 
   void _seekRelative(Duration offset) {
-    if (_controller == null || !_controller!.value.isInitialized) return;
-    final cur = _controller!.value.position;
-    final dur = _controller!.value.duration;
+    final cur = _player.state.position;
+    final dur = _player.state.duration;
     final target = cur + offset;
     final clamped = target < Duration.zero
         ? Duration.zero
         : (dur > Duration.zero && target > dur ? dur : target);
-    _controller!.seekTo(clamped);
+    _player.seek(clamped);
     _startHideControlsTimer();
   }
 
@@ -965,11 +904,6 @@ class _PlayerScreenState extends State<PlayerScreen>
     // Cleanup previous torrent engine if was P2P
     TorrentStreamService().cleanup();
 
-    _controller?.removeListener(_onControllerError);
-    _controller?.removeListener(_onPlaybackTick);
-    await _controller?.dispose();
-    _controller = null;
-
     _initStream();
   }
 
@@ -985,7 +919,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         type: detail?.type ?? (_currentEpisode != null ? 'tv' : 'movie'),
         season: _currentEpisode?.season,
         episode: _currentEpisode?.episode,
-        durationMs: _controller?.value.duration.inMilliseconds,
+        durationMs: _player.state.duration.inMilliseconds,
       );
 
       if (skipData != null && mounted) {
@@ -998,26 +932,10 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
   }
 
-  void _onPlaybackTick() {
-    if (_controller == null || !_controller!.value.isInitialized) return;
-
-    // Auto-Resync master clock when recovering from buffer stalls
-    final isBuffering = _controller!.value.isBuffering;
-    if (_wasBuffering && !isBuffering && PlayerSettings.autoResyncOnStall.value) {
-      try {
-        if (PlayerSettings.hardwareAudioClock.value) {
-          _controller?.setProperty('sync', 'audio');
-        }
-      } catch (e) {
-        debugPrint('[PlayerScreen] Auto-resync error: $e');
-      }
-    }
-    _wasBuffering = isBuffering;
-
+  void _onPlaybackTick(Duration pos) {
     if (_skipSegments.isEmpty) return;
 
-    final pos = _controller!.value.position;
-    final dur = _controller!.value.duration;
+    final dur = _player.state.duration;
 
     MediaSkipSegment? matched;
     for (final seg in _skipSegments) {
@@ -1050,9 +968,9 @@ class _PlayerScreenState extends State<PlayerScreen>
     _dismissedSegmentKeys.add(seg.uniqueKey);
     final target = seg.endMs != null
         ? Duration(milliseconds: seg.endMs!)
-        : (_controller?.value.duration ?? Duration.zero);
+        : _player.state.duration;
 
-    _controller?.seekTo(target + const Duration(milliseconds: 300));
+    _player.seek(target + const Duration(milliseconds: 300));
 
     setState(() {
       _showSkipButton = false;
@@ -1069,11 +987,10 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _savePlaybackProgress() {
-    if (_controller == null || !_controller!.value.isInitialized) return;
     if (widget.detail == null) return;
 
-    final pos = _controller!.value.position.inSeconds;
-    final dur = _controller!.value.duration.inSeconds;
+    final pos = _player.state.position.inSeconds;
+    final dur = _player.state.duration.inSeconds;
     if (dur <= 0) return;
 
     ContinueWatchingService.saveProgress(
@@ -1087,8 +1004,12 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   @override
   void dispose() {
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
     _progressSaveTimer?.cancel();
     _volumeHudTimer?.cancel();
+    _audioHudTimer?.cancel();
     _savePlaybackProgress();
     WakelockPlus.disable();
     _hideTimer?.cancel();
@@ -1098,13 +1019,16 @@ class _PlayerScreenState extends State<PlayerScreen>
       DeviceOrientation.landscapeLeft,
       DeviceOrientation.landscapeRight,
     ]);
-    _controller?.removeListener(_onControllerError);
-    _controller?.removeListener(_onPlaybackTick);
-    _controller?.dispose();
+    PlayerSettings.changeNotifier.removeListener(_onPlayerSettingsChanged);
+    _player.dispose();
     _logoAnimController.dispose();
     TorrentStreamService().cleanup();
     WindowService.instance.exitFullscreen();
     super.dispose();
+  }
+
+  void _onPlayerSettingsChanged() {
+    PlayerSettings.applyToPlayer(_player);
   }
 
   DateTime? _lastScreenTapTime;
@@ -1252,17 +1176,16 @@ class _PlayerScreenState extends State<PlayerScreen>
                   ],
                 )
               : SizedBox.expand(
-                  child: FittedBox(
-                    fit: _videoFit,
-                    child: SizedBox(
-                      width: (_controller!.value.size.width > 0)
-                          ? _controller!.value.size.width
-                          : 1920,
-                      height: (_controller!.value.size.height > 0)
-                          ? _controller!.value.size.height
-                          : 1080,
-                      child: VideoPlayer(_controller!),
-                    ),
+                  child: ValueListenableBuilder<int>(
+                    valueListenable: PlayerSettings.changeNotifier,
+                    builder: (context, _, __) {
+                      return mk.Video(
+                        controller: _videoController,
+                        fit: _videoFit,
+                        controls: mk.NoVideoControls,
+                        subtitleViewConfiguration: PlayerSettings.getSubtitleViewConfiguration(),
+                      );
+                    },
                   ),
                 ),
         ),
@@ -1338,9 +1261,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   Widget _buildControlsOverlay() {
-    final buffered = _controller?.value.buffered.isNotEmpty == true
-        ? _controller!.value.buffered.last.end
-        : null;
+    final buffered = _buffered;
 
     final episodeTitle = _currentEpisode?.title;
     final episodeSubtitle = _currentEpisode != null
@@ -1417,7 +1338,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         ),
 
           // Bottom Transport Bar
-          if (!_isLoading && _controller != null)
+          if (!_isLoading)
             Positioned(
               bottom: 0,
               left: 0,
@@ -1436,83 +1357,67 @@ class _PlayerScreenState extends State<PlayerScreen>
                       _isHoveringUI = false;
                       _startHideControlsTimer();
                     },
-                    child: ValueListenableBuilder<VideoPlayerValue>(
-                      valueListenable: _controller!,
-                      builder: (context, value, _) {
-                        return ValueListenableBuilder<bool>(
-                          valueListenable: WindowService.instance.isFullscreenNotifier,
-                          builder: (context, isFs, _) {
-                            return PlayerTransport(
-                              isPlaying: value.isPlaying,
-                              position: value.position,
-                              duration: value.duration,
-                              buffered: buffered,
-                              skipSegments: _skipSegments,
-                              volume: _volume,
-                              isMuted: _isMuted || _volume == 0,
-                              playbackRate: _playbackRate,
-                              isSubtitlesActive: _isSubtitleEnabled && _currentSubtitleVariant != null,
-                              isSubSyncActive: _selectedEmbeddedSubtitleIndex == null && (_showSubSyncBar || _subtitleDelayMs != 0),
-                              isAudioActive: _selectedAudioTrackIndex > 0,
-                              isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
-                              isFullscreen: isFs,
-                              onToggleEpisodes: (widget.detail?.videos.isNotEmpty == true)
-                                  ? _toggleEpisodesPanel
-                                  : null,
-                              onPlayPause: () {
-                                setState(() {
-                                  if (_controller!.value.isPlaying) {
-                                    _controller!.pause();
-                                  } else {
-                                    _controller!.play();
-                                  }
-                                });
-                                _startHideControlsTimer();
-                              },
-                              onSeek: (pos) => _controller!.seekTo(pos),
-                              onSeekBack10: () {
-                                final pos = _controller!.value.position;
-                                _controller!.seekTo(pos - const Duration(seconds: 10));
-                                _startHideControlsTimer();
-                              },
-                              onSeekForward10: () {
-                                final pos = _controller!.value.position;
-                                _controller!.seekTo(pos + const Duration(seconds: 10));
-                                _startHideControlsTimer();
-                              },
-                              onVolumeChanged: (vol) => _applyVolume(vol),
-                              onToggleMute: () => _toggleMute(),
-                              onToggleAspectMenu: () => _toggleMenu('aspect'),
-                              onToggleSpeedMenu: () => _toggleMenu('speed'),
-                              onToggleAudioMenu: () => _toggleMenu('audio'),
-                              onToggleSubtitleMenu: () => _toggleMenu('subtitle'),
-                              onToggleSubSync: () {
-                                if (_selectedEmbeddedSubtitleIndex != null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Subtitle sync is not supported for embedded subtitles. Please select an external subtitle.'),
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                  return;
-                                }
-                                if (_currentSubtitlePath == null || _currentSubtitleVariant == null) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Please load an external subtitle to use subtitle sync.'),
-                                      duration: Duration(seconds: 2),
-                                    ),
-                                  );
-                                  return;
-                                }
-                                setState(() {
-                                  _showSubSyncBar = !_showSubSyncBar;
-                                  _activeMenu = null;
-                                });
-                              },
-                              onToggleFullscreen: () => WindowService.instance.toggleFullscreen(),
-                            );
+                    child: ValueListenableBuilder<bool>(
+                      valueListenable: WindowService.instance.isFullscreenNotifier,
+                      builder: (context, isFs, _) {
+                        return PlayerTransport(
+                          isPlaying: _isPlaying,
+                          position: _position,
+                          duration: _duration,
+                          buffered: buffered,
+                          skipSegments: _skipSegments,
+                          volume: _volume,
+                          isMuted: _isMuted || _volume == 0,
+                          playbackRate: _playbackRate,
+                          isSubtitlesActive: _isSubtitleEnabled && _currentSubtitleVariant != null,
+                          isSubSyncActive: _selectedEmbeddedSubtitleIndex == null && (_showSubSyncBar || _subtitleDelayMs != 0),
+                          isAudioActive: _selectedAudioTrackIndex > 0,
+                          isEpisodesActive: _showEpisodesPanel || _showSourcesPanel,
+                          isFullscreen: isFs,
+                          onToggleEpisodes: (widget.detail?.videos.isNotEmpty == true)
+                              ? _toggleEpisodesPanel
+                              : null,
+                          onPlayPause: () {
+                            _togglePlayPause();
                           },
+                          onSeek: (pos) => _player.seek(pos),
+                          onSeekBack10: () {
+                            _seekRelative(const Duration(seconds: -10));
+                          },
+                          onSeekForward10: () {
+                            _seekRelative(const Duration(seconds: 10));
+                          },
+                          onVolumeChanged: (vol) => _applyVolume(vol),
+                          onToggleMute: () => _toggleMute(),
+                          onToggleAspectMenu: () => _toggleMenu('aspect'),
+                          onToggleSpeedMenu: () => _toggleMenu('speed'),
+                          onToggleAudioMenu: () => _toggleMenu('audio'),
+                          onToggleSubtitleMenu: () => _toggleMenu('subtitle'),
+                          onToggleSubSync: () {
+                            if (_selectedEmbeddedSubtitleIndex != null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Subtitle sync is not supported for embedded subtitles. Please select an external subtitle.'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                              return;
+                            }
+                            if (_currentSubtitlePath == null || _currentSubtitleVariant == null) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Please load an external subtitle to use subtitle sync.'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
+                              return;
+                            }
+                            setState(() {
+                              _showSubSyncBar = !_showSubSyncBar;
+                              _activeMenu = null;
+                            });
+                          },
+                          onToggleFullscreen: () => WindowService.instance.toggleFullscreen(),
                         );
                       },
                     ),
@@ -1605,11 +1510,25 @@ class _PlayerScreenState extends State<PlayerScreen>
                 delaySec: _audioDelaySec,
                 onTrackSelected: (idx) {
                   setState(() => _selectedAudioTrackIndex = idx);
-                  _controller?.setAudioTracks([idx]);
+                  try {
+                    final matching = _player.state.tracks.audio.firstWhere(
+                      (t) => t.id == idx.toString(),
+                      orElse: () => AudioTrack(idx.toString(), null, null),
+                    );
+                    _player.setAudioTrack(matching);
+                    final np = _player.platform as dynamic;
+                    np.setProperty('aid', idx.toString());
+                  } catch (_) {}
+                  final match = _audioTracks.where((t) => t.index == idx).firstOrNull;
+                  _showAudioHudToast(match?.title ?? 'Track $idx');
                 },
                 onDelayChanged: (sec) {
                   setState(() => _audioDelaySec = sec);
-                  _controller?.setProperty('audio-delay', sec.toString());
+                  try {
+                    final np = _player.platform as dynamic;
+                    np.setProperty('audio-delay', sec.toString());
+                  } catch (_) {}
+                  _showAudioHudToast('AUDIO SYNC: ${sec > 0 ? "+" : ""}${sec.toStringAsFixed(2)}s');
                 },
                 onClose: () => setState(() => _activeMenu = null),
               ),
@@ -1626,7 +1545,7 @@ class _PlayerScreenState extends State<PlayerScreen>
                 currentRate: _playbackRate,
                 onRateSelected: (rate) {
                   setState(() => _playbackRate = rate);
-                  _controller?.setPlaybackSpeed(rate);
+                  _player.setRate(rate);
                 },
                 onClose: () => setState(() => _activeMenu = null),
               ),
@@ -1648,16 +1567,24 @@ class _PlayerScreenState extends State<PlayerScreen>
               ),
             ),
 
-          // Top Floating Subtitle Appearance Toolbar
+          // Floating Subtitle Appearance & Customization Modal
           if (_activeMenu == 'style' && !_isLoading)
-            Positioned(
-              top: MediaQuery.paddingOf(context).top + 16,
-              left: 0,
-              right: 0,
-              child: PlayerSubStyleBar(
-                scale: _subtitleScale,
-                onScaleChanged: _setSubtitleScale,
-                onClose: () => setState(() => _activeMenu = null),
+            Positioned.fill(
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _activeMenu = null),
+                child: Container(
+                  color: Colors.black54,
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: GestureDetector(
+                    onTap: () {}, // Prevent tap through
+                    child: PlayerSubStyleModal(
+                      player: _player,
+                      onClose: () => setState(() => _activeMenu = null),
+                    ),
+                  ),
+                ),
               ),
             ),
 
@@ -1734,10 +1661,10 @@ class _PlayerScreenState extends State<PlayerScreen>
             ),
 
           // Right Drawer Text Sync
-          if (_showTextSyncOverlay && !_isLoading && _controller != null && _currentCues.isNotEmpty && _selectedEmbeddedSubtitleIndex == null)
+          if (_showTextSyncOverlay && !_isLoading && _currentCues.isNotEmpty && _selectedEmbeddedSubtitleIndex == null)
             Positioned.fill(
               child: TextSyncOverlay(
-                controller: _controller!,
+                player: _player,
                 initialCues: _currentCues,
                 baseOffsetSec: _subtitleDelayMs / 1000.0,
                 onClose: () {
@@ -1773,6 +1700,14 @@ class _PlayerScreenState extends State<PlayerScreen>
             Positioned.fill(
               child: IgnorePointer(
                 child: _buildVolumeHud(),
+              ),
+            ),
+
+          // Center Heads-Up Audio Display (HUD)
+          if (_showAudioHud)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: _buildAudioHud(),
               ),
             ),
         ],
@@ -1897,6 +1832,60 @@ class _PlayerScreenState extends State<PlayerScreen>
                     ),
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAudioHudToast(String text) {
+    _audioHudTimer?.cancel();
+    setState(() {
+      _audioHudText = text;
+      _showAudioHud = true;
+    });
+    _audioHudTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _showAudioHud = false);
+    });
+  }
+
+  Widget _buildAudioHud() {
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFF0F1117).withValues(alpha: 0.90),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: const Color(0xFF7C5CFF).withValues(alpha: 0.5),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF7C5CFF).withValues(alpha: 0.25),
+              blurRadius: 24,
+              spreadRadius: 2,
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.audiotrack_rounded,
+              color: Color(0xFF00D2EF),
+              size: 24,
+            ),
+            const SizedBox(width: 10),
+            Text(
+              _audioHudText,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.5,
               ),
             ),
           ],

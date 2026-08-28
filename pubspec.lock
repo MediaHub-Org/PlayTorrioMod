@@ -264,14 +264,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.17.2"
-  fvp:
-    dependency: "direct main"
-    description:
-      name: fvp
-      sha256: c6db09d88a6c84ba84fb047b4082a03987199e968273da9ad051660e18cfca55
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.38.1"
   glob:
     dependency: transitive
     description:
@@ -316,10 +308,10 @@ packages:
     dependency: transitive
     description:
       name: image
-      sha256: "6300175e00616bbc832e2fc91bfa4d776af5402c81c7151bee6905bb08473c52"
+      sha256: "1976370a4df3091bb0f72409c187ad1f9132a818bc6b95ca59c0bae1c75c688e"
       url: "https://pub.dev"
     source: hosted
-    version: "4.9.1"
+    version: "4.9.2"
   jni:
     dependency: transitive
     description:
@@ -431,6 +423,87 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.13.0"
+  media_kit:
+    dependency: "direct main"
+    description:
+      path: media_kit
+      ref: HEAD
+      resolved-ref: "994465d9bfca3f39d0b41199d16e7fd93fe97881"
+      url: "https://github.com/Predidit/media-kit.git"
+    source: git
+    version: "1.1.11"
+  media_kit_libs_android_video:
+    dependency: "direct overridden"
+    description:
+      path: "libs/android/media_kit_libs_android_video"
+      ref: HEAD
+      resolved-ref: "994465d9bfca3f39d0b41199d16e7fd93fe97881"
+      url: "https://github.com/Predidit/media-kit.git"
+    source: git
+    version: "1.3.6"
+  media_kit_libs_ios_video:
+    dependency: "direct overridden"
+    description:
+      path: "libs/ios/media_kit_libs_ios_video"
+      ref: HEAD
+      resolved-ref: "994465d9bfca3f39d0b41199d16e7fd93fe97881"
+      url: "https://github.com/Predidit/media-kit.git"
+    source: git
+    version: "1.1.4"
+  media_kit_libs_linux:
+    dependency: "direct overridden"
+    description:
+      path: "libs/linux/media_kit_libs_linux"
+      ref: HEAD
+      resolved-ref: "994465d9bfca3f39d0b41199d16e7fd93fe97881"
+      url: "https://github.com/Predidit/media-kit.git"
+    source: git
+    version: "1.1.3"
+  media_kit_libs_macos_video:
+    dependency: "direct overridden"
+    description:
+      path: "libs/macos/media_kit_libs_macos_video"
+      ref: HEAD
+      resolved-ref: "994465d9bfca3f39d0b41199d16e7fd93fe97881"
+      url: "https://github.com/Predidit/media-kit.git"
+    source: git
+    version: "1.1.4"
+  media_kit_libs_ohos:
+    dependency: "direct overridden"
+    description:
+      path: "libs/ohos/media_kit_libs_ohos"
+      ref: HEAD
+      resolved-ref: "994465d9bfca3f39d0b41199d16e7fd93fe97881"
+      url: "https://github.com/Predidit/media-kit.git"
+    source: git
+    version: "1.0.0"
+  media_kit_libs_video:
+    dependency: "direct main"
+    description:
+      path: "libs/universal/media_kit_libs_video"
+      ref: HEAD
+      resolved-ref: "994465d9bfca3f39d0b41199d16e7fd93fe97881"
+      url: "https://github.com/Predidit/media-kit.git"
+    source: git
+    version: "1.0.5"
+  media_kit_libs_windows_video:
+    dependency: "direct main"
+    description:
+      path: "libs/windows/media_kit_libs_windows_video"
+      ref: HEAD
+      resolved-ref: "994465d9bfca3f39d0b41199d16e7fd93fe97881"
+      url: "https://github.com/Predidit/media-kit.git"
+    source: git
+    version: "1.0.10"
+  media_kit_video:
+    dependency: "direct main"
+    description:
+      path: media_kit_video
+      ref: HEAD
+      resolved-ref: "994465d9bfca3f39d0b41199d16e7fd93fe97881"
+      url: "https://github.com/Predidit/media-kit.git"
+    source: git
+    version: "1.2.5"
   meta:
     dependency: transitive
     description:
@@ -483,10 +556,10 @@ packages:
     dependency: "direct main"
     description:
       name: package_info_plus
-      sha256: "468c26b4254ab01979fa5e4a98cb343ea3631b9acee6f21028997419a80e1a20"
+      sha256: "16eee997588c60225bda0488b6dcfac69280a6b7a3cf02c741895dd370a02968"
       url: "https://pub.dev"
     source: hosted
-    version: "9.0.1"
+    version: "8.3.1"
   package_info_plus_platform_interface:
     dependency: transitive
     description:
@@ -655,6 +728,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.28.0"
+  safe_local_storage:
+    dependency: transitive
+    description:
+      name: safe_local_storage
+      sha256: "494b982d5edb71030650ea463d939670e91b232b588323dc75229d2c5f23e7b7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.6"
   screen_retriever:
     dependency: transitive
     description:
@@ -868,6 +949,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
+  universal_platform:
+    dependency: transitive
+    description:
+      name: universal_platform
+      sha256: "64e16458a0ea9b99260ceb5467a214c1f298d647c659af1bff6d3bf82536b1ec"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.1.0"
+  uri_parser:
+    dependency: transitive
+    description:
+      name: uri_parser
+      sha256: "051c62e5f693de98ca9f130ee707f8916e2266945565926be3ff20659f7853ce"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.0.2"
   url_launcher:
     dependency: "direct main"
     description:
@@ -1000,10 +1097,18 @@ packages:
     dependency: "direct main"
     description:
       name: wakelock_plus
-      sha256: ddf3db70eaa10c37558ff817519b85d527dbd21034fd5d8e1c2e85f31588f1c1
+      sha256: "61713aa82b7f85c21c9f4cd0a148abd75f38a74ec645fcb1e446f882c82fd09b"
       url: "https://pub.dev"
     source: hosted
-    version: "1.5.2"
+    version: "1.3.3"
+  wakelock_plus_ohos:
+    dependency: transitive
+    description:
+      name: wakelock_plus_ohos
+      sha256: b22af297411555b5ec0fe43ec2960cd5f019dd23b83853214ebe6dcc97b337bd
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.3"
   wakelock_plus_platform_interface:
     dependency: transitive
     description:
@@ -1045,13 +1150,13 @@ packages:
     source: hosted
     version: "1.1.0"
   xml:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: xml
-      sha256: "67f0aff7be013d107995e9b75bf4e7f2c3ef2dfdb2c8e68024bba0a7fd5756a4"
+      sha256: "971043b3a0d3da28727e40ed3e0b5d18b742fa5a68665cca88e74b7876d5e025"
       url: "https://pub.dev"
     source: hosted
-    version: "7.0.1"
+    version: "6.6.1"
   yaml:
     dependency: transitive
     description:

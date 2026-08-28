@@ -20,7 +20,7 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
 
     try {
       final updater = AppUpdaterService();
-      final updateInfo = await updater.checkForUpdates();
+      final updateInfo = await updater.checkForUpdates(ignoreDismissed: true);
 
       if (!context.mounted) return;
 
@@ -96,8 +96,8 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
               FutureBuilder<PackageInfo>(
                 future: PackageInfo.fromPlatform(),
                 builder: (context, snapshot) {
-                  final version = snapshot.hasData ? snapshot.data!.version : '1.0.2';
-                  final buildNumber = snapshot.hasData ? snapshot.data!.buildNumber : '2';
+                  final version = snapshot.hasData ? snapshot.data!.version : '1.0.3';
+                  final buildNumber = snapshot.hasData ? snapshot.data!.buildNumber : '3';
                   final appName = snapshot.hasData ? snapshot.data!.appName : 'PlayTorrio';
 
                   return Container(

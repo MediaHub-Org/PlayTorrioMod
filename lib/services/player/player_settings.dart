@@ -1,8 +1,12 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:video_player/video_player.dart';
-import 'package:fvp/fvp.dart';
 
 /// Available decoder preset types tailored for each platform.
 enum DecoderPreset {
@@ -19,21 +23,59 @@ enum DecoderPreset {
 
 /// Buffer resilience cushion preset for network streams.
 enum BufferResiliencePreset {
-  minimal('Minimal (1s / 50 pkts)', 'Fast start, for high-speed local streams.', 1000, 50),
-  standard('Standard (3s / 150 pkts)', 'Balanced buffering for general streaming.', 3000, 150),
-  highResilience('High Resilience (6s / 300 pkts)', 'Recommended for Android & Wi-Fi. Pre-buffers cushion to prevent rebuffer stalls & A/V drift.', 6000, 300),
-  maximum('Maximum (12s / 600 pkts)', 'Extra large buffer for torrent streaming & congested connections.', 12000, 600),
-  custom('Custom Buffer', 'Custom duration and packet count.', 6000, 300);
+  minimal('Minimal (50MB / 5s)', 'Fast start, for high-speed local streams.', 1000, 50, 52428800, 5),
+  standard('Standard (150MB / 15s)', 'Balanced buffering for general streaming.', 3000, 150, 157286400, 15),
+  highResilience('High Resilience (300MB / 30s)', 'Recommended for Android & Wi-Fi. Pre-buffers cushion to prevent rebuffer stalls & A/V drift.', 6000, 300, 314572800, 30),
+  maximum('Maximum (600MB / 60s)', 'Extra large buffer for torrent streaming & congested connections.', 12000, 600, 629145600, 60),
+  custom('Custom Buffer', 'Custom duration and byte capacity.', 6000, 300, 314572800, 30);
 
   final String label;
   final String subtitle;
   final int durationMs;
   final int packetCount;
-  const BufferResiliencePreset(this.label, this.subtitle, this.durationMs, this.packetCount);
+  final int maxBytes;
+  final int cacheSecs;
+  const BufferResiliencePreset(this.label, this.subtitle, this.durationMs, this.packetCount, this.maxBytes, this.cacheSecs);
+}
+
+/// Subtitle styling preset for rapid 1-tap appearance selection.
+enum SubtitleStylePreset {
+  classicWhite('Classic White', 'Crisp white text with black outline', '#FFFFFFFF', '#00000000', '#FF000000', 2.0, 0.0, '#00000000', false, false),
+  cinemaYellow('Cinema Yellow', 'Warm yellow text with subtle shadow and border', '#FFFFEB3B', '#00000000', '#FF000000', 2.5, 1.5, '#80000000', false, false),
+  streamingBox('Streaming Box', 'White text inside a 50% translucent black box', '#FFFFFFFF', '#80000000', '#00000000', 0.0, 0.0, '#00000000', false, false),
+  highContrast('High Contrast', 'Bold yellow text with solid opaque black box', '#FFFFD600', '#FF000000', '#FF000000', 0.0, 0.0, '#00000000', true, false),
+  animeClean('Anime Clean', 'Bold white text with deep outline & shadow', '#FFFFFFFF', '#00000000', '#FF000000', 3.5, 2.0, '#BF000000', true, false),
+  cyberpunkCyan('Cyberpunk Cyan', 'Vibrant cyan text with dark border', '#00E5FF', '#00000000', '#FF0D111A', 2.5, 1.0, '#6600E5FF', false, false),
+  nightModeSoft('Night Mode Warm', 'Soft cream text with 40% translucent background', '#FFF8E1', '#66000000', '#00000000', 0.0, 0.0, '#00000000', false, false),
+  custom('Custom', 'User configured custom subtitle styles', '#FFFFFFFF', '#00000000', '#FF000000', 2.0, 0.0, '#00000000', false, false);
+
+  final String label;
+  final String description;
+  final String textColor;
+  final String backColor;
+  final String borderColor;
+  final double borderSize;
+  final double shadowOffset;
+  final String shadowColor;
+  final bool bold;
+  final bool italic;
+
+  const SubtitleStylePreset(
+    this.label,
+    this.description,
+    this.textColor,
+    this.backColor,
+    this.borderColor,
+    this.borderSize,
+    this.shadowOffset,
+    this.shadowColor,
+    this.bold,
+    this.italic,
+  );
 }
 
 /// Central service managing video engine properties, decoder fallback chains,
-/// buffer resilience, and anti-desync options across all platforms.
+/// buffer resilience, anti-desync options, and libass subtitle customization using media_kit / libmpv.
 abstract final class PlayerSettings {
   static const _keyDecoderPreset = 'player_decoder_preset';
   static const _keyForceSoftwareDecoding = 'player_force_software_decoding';
@@ -47,6 +89,24 @@ abstract final class PlayerSettings {
   static const _keyLowLatency = 'player_low_latency';
   static const _keyHardwareAudioClock = 'player_hardware_audio_clock';
   static const _keyAudioDelayDefault = 'player_audio_delay_default';
+
+  // Subtitle Customization Keys
+  static const _keySubStylePreset = 'player_sub_style_preset';
+  static const _keySubFont = 'player_sub_font';
+  static const _keySubFontSize = 'player_sub_font_size';
+  static const _keySubScale = 'player_sub_scale';
+  static const _keySubColor = 'player_sub_color';
+  static const _keySubBackColor = 'player_sub_back_color';
+  static const _keySubBorderColor = 'player_sub_border_color';
+  static const _keySubBorderSize = 'player_sub_border_size';
+  static const _keySubShadowOffset = 'player_sub_shadow_offset';
+  static const _keySubShadowColor = 'player_sub_shadow_color';
+  static const _keySubBold = 'player_sub_bold';
+  static const _keySubItalic = 'player_sub_italic';
+  static const _keySubMarginY = 'player_sub_margin_y';
+  static const _keySubPos = 'player_sub_pos';
+  static const _keySubAlignX = 'player_sub_align_x';
+  static const _keySubAssOverride = 'player_sub_ass_override';
 
   // ValueNotifiers for reactive UI binding
   static final ValueNotifier<DecoderPreset> decoderPreset =
@@ -69,7 +129,49 @@ abstract final class PlayerSettings {
   static final ValueNotifier<bool> hardwareAudioClock = ValueNotifier<bool>(true);
   static final ValueNotifier<double> audioDelayDefault = ValueNotifier<double>(0.0);
 
+  // Subtitle Customization ValueNotifiers
+  static final ValueNotifier<SubtitleStylePreset> subStylePreset =
+      ValueNotifier<SubtitleStylePreset>(SubtitleStylePreset.classicWhite);
+  static final ValueNotifier<String> subFont = ValueNotifier<String>('subfont');
+  static final ValueNotifier<int> subFontSize = ValueNotifier<int>(32);
+  static final ValueNotifier<double> subScale = ValueNotifier<double>(1.0);
+  static final ValueNotifier<String> subColor = ValueNotifier<String>('#FFFFFFFF');
+  static final ValueNotifier<String> subBackColor = ValueNotifier<String>('#00000000');
+  static final ValueNotifier<String> subBorderColor = ValueNotifier<String>('#FF000000');
+  static final ValueNotifier<double> subBorderSize = ValueNotifier<double>(2.0);
+  static final ValueNotifier<double> subShadowOffset = ValueNotifier<double>(0.0);
+  static final ValueNotifier<String> subShadowColor = ValueNotifier<String>('#80000000');
+  static final ValueNotifier<bool> subBold = ValueNotifier<bool>(false);
+  static final ValueNotifier<bool> subItalic = ValueNotifier<bool>(false);
+  static final ValueNotifier<double> subMarginY = ValueNotifier<double>(30.0);
+  static final ValueNotifier<double> subPos = ValueNotifier<double>(100.0);
+  static final ValueNotifier<String> subAlignX = ValueNotifier<String>('center');
+  static final ValueNotifier<String> subAssOverride = ValueNotifier<String>('no');
+
   static final ValueNotifier<int> changeNotifier = ValueNotifier<int>(0);
+
+  // Extracted font paths for libass font fallback
+  static String? _extractedFontDir;
+  static String? _extractedFontPath;
+  static String? get extractedFontDir => _extractedFontDir;
+  static String? get extractedFontPath => _extractedFontPath;
+
+  /// Popular available system fonts across platforms
+  static const List<String> popularFonts = [
+    'subfont',
+    'Poppins',
+    'Roboto',
+    'Arial',
+    'Trebuchet MS',
+    'Open Sans',
+    'Montserrat',
+    'Comic Sans MS',
+    'Courier New',
+    'Georgia',
+    'Times New Roman',
+    'Impact',
+    'Verdana',
+  ];
 
   /// Returns available decoder presets for the current OS platform.
   static List<DecoderPreset> getAvailablePresetsForPlatform() {
@@ -109,17 +211,17 @@ abstract final class PlayerSettings {
   /// Returns all available raw decoders suitable for custom decoder chain building on current platform.
   static List<String> getAvailableRawDecoders() {
     if (Platform.isAndroid) {
-      return ['AMediaCodec:copy=0', 'AMediaCodec', 'AMediaCodec:copy=1', 'dav1d', 'FFmpeg'];
+      return ['mediacodec', 'mediacodec-copy', 'auto-safe', 'auto-copy', 'no'];
     } else if (Platform.isWindows) {
-      return ['MFT:d3d=11:copy=0', 'D3D11:copy=0', 'D3D11:copy=1', 'CUDA:copy=0', 'DXVA', 'dav1d', 'FFmpeg'];
+      return ['d3d11va', 'd3d11va-copy', 'nvdec', 'nvdec-copy', 'auto-safe', 'auto-copy', 'no'];
     } else if (Platform.isMacOS || Platform.isIOS) {
-      return ['VT:copy=0', 'VT', 'VT:copy=1', 'dav1d', 'FFmpeg'];
+      return ['videotoolbox', 'videotoolbox-copy', 'auto-safe', 'auto-copy', 'no'];
     } else {
-      return ['VAAPI:copy=0', 'VAAPI', 'CUDA:copy=0', 'dav1d', 'FFmpeg'];
+      return ['vaapi', 'vaapi-copy', 'nvdec', 'nvdec-copy', 'auto-safe', 'auto-copy', 'no'];
     }
   }
 
-  /// Initializes preferences from disk.
+  /// Initializes preferences from disk and extracts the bundled font for libass.
   static Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -160,130 +262,402 @@ abstract final class PlayerSettings {
     lowLatency.value = prefs.getBool(_keyLowLatency) ?? false;
     hardwareAudioClock.value = prefs.getBool(_keyHardwareAudioClock) ?? true;
     audioDelayDefault.value = prefs.getDouble(_keyAudioDelayDefault) ?? 0.0;
+
+    // Load Subtitle Customization Preferences
+    final subPresetStr = prefs.getString(_keySubStylePreset);
+    if (subPresetStr != null) {
+      subStylePreset.value = SubtitleStylePreset.values.firstWhere(
+        (p) => p.name == subPresetStr,
+        orElse: () => SubtitleStylePreset.classicWhite,
+      );
+    }
+    subFont.value = prefs.getString(_keySubFont) ?? 'subfont';
+    subFontSize.value = prefs.getInt(_keySubFontSize) ?? 32;
+    subScale.value = prefs.getDouble(_keySubScale) ?? 1.0;
+    subColor.value = prefs.getString(_keySubColor) ?? '#FFFFFFFF';
+    subBackColor.value = prefs.getString(_keySubBackColor) ?? '#00000000';
+    subBorderColor.value = prefs.getString(_keySubBorderColor) ?? '#FF000000';
+    subBorderSize.value = prefs.getDouble(_keySubBorderSize) ?? 2.0;
+    subShadowOffset.value = prefs.getDouble(_keySubShadowOffset) ?? 0.0;
+    subShadowColor.value = prefs.getString(_keySubShadowColor) ?? '#80000000';
+    subBold.value = prefs.getBool(_keySubBold) ?? false;
+    subItalic.value = prefs.getBool(_keySubItalic) ?? false;
+    subMarginY.value = prefs.getDouble(_keySubMarginY) ?? 30.0;
+    subPos.value = prefs.getDouble(_keySubPos) ?? 100.0;
+    subAlignX.value = prefs.getString(_keySubAlignX) ?? 'center';
+    subAssOverride.value = prefs.getString(_keySubAssOverride) ?? 'no';
+
+    // Extract bundled font for libass fallback
+    await _extractLibassFontFallback();
   }
 
-  /// Returns the effective decoder list for the current platform and user settings.
-  /// CRASH-FREE GUARANTEE: Ensures 'FFmpeg' (Software decoding) is always present at the end
-  /// so playback NEVER fails or crashes if hardware decoders fail.
+  /// Extracts assets/subfont.ttf to persistent disk storage for libass / libmpv font provider
+  static Future<void> _extractLibassFontFallback() async {
+    try {
+      Directory? targetDir;
+      try {
+        targetDir = await getApplicationSupportDirectory();
+      } catch (_) {
+        targetDir = await getTemporaryDirectory();
+      }
+
+      final fontsDir = Directory(p.join(targetDir.path, 'fonts'));
+      if (!await fontsDir.exists()) {
+        await fontsDir.create(recursive: true);
+      }
+
+      final fontFile = File(p.join(fontsDir.path, 'subfont.ttf'));
+      if (!await fontFile.exists() || (await fontFile.length()) == 0) {
+        ByteData? data;
+        try {
+          data = await rootBundle.load('assets/subfont.ttf');
+        } catch (_) {
+          try {
+            data = await rootBundle.load('assets/fonts/subfont.ttf');
+          } catch (_) {}
+        }
+
+        if (data != null) {
+          await fontFile.writeAsBytes(
+            data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+            flush: true,
+          );
+        }
+      }
+
+      if (await fontFile.exists() && (await fontFile.length()) > 0) {
+        _extractedFontDir = fontsDir.path;
+        _extractedFontPath = fontFile.path;
+        debugPrint('[PlayerSettings] libass font extracted successfully to: $_extractedFontPath');
+      }
+    } catch (e) {
+      debugPrint('[PlayerSettings] Error extracting libass font fallback: $e');
+    }
+  }
+
+  /// Returns effective max bytes for demuxer cache
+  static int getEffectiveMaxBytes() {
+    if (bufferPreset.value == BufferResiliencePreset.custom) {
+      return (customBufferMs.value * 50000).clamp(52428800, 629145600);
+    }
+    return bufferPreset.value.maxBytes;
+  }
+
+  /// Returns effective back bytes buffer
+  static int getEffectiveMaxBackBytes() {
+    return 52428800; // 50 MB back buffer
+  }
+
+  /// Returns effective cache seconds
+  static int getEffectiveCacheSecs() {
+    if (bufferPreset.value == BufferResiliencePreset.custom) {
+      return (customBufferMs.value ~/ 1000).clamp(5, 60);
+    }
+    return bufferPreset.value.cacheSecs;
+  }
+
+  /// Returns the effective decoder list for UI or custom decoder configuration.
   static List<String> getEffectiveDecoders() {
     if (forceSoftwareDecoding.value) {
-      return ['FFmpeg', 'dav1d'];
+      return ['no'];
     }
 
-    List<String> list;
     if (decoderPreset.value == DecoderPreset.custom && customDecoders.value.isNotEmpty) {
-      list = List<String>.from(customDecoders.value);
-    } else {
-      list = _getDefaultDecodersForPreset(decoderPreset.value);
+      return List<String>.from(customDecoders.value);
     }
-
-    // Safety fallback check: Ensure FFmpeg is present
-    if (!list.contains('FFmpeg')) {
-      list.add('FFmpeg');
-    }
-    return list;
+    return _getDefaultDecodersForPreset(decoderPreset.value);
   }
 
   static List<String> _getDefaultDecodersForPreset(DecoderPreset preset) {
     switch (preset) {
       case DecoderPreset.softwareSafe:
-        return ['FFmpeg', 'dav1d'];
+        return ['no'];
 
       case DecoderPreset.hardwareSafe:
-        if (Platform.isAndroid) {
-          return ['AMediaCodec:copy=1', 'dav1d', 'FFmpeg'];
-        } else if (Platform.isWindows) {
-          return ['D3D11:copy=1', 'DXVA', 'dav1d', 'FFmpeg'];
-        } else if (Platform.isMacOS || Platform.isIOS) {
-          return ['VT:copy=1', 'dav1d', 'FFmpeg'];
-        } else {
-          return ['VAAPI:copy=1', 'dav1d', 'FFmpeg'];
-        }
+        return ['auto-copy', 'no'];
 
       case DecoderPreset.nvidiaCuda:
-        if (Platform.isWindows) {
-          return ['CUDA:copy=0', 'D3D11:copy=0', 'dav1d', 'FFmpeg'];
-        } else {
-          return ['CUDA:copy=0', 'VAAPI:copy=0', 'dav1d', 'FFmpeg'];
-        }
+        return Platform.isWindows ? ['nvdec', 'd3d11va', 'no'] : ['nvdec', 'vaapi', 'no'];
 
       case DecoderPreset.hardwareAuto:
       case DecoderPreset.custom:
         if (Platform.isWindows) {
-          return ['MFT:d3d=11:copy=0', 'D3D11:copy=0', 'CUDA:copy=0', 'DXVA', 'dav1d', 'FFmpeg'];
+          return ['d3d11va', 'nvdec', 'auto-safe', 'no'];
         } else if (Platform.isMacOS || Platform.isIOS) {
-          return ['VT:copy=1', 'VT', 'dav1d', 'FFmpeg'];
+          return ['videotoolbox', 'auto-safe', 'no'];
         } else if (Platform.isAndroid) {
-          return ['AMediaCodec:copy=0', 'AMediaCodec', 'dav1d', 'FFmpeg'];
+          return ['mediacodec', 'auto-safe', 'no'];
         } else {
-          return ['VAAPI:copy=0', 'CUDA:copy=0', 'dav1d', 'FFmpeg'];
+          return ['vaapi', 'nvdec', 'auto-safe', 'no'];
         }
     }
   }
 
-  /// Returns the buffer string in MDK format: `duration_ms+packet_count`
-  static String getEffectiveBufferString() {
-    if (bufferPreset.value == BufferResiliencePreset.custom) {
-      return '${customBufferMs.value}+${customBufferCount.value}';
-    }
-    return '${bufferPreset.value.durationMs}+${bufferPreset.value.packetCount}';
+  /// Returns a configured [PlayerConfiguration] for constructing a media_kit [Player].
+  static PlayerConfiguration getMediaKitPlayerConfiguration() {
+    return PlayerConfiguration(
+      libass: true,
+      libassAndroidFont: 'assets/fonts/Poppins-Medium.ttf',
+      libassAndroidFontName: 'Poppins',
+      bufferSize: getEffectiveMaxBytes(),
+      logLevel: MPVLogLevel.warn,
+    );
   }
 
-  /// Generates the options map for `fvp.registerWith(options: ...)`
-  static Map<String, dynamic> getFvpRegisterOptions() {
-    final decoders = getEffectiveDecoders();
-    final bufferStr = getEffectiveBufferString();
-
-    return {
-      'platforms': ['windows', 'linux', 'macos', 'android', 'ios'],
-      'video.decoders': decoders,
-      'lowLatency': lowLatency.value ? 1 : 0,
-      'demux.format.allowed_extensions': 'ALL',
-      'demux.format.protocol_whitelist': 'file,http,https,tcp,tls,crypto,data',
-      'subtitleFontFile': 'assets/subfont.ttf',
-      'player': {
-        'sub-ass-override': 'scale',
-        'sub-font-size': '32',
-        'sub-scale': '1.0',
-        'buffer': bufferStr,
-        if (enableNetworkReconnect.value) ...{
-          'avformat.reconnect': '1',
-          'avformat.reconnect_streamed': '1',
-          'avformat.reconnect_delay_max': reconnectDelayMax.value.toString(),
-        },
-        if (hardwareAudioClock.value) 'sync': 'audio',
-      },
-    };
-  }
-
-  /// Applies all player engine properties to an active [VideoPlayerController] instance.
-  static void applyToController(VideoPlayerController controller) {
+  /// Applies all mpv properties, decoders, caching, network reconnect, audio sync,
+  /// and libass subtitle styling options to a media_kit [Player] instance.
+  static void applyToPlayer(Player player) {
     try {
-      final bufferStr = getEffectiveBufferString();
-      controller.setProperty('buffer', bufferStr);
+      final dynamic platform = player.platform;
+      if (platform != null) {
+        // 1. Decoder configuration
+        if (forceSoftwareDecoding.value || decoderPreset.value == DecoderPreset.softwareSafe) {
+          platform.setProperty('hwdec', 'no');
+        } else {
+          switch (decoderPreset.value) {
+            case DecoderPreset.hardwareSafe:
+              platform.setProperty('hwdec', 'auto-copy');
+              break;
+            case DecoderPreset.nvidiaCuda:
+              platform.setProperty('hwdec', Platform.isWindows ? 'nvdec' : 'auto-safe');
+              break;
+            case DecoderPreset.custom:
+              final decoders = getEffectiveDecoders();
+              final first = decoders.isNotEmpty ? decoders.first : 'auto-safe';
+              platform.setProperty('hwdec', first);
+              break;
+            case DecoderPreset.hardwareAuto:
+            default:
+              platform.setProperty('hwdec', 'auto-safe');
+              break;
+          }
+        }
 
-      if (enableNetworkReconnect.value) {
-        controller.setProperty('avformat.reconnect', '1');
-        controller.setProperty('avformat.reconnect_streamed', '1');
-        controller.setProperty('avformat.reconnect_delay_max', reconnectDelayMax.value.toString());
-      }
+        // 2. Buffer & Cache Configuration
+        platform.setProperty('cache', 'yes');
+        platform.setProperty('demuxer-max-bytes', '${getEffectiveMaxBytes()}');
+        platform.setProperty('demuxer-max-back-bytes', '${getEffectiveMaxBackBytes()}');
+        platform.setProperty('cache-secs', '${getEffectiveCacheSecs()}');
+        platform.setProperty('demuxer-readahead-secs', '${getEffectiveCacheSecs()}');
 
-      if (hardwareAudioClock.value) {
-        controller.setProperty('sync', 'audio');
-      }
+        // 3. Network Reconnect
+        if (enableNetworkReconnect.value) {
+          platform.setProperty(
+            'stream-lavf-o',
+            'reconnect=1,reconnect_streamed=1,reconnect_delay_max=${reconnectDelayMax.value}',
+          );
+        }
+        platform.setProperty('network-timeout', '10');
+        platform.setProperty('tls-verify', 'no');
 
-      if (lowLatency.value) {
-        controller.setProperty('lowLatency', '1');
-      } else {
-        controller.setProperty('lowLatency', '0');
-      }
+        // 4. Audio Clock Sync
+        if (hardwareAudioClock.value) {
+          platform.setProperty('video-sync', 'audio');
+          platform.setProperty('autosync', '30');
+        }
 
-      if (audioDelayDefault.value != 0.0) {
-        controller.setProperty('audio-delay', audioDelayDefault.value.toString());
+        // 5. Low Latency
+        if (lowLatency.value) {
+          platform.setProperty('profile', 'low-latency');
+        }
+
+        // 6. Max volume boost limit (allow boosting up to 200%)
+        platform.setProperty('volume-max', '200');
+
+        // 7. Subtitle styling and Libass Font Fallback
+        applySubtitleStyling(player);
+
+        // 8. Default Audio Delay
+        if (audioDelayDefault.value != 0.0) {
+          platform.setProperty('audio-delay', audioDelayDefault.value.toString());
+        }
       }
     } catch (e) {
-      debugPrint('[PlayerSettings] applyToController warning: $e');
+      debugPrint('[PlayerSettings] applyToPlayer warning: $e');
     }
+  }
+
+  /// Live-applies all subtitle appearance properties directly to the underlying libmpv instance.
+  static Future<void> applySubtitleStyling(Player player) async {
+    try {
+      final dynamic platform = player.platform;
+      if (platform != null) {
+        // Ensure subtitle visibility and libass engine are activated in libmpv
+        await platform.setProperty('sub-visibility', 'yes');
+        await platform.setProperty('sub-ass', 'yes');
+
+        // Font paths
+        if (_extractedFontDir != null) {
+          await platform.setProperty('sub-fonts-dir', _extractedFontDir!);
+        }
+        if (_extractedFontPath != null) {
+          await platform.setProperty('sub-font-file', _extractedFontPath!);
+        }
+
+        // Font family
+        final font = (subFont.value.trim().isEmpty || subFont.value == 'subfont')
+            ? (Platform.isWindows ? 'Arial' : (Platform.isAndroid ? 'sans-serif' : 'Helvetica'))
+            : subFont.value.trim();
+        await platform.setProperty('sub-font', font);
+
+        // Typography
+        await platform.setProperty('sub-font-size', subFontSize.value.toString());
+        await platform.setProperty('sub-scale', subScale.value.toStringAsFixed(2));
+        await platform.setProperty('sub-bold', subBold.value ? 'yes' : 'no');
+        await platform.setProperty('sub-italic', subItalic.value ? 'yes' : 'no');
+
+        // Colors
+        await platform.setProperty('sub-color', _formatMpvColor(subColor.value));
+        await platform.setProperty('sub-back-color', _formatMpvColor(subBackColor.value));
+
+        // Borders & Outlines
+        await platform.setProperty('sub-border-color', _formatMpvColor(subBorderColor.value));
+        await platform.setProperty('sub-border-size', subBorderSize.value.toStringAsFixed(1));
+
+        // Shadows
+        await platform.setProperty('sub-shadow-offset', subShadowOffset.value.toStringAsFixed(1));
+        await platform.setProperty('sub-shadow-color', _formatMpvColor(subShadowColor.value));
+
+        // Positioning & Layout
+        await platform.setProperty('sub-margin-y', subMarginY.value.round().toString());
+        await platform.setProperty('sub-pos', subPos.value.round().toString());
+        await platform.setProperty('sub-align-x', subAlignX.value);
+
+        // ASS/SSA Script Preservation vs Override
+        await platform.setProperty('sub-ass-override', subAssOverride.value);
+        await platform.setProperty('sub-ass-force-margins', 'yes');
+        await platform.setProperty('sub-use-margins', 'yes');
+
+        // Force style string for ASS subtitles when override is active
+        if (subAssOverride.value != 'no') {
+          final assForceStyle = _buildAssForceStyleString(font);
+          if (assForceStyle.isNotEmpty) {
+            await platform.setProperty('sub-ass-force-style', assForceStyle);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[PlayerSettings] applySubtitleStyling error: $e');
+    }
+  }
+
+  /// Builds a reactive [SubtitleViewConfiguration] for Flutter's subtitle overlay widget.
+  static SubtitleViewConfiguration getSubtitleViewConfiguration() {
+    Color parseColor(String hex, {Color fallback = Colors.white}) {
+      var str = hex.replaceAll('#', '').trim();
+      if (str.length == 6) str = 'FF$str';
+      if (str.length == 8) {
+        final val = int.tryParse(str, radix: 16);
+        if (val != null) return Color(val);
+      }
+      return fallback;
+    }
+
+    final textColor = parseColor(subColor.value);
+    final boxColor = parseColor(subBackColor.value, fallback: Colors.transparent);
+    final borderColor = parseColor(subBorderColor.value, fallback: Colors.black);
+    final shadowColor = parseColor(subShadowColor.value, fallback: Colors.black54);
+
+    final font = subFont.value == 'subfont' ? 'Poppins' : subFont.value;
+    final align = subAlignX.value == 'left'
+        ? TextAlign.left
+        : (subAlignX.value == 'right' ? TextAlign.right : TextAlign.center);
+
+    final shadows = <Shadow>[];
+    if (subBorderSize.value > 0) {
+      final b = subBorderSize.value;
+      shadows.addAll([
+        Shadow(color: borderColor, offset: Offset(-b * 0.7, -b * 0.7)),
+        Shadow(color: borderColor, offset: Offset(b * 0.7, -b * 0.7)),
+        Shadow(color: borderColor, offset: Offset(b * 0.7, b * 0.7)),
+        Shadow(color: borderColor, offset: Offset(-b * 0.7, b * 0.7)),
+      ]);
+    }
+    if (subShadowOffset.value > 0) {
+      shadows.add(
+        Shadow(
+          color: shadowColor,
+          offset: Offset(subShadowOffset.value, subShadowOffset.value),
+          blurRadius: 2.0,
+        ),
+      );
+    }
+
+    return SubtitleViewConfiguration(
+      visible: true,
+      textAlign: align,
+      padding: EdgeInsets.fromLTRB(
+        subAlignX.value == 'left' ? 32 : 16,
+        0,
+        subAlignX.value == 'right' ? 32 : 16,
+        subMarginY.value.clamp(8.0, 300.0),
+      ),
+      style: TextStyle(
+        fontFamily: font,
+        fontSize: (subFontSize.value * subScale.value).clamp(12.0, 96.0),
+        fontWeight: subBold.value ? FontWeight.bold : FontWeight.w600,
+        fontStyle: subItalic.value ? FontStyle.italic : FontStyle.normal,
+        color: textColor,
+        backgroundColor: boxColor,
+        shadows: shadows.isNotEmpty ? shadows : null,
+      ),
+    );
+  }
+
+  static String _formatMpvColor(String hex) {
+    var str = hex.replaceAll('#', '').trim().toUpperCase();
+    if (str.length == 6) {
+      return '#FF$str';
+    }
+    if (str.length == 8) {
+      return '#$str';
+    }
+    return '#FFFFFFFF';
+  }
+
+  static String _buildAssForceStyleString(String font) {
+    try {
+      final isBoxed = subBackColor.value != '#00000000' && !subBackColor.value.startsWith('#00');
+      final borderStyle = isBoxed ? 3 : 1;
+      final primaryColour = _toAssColor(subColor.value);
+      final outlineColour = _toAssColor(subBorderColor.value);
+      final backColour = _toAssColor(isBoxed ? subBackColor.value : subShadowColor.value);
+
+      final size = (subFontSize.value * subScale.value).round();
+      final bold = subBold.value ? 1 : 0;
+      final italic = subItalic.value ? 1 : 0;
+      final outline = subBorderSize.value.toStringAsFixed(1);
+      final shadow = subShadowOffset.value.toStringAsFixed(1);
+      final marginV = subMarginY.value.round();
+
+      return 'Fontname=$font,Fontsize=$size,PrimaryColour=$primaryColour,BackColour=$backColour,OutlineColour=$outlineColour,Bold=$bold,Italic=$italic,BorderStyle=$borderStyle,Outline=$outline,Shadow=$shadow,MarginV=$marginV';
+    } catch (e) {
+      debugPrint('[_buildAssForceStyleString] error: $e');
+      return '';
+    }
+  }
+
+  static String _toAssColor(String hex) {
+    var str = hex.replaceAll('#', '').trim().toUpperCase();
+    if (str.length == 6) {
+      str = 'FF$str';
+    }
+    if (str.length != 8) return '&H00FFFFFF';
+
+    final alpha = int.tryParse(str.substring(0, 2), radix: 16) ?? 255;
+    final r = str.substring(2, 4);
+    final g = str.substring(4, 6);
+    final b = str.substring(6, 8);
+
+    // Invert alpha for ASS (00 = opaque, FF = transparent)
+    final assAlpha = (255 - alpha).toRadixString(16).padLeft(2, '0').toUpperCase();
+
+    return '&H$assAlpha$b$g$r';
+  }
+
+  /// Backward compatible stub for any controller calls
+  static void applyToController(dynamic controller) {
+    // No-op for media_kit
   }
 
   // ───────────────────────────────────────────────────────────────────────────
@@ -369,6 +743,190 @@ abstract final class PlayerSettings {
     _notify();
   }
 
+  // ── Subtitle Customization Setters ──
+
+  static Future<void> setSubStylePreset(SubtitleStylePreset preset, {Player? player}) async {
+    subStylePreset.value = preset;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySubStylePreset, preset.name);
+
+    if (preset != SubtitleStylePreset.custom) {
+      await setSubColor(preset.textColor, notify: false);
+      await setSubBackColor(preset.backColor, notify: false);
+      await setSubBorderColor(preset.borderColor, notify: false);
+      await setSubBorderSize(preset.borderSize, notify: false);
+      await setSubShadowOffset(preset.shadowOffset, notify: false);
+      await setSubShadowColor(preset.shadowColor, notify: false);
+      await setSubBold(preset.bold, notify: false);
+      await setSubItalic(preset.italic, notify: false);
+    }
+
+    if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
+  static Future<void> setSubFont(String font, {Player? player}) async {
+    subFont.value = font;
+    subStylePreset.value = SubtitleStylePreset.custom;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySubFont, font);
+    await prefs.setString(_keySubStylePreset, SubtitleStylePreset.custom.name);
+    if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
+  static Future<void> setSubFontSize(int size, {Player? player}) async {
+    subFontSize.value = size.clamp(14, 80);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keySubFontSize, subFontSize.value);
+    if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
+  static Future<void> setSubScale(double scale, {Player? player}) async {
+    subScale.value = (scale.clamp(0.5, 3.0) * 100).round() / 100.0;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keySubScale, subScale.value);
+    if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
+  static Future<void> setSubColor(String hex, {bool notify = true, Player? player}) async {
+    subColor.value = hex;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySubColor, hex);
+    if (player != null) applySubtitleStyling(player);
+    if (notify) _notify();
+  }
+
+  static Future<void> setSubBackColor(String hex, {bool notify = true, Player? player}) async {
+    subBackColor.value = hex;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySubBackColor, hex);
+    if (player != null) applySubtitleStyling(player);
+    if (notify) _notify();
+  }
+
+  static Future<void> setSubBorderColor(String hex, {bool notify = true, Player? player}) async {
+    subBorderColor.value = hex;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySubBorderColor, hex);
+    if (player != null) applySubtitleStyling(player);
+    if (notify) _notify();
+  }
+
+  static Future<void> setSubBorderSize(double size, {bool notify = true, Player? player}) async {
+    subBorderSize.value = size.clamp(0.0, 8.0);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keySubBorderSize, subBorderSize.value);
+    if (player != null) applySubtitleStyling(player);
+    if (notify) _notify();
+  }
+
+  static Future<void> setSubShadowOffset(double offset, {bool notify = true, Player? player}) async {
+    subShadowOffset.value = offset.clamp(0.0, 8.0);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keySubShadowOffset, subShadowOffset.value);
+    if (player != null) applySubtitleStyling(player);
+    if (notify) _notify();
+  }
+
+  static Future<void> setSubShadowColor(String hex, {bool notify = true, Player? player}) async {
+    subShadowColor.value = hex;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySubShadowColor, hex);
+    if (player != null) applySubtitleStyling(player);
+    if (notify) _notify();
+  }
+
+  static Future<void> setSubBold(bool val, {bool notify = true, Player? player}) async {
+    subBold.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keySubBold, val);
+    if (player != null) applySubtitleStyling(player);
+    if (notify) _notify();
+  }
+
+  static Future<void> setSubItalic(bool val, {bool notify = true, Player? player}) async {
+    subItalic.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keySubItalic, val);
+    if (player != null) applySubtitleStyling(player);
+    if (notify) _notify();
+  }
+
+  static Future<void> setSubMarginY(double val, {Player? player}) async {
+    subMarginY.value = val.clamp(0.0, 200.0);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keySubMarginY, subMarginY.value);
+    if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
+  static Future<void> setSubPos(double val, {Player? player}) async {
+    subPos.value = val.clamp(0.0, 100.0);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_keySubPos, subPos.value);
+    if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
+  static Future<void> setSubAlignX(String val, {Player? player}) async {
+    subAlignX.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySubAlignX, val);
+    if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
+  static Future<void> setSubAssOverride(String val, {Player? player}) async {
+    subAssOverride.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keySubAssOverride, val);
+    if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
+  static Future<void> resetSubtitleDefaults({Player? player}) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keySubStylePreset);
+    await prefs.remove(_keySubFont);
+    await prefs.remove(_keySubFontSize);
+    await prefs.remove(_keySubScale);
+    await prefs.remove(_keySubColor);
+    await prefs.remove(_keySubBackColor);
+    await prefs.remove(_keySubBorderColor);
+    await prefs.remove(_keySubBorderSize);
+    await prefs.remove(_keySubShadowOffset);
+    await prefs.remove(_keySubShadowColor);
+    await prefs.remove(_keySubBold);
+    await prefs.remove(_keySubItalic);
+    await prefs.remove(_keySubMarginY);
+    await prefs.remove(_keySubPos);
+    await prefs.remove(_keySubAlignX);
+    await prefs.remove(_keySubAssOverride);
+
+    subStylePreset.value = SubtitleStylePreset.classicWhite;
+    subFont.value = 'subfont';
+    subFontSize.value = 32;
+    subScale.value = 1.0;
+    subColor.value = '#FFFFFFFF';
+    subBackColor.value = '#00000000';
+    subBorderColor.value = '#FF000000';
+    subBorderSize.value = 2.0;
+    subShadowOffset.value = 0.0;
+    subShadowColor.value = '#80000000';
+    subBold.value = false;
+    subItalic.value = false;
+    subMarginY.value = 30.0;
+    subPos.value = 100.0;
+    subAlignX.value = 'center';
+    subAssOverride.value = 'no';
+
+    if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
   static Future<void> resetToDefaults() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyDecoderPreset);
@@ -399,6 +957,7 @@ abstract final class PlayerSettings {
     audioDelayDefault.value = 0.0;
     customDecoders.value = _getDefaultDecodersForPreset(DecoderPreset.hardwareAuto);
 
+    await resetSubtitleDefaults();
     _notify();
   }
 

@@ -1,13 +1,17 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../models/iptv/iptv_models.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/player/player_settings.dart';
+import '../../services/window/window_service.dart';
+import '../../widgets/player/player_aspect_menu.dart';
 
 class IptvPlayerPage extends StatefulWidget {
   final HardcodedChannel channel;
@@ -31,9 +35,18 @@ class IptvPlayerPage extends StatefulWidget {
 
 class _IptvPlayerPageState extends State<IptvPlayerPage>
     with SingleTickerProviderStateMixin {
-  VideoPlayerController? _controller;
+  late final Player _player = Player(configuration: PlayerSettings.getMediaKitPlayerConfiguration());
+  late final VideoController _videoController = VideoController(_player);
+  final List<StreamSubscription> _subscriptions = [];
+
   late int _activeHitIndex;
   bool _isLoading = true;
+  bool _isPlaying = false;
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  final ValueNotifier<Duration> _positionNotifier = ValueNotifier<Duration>(Duration.zero);
+  final ValueNotifier<Duration?> _bufferedNotifier = ValueNotifier<Duration?>(null);
+
   String _statusMessage = 'Connecting to stream…';
   bool _showControls = true;
   bool _showSourcesDrawer = false;
@@ -42,6 +55,10 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
   late final ScrollController _sourcesScrollController;
 
   BoxFit _videoFit = BoxFit.contain;
+  bool _showAspectMenu = false;
+  bool _showAspectHud = false;
+  String _aspectHudText = '';
+  Timer? _aspectHudTimer;
   double _volume = 1.0;
   bool _isMuted = false;
   bool _showVolumeHud = false;
@@ -84,6 +101,28 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
       DeviceOrientation.landscapeRight,
     ]);
 
+    PlayerSettings.applyToPlayer(_player);
+    PlayerSettings.changeNotifier.addListener(_onPlayerSettingsChanged);
+
+    _subscriptions.addAll([
+      _player.stream.playing.listen((playing) {
+        if (mounted && _isPlaying != playing) setState(() => _isPlaying = playing);
+      }),
+      _player.stream.position.listen((pos) {
+        _position = pos;
+        _positionNotifier.value = pos;
+      }),
+      _player.stream.duration.listen((dur) {
+        if (mounted && _duration != dur) setState(() => _duration = dur);
+      }),
+      _player.stream.buffer.listen((buf) {
+        _bufferedNotifier.value = buf;
+      }),
+      _player.stream.error.listen((error) {
+        debugPrint('[IPTV Player Error] $error');
+      }),
+    ]);
+
     _initPlayer();
     if (_isLiveStream) {
       _startWatchdog();
@@ -92,15 +131,29 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
 
   @override
   void dispose() {
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    PlayerSettings.changeNotifier.removeListener(_onPlayerSettingsChanged);
     WakelockPlus.disable();
     _hideControlsTimer?.cancel();
     _watchdogTimer?.cancel();
     _volumeHudTimer?.cancel();
+    _aspectHudTimer?.cancel();
     _sourcesScrollController.dispose();
-    _controller?.dispose();
+    _positionNotifier.dispose();
+    _bufferedNotifier.dispose();
+    _player.dispose();
+    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+      WindowService.instance.exitFullscreen();
+    }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
     super.dispose();
+  }
+
+  void _onPlayerSettingsChanged() {
+    PlayerSettings.applyToPlayer(_player);
   }
 
   Future<void> _initPlayer() async {
@@ -121,24 +174,22 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
     });
 
     try {
-      await _controller?.dispose();
-      _controller = null;
+      PlayerSettings.applyToPlayer(_player);
 
-      final cleanUri = Uri.parse(streamUrl);
-      _controller = VideoPlayerController.networkUrl(
-        cleanUri,
-        httpHeaders: const {
-          'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
-          'Accept': '*/*',
-          'Connection': 'keep-alive',
-        },
+      await _player.open(
+        Media(
+          streamUrl,
+          httpHeaders: const {
+            'User-Agent': 'VLC/3.0.20 LibVLC/3.0.20',
+            'Accept': '*/*',
+            'Connection': 'keep-alive',
+          },
+        ),
+        play: true,
       );
 
-      PlayerSettings.applyToController(_controller!);
-      await _controller!.initialize();
-      PlayerSettings.applyToController(_controller!);
-      await _controller!.setVolume(_isMuted ? 0.0 : _volume);
-      await _controller!.play();
+      PlayerSettings.applyToPlayer(_player);
+      _player.setVolume(_isMuted ? 0.0 : _volume * 100.0);
 
       if (!mounted) return;
       setState(() {
@@ -198,12 +249,10 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
   void _startWatchdog() {
     _watchdogTimer?.cancel();
     _watchdogTimer = Timer.periodic(const Duration(seconds: 3), (_) {
-      if (!mounted || _controller == null || !_controller!.value.isInitialized) {
-        return;
-      }
+      if (!mounted) return;
 
-      final isPlaying = _controller!.value.isPlaying;
-      final currentPos = _controller!.value.position;
+      final isPlaying = _isPlaying;
+      final currentPos = _position;
 
       if (isPlaying && currentPos != _lastPosition) {
         _lastPosition = currentPos;
@@ -231,46 +280,68 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
   }
 
   void _toggleControls() {
+    if (_showAspectMenu) {
+      setState(() => _showAspectMenu = false);
+      return;
+    }
     setState(() {
       _showControls = !_showControls;
-      if (!_showControls) _showSourcesDrawer = false;
+      if (!_showControls) {
+        _showSourcesDrawer = false;
+        _showAspectMenu = false;
+      }
     });
     if (_showControls) _startHideControlsTimer();
   }
 
-  void _cycleVideoFit() {
+  void _setVideoFit(BoxFit fit) {
     setState(() {
-      if (_videoFit == BoxFit.contain) {
-        _videoFit = BoxFit.cover;
-      } else if (_videoFit == BoxFit.cover) {
-        _videoFit = BoxFit.fill;
-      } else {
-        _videoFit = BoxFit.contain;
-      }
+      _videoFit = fit;
+      _aspectHudText = _fitLabel(fit);
+      _showAspectHud = true;
+      _showAspectMenu = false;
     });
+    _aspectHudTimer?.cancel();
+    _aspectHudTimer = Timer(const Duration(milliseconds: 1600), () {
+      if (mounted) setState(() => _showAspectHud = false);
+    });
+    _startHideControlsTimer();
+  }
+
+  String _fitLabel(BoxFit fit) {
+    switch (fit) {
+      case BoxFit.contain:
+        return 'ASPECT: FIT (CONTAIN)';
+      case BoxFit.cover:
+        return 'ASPECT: FILL (ZOOM / CROP)';
+      case BoxFit.fill:
+        return 'ASPECT: STRETCH (FILL)';
+      default:
+        return 'ASPECT: ${fit.name.toUpperCase()}';
+    }
+  }
+
+  void _cycleVideoFit() {
+    final nextFit = _videoFit == BoxFit.contain
+        ? BoxFit.cover
+        : (_videoFit == BoxFit.cover ? BoxFit.fill : BoxFit.contain);
+    _setVideoFit(nextFit);
   }
 
   void _seekRelative(int seconds) {
-    if (_controller == null || !_controller!.value.isInitialized || _isLiveStream) return;
-    final cur = _controller!.value.position;
-    final max = _controller!.value.duration;
+    if (_isLiveStream) return;
+    final cur = _position;
+    final max = _duration;
     final target = cur + Duration(seconds: seconds);
     final clamped = target < Duration.zero
         ? Duration.zero
         : (target > max ? max : target);
-    _controller!.seekTo(clamped);
+    _player.seek(clamped);
     _startHideControlsTimer();
-    setState(() {});
   }
 
   void _togglePlayPause() {
-    if (_controller == null || !_controller!.value.isInitialized) return;
-    if (_controller!.value.isPlaying) {
-      _controller!.pause();
-    } else {
-      _controller!.play();
-    }
-    setState(() {});
+    _player.playOrPause();
     _startHideControlsTimer();
   }
 
@@ -285,7 +356,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
       } else if (_isMuted) {
         _isMuted = false;
       }
-      _controller?.setVolume(_isMuted ? 0.0 : _volume);
+      _player.setVolume(_isMuted ? 0.0 : _volume * 100.0);
       _showVolumeHud = true;
     });
     _volumeHudTimer?.cancel();
@@ -301,7 +372,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
       if (!_isMuted && _volume == 0) {
         _volume = 0.5;
       }
-      _controller?.setVolume(_isMuted ? 0.0 : _volume);
+      _player.setVolume(_isMuted ? 0.0 : _volume * 100.0);
       _showVolumeHud = true;
     });
     _volumeHudTimer?.cancel();
@@ -357,8 +428,18 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
             _cycleVideoFit();
             _startHideControlsTimer();
             return KeyEventResult.handled;
+          } else if (event.logicalKey == LogicalKeyboardKey.f11) {
+            if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+              WindowService.instance.toggleFullscreen();
+            }
+            return KeyEventResult.handled;
           } else if (event.logicalKey == LogicalKeyboardKey.escape) {
-            Navigator.pop(context);
+            if ((Platform.isWindows || Platform.isLinux || Platform.isMacOS) &&
+                WindowService.instance.isFullscreen) {
+              WindowService.instance.exitFullscreen();
+            } else {
+              Navigator.pop(context);
+            }
             return KeyEventResult.handled;
           }
         }
@@ -379,22 +460,32 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _toggleControls,
+            onDoubleTap: () {
+              if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+                WindowService.instance.toggleFullscreen();
+              }
+            },
             child: Stack(
               fit: StackFit.expand,
               children: [
                 // Video Surface
-                if (_controller != null && _controller!.value.isInitialized)
+                if (!_isLoading)
                   Center(
-                    child: FittedBox(
-                      fit: _videoFit,
-                      child: SizedBox(
-                        width: _controller!.value.size.width,
-                        height: _controller!.value.size.height,
-                        child: VideoPlayer(_controller!),
+                    child: SizedBox.expand(
+                      child: ValueListenableBuilder<int>(
+                        valueListenable: PlayerSettings.changeNotifier,
+                        builder: (context, _, __) {
+                          return Video(
+                            controller: _videoController,
+                            fit: _videoFit,
+                            controls: NoVideoControls,
+                            subtitleViewConfiguration: PlayerSettings.getSubtitleViewConfiguration(),
+                          );
+                        },
                       ),
                     ),
                   )
-                else if (!_isLoading)
+                else
                   Center(
                     child: Text(
                       _statusMessage,
@@ -488,6 +579,44 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
                                 fontSize: 14,
                                 fontWeight: FontWeight.w900,
                                 fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                // Aspect Ratio HUD Overlay (when changing aspect ratio)
+                if (_showAspectHud)
+                  IgnorePointer(
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: const Color(0xE60D101A),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.6), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF7C5CFF).withValues(alpha: 0.3),
+                              blurRadius: 20,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.aspect_ratio_rounded, color: Color(0xFF00D2EF), size: 26),
+                            const SizedBox(width: 12),
+                            Text(
+                              _aspectHudText,
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w800,
+                                letterSpacing: 0.5,
                               ),
                             ),
                           ],
@@ -595,6 +724,23 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
                                         : 'Alternative Feeds',
                                     onPressed: _openSourcesDrawer,
                                   ),
+                                if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) ...[
+                                  const SizedBox(width: 4),
+                                  ValueListenableBuilder<bool>(
+                                    valueListenable: WindowService.instance.isFullscreenNotifier,
+                                    builder: (context, isFullscreen, _) {
+                                      return IconButton(
+                                        icon: Icon(
+                                          isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                                          color: Colors.white,
+                                          size: 24,
+                                        ),
+                                        tooltip: isFullscreen ? 'Exit Fullscreen (F11)' : 'Fullscreen (F11)',
+                                        onPressed: () => WindowService.instance.toggleFullscreen(),
+                                      );
+                                    },
+                                  ),
+                                ],
                               ],
                             ),
                           ),
@@ -618,9 +764,12 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 // ── SEEKBAR (ONLY FOR MOVIES & SHOWS / VOD) ──
-                                if (!isLive && _controller != null && _controller!.value.isInitialized) ...[
+                                if (!isLive) ...[
                                   _IptvCustomProgressBar(
-                                    controller: _controller!,
+                                    player: _player,
+                                    positionNotifier: _positionNotifier,
+                                    duration: _duration,
+                                    bufferedNotifier: _bufferedNotifier,
                                     onSeekStart: () => _hideControlsTimer?.cancel(),
                                     onSeekEnd: () => _startHideControlsTimer(),
                                   ),
@@ -633,7 +782,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
                                     // Play / Pause
                                     IconButton(
                                       icon: Icon(
-                                        _controller != null && _controller!.value.isPlaying
+                                        _isPlaying
                                             ? Icons.pause_rounded
                                             : Icons.play_arrow_rounded,
                                         color: Colors.white,
@@ -642,7 +791,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
                                       onPressed: _togglePlayPause,
                                     ),
 
-                                    if (!isLive && _controller != null && _controller!.value.isInitialized) ...[
+                                    if (!isLive) ...[
                                       const SizedBox(width: 4),
                                       // Replay -10s
                                       IconButton(
@@ -658,11 +807,11 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
                                       ),
                                       const SizedBox(width: 8),
                                       // Position / Duration Readout
-                                      ValueListenableBuilder<VideoPlayerValue>(
-                                        valueListenable: _controller!,
-                                        builder: (context, value, _) {
+                                      ValueListenableBuilder<Duration>(
+                                        valueListenable: _positionNotifier,
+                                        builder: (context, pos, _) {
                                           return Text(
-                                            '${_formatDuration(value.position)} / ${_formatDuration(value.duration)}',
+                                            '${_formatDuration(pos)} / ${_formatDuration(_duration)}',
                                             style: const TextStyle(
                                               color: Colors.white70,
                                               fontSize: 12.5,
@@ -710,7 +859,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
                                                 setState(() {
                                                   _volume = val;
                                                   _isMuted = val == 0.0;
-                                                  _controller?.setVolume(val);
+                                                  _player.setVolume(_isMuted ? 0.0 : val * 100.0);
                                                   _showVolumeHud = true;
                                                 });
                                                 _volumeHudTimer?.cancel();
@@ -737,31 +886,76 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
 
                                     const Spacer(),
 
-                                    // Fit label
-                                    MouseRegion(
-                                      cursor: SystemMouseCursors.click,
-                                      child: GestureDetector(
-                                        onTap: _cycleVideoFit,
-                                        child: Tooltip(
-                                          message: 'Cycle Aspect Ratio (F)',
-                                          child: Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                            decoration: BoxDecoration(
-                                              color: Colors.white.withValues(alpha: 0.15),
-                                              borderRadius: BorderRadius.circular(6),
+                                    // Aspect Ratio Selector / Popover Button
+                                    Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: () {
+                                          setState(() {
+                                            _showAspectMenu = !_showAspectMenu;
+                                            _showSourcesDrawer = false;
+                                          });
+                                          if (_showAspectMenu) {
+                                            _hideControlsTimer?.cancel();
+                                          } else {
+                                            _startHideControlsTimer();
+                                          }
+                                        },
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                                          decoration: BoxDecoration(
+                                            color: _showAspectMenu
+                                                ? const Color(0xFF7C5CFF).withValues(alpha: 0.3)
+                                                : Colors.white.withValues(alpha: 0.12),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: _showAspectMenu
+                                                  ? const Color(0xFF7C5CFF).withValues(alpha: 0.6)
+                                                  : Colors.white.withValues(alpha: 0.15),
+                                              width: 1,
                                             ),
-                                            child: Text(
-                                              _videoFit.name.toUpperCase(),
-                                              style: const TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w700,
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(Icons.aspect_ratio_rounded, color: Colors.white, size: 16),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                _videoFit == BoxFit.contain
+                                                    ? 'FIT'
+                                                    : (_videoFit == BoxFit.cover ? 'ZOOM' : 'STRETCH'),
+                                                style: const TextStyle(
+                                                  color: Colors.white,
+                                                  fontSize: 11,
+                                                  fontWeight: FontWeight.w700,
+                                                  letterSpacing: 0.4,
+                                                ),
                                               ),
-                                            ),
+                                            ],
                                           ),
                                         ),
                                       ),
                                     ),
+
+                                    // Fullscreen toggle on desktop
+                                    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) ...[
+                                      const SizedBox(width: 8),
+                                      ValueListenableBuilder<bool>(
+                                        valueListenable: WindowService.instance.isFullscreenNotifier,
+                                        builder: (context, isFullscreen, _) {
+                                          return IconButton(
+                                            icon: Icon(
+                                              isFullscreen ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
+                                            tooltip: isFullscreen ? 'Exit Fullscreen (F11)' : 'Fullscreen (F11)',
+                                            onPressed: () => WindowService.instance.toggleFullscreen(),
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   ],
                                 ),
                               ],
@@ -772,6 +966,22 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
                     ),
                   ),
                 ),
+
+                // Floating Aspect Ratio Popover
+                if (_showAspectMenu)
+                  Positioned(
+                    bottom: 74,
+                    right: 20,
+                    child: PlayerAspectMenu(
+                      currentFit: _videoFit,
+                      subtitleScale: PlayerSettings.subScale.value,
+                      onFitSelected: (fit) => _setVideoFit(fit),
+                      onSubtitleScaleChanged: (scale) {
+                        PlayerSettings.setSubScale(scale, player: _player);
+                      },
+                      onClose: () => setState(() => _showAspectMenu = false),
+                    ),
+                  ),
 
                 // Channels / Feeds Side Drawer
                 if (_showSourcesDrawer)
@@ -993,12 +1203,18 @@ String _formatDuration(Duration duration) {
 }
 
 class _IptvCustomProgressBar extends StatefulWidget {
-  final VideoPlayerController controller;
+  final Player player;
+  final ValueNotifier<Duration> positionNotifier;
+  final Duration duration;
+  final ValueNotifier<Duration?> bufferedNotifier;
   final VoidCallback? onSeekStart;
   final VoidCallback? onSeekEnd;
 
   const _IptvCustomProgressBar({
-    required this.controller,
+    required this.player,
+    required this.positionNotifier,
+    required this.duration,
+    required this.bufferedNotifier,
     this.onSeekStart,
     this.onSeekEnd,
   });
@@ -1016,172 +1232,174 @@ class _IptvCustomProgressBarState extends State<_IptvCustomProgressBar> {
     if (width <= 0 || totalDuration <= Duration.zero) return;
     final percent = (x / width).clamp(0.0, 1.0);
     final position = totalDuration * percent;
-    widget.controller.seekTo(position);
+    widget.player.seek(position);
   }
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<VideoPlayerValue>(
-      valueListenable: widget.controller,
-      builder: (context, VideoPlayerValue value, child) {
-        final duration = value.duration;
-        final position = _isDragging
-            ? (_dragPosition ?? value.position)
-            : value.position;
-        final buffered = value.buffered;
+    final duration = widget.duration;
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            final width = constraints.maxWidth;
+    return ValueListenableBuilder<Duration>(
+      valueListenable: widget.positionNotifier,
+      builder: (context, livePosition, _) {
+        final position = _isDragging ? (_dragPosition ?? livePosition) : livePosition;
 
-            return MouseRegion(
-              cursor: SystemMouseCursors.click,
-              onHover: (event) {
-                setState(() {
-                  _hoverX = event.localPosition.dx.clamp(0.0, width);
-                });
-              },
-              onExit: (event) {
-                setState(() {
-                  _hoverX = null;
-                });
-              },
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onHorizontalDragStart: (details) {
-                  widget.onSeekStart?.call();
-                  setState(() {
-                    _isDragging = true;
-                    _hoverX = details.localPosition.dx.clamp(0.0, width);
-                    if (duration > Duration.zero) {
-                      _dragPosition = duration * (_hoverX! / width);
-                    }
-                  });
-                },
-                onHorizontalDragUpdate: (details) {
-                  setState(() {
-                    _hoverX = details.localPosition.dx.clamp(0.0, width);
-                    if (duration > Duration.zero) {
-                      _dragPosition = duration * (_hoverX! / width);
-                    }
-                  });
-                },
-                onHorizontalDragEnd: (details) {
-                  if (_dragPosition != null) {
-                    widget.controller.seekTo(_dragPosition!);
-                  }
-                  setState(() {
-                    _isDragging = false;
-                    _dragPosition = null;
-                  });
-                  widget.onSeekEnd?.call();
-                },
-                onTapDown: (details) {
-                  _seekTo(details.localPosition.dx, width, duration);
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Stack(
-                    clipBehavior: Clip.none,
-                    alignment: Alignment.centerLeft,
-                    children: [
-                      // Invisible hit target
-                      Container(
-                        height: 24,
-                        width: double.infinity,
-                        color: Colors.transparent,
-                      ),
+        return ValueListenableBuilder<Duration?>(
+          valueListenable: widget.bufferedNotifier,
+          builder: (context, bufferedDuration, _) {
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final width = constraints.maxWidth;
 
-                      // Background Bar
-                      Container(
-                        height: 5,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.white24,
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-
-                      // Buffered Bar
-                      for (final range in buffered)
-                        if (duration.inMilliseconds > 0)
-                          Positioned(
-                            left: (width * (range.start.inMilliseconds / duration.inMilliseconds)).clamp(0.0, width),
-                            child: Container(
-                              height: 5,
-                              width: (width * ((range.end.inMilliseconds - range.start.inMilliseconds) / duration.inMilliseconds)).clamp(0.0, width),
-                              decoration: BoxDecoration(
-                                color: Colors.white38,
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
+                return MouseRegion(
+                  cursor: SystemMouseCursors.click,
+                  onHover: (event) {
+                    setState(() {
+                      _hoverX = event.localPosition.dx.clamp(0.0, width);
+                    });
+                  },
+                  onExit: (event) {
+                    setState(() {
+                      _hoverX = null;
+                    });
+                  },
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onHorizontalDragStart: (details) {
+                      widget.onSeekStart?.call();
+                      setState(() {
+                        _isDragging = true;
+                        _hoverX = details.localPosition.dx.clamp(0.0, width);
+                        if (duration > Duration.zero) {
+                          _dragPosition = duration * (_hoverX! / width);
+                        }
+                      });
+                    },
+                    onHorizontalDragUpdate: (details) {
+                      setState(() {
+                        _hoverX = details.localPosition.dx.clamp(0.0, width);
+                        if (duration > Duration.zero) {
+                          _dragPosition = duration * (_hoverX! / width);
+                        }
+                      });
+                    },
+                    onHorizontalDragEnd: (details) {
+                      if (_dragPosition != null) {
+                        widget.player.seek(_dragPosition!);
+                      }
+                      setState(() {
+                        _isDragging = false;
+                        _dragPosition = null;
+                      });
+                      widget.onSeekEnd?.call();
+                    },
+                    onTapDown: (details) {
+                      _seekTo(details.localPosition.dx, width, duration);
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      child: Stack(
+                        clipBehavior: Clip.none,
+                        alignment: Alignment.centerLeft,
+                        children: [
+                          // Invisible hit target
+                          Container(
+                            height: 24,
+                            width: double.infinity,
+                            color: Colors.transparent,
                           ),
 
-                      // Played Bar
-                      Container(
-                        height: 5,
-                        width: duration.inMilliseconds > 0
-                            ? (width * (position.inMilliseconds / duration.inMilliseconds)).clamp(0.0, width)
-                            : 0,
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0xFF7C5CFF), Color(0xFF00D2EF)],
-                          ),
-                          borderRadius: BorderRadius.circular(3),
-                        ),
-                      ),
-
-                      // Scrubber Handle
-                      Positioned(
-                        left: duration.inMilliseconds > 0
-                            ? (width * (position.inMilliseconds / duration.inMilliseconds)).clamp(0.0, width) - 7
-                            : -7,
-                        child: Container(
-                          width: 14,
-                          height: 14,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: const Color(0xFF7C5CFF).withValues(alpha: 0.5),
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      // Hover Tooltip
-                      if (_hoverX != null && duration > Duration.zero)
-                        Positioned(
-                          left: (_hoverX! - 30).clamp(0.0, width - 60),
-                          bottom: 20,
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                          // Background Bar
+                          Container(
+                            height: 5,
+                            width: double.infinity,
                             decoration: BoxDecoration(
-                              color: const Color(0xFF0C0E15),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: Colors.white24, width: 1),
-                              boxShadow: const [
-                                BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2)),
-                              ],
+                              color: Colors.white24,
+                              borderRadius: BorderRadius.circular(3),
                             ),
-                            child: Text(
-                              _formatDuration(duration * (_hoverX! / width)),
-                              style: const TextStyle(
+                          ),
+
+                          // Buffered Bar
+                          if (bufferedDuration != null && duration.inMilliseconds > 0)
+                            Positioned(
+                              left: 0,
+                              child: Container(
+                                height: 5,
+                                width: (width * (bufferedDuration.inMilliseconds / duration.inMilliseconds)).clamp(0.0, width),
+                                decoration: BoxDecoration(
+                                  color: Colors.white38,
+                                  borderRadius: BorderRadius.circular(3),
+                                ),
+                              ),
+                            ),
+
+                          // Played Bar
+                          Container(
+                            height: 5,
+                            width: duration.inMilliseconds > 0
+                                ? (width * (position.inMilliseconds / duration.inMilliseconds)).clamp(0.0, width)
+                                : 0,
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF7C5CFF), Color(0xFF00D2EF)],
+                              ),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+
+                          // Scrubber Handle
+                          Positioned(
+                            left: duration.inMilliseconds > 0
+                                ? (width * (position.inMilliseconds / duration.inMilliseconds)).clamp(0.0, width) - 7
+                                : -7,
+                            child: Container(
+                              width: 14,
+                              height: 14,
+                              decoration: BoxDecoration(
                                 color: Colors.white,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w700,
-                                fontFamily: 'monospace',
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: const Color(0xFF7C5CFF).withValues(alpha: 0.5),
+                                    blurRadius: 6,
+                                  ),
+                                ],
                               ),
                             ),
                           ),
-                        ),
-                    ],
+
+                          // Hover Tooltip
+                          if (_hoverX != null && duration > Duration.zero)
+                            Positioned(
+                              left: (_hoverX! - 30).clamp(0.0, width - 60),
+                              bottom: 20,
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0C0E15),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: Colors.white24, width: 1),
+                                  boxShadow: const [
+                                    BoxShadow(color: Colors.black54, blurRadius: 4, offset: Offset(0, 2)),
+                                  ],
+                                ),
+                                child: Text(
+                                  _formatDuration(duration * (_hoverX! / width)),
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
-                ),
-              ),
+                );
+              },
             );
           },
         );

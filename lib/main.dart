@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'package:fvp/fvp.dart' as fvp;
+import 'package:media_kit/media_kit.dart';
 
 import 'package:window_manager/window_manager.dart';
 
@@ -38,6 +38,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
     await WindowService.instance.initialize();
@@ -45,7 +46,6 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await EnvService.initialize();
   await PlayerSettings.initialize();
-  fvp.registerWith(options: PlayerSettings.getFvpRegisterOptions());
   await Future.wait([
     AddonManager.instance.initialize(),
     AppThemeService.initialize(),
@@ -102,13 +102,6 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkForUpdates();
-    }
   }
 
   Future<void> _checkForUpdates() async {

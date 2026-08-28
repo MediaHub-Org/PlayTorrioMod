@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
 
 import '../../services/subtitles/subtitle_parser.dart';
 import '../../services/subtitles/subtitle_sync_helper.dart';
@@ -9,7 +9,7 @@ import 'player_glass.dart';
 
 /// Full-screen right-side floating drawer for dialogue speech following & subtitle sync.
 class TextSyncOverlay extends StatefulWidget {
-  final VideoPlayerController controller;
+  final Player player;
   final List<SubCue> initialCues;
   final double baseOffsetSec;
   final VoidCallback onClose;
@@ -17,7 +17,7 @@ class TextSyncOverlay extends StatefulWidget {
 
   const TextSyncOverlay({
     super.key,
-    required this.controller,
+    required this.player,
     required this.initialCues,
     this.baseOffsetSec = 0.0,
     required this.onClose,
@@ -59,13 +59,13 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
   void initState() {
     super.initState();
     _nudge = widget.baseOffsetSec;
-    _currentPositionSec = widget.controller.value.position.inMilliseconds / 1000.0;
-    _isPlaying = widget.controller.value.isPlaying;
+    _currentPositionSec = widget.player.state.position.inMilliseconds / 1000.0;
+    _isPlaying = widget.player.state.playing;
 
     _positionUpdateTimer = Timer.periodic(const Duration(milliseconds: 250), (_) {
       if (!mounted) return;
-      final posSec = widget.controller.value.position.inMilliseconds / 1000.0;
-      final isPl = widget.controller.value.isPlaying;
+      final posSec = widget.player.state.position.inMilliseconds / 1000.0;
+      final isPl = widget.player.state.playing;
 
       if ((posSec - _currentPositionSec).abs() > 0.05 || isPl != _isPlaying) {
         setState(() {
@@ -240,8 +240,8 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
   void _handleSeekTo(int cueIndex) {
     final cue = widget.initialCues[cueIndex];
     final targetSec = cue.start + _currentDelta;
-    final targetMs = (targetSec * 1000).round().clamp(0, widget.controller.value.duration.inMilliseconds);
-    widget.controller.seekTo(Duration(milliseconds: targetMs));
+    final targetMs = (targetSec * 1000).round().clamp(0, widget.player.state.duration.inMilliseconds);
+    widget.player.seek(Duration(milliseconds: targetMs));
   }
 
   void _handleNudge(double delta) {
@@ -896,10 +896,10 @@ class _TextSyncOverlayState extends State<TextSyncOverlay> {
                   onPressed: () {
                     setState(() {
                       if (_isPlaying) {
-                        widget.controller.pause();
+                        widget.player.pause();
                         _isPlaying = false;
                       } else {
-                        widget.controller.play();
+                        widget.player.play();
                         _isPlaying = true;
                       }
                     });
