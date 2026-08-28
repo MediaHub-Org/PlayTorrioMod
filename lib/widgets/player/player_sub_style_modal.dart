@@ -859,10 +859,129 @@ class _PlayerSubStyleModalState extends State<PlayerSubStyleModal>
       },
     ];
 
+    final useLibass = PlayerSettings.useLibass.value;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       physics: const BouncingScrollPhysics(),
       children: [
+        _buildSectionTitle('SUBTITLE RENDERING ENGINE'),
+        const SizedBox(height: 10),
+        
+        // Flutter Engine Option
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: InkWell(
+            onTap: () => PlayerSettings.setUseLibass(false, player: widget.player),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: !useLibass ? PlayerTheme.accentSoft : PlayerTheme.raised,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: !useLibass ? PlayerTheme.accent : PlayerTheme.edgeSoft,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Radio<bool>(
+                    value: false,
+                    groupValue: useLibass,
+                    activeColor: PlayerTheme.accent,
+                    onChanged: (val) {
+                      if (val != null) PlayerSettings.setUseLibass(val, player: widget.player);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Flutter Subtitle Engine (Recommended)',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          '100% reliable hardware-accelerated subtitle overlay across Android, iOS, Windows, Mac, and Linux with full styling support.',
+                          style: TextStyle(
+                            color: PlayerTheme.inkSubtle,
+                            fontSize: 11,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Native libass Option
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: InkWell(
+            onTap: () => PlayerSettings.setUseLibass(true, player: widget.player),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: useLibass ? PlayerTheme.accentSoft : PlayerTheme.raised,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: useLibass ? PlayerTheme.accent : PlayerTheme.edgeSoft,
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Radio<bool>(
+                    value: true,
+                    groupValue: useLibass,
+                    activeColor: PlayerTheme.accent,
+                    onChanged: (val) {
+                      if (val != null) PlayerSettings.setUseLibass(val, player: widget.player);
+                    },
+                  ),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Native MPV libass Engine',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        SizedBox(height: 3),
+                        Text(
+                          'Direct GPU video texture rendering powered by libass with bundled Poppins font and SSA/ASS script layout support.',
+                          style: TextStyle(
+                            color: PlayerTheme.inkSubtle,
+                            fontSize: 11,
+                            height: 1.3,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
         _buildSectionTitle('SSA / ASS FANSUB SCRIPT OVERRIDE MODE'),
         const SizedBox(height: 10),
         ...overrideModes.map((m) {

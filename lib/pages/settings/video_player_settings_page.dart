@@ -1004,7 +1004,7 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text(
-                        'libass Hardware Subtitle Styling',
+                        'Subtitle Styling & Engine Customization',
                         style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white),
                       ),
                       Text(

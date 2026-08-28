@@ -305,7 +305,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           ? streamUrl.replaceAll('::', '%3A%3A')
           : streamUrl;
 
-      final playerHeaders = <String, String>{};
+      final playerHeaders = <String, String>{
+        'Connection': 'keep-alive',
+        'Accept': '*/*',
+      };
       if (sanitizedUrlStr.contains('hakunaymatata.com')) {
         playerHeaders['User-Agent'] = 'Lavf/60.16.100';
       } else {
@@ -393,20 +396,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       _setSubtitleScale(_subtitleScale);
       _applyVolume(_isMuted ? 0.0 : _volume);
 
-      // Fetch IntroDB skip segments in background
-      _fetchSkipSegments();
-
-      if (widget.initialPosition != null && widget.initialPosition! > Duration.zero) {
-        print('[PlayerScreen] Seeking to saved position: ${widget.initialPosition}');
-        await _player.seek(widget.initialPosition!);
-      }
-
       print('[PlayerScreen SUCCESS] Player opened media successfully for $streamUrl');
 
       _updateMediaTracks(_player.state.tracks);
-
-      // Pre-fetch subtitles in background
-      _fetchInitialSubtitles();
 
       if (!mounted) return;
       setState(() {
@@ -416,29 +408,35 @@ class _PlayerScreenState extends State<PlayerScreen>
       _player.play();
       _startHideControlsTimer();
 
-      // Cloud Scrobble Start
-      final detail = widget.detail;
-      if (detail != null) {
-        final targetId = detail.id.startsWith('tt') ? detail.id : (detail.tmdbId ?? detail.id);
-        if (targetId.isNotEmpty) {
-          final s = _currentEpisode?.season;
-          final e = _currentEpisode?.episode;
-          final initPos = widget.initialPosition?.inSeconds ?? 0;
-          final dur = _player.state.duration.inSeconds;
-          final progress = (dur > 0 ? (initPos / dur) * 100.0 : 0.0).clamp(0.0, 100.0);
+      // Defer background services until after playback starts
+      Future.microtask(() {
+        if (!mounted) return;
+        _fetchSkipSegments();
+        _fetchInitialSubtitles();
 
-          TraktService.instance.isAuthenticated().then((authed) {
-            if (authed) {
-              TraktService.instance.scrobbleStart(targetId, progress, season: s, episode: e);
-            }
-          });
-          SimklService.instance.isAuthenticated().then((authed) {
-            if (authed) {
-              SimklService.instance.scrobbleStart(targetId, progress, season: s, episode: e);
-            }
-          });
+        final detail = widget.detail;
+        if (detail != null) {
+          final targetId = detail.id.startsWith('tt') ? detail.id : (detail.tmdbId ?? detail.id);
+          if (targetId.isNotEmpty) {
+            final s = _currentEpisode?.season;
+            final e = _currentEpisode?.episode;
+            final initPos = widget.initialPosition?.inSeconds ?? 0;
+            final dur = _player.state.duration.inSeconds;
+            final progress = (dur > 0 ? (initPos / dur) * 100.0 : 0.0).clamp(0.0, 100.0);
+
+            TraktService.instance.isAuthenticated().then((authed) {
+              if (authed) {
+                TraktService.instance.scrobbleStart(targetId, progress, season: s, episode: e);
+              }
+            });
+            SimklService.instance.isAuthenticated().then((authed) {
+              if (authed) {
+                SimklService.instance.scrobbleStart(targetId, progress, season: s, episode: e);
+              }
+            });
+          }
         }
-      }
+      });
 
       _progressSaveTimer?.cancel();
       _progressSaveTimer = Timer.periodic(const Duration(seconds: 5), (_) {

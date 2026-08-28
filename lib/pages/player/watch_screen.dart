@@ -424,27 +424,31 @@ class _WatchScreenState extends State<WatchScreen>
                             ),
                           ],
                         ),
-                        if (_sources.isNotEmpty)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _buildSizeFilterDropdown(),
-                              const SizedBox(width: 8),
-                              _buildAddonFilterDropdown(),
-                            ],
+                        Text(
+                          _isLoadingSources
+                              ? 'Searching sources...'
+                              : '${filtered.length} source${filtered.length == 1 ? '' : 's'} found',
+                          style: const TextStyle(
+                            color: _C.textTertiary,
+                            fontSize: 12,
                           ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: _S.sm),
-                    Text(
-                      _isLoadingSources
-                          ? 'Searching sources...'
-                          : '${filtered.length} source${filtered.length == 1 ? '' : 's'} found',
-                      style: const TextStyle(
-                        color: _C.textTertiary,
-                        fontSize: 12,
+                    if (_sources.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: [
+                            _buildSizeFilterDropdown(),
+                            const SizedBox(width: 8),
+                            _buildAddonFilterDropdown(),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: _S.md),
                   ],
                 ),
@@ -1106,10 +1110,10 @@ class _WatchScreenState extends State<WatchScreen>
       Offset.zero,
       ancestor: overlay,
     );
-
-    final topOffset = buttonOffset.dy + button.size.height + 8;
-    final rightOffset =
-        overlay.size.width - buttonOffset.dx - button.size.width;
+    const double dialogWidth = 200.0;
+    final topOffset = (buttonOffset.dy + button.size.height + 8).clamp(8.0, (overlay.size.height - 350.0).clamp(8.0, overlay.size.height));
+    final rawRightOffset = overlay.size.width - buttonOffset.dx - button.size.width;
+    final rightOffset = rawRightOffset.clamp(8.0, (overlay.size.width - dialogWidth - 8.0).clamp(8.0, overlay.size.width));
 
     showGeneralDialog(
       context: context,
@@ -1305,9 +1309,10 @@ class _WatchScreenState extends State<WatchScreen>
     );
 
     // We want the dropdown to align with the right edge of the button, and appear just below it.
-    final topOffset = buttonOffset.dy + button.size.height + 8;
-    final rightOffset =
-        overlay.size.width - buttonOffset.dx - button.size.width;
+    const double dialogWidth = 200.0;
+    final topOffset = (buttonOffset.dy + button.size.height + 8).clamp(8.0, (overlay.size.height - 350.0).clamp(8.0, overlay.size.height));
+    final rawRightOffset = overlay.size.width - buttonOffset.dx - button.size.width;
+    final rightOffset = rawRightOffset.clamp(8.0, (overlay.size.width - dialogWidth - 8.0).clamp(8.0, overlay.size.width));
 
     showGeneralDialog(
       context: context,

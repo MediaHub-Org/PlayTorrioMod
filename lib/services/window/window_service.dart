@@ -53,8 +53,15 @@ class WindowService with WindowListener {
       final isCurrentlyFs = await windowManager.isFullScreen();
       if (isCurrentlyFs || isFullscreenNotifier.value) {
         await windowManager.setFullScreen(false);
+        if (await windowManager.isMaximized()) {
+          await windowManager.unmaximize();
+        }
         isFullscreenNotifier.value = false;
       } else {
+        // Crucial for Windows: unmaximize first to drop the 8px DWM resize frame
+        if (await windowManager.isMaximized()) {
+          await windowManager.unmaximize();
+        }
         await windowManager.setFullScreen(true);
         isFullscreenNotifier.value = true;
       }
@@ -83,6 +90,9 @@ class WindowService with WindowListener {
       final isCurrentlyFs = await windowManager.isFullScreen();
       if (isCurrentlyFs || isFullscreenNotifier.value) {
         await windowManager.setFullScreen(false);
+        if (await windowManager.isMaximized()) {
+          await windowManager.unmaximize();
+        }
         isFullscreenNotifier.value = false;
       }
     } catch (e) {

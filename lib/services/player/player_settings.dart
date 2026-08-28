@@ -154,7 +154,8 @@ abstract final class PlayerSettings {
   static final ValueNotifier<double> subPos = ValueNotifier<double>(100.0);
   static final ValueNotifier<String> subAlignX = ValueNotifier<String>('center');
   static final ValueNotifier<String> subAssOverride = ValueNotifier<String>('no');
-
+  static const String _keyUseLibass = 'player_use_libass';
+  static final ValueNotifier<bool> useLibass = ValueNotifier<bool>(false);
   static final ValueNotifier<int> changeNotifier = ValueNotifier<int>(0);
 
   // Extracted font paths for libass font fallback
@@ -297,12 +298,13 @@ abstract final class PlayerSettings {
     subPos.value = prefs.getDouble(_keySubPos) ?? 100.0;
     subAlignX.value = prefs.getString(_keySubAlignX) ?? 'center';
     subAssOverride.value = prefs.getString(_keySubAssOverride) ?? 'no';
+    useLibass.value = prefs.getBool(_keyUseLibass) ?? false;
 
     // Extract bundled font for libass fallback
     await _extractLibassFontFallback();
   }
 
-  /// Extracts assets/subfont.ttf to persistent disk storage for libass / libmpv font provider
+  /// Extracts assets/fonts/Poppins-Medium.ttf or subfont.ttf to persistent disk storage for libass font provider
   static Future<void> _extractLibassFontFallback() async {
     try {
       Directory? targetDir;
@@ -317,14 +319,20 @@ abstract final class PlayerSettings {
         await fontsDir.create(recursive: true);
       }
 
-      final fontFile = File(p.join(fontsDir.path, 'subfont.ttf'));
+      final fontFile = File(p.join(fontsDir.path, 'Poppins.ttf'));
       if (!await fontFile.exists() || (await fontFile.length()) == 0) {
         ByteData? data;
-        try {
-          data = await rootBundle.load('assets/subfont.ttf');
-        } catch (_) {
+        final candidateAssets = [
+          'assets/fonts/Poppins-Medium.ttf',
+          'assets/fonts/Poppins-SemiBold.ttf',
+          'assets/fonts/Poppins-Regular.ttf',
+          'assets/fonts/subfont.ttf',
+          'assets/subfont.ttf',
+        ];
+        for (final candidate in candidateAssets) {
           try {
-            data = await rootBundle.load('assets/fonts/subfont.ttf');
+            data = await rootBundle.load(candidate);
+            if (data.lengthInBytes > 0) break;
           } catch (_) {}
         }
 
@@ -359,10 +367,10 @@ abstract final class PlayerSettings {
     return 52428800; // 50 MB back buffer
   }
 
-  /// Returns effective cache seconds
+  /// Returns effective cache seconds for readahead
   static int getEffectiveCacheSecs() {
     if (bufferPreset.value == BufferResiliencePreset.custom) {
-      return (customBufferMs.value ~/ 1000).clamp(5, 60);
+      return (customBufferMs.value / 1000).round().clamp(5, 120);
     }
     return bufferPreset.value.cacheSecs;
   }
@@ -385,7 +393,7 @@ abstract final class PlayerSettings {
         return ['no'];
 
       case DecoderPreset.hardwareSafe:
-        return ['auto-copy', 'no'];
+        return Platform.isAndroid ? ['mediacodec-copy', 'no'] : ['auto-copy', 'no'];
 
       case DecoderPreset.nvidiaCuda:
         return Platform.isWindows ? ['nvdec', 'd3d11va', 'no'] : ['nvdec', 'vaapi', 'no'];
@@ -404,28 +412,22 @@ abstract final class PlayerSettings {
     }
   }
 
-  /// Returns effective primary hardware decoder string for MPV / media_kit.
+  /// Returns the effective hwdec string for media_kit / libmpv based on active preset & platform
   static String getEffectiveHwdecString() {
-    if (forceSoftwareDecoding.value || decoderPreset.value == DecoderPreset.softwareSafe) {
-      return 'no';
-    }
+    if (forceSoftwareDecoding.value) return 'no';
     switch (decoderPreset.value) {
-      case DecoderPreset.hardwareSafe:
-        return Platform.isAndroid
-            ? 'mediacodec-copy'
-            : (Platform.isWindows ? 'd3d11va-copy' : 'auto-copy');
-      case DecoderPreset.nvidiaCuda:
-        return Platform.isWindows ? 'nvdec' : 'auto-safe';
-      case DecoderPreset.custom:
-        final decoders = getEffectiveDecoders();
-        return decoders.isNotEmpty ? decoders.first : 'auto-safe';
       case DecoderPreset.hardwareAuto:
-      default:
-        if (Platform.isWindows) return 'd3d11va';
-        if (Platform.isAndroid) return 'mediacodec';
-        if (Platform.isMacOS || Platform.isIOS) return 'videotoolbox';
-        if (Platform.isLinux) return 'vaapi';
-        return 'auto-safe';
+        return Platform.isAndroid ? 'mediacodec-copy' : (Platform.isWindows ? 'd3d11va' : 'auto-safe');
+      case DecoderPreset.hardwareSafe:
+        return Platform.isAndroid ? 'mediacodec-copy' : 'auto-copy';
+      case DecoderPreset.softwareSafe:
+        return 'no';
+      case DecoderPreset.nvidiaCuda:
+        return 'nvdec';
+      case DecoderPreset.custom:
+        final list = customDecoders.value;
+        if (list.isEmpty || list.contains('no')) return 'no';
+        return list.first;
     }
   }
 
@@ -440,12 +442,19 @@ abstract final class PlayerSettings {
     );
   }
 
+  /// Returns a configured [VideoControllerConfiguration] for media_kit_video.
+  static VideoControllerConfiguration getMediaKitVideoControllerConfiguration() {
+    return const VideoControllerConfiguration(
+      enableAndroidSurfaceProducer: false,
+    );
+  }
+
   /// Returns a configured [PlayerConfiguration] for constructing a media_kit [Player].
   static PlayerConfiguration getMediaKitPlayerConfiguration() {
     return PlayerConfiguration(
-      libass: true,
-      libassAndroidFont: 'assets/fonts/subfont.ttf',
-      libassAndroidFontName: 'subfont',
+      libass: useLibass.value,
+      libassAndroidFont: 'assets/fonts/Poppins-Medium.ttf',
+      libassAndroidFontName: 'Poppins',
       bufferSize: getEffectiveMaxBytes(),
       logLevel: MPVLogLevel.warn,
     );
@@ -521,14 +530,18 @@ abstract final class PlayerSettings {
       await platform.setProperty('volume-max', '200');
 
       // 8. Libass Engine & Font directory pre-configuration
-      if (_extractedFontDir != null) {
-        await platform.setProperty('sub-fonts-dir', _extractedFontDir!);
+      if (useLibass.value) {
+        if (_extractedFontDir != null) {
+          await platform.setProperty('sub-fonts-dir', _extractedFontDir!);
+        }
+        if (_extractedFontPath != null) {
+          await platform.setProperty('sub-font-file', _extractedFontPath!);
+        }
+        await platform.setProperty('sub-ass', 'yes');
+        await platform.setProperty('sub-visibility', 'yes');
+      } else {
+        await platform.setProperty('sub-visibility', 'no');
       }
-      if (_extractedFontPath != null) {
-        await platform.setProperty('sub-font-file', _extractedFontPath!);
-      }
-      await platform.setProperty('sub-ass', 'yes');
-      await platform.setProperty('sub-visibility', 'yes');
 
       // 9. Default Audio Delay
       if (audioDelayDefault.value != 0.0) {
@@ -560,58 +573,63 @@ abstract final class PlayerSettings {
     try {
       final dynamic platform = player.platform;
       if (platform != null) {
-        // Ensure subtitle visibility and libass engine are activated in libmpv
-        await platform.setProperty('sub-visibility', 'yes');
-        await platform.setProperty('sub-ass', 'yes');
+        if (useLibass.value) {
+          // Ensure subtitle visibility and libass engine are activated in libmpv
+          await platform.setProperty('sub-visibility', 'yes');
+          await platform.setProperty('sub-ass', 'yes');
 
-        // Font paths
-        if (_extractedFontDir != null) {
-          await platform.setProperty('sub-fonts-dir', _extractedFontDir!);
-        }
-        if (_extractedFontPath != null) {
-          await platform.setProperty('sub-font-file', _extractedFontPath!);
-        }
-
-        // Font family (defaults to 'subfont' which matches the extracted Poppins font on all platforms)
-        final font = (subFont.value.trim().isEmpty || subFont.value == 'subfont')
-            ? 'subfont'
-            : subFont.value.trim();
-        await platform.setProperty('sub-font', font);
-
-        // Typography
-        await platform.setProperty('sub-font-size', subFontSize.value.toString());
-        await platform.setProperty('sub-scale', subScale.value.toStringAsFixed(2));
-        await platform.setProperty('sub-bold', subBold.value ? 'yes' : 'no');
-        await platform.setProperty('sub-italic', subItalic.value ? 'yes' : 'no');
-
-        // Colors
-        await platform.setProperty('sub-color', _formatMpvColor(subColor.value));
-        await platform.setProperty('sub-back-color', _formatMpvColor(subBackColor.value));
-
-        // Borders & Outlines
-        await platform.setProperty('sub-border-color', _formatMpvColor(subBorderColor.value));
-        await platform.setProperty('sub-border-size', subBorderSize.value.toStringAsFixed(1));
-
-        // Shadows
-        await platform.setProperty('sub-shadow-offset', subShadowOffset.value.toStringAsFixed(1));
-        await platform.setProperty('sub-shadow-color', _formatMpvColor(subShadowColor.value));
-
-        // Positioning & Layout
-        await platform.setProperty('sub-margin-y', subMarginY.value.round().toString());
-        await platform.setProperty('sub-pos', subPos.value.round().toString());
-        await platform.setProperty('sub-align-x', subAlignX.value);
-
-        // ASS/SSA Script Preservation vs Override
-        await platform.setProperty('sub-ass-override', subAssOverride.value);
-        await platform.setProperty('sub-ass-force-margins', 'yes');
-        await platform.setProperty('sub-use-margins', 'yes');
-
-        // Force style string for ASS subtitles when override is active
-        if (subAssOverride.value != 'no') {
-          final assForceStyle = _buildAssForceStyleString(font);
-          if (assForceStyle.isNotEmpty) {
-            await platform.setProperty('sub-ass-force-style', assForceStyle);
+          // Font paths
+          if (_extractedFontDir != null) {
+            await platform.setProperty('sub-fonts-dir', _extractedFontDir!);
           }
+          if (_extractedFontPath != null) {
+            await platform.setProperty('sub-font-file', _extractedFontPath!);
+          }
+
+          // Font family
+          final font = (subFont.value.trim().isEmpty || subFont.value == 'subfont')
+              ? 'Poppins'
+              : subFont.value.trim();
+          await platform.setProperty('sub-font', font);
+
+          // Typography
+          await platform.setProperty('sub-font-size', subFontSize.value.toString());
+          await platform.setProperty('sub-scale', subScale.value.toStringAsFixed(2));
+          await platform.setProperty('sub-bold', subBold.value ? 'yes' : 'no');
+          await platform.setProperty('sub-italic', subItalic.value ? 'yes' : 'no');
+
+          // Colors
+          await platform.setProperty('sub-color', _formatMpvColor(subColor.value));
+          await platform.setProperty('sub-back-color', _formatMpvColor(subBackColor.value));
+
+          // Borders & Outlines
+          await platform.setProperty('sub-border-color', _formatMpvColor(subBorderColor.value));
+          await platform.setProperty('sub-border-size', subBorderSize.value.toStringAsFixed(1));
+
+          // Shadows
+          await platform.setProperty('sub-shadow-offset', subShadowOffset.value.toStringAsFixed(1));
+          await platform.setProperty('sub-shadow-color', _formatMpvColor(subShadowColor.value));
+
+          // Positioning & Layout
+          await platform.setProperty('sub-margin-y', subMarginY.value.round().toString());
+          await platform.setProperty('sub-pos', subPos.value.round().toString());
+          await platform.setProperty('sub-align-x', subAlignX.value);
+
+          // ASS/SSA Script Preservation vs Override
+          await platform.setProperty('sub-ass-override', subAssOverride.value);
+          await platform.setProperty('sub-ass-force-margins', 'yes');
+          await platform.setProperty('sub-use-margins', 'yes');
+
+          // Force style string for ASS subtitles when override is active
+          if (subAssOverride.value != 'no') {
+            final assForceStyle = _buildAssForceStyleString(font);
+            if (assForceStyle.isNotEmpty) {
+              await platform.setProperty('sub-ass-force-style', assForceStyle);
+            }
+          }
+        } else {
+          // Flutter Subtitle Engine: hide native MPV text rendering so Flutter's SubtitleView renders cleanly
+          await platform.setProperty('sub-visibility', 'no');
         }
       }
     } catch (e) {
@@ -620,10 +638,77 @@ abstract final class PlayerSettings {
   }
 
   /// Builds a reactive [SubtitleViewConfiguration] for Flutter's subtitle overlay widget.
-  /// Set to [visible: false] because native libass hardware engine handles subtitle rendering directly on the video texture.
   static SubtitleViewConfiguration getSubtitleViewConfiguration() {
-    return const SubtitleViewConfiguration(
-      visible: false,
+    if (useLibass.value) {
+      return const SubtitleViewConfiguration(
+        visible: false,
+      );
+    }
+
+    Color parseColor(String hex, {Color fallback = Colors.white}) {
+      var str = hex.replaceAll('#', '').trim();
+      if (str.length == 6) str = 'FF$str';
+      if (str.length == 8) {
+        final val = int.tryParse(str, radix: 16);
+        if (val != null) return Color(val);
+      }
+      return fallback;
+    }
+
+    final textColor = parseColor(subColor.value);
+    final boxColor = parseColor(subBackColor.value, fallback: Colors.transparent);
+    final borderColor = parseColor(subBorderColor.value, fallback: Colors.black);
+    final shadowColor = parseColor(subShadowColor.value, fallback: Colors.black54);
+
+    final font = (subFont.value.isEmpty || subFont.value == 'subfont') ? 'Poppins' : subFont.value;
+    final align = subAlignX.value == 'left'
+        ? TextAlign.left
+        : (subAlignX.value == 'right' ? TextAlign.right : TextAlign.center);
+
+    final shadows = <Shadow>[];
+    if (subBorderSize.value > 0) {
+      final b = subBorderSize.value;
+      final r = b * 0.8;
+      final d = r * 0.707;
+      shadows.addAll([
+        Shadow(color: borderColor, offset: Offset(-r, 0)),
+        Shadow(color: borderColor, offset: Offset(r, 0)),
+        Shadow(color: borderColor, offset: Offset(0, -r)),
+        Shadow(color: borderColor, offset: Offset(0, r)),
+        Shadow(color: borderColor, offset: Offset(-d, -d)),
+        Shadow(color: borderColor, offset: Offset(d, -d)),
+        Shadow(color: borderColor, offset: Offset(-d, d)),
+        Shadow(color: borderColor, offset: Offset(d, d)),
+      ]);
+    }
+    if (subShadowOffset.value > 0) {
+      shadows.add(
+        Shadow(
+          color: shadowColor,
+          offset: Offset(subShadowOffset.value, subShadowOffset.value),
+          blurRadius: 3.0,
+        ),
+      );
+    }
+
+    return SubtitleViewConfiguration(
+      visible: true,
+      textAlign: align,
+      padding: EdgeInsets.fromLTRB(
+        subAlignX.value == 'left' ? 32 : 16,
+        0,
+        subAlignX.value == 'right' ? 32 : 16,
+        subMarginY.value.clamp(8.0, 300.0),
+      ),
+      style: TextStyle(
+        fontFamily: font,
+        fontSize: (subFontSize.value * subScale.value).clamp(12.0, 96.0),
+        fontWeight: subBold.value ? FontWeight.bold : FontWeight.w600,
+        fontStyle: subItalic.value ? FontStyle.italic : FontStyle.normal,
+        color: textColor,
+        backgroundColor: boxColor,
+        shadows: shadows.isNotEmpty ? shadows : null,
+      ),
     );
   }
 
@@ -910,6 +995,14 @@ abstract final class PlayerSettings {
     _notify();
   }
 
+  static Future<void> setUseLibass(bool val, {Player? player}) async {
+    useLibass.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyUseLibass, val);
+    if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
   static Future<void> resetSubtitleDefaults({Player? player}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keySubStylePreset);
@@ -928,9 +1021,11 @@ abstract final class PlayerSettings {
     await prefs.remove(_keySubPos);
     await prefs.remove(_keySubAlignX);
     await prefs.remove(_keySubAssOverride);
+    await prefs.remove(_keyUseLibass);
 
+    useLibass.value = false;
     subStylePreset.value = SubtitleStylePreset.classicWhite;
-    subFont.value = 'subfont';
+    subFont.value = 'Poppins';
     subFontSize.value = 32;
     subScale.value = 1.0;
     subColor.value = '#FFFFFFFF';
