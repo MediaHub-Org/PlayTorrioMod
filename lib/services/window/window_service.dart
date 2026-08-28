@@ -122,7 +122,15 @@ class WindowService with WindowListener {
     } catch (e) {
       debugPrint('[WindowService] shutdown cleanup error: $e');
     } finally {
-      await windowManager.destroy();
+      // destroy() calls the native PostQuitMessage(0) directly, which tears
+      // down the Win32 message loop before the engine's own plugins (video
+      // decoder threads, WebView2, etc.) get their normal teardown --
+      // reproducibly access-violates in flutter_windows.dll on close.
+      // close() re-posts a real WM_CLOSE, which the engine's own WndProc
+      // handles through its expected DestroyWindow/WM_DESTROY chain; the
+      // resulting second onWindowClose() re-entry is a no-op via _isClosing.
+      await windowManager.setPreventClose(false);
+      await windowManager.close();
     }
   }
 

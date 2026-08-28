@@ -19,16 +19,6 @@ subcategories should be checked against this principle first.
 
 ## Known issues
 
-**Implemented, awaiting manual confirmation — "Unknown error" dialog after closing
-the Windows app** (see CHANGELOG). `WindowService` now calls `setPreventClose(true)`
-on init and runs a real shutdown sequence in `onWindowClose`
-(`PlaybackCoordinator.stopActive()`, `LocalStreamProxy.instance.stop()`,
-`TorrentStreamService().stop()`, then `windowManager.destroy()`) instead of letting
-the OS kill the process while the proxy's HTTP server is still bound. Verified via
-`flutter analyze`/`flutter test`/a release build, but clicking the close button and
-confirming no dialog appears needs a human — no agent here can interact with a
-live window.
-
 **Implemented, awaiting manual confirmation — `ContinueWatchingService`/
 `PlaybackHistoryService` merge** (see CHANGELOG). Investigated first (three
 real behavioral differences found, not simple duplication), then merged with
