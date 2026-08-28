@@ -28,17 +28,23 @@ class _UpdateDialogState extends State<UpdateDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: Colors.transparent,
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 500),
-        decoration: BoxDecoration(
-          color: _surfaceColor,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: _accentColor.withValues(alpha: 0.3),
-            width: 1.5,
-          ),
+    return PopScope(
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop && !_isDownloading) {
+          AppUpdaterService.dismissVersion(widget.updateInfo.latestVersion);
+        }
+      },
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 500),
+          decoration: BoxDecoration(
+            color: _surfaceColor,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: _accentColor.withValues(alpha: 0.3),
+              width: 1.5,
+            ),
           boxShadow: [
             BoxShadow(
               color: _accentColor.withValues(alpha: 0.2),
@@ -304,7 +310,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   children: [
                     Expanded(
                       child: TextButton(
-                        onPressed: () => Navigator.of(context).pop(),
+                        onPressed: () {
+                          AppUpdaterService.dismissVersion(widget.updateInfo.latestVersion);
+                          Navigator.of(context).pop();
+                        },
                         style: TextButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
@@ -360,6 +369,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
           ],
         ),
       ),
+    ),
     );
   }
 

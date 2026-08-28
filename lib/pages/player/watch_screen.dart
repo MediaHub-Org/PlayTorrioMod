@@ -193,16 +193,77 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   String? _selectedAddonFilter;
+  String? _selectedSizeFilter;
 
   List<StreamSource> get _filteredSources {
-    var sorted = List<StreamSource>.from(_sources);
+    var list = List<StreamSource>.from(_sources);
     if (_selectedAddonFilter != null) {
-      sorted = sorted
-          .where((s) => s.addonName == _selectedAddonFilter)
-          .toList();
+      list = list.where((s) => s.addonName == _selectedAddonFilter).toList();
     }
-    sorted.sort((a, b) => b.qualityRank.compareTo(a.qualityRank));
-    return sorted;
+    if (_selectedSizeFilter != null) {
+      switch (_selectedSizeFilter) {
+        case '<1gb':
+          list = list.where((s) {
+            final sz = s.sizeBytes;
+            return sz != null && sz < 1024 * 1024 * 1024;
+          }).toList();
+          break;
+        case '1-5gb':
+          list = list.where((s) {
+            final sz = s.sizeBytes;
+            return sz != null && sz >= 1024 * 1024 * 1024 && sz <= 5.0 * 1024 * 1024 * 1024;
+          }).toList();
+          break;
+        case '5-15gb':
+          list = list.where((s) {
+            final sz = s.sizeBytes;
+            return sz != null && sz > 5.0 * 1024 * 1024 * 1024 && sz <= 15.0 * 1024 * 1024 * 1024;
+          }).toList();
+          break;
+        case '15-30gb':
+          list = list.where((s) {
+            final sz = s.sizeBytes;
+            return sz != null && sz > 15.0 * 1024 * 1024 * 1024 && sz <= 30.0 * 1024 * 1024 * 1024;
+          }).toList();
+          break;
+        case '>30gb':
+          list = list.where((s) {
+            final sz = s.sizeBytes;
+            return sz != null && sz > 30.0 * 1024 * 1024 * 1024;
+          }).toList();
+          break;
+      }
+    }
+
+    if (_selectedSizeFilter == 'largest') {
+      list.sort((a, b) => (b.sizeBytes ?? 0).compareTo(a.sizeBytes ?? 0));
+    } else if (_selectedSizeFilter == 'smallest') {
+      list.sort((a, b) => (a.sizeBytes ?? double.infinity).compareTo(b.sizeBytes ?? double.infinity));
+    } else {
+      list.sort((a, b) => b.qualityRank.compareTo(a.qualityRank));
+    }
+    return list;
+  }
+
+  String _getSizeFilterLabel(String? filter) {
+    switch (filter) {
+      case '<1gb':
+        return '< 1 GB';
+      case '1-5gb':
+        return '1–5 GB';
+      case '5-15gb':
+        return '5–15 GB';
+      case '15-30gb':
+        return '15–30 GB';
+      case '>30gb':
+        return '> 30 GB';
+      case 'largest':
+        return 'Largest';
+      case 'smallest':
+        return 'Smallest';
+      default:
+        return 'All Sizes';
+    }
   }
 
   bool _isDesktop() => MediaQuery.sizeOf(context).width >= 900;
@@ -402,19 +463,31 @@ class _WatchScreenState extends State<WatchScreen>
                             ),
                           ],
                         ),
-                        if (_sources.isNotEmpty) _buildAddonFilterDropdown(),
+                        Text(
+                          _isLoadingSources
+                              ? 'Searching sources...'
+                              : '${filtered.length} source${filtered.length == 1 ? '' : 's'} found',
+                          style: const TextStyle(
+                            color: _C.textTertiary,
+                            fontSize: 12,
+                          ),
+                        ),
                       ],
                     ),
-                    const SizedBox(height: _S.sm),
-                    Text(
-                      _isLoadingSources
-                          ? 'Searching sources...'
-                          : '${filtered.length} source${filtered.length == 1 ? '' : 's'} found',
-                      style: const TextStyle(
-                        color: _C.textTertiary,
-                        fontSize: 12,
+                    if (_sources.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: [
+                            _buildSizeFilterDropdown(),
+                            const SizedBox(width: 8),
+                            _buildAddonFilterDropdown(),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                     const SizedBox(height: _S.md),
                   ],
                 ),
@@ -943,7 +1016,15 @@ class _WatchScreenState extends State<WatchScreen>
                 ),
               ],
             ),
-            if (_sources.isNotEmpty) _buildAddonFilterDropdown(),
+            if (_sources.isNotEmpty)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildSizeFilterDropdown(),
+                  const SizedBox(width: 8),
+                  _buildAddonFilterDropdown(),
+                ],
+              ),
           ],
         ),
         const SizedBox(height: _S.sm),
@@ -1000,6 +1081,207 @@ class _WatchScreenState extends State<WatchScreen>
     );
 
     return list;
+  }
+
+  Widget _buildSizeFilterDropdown() {
+    final currentText = _getSizeFilterLabel(_selectedSizeFilter);
+
+    return Builder(
+      builder: (buttonContext) {
+        return GestureDetector(
+          onTap: () => _showSizeGlassDropdown(buttonContext),
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.all(Radius.circular(18)),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x40000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: PerformanceLiquidLens(
+              style: PerformanceGlassStyles.menuButton,
+              child: Container(
+                height: 36,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0x26FFFFFF)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.data_usage_rounded,
+                      color: Colors.white70,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      currentText,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.arrow_drop_down,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSizeGlassDropdown(BuildContext buttonContext) {
+    final RenderBox button = buttonContext.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final Offset buttonOffset = button.localToGlobal(
+      Offset.zero,
+      ancestor: overlay,
+    );
+    const double dialogWidth = 200.0;
+    final topOffset = (buttonOffset.dy + button.size.height + 8).clamp(8.0, (overlay.size.height - 350.0).clamp(8.0, overlay.size.height));
+    final rawRightOffset = overlay.size.width - buttonOffset.dx - button.size.width;
+    final rightOffset = rawRightOffset.clamp(8.0, (overlay.size.width - dialogWidth - 8.0).clamp(8.0, overlay.size.width));
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Stack(
+          children: [
+            Positioned(
+              top: topOffset,
+              right: rightOffset,
+              child: Material(
+                color: Colors.transparent,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                  builder: (context, value, child) {
+                    return Transform.translate(
+                      offset: Offset(0, -10 * (1 - value)),
+                      child: Opacity(
+                        opacity: value.clamp(0.0, 1.0),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      borderRadius: BorderRadius.all(Radius.circular(16)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0x99000000),
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: PerformanceLiquidLens(
+                      style: PerformanceGlassStyles.menu,
+                      child: Container(
+                        width: 200,
+                        constraints: const BoxConstraints(maxHeight: 380),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0x26FFFFFF)),
+                        ),
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSizeDropdownItem('All Sizes', null),
+                              const SizedBox(height: 4),
+                              Container(
+                                height: 1,
+                                color: Colors.white.withValues(alpha: 0.1),
+                              ),
+                              const SizedBox(height: 4),
+                              _buildSizeDropdownItem('< 1 GB', '<1gb'),
+                              _buildSizeDropdownItem('1 GB – 5 GB', '1-5gb'),
+                              _buildSizeDropdownItem('5 GB – 15 GB', '5-15gb'),
+                              _buildSizeDropdownItem('15 GB – 30 GB', '15-30gb'),
+                              _buildSizeDropdownItem('> 30 GB', '>30gb'),
+                              const SizedBox(height: 4),
+                              Container(
+                                height: 1,
+                                color: Colors.white.withValues(alpha: 0.1),
+                              ),
+                              const SizedBox(height: 4),
+                              _buildSizeDropdownItem('Largest First', 'largest'),
+                              _buildSizeDropdownItem('Smallest First', 'smallest'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSizeDropdownItem(String title, String? value) {
+    final isSelected = _selectedSizeFilter == value;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedSizeFilter = value;
+        });
+        Navigator.pop(context);
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.transparent,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.white70,
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_circle, color: Colors.white, size: 18),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildAddonFilterDropdown() {
@@ -1068,9 +1350,10 @@ class _WatchScreenState extends State<WatchScreen>
     );
 
     // We want the dropdown to align with the right edge of the button, and appear just below it.
-    final topOffset = buttonOffset.dy + button.size.height + 8;
-    final rightOffset =
-        overlay.size.width - buttonOffset.dx - button.size.width;
+    const double dialogWidth = 200.0;
+    final topOffset = (buttonOffset.dy + button.size.height + 8).clamp(8.0, (overlay.size.height - 350.0).clamp(8.0, overlay.size.height));
+    final rawRightOffset = overlay.size.width - buttonOffset.dx - button.size.width;
+    final rightOffset = rawRightOffset.clamp(8.0, (overlay.size.width - dialogWidth - 8.0).clamp(8.0, overlay.size.width));
 
     showGeneralDialog(
       context: context,

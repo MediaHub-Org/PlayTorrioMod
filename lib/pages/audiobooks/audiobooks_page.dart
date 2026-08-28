@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -11,8 +13,12 @@ import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/page_search_button.dart';
 import '../../services/audiobook/audiobook_settings.dart';
 import '../settings/appearance/audiobook_player_studio_page.dart';
+import '../../services/audiobook/paper2audio_service.dart';
+import '../../services/audiobook/custom_audiobook_service.dart';
 import 'audiobook_detail_page.dart';
+import 'audiobook_player_screen.dart';
 import 'audiobook_route_transitions.dart';
+import 'generate_audiobook_screen.dart';
 
 class AudiobooksPage extends StatefulWidget {
   const AudiobooksPage({super.key});
@@ -70,6 +76,11 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
     super.initState();
     AudiobookSettings.changeNotifier.addListener(_onSettingsChanged);
     AppThemeService.currentPalette.addListener(_onSettingsChanged);
+    Paper2AudioService.instance.jobs.addListener(_onSettingsChanged);
+    CustomAudiobookService.instance.audiobooks.addListener(_onSettingsChanged);
+
+    Paper2AudioService.instance.getJobs();
+    CustomAudiobookService.instance.ensureLoaded();
 
     _loadContinueListening();
     _performSearch('Harry Potter');
@@ -84,6 +95,8 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
   void dispose() {
     AudiobookSettings.changeNotifier.removeListener(_onSettingsChanged);
     AppThemeService.currentPalette.removeListener(_onSettingsChanged);
+    Paper2AudioService.instance.jobs.removeListener(_onSettingsChanged);
+    CustomAudiobookService.instance.audiobooks.removeListener(_onSettingsChanged);
     _searchController.dispose();
     _searchFocusNode.dispose();
     _continueScrollController.dispose();
@@ -348,21 +361,107 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
                   padding: const EdgeInsets.fromLTRB(24, 8, 12, 8),
                   child: Row(
                     children: [
-                      const Expanded(
-                        child: Text(
-                          'Audiobooks',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.w900,
-                            letterSpacing: -0.5,
+                      const SizedBox(width: 14),
+
+                      // Glowing Headphones Icon
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: LinearGradient(
+                            colors: [palette.primaryColor, palette.accentColor],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          boxShadow: [
+                            BoxShadow(
+                              color: palette.primaryColor.withValues(alpha: 0.5),
+                              blurRadius: 16,
+                              spreadRadius: 1,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(Icons.headphones_rounded, color: Colors.white, size: 22),
+                      ),
+                      const SizedBox(width: 14),
+
+                      // Title
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Audiobook Hub',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 22,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: -0.4,
+                              ),
+                            ),
+                            Text(
+                              'Explore, stream & listen to thousands of stories',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.6),
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // AI Generator & Studio Button
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  palette.primaryColor.withValues(alpha: 0.25),
+                                  const Color(0xFF7C5CFF).withValues(alpha: 0.25),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: palette.primaryColor.withValues(alpha: 0.35)),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.auto_awesome_rounded, color: Colors.white, size: 20),
+                              tooltip: 'Audiobook Generator & Studio',
+                              onPressed: () async {
+                                await Navigator.push(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => const GenerateAudiobookScreen()),
+                                );
+                                _loadContinueListening();
+                              },
+                            ),
                           ),
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
-                        tooltip: 'Audiobook Customizer',
-                        onPressed: () => _showAudiobookCustomizer(context),
+                      const SizedBox(width: 8),
+
+                      // Quick Customize Button
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                            ),
+                            child: IconButton(
+                              icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
+                              tooltip: 'Audiobook Customizer',
+                              onPressed: () => _showAudiobookCustomizer(context),
+                            ),
+                          ),
+                        ),
                       ),
                       const PageSearchButton(),
                     ],
@@ -419,6 +518,12 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
               if (showContinue && _continueListeningList.isNotEmpty)
                 SliverToBoxAdapter(
                   child: _buildContinueListeningSection(palette),
+                ),
+
+              // Generated & Personal Audiobooks Studio Shelf
+              if (!_isSearching)
+                SliverToBoxAdapter(
+                  child: _buildGeneratedAndUploadedSection(palette),
                 ),
 
               // Discovery Header
@@ -786,6 +891,329 @@ class _AudiobooksPageState extends State<AudiobooksPage> {
                   },
                 );
               },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Generated & Uploaded Audiobooks Shelf ──
+  Widget _buildGeneratedAndUploadedSection(AppThemePalette palette) {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isMobile = screenW < 600;
+
+    final jobs = Paper2AudioService.instance.jobs.value;
+    final uploaded = CustomAudiobookService.instance.audiobooks.value;
+    final hasItems = jobs.isNotEmpty || uploaded.isNotEmpty;
+
+    if (!hasItems) {
+      // Sleek quick studio banner
+      return Padding(
+        padding: EdgeInsets.fromLTRB(
+          isMobile ? 16 : 24,
+          8,
+          isMobile ? 16 : 24,
+          16,
+        ),
+        child: InkWell(
+          onTap: () async {
+            await Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const GenerateAudiobookScreen()),
+            );
+            _loadContinueListening();
+          },
+          borderRadius: BorderRadius.circular(16),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  palette.primaryColor.withValues(alpha: 0.15),
+                  const Color(0xFF7C5CFF).withValues(alpha: 0.10),
+                ],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: palette.primaryColor.withValues(alpha: 0.25)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 38,
+                  height: 38,
+                  decoration: BoxDecoration(
+                    color: palette.primaryColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.auto_stories_rounded, color: palette.primaryColor, size: 20),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'AI Audiobook Studio & EPUB Generator',
+                        style: TextStyle(color: Colors.white, fontSize: 13.5, fontWeight: FontWeight.w800),
+                      ),
+                      Text(
+                        'Generate audiobooks from EPUBs or import your own MP3/M4B audiobooks.',
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.55), fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: palette.primaryColor,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  onPressed: () async {
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const GenerateAudiobookScreen()),
+                    );
+                    _loadContinueListening();
+                  },
+                  child: const Text('Open Studio', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        isMobile ? 16 : 24,
+        8,
+        isMobile ? 16 : 24,
+        14,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.record_voice_over_rounded, color: palette.primaryColor, size: 20),
+                  const SizedBox(width: 8),
+                  const Text(
+                    'My Generated & Uploaded Audiobooks',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                ],
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.tune_rounded, size: 14),
+                label: const Text('Studio', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                style: TextButton.styleFrom(foregroundColor: palette.primaryColor),
+                onPressed: () async {
+                  await Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GenerateAudiobookScreen()),
+                  );
+                  _loadContinueListening();
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            height: 120,
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              children: [
+                // Render Generated Jobs
+                ...jobs.map((job) {
+                  final cleanTitle = job.fileName.replaceAll(RegExp(r'\.epub$', caseSensitive: false), '');
+                  final isDone = job.isDone;
+                  final isFailed = job.isFailed;
+
+                  return Container(
+                    width: 270,
+                    margin: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF12151E).withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: Colors.white10,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: job.coverPath != null && File(job.coverPath!).existsSync()
+                              ? Image.file(File(job.coverPath!), fit: BoxFit.cover)
+                              : const Icon(Icons.headphones_rounded, color: Colors.white30, size: 24),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                cleanTitle,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                isDone ? 'Voice: ${job.voiceId}' : (isFailed ? 'Failed' : 'Generating ${(job.progress * 100).round()}%'),
+                                style: TextStyle(
+                                  color: isDone ? const Color(0xFF10B981) : (isFailed ? Colors.redAccent : const Color(0xFFF59E0B)),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              if (isDone)
+                                ElevatedButton.icon(
+                                  icon: const Icon(Icons.play_arrow_rounded, size: 14),
+                                  label: const Text('Play', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: palette.primaryColor,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                  ),
+                                  onPressed: () {
+                                    final streamOrLocalPath = job.localAudioPath ?? job.downloadUrl!;
+                                    final book = Audiobook(
+                                      uuid: 'p2a_${job.runId}',
+                                      audioBookId: 'p2a_${job.runId}',
+                                      dynamicSlugId: job.runId,
+                                      title: cleanTitle,
+                                      author: 'AI Generated',
+                                      coverImage: job.coverPath ?? '',
+                                      source: 'Paper2Audio AI',
+                                      pageUrl: streamOrLocalPath,
+                                    );
+                                    Navigator.push(
+                                      context,
+                                      AudiobookPageRoute(
+                                        page: AudiobookPlayerScreen(
+                                          audiobook: book,
+                                          chapters: [AudiobookChapter(title: cleanTitle, url: streamOrLocalPath)],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                )
+                              else if (!isFailed)
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: job.progress > 0 ? job.progress : null,
+                                    backgroundColor: Colors.white10,
+                                    color: palette.primaryColor,
+                                    minHeight: 4,
+                                  ),
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+
+                // Render Uploaded Audiobooks
+                ...uploaded.map((b) {
+                  return Container(
+                    width: 270,
+                    margin: const EdgeInsets.only(right: 12),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF12151E).withValues(alpha: 0.85),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 48,
+                          height: 100,
+                          decoration: BoxDecoration(
+                            color: Colors.white10,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          clipBehavior: Clip.antiAlias,
+                          child: b.coverPath != null && File(b.coverPath!).existsSync()
+                              ? Image.file(File(b.coverPath!), fit: BoxFit.cover)
+                              : const Icon(Icons.library_music_rounded, color: Colors.white30, size: 24),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                b.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                '${b.author} • Local',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(color: Colors.white54, fontSize: 11),
+                              ),
+                              const SizedBox(height: 8),
+                              ElevatedButton.icon(
+                                icon: const Icon(Icons.play_arrow_rounded, size: 14),
+                                label: const Text('Play', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: palette.primaryColor,
+                                  foregroundColor: Colors.white,
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
+                                ),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    AudiobookPageRoute(
+                                      page: AudiobookPlayerScreen(
+                                        audiobook: b.toAudiobookModel(),
+                                        chapters: b.toChapters(),
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }),
+              ],
             ),
           ),
         ],

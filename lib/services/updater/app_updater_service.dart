@@ -5,14 +5,43 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AppUpdaterService {
   static const String githubRepo = 'ayman708-UX/PlayTorrioV3';
   static const String githubApiUrl =
       'https://api.github.com/repos/$githubRepo/releases/latest';
+  static const String _keyDismissedVersion = 'dismissed_update_version';
 
-  Future<UpdateInfo?> checkForUpdates() async {
+  static Future<void> dismissVersion(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_keyDismissedVersion, version);
+      debugPrint('[AppUpdaterService] Dismissed update version: $version');
+    } catch (e) {
+      debugPrint('[AppUpdaterService] Error dismissing update version: $e');
+    }
+  }
+
+  static Future<bool> isVersionDismissed(String version) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final dismissed = prefs.getString(_keyDismissedVersion);
+      return dismissed == version;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static Future<void> clearDismissedVersion() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_keyDismissedVersion);
+    } catch (_) {}
+  }
+
+  Future<UpdateInfo?> checkForUpdates({bool ignoreDismissed = false}) async {
     try {
       final packageInfo = await PackageInfo.fromPlatform();
       final currentVersion = packageInfo.version;
@@ -33,6 +62,11 @@ class AppUpdaterService {
         final publishedAt = DateTime.parse(data['published_at']);
 
         if (_isNewerVersion(currentVersion, latestVersion)) {
+          if (!ignoreDismissed && await isVersionDismissed(latestVersion)) {
+            debugPrint('[AppUpdaterService] Update $latestVersion is newer but was dismissed by user.');
+            return null;
+          }
+
           final assets = data['assets'] as List;
           final downloadUrl = _findAssetForPlatform(assets);
 

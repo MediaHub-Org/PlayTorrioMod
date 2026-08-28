@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:window_manager/window_manager.dart';
 
 import '../playback_coordinator.dart';
-import '../stream/local_stream_proxy.dart';
 import '../stream/torrent_stream_service.dart';
 
 /// Centralized window and fullscreen state manager for desktop and mobile.
@@ -62,8 +61,15 @@ class WindowService with WindowListener {
       final isCurrentlyFs = await windowManager.isFullScreen();
       if (isCurrentlyFs || isFullscreenNotifier.value) {
         await windowManager.setFullScreen(false);
+        if (await windowManager.isMaximized()) {
+          await windowManager.unmaximize();
+        }
         isFullscreenNotifier.value = false;
       } else {
+        // Crucial for Windows: unmaximize first to drop the 8px DWM resize frame
+        if (await windowManager.isMaximized()) {
+          await windowManager.unmaximize();
+        }
         await windowManager.setFullScreen(true);
         isFullscreenNotifier.value = true;
       }
@@ -92,6 +98,9 @@ class WindowService with WindowListener {
       final isCurrentlyFs = await windowManager.isFullScreen();
       if (isCurrentlyFs || isFullscreenNotifier.value) {
         await windowManager.setFullScreen(false);
+        if (await windowManager.isMaximized()) {
+          await windowManager.unmaximize();
+        }
         isFullscreenNotifier.value = false;
       }
     } catch (e) {
@@ -117,7 +126,6 @@ class WindowService with WindowListener {
   Future<void> _shutdownAndClose() async {
     try {
       PlaybackCoordinator.stopActive();
-      await LocalStreamProxy.instance.stop();
       await TorrentStreamService().stop();
     } catch (e) {
       debugPrint('[WindowService] shutdown cleanup error: $e');

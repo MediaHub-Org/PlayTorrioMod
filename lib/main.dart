@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'package:fvp/fvp.dart' as fvp;
+import 'package:media_kit/media_kit.dart';
 
 import 'package:window_manager/window_manager.dart';
 
@@ -27,7 +27,6 @@ import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
 import './services/player/player_settings.dart';
 import './services/tmdb/tmdb_settings.dart';
-import './services/stream/local_stream_proxy.dart';
 import './services/stream/torrent_stream_service.dart';
 import './services/config/env_service.dart';
 import './services/window/window_service.dart';
@@ -40,6 +39,7 @@ final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  MediaKit.ensureInitialized();
   if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
     await windowManager.ensureInitialized();
     await WindowService.instance.initialize();
@@ -47,7 +47,6 @@ void main() async {
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await EnvService.initialize();
   await PlayerSettings.initialize();
-  fvp.registerWith(options: PlayerSettings.getFvpRegisterOptions());
   await Future.wait([
     AddonManager.instance.initialize(),
     AudiobookLibraryService.instance.init(),
@@ -68,7 +67,6 @@ void main() async {
     MyListService.initialize(),
     TmdbSettings.initialize(),
     P2pSettingsService.initialize(),
-    LocalStreamProxy.instance.start(),
     DownloadService.instance.initialize(),
     TorrentStreamService().start(),
   ]);
@@ -105,13 +103,6 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _checkForUpdates();
-    }
   }
 
   Future<void> _checkForUpdates() async {

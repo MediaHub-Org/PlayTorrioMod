@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
 
 import '../../models/audiobook/audiobook_model.dart';
 import '../../services/audiobook/audiobook_player_controller.dart';
@@ -37,7 +38,8 @@ class AudiobookPlayerScreen extends StatefulWidget {
 }
 
 class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with SingleTickerProviderStateMixin {
-  VideoPlayerController? _controller;
+  Player? _player;
+  final List<StreamSubscription> _playerSubscriptions = [];
   late int _currentChapterIndex;
 
   bool _isLoading = true;
@@ -93,21 +95,24 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     );
     AudiobookSettings.changeNotifier.removeListener(_onSettingsChanged);
     AppThemeService.currentPalette.removeListener(_onSettingsChanged);
-    _controller?.removeListener(_onPlayerStateChanged);
-    _controller?.dispose();
+    for (final s in _playerSubscriptions) {
+      s.cancel();
+    }
+    _playerSubscriptions.clear();
+    _player?.dispose();
     _discAnimController.dispose();
     TorrentStreamService().cleanup();
     super.dispose();
   }
 
   void _saveProgress() {
-    if (_controller != null && _controller!.value.isInitialized) {
+    if (_player != null && _duration > Duration.zero) {
       AudiobookProgressService.instance.saveProgress(
         audiobook: widget.audiobook,
         chapters: widget.chapters,
         chapterIndex: _currentChapterIndex,
-        position: _controller!.value.position,
-        duration: _controller!.value.duration,
+        position: _position,
+        duration: _duration,
       );
     }
   }
@@ -134,18 +139,18 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     PlaybackCoordinator.activate(
       sourceId,
       () {
-        _controller?.pause();
+        _player?.pause();
       },
       kind: 'audiobook',
       title: widget.audiobook.title,
       subtitle: widget.chapters[index].title,
       coverUrl: widget.audiobook.coverImage,
       onTogglePlayPause: () {
-        if (_controller == null) return;
-        if (_controller!.value.isPlaying) {
-          _controller!.pause();
+        if (_player == null) return;
+        if (_player!.state.playing) {
+          _player!.pause();
         } else {
-          _controller!.play();
+          _player!.play();
         }
       },
     );
@@ -153,10 +158,14 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     // Save progress before switching
     _saveProgress();
 
-    if (_controller != null) {
-      _controller!.removeListener(_onPlayerStateChanged);
-      await _controller!.dispose();
-      _controller = null;
+    for (final s in _playerSubscriptions) {
+      s.cancel();
+    }
+    _playerSubscriptions.clear();
+
+    if (_player != null) {
+      await _player!.dispose();
+      _player = null;
     }
 
     setState(() {
@@ -205,50 +214,92 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
         throw Exception('Audio stream URL could not be resolved.');
       }
 
-      final sanitizedUrlStr = streamUrl.contains('::')
-          ? streamUrl.replaceAll('::', '%3A%3A')
-          : streamUrl;
-      final cleanUri = Uri.parse(sanitizedUrlStr);
+      final isLocal = !streamUrl.startsWith('http://') && !streamUrl.startsWith('https://');
+      final player = Player();
 
-      final headers = <String, String>{
-        'User-Agent':
-            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      };
-      if (chapter.httpHeaders != null) {
-        headers.addAll(chapter.httpHeaders!);
+      final Media media;
+      if (isLocal) {
+        media = Media(File(streamUrl).uri.toString());
+      } else {
+        final sanitizedUrlStr = streamUrl.contains('::')
+            ? streamUrl.replaceAll('::', '%3A%3A')
+            : streamUrl;
+        final cleanUri = Uri.parse(sanitizedUrlStr);
+
+        final headers = <String, String>{
+          'User-Agent':
+              'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        };
+        if (chapter.httpHeaders != null) {
+          headers.addAll(chapter.httpHeaders!);
+        }
+
+        media = Media(cleanUri.toString(), httpHeaders: headers);
       }
 
-      final controller = VideoPlayerController.networkUrl(
-        cleanUri,
-        httpHeaders: headers,
-      );
+      _playerSubscriptions.addAll([
+        player.stream.playing.listen((playing) {
+          if (mounted) {
+            setState(() => _isPlaying = playing);
+            if (playing && !_discAnimController.isAnimating) {
+              _discAnimController.repeat();
+            } else if (!playing && _discAnimController.isAnimating) {
+              _discAnimController.stop();
+            }
+          }
+        }),
+        player.stream.position.listen((pos) {
+          if (mounted) {
+            setState(() => _position = pos);
+          }
+        }),
+        player.stream.duration.listen((dur) {
+          if (mounted && dur > Duration.zero) {
+            setState(() {
+              _duration = dur;
+              _isLoading = false;
+            });
+          }
+        }),
+        player.stream.completed.listen((completed) {
+          if (completed && mounted) {
+            if (_autoplayNext && _currentChapterIndex < widget.chapters.length - 1) {
+              _initChapter(_currentChapterIndex + 1);
+            }
+          }
+        }),
+        player.stream.error.listen((err) {
+          if (mounted) {
+            setState(() {
+              _isLoading = false;
+              _errorMessage = 'Playback Error: $err';
+            });
+          }
+        }),
+      ]);
 
-      await controller.initialize();
-      controller.setVolume(_volume);
-      controller.setPlaybackSpeed(_playbackSpeed);
-      controller.addListener(_onPlayerStateChanged);
+      await player.open(media);
+      await player.setVolume(_volume * 100.0);
+      await player.setRate(_playbackSpeed);
 
       // Auto-seek if resuming initial position
       if (!_hasRestoredPosition &&
           index == widget.initialChapterIndex &&
           widget.initialPosition != null &&
-          widget.initialPosition! > Duration.zero &&
-          widget.initialPosition! < controller.value.duration) {
-        await controller.seekTo(widget.initialPosition!);
+          widget.initialPosition! > Duration.zero) {
+        await player.seek(widget.initialPosition!);
         _hasRestoredPosition = true;
       }
 
       if (!mounted) return;
 
       setState(() {
-        _controller = controller;
+        _player = player;
         _isLoading = false;
-        _duration = controller.value.duration;
+        _isPlaying = true;
       });
 
-      controller.play();
       _discAnimController.repeat();
-      setState(() => _isPlaying = true);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -258,64 +309,34 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     }
   }
 
-  void _onPlayerStateChanged() {
-    if (_controller == null || !_controller!.value.isInitialized) return;
-
-    final val = _controller!.value;
-    final isPlaying = val.isPlaying;
-    final pos = val.position;
-    final dur = val.duration;
-
-    if (mounted) {
-      setState(() {
-        _position = pos;
-        _duration = dur;
-        _isPlaying = isPlaying;
-      });
-
-      if (isPlaying && !_discAnimController.isAnimating) {
-        _discAnimController.repeat();
-      } else if (!isPlaying && _discAnimController.isAnimating) {
-        _discAnimController.stop();
-      }
-
-      // Check chapter end for Autoplay
-      if (dur > Duration.zero && pos >= dur - const Duration(milliseconds: 500)) {
-        if (_autoplayNext && _currentChapterIndex < widget.chapters.length - 1) {
-          _initChapter(_currentChapterIndex + 1);
-        }
-      }
-    }
-  }
-
   void _togglePlayPause() {
-    if (_controller == null || !_controller!.value.isInitialized) return;
+    if (_player == null) return;
 
-    if (_controller!.value.isPlaying) {
-      _controller!.pause();
+    if (_isPlaying) {
+      _player!.pause();
       _discAnimController.stop();
       setState(() => _isPlaying = false);
     } else {
-      _controller!.play();
+      _player!.play();
       _discAnimController.repeat();
       setState(() => _isPlaying = true);
     }
   }
 
   void _seekRelative(int seconds) {
-    if (_controller == null || !_controller!.value.isInitialized) return;
+    if (_player == null) return;
     final target = _position + Duration(seconds: seconds);
     final clamped = target < Duration.zero
         ? Duration.zero
         : (target > _duration ? _duration : target);
-    _controller!.seekTo(clamped);
+    _player!.seek(clamped);
   }
 
   void _cycleSpeed() {
     final nextIdx = (_speeds.indexOf(_playbackSpeed) + 1) % _speeds.length;
     final newSpeed = _speeds[nextIdx];
     setState(() => _playbackSpeed = newSpeed);
-    _controller?.setPlaybackSpeed(newSpeed);
+    _player?.setRate(newSpeed);
   }
 
   void _showPlayerCustomizer(BuildContext context) {
@@ -879,7 +900,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
                       duration: _duration,
                       isPlaying: _isPlaying,
                       style: seekStyle,
-                      onSeek: (pos) => _controller?.seekTo(pos),
+                      onSeek: (pos) => _player?.seek(pos),
                     ),
                     const SizedBox(height: 12),
 
@@ -927,7 +948,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
                 duration: _duration,
                 isPlaying: _isPlaying,
                 style: AudiobookSeekbarStyle.audioWaveformCanvas,
-                onSeek: (pos) => _controller?.seekTo(pos),
+                onSeek: (pos) => _player?.seek(pos),
               ),
               const SizedBox(height: 14),
 
@@ -1003,7 +1024,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
                 duration: _duration,
                 isPlaying: _isPlaying,
                 style: AudiobookSeekbarStyle.gradientProgress,
-                onSeek: (pos) => _controller?.seekTo(pos),
+                onSeek: (pos) => _player?.seek(pos),
               ),
               const SizedBox(height: 12),
               _buildMainControlsCluster(palette),
@@ -1040,7 +1061,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
                 duration: _duration,
                 isPlaying: _isPlaying,
                 style: AudiobookSeekbarStyle.audioWaveformCanvas,
-                onSeek: (pos) => _controller?.seekTo(pos),
+                onSeek: (pos) => _player?.seek(pos),
               ),
               const SizedBox(height: 16),
               _buildMainControlsCluster(palette),
@@ -1096,7 +1117,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
                       duration: _duration,
                       isPlaying: _isPlaying,
                       style: seekStyle,
-                      onSeek: (pos) => _controller?.seekTo(pos),
+                      onSeek: (pos) => _player?.seek(pos),
                     ),
                   );
                 case 'mainControls':
@@ -1117,7 +1138,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
                           palette: palette,
                           onVolumeChanged: (v) {
                             setState(() => _volume = v);
-                            _controller?.setVolume(v);
+                            _player?.setVolume(v * 100.0);
                           },
                         ),
                       ],
@@ -1354,7 +1375,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
           palette: palette,
           onVolumeChanged: (v) {
             setState(() => _volume = v);
-            _controller?.setVolume(v);
+            _player?.setVolume(v * 100.0);
           },
         ),
       ],

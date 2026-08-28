@@ -72,7 +72,7 @@ class TorrentStreamService {
   static const TorrServerSettings fastestSettings = TorrServerSettings(
     cacheSize: 200 * 1024 * 1024, // 200 MB sliding RAM cache
     readerReadAHead: 95, // 95% aggressive pre-buffer ahead of playhead
-    preloadCache: 15, // 15% quick start (starts playback in 1-3 seconds)
+    preloadCache: 2, // 2% quick start for instant playback and instant seeking
     useDisk: false, // RAM-only streaming (zero disk I/O / flash wear)
     removeCacheOnDrop: true, // Free RAM immediately when closing stream
     connectionsLimit: 60, // Optimal peer connections for high throughput without router choking

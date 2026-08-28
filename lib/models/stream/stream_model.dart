@@ -100,12 +100,45 @@ class StreamSource {
     return null;
   }
 
-  /// Extract file size if mentioned in title.
+  /// Extract file size string if mentioned in title, name, or description.
   String? get fileSize {
-    final text = '${title ?? ''} ${name ?? ''}';
-    final regex = RegExp(r'(\d+\.?\d*)\s*(GB|MB|gb|mb|Gb|Mb)', caseSensitive: false);
+    final text = '${title ?? ''} ${name ?? ''} ${description ?? ''}';
+    final regex = RegExp(
+      r'(\d+(?:[\.,]\d+)?)\s*(TB|TiB|GB|GiB|MB|MiB|KB|KiB)|(TB|TiB|GB|GiB|MB|MiB|KB|KiB)\s*(\d+(?:[\.,]\d+)?)',
+      caseSensitive: false,
+    );
     final match = regex.firstMatch(text);
-    if (match != null) return '${match.group(1)} ${match.group(2)!.toUpperCase()}';
+    if (match != null) {
+      final numStr = match.group(1) ?? match.group(4);
+      final unit = (match.group(2) ?? match.group(3))?.toUpperCase();
+      if (numStr != null && unit != null) {
+        return '$numStr $unit';
+      }
+    }
+    return null;
+  }
+
+  /// Extracted size in bytes for filtering and sorting.
+  double? get sizeBytes {
+    final text = '${title ?? ''} ${name ?? ''} ${description ?? ''}';
+    final regex = RegExp(
+      r'(\d+(?:[\.,]\d+)?)\s*(TB|TiB|GB|GiB|MB|MiB|KB|KiB)|(TB|TiB|GB|GiB|MB|MiB|KB|KiB)\s*(\d+(?:[\.,]\d+)?)',
+      caseSensitive: false,
+    );
+    final match = regex.firstMatch(text);
+    if (match != null) {
+      final numStr = match.group(1) ?? match.group(4);
+      final unit = (match.group(2) ?? match.group(3))?.toUpperCase();
+      if (numStr != null && unit != null) {
+        final val = double.tryParse(numStr.replaceAll(',', '.'));
+        if (val != null) {
+          if (unit.startsWith('T')) return val * 1024 * 1024 * 1024 * 1024;
+          if (unit.startsWith('G')) return val * 1024 * 1024 * 1024;
+          if (unit.startsWith('M')) return val * 1024 * 1024;
+          if (unit.startsWith('K')) return val * 1024;
+        }
+      }
+    }
     return null;
   }
 

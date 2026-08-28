@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../models/stream/stream_model.dart';
-import 'local_stream_proxy.dart';
+import '../player/player_settings.dart';
 
 /// Production-grade HTTP/HLS/MP4 Stream Health & Liveness Checker for PlayTorrioHTTP.
 ///
@@ -28,7 +28,7 @@ class StreamHealthChecker {
     }
 
     // Resolve complete headers (including Referer, Origin, User-Agent)
-    final effectiveHeaders = LocalStreamProxy.resolveHeadersForUrl(rawUrl, source.headers);
+    final effectiveHeaders = PlayerSettings.resolveStreamHeaders(rawUrl, source.headers);
 
     return _probeUrl(rawUrl, effectiveHeaders);
   }
@@ -62,7 +62,7 @@ class StreamHealthChecker {
         final location = resp.headers['location'];
         if (location != null && location.isNotEmpty) {
           final redirectedUri = Uri.parse(url).resolve(location).toString();
-          final redirectHeaders = LocalStreamProxy.resolveHeadersForUrl(redirectedUri, headers);
+          final redirectHeaders = PlayerSettings.resolveStreamHeaders(redirectedUri, headers);
           client.close();
           return _probeUrl(redirectedUri, redirectHeaders, redirectCount + 1);
         }

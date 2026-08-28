@@ -3,6 +3,7 @@ class Audiobook {
   final String audioBookId;
   final String dynamicSlugId;
   final String title;
+  final String? author;
   final String coverImage;
   final String source;
   final String pageUrl;
@@ -13,6 +14,7 @@ class Audiobook {
     required this.audioBookId,
     required this.dynamicSlugId,
     required this.title,
+    this.author,
     required String coverImage,
     required this.source,
     required this.pageUrl,
@@ -24,6 +26,7 @@ class Audiobook {
         'audioBookId': audioBookId,
         'dynamicSlugId': dynamicSlugId,
         'title': title,
+        'author': author,
         'coverImage': coverImage,
         'source': source,
         'pageUrl': pageUrl,
@@ -35,6 +38,7 @@ class Audiobook {
         audioBookId: (json['audioBookId'] ?? '').toString(),
         dynamicSlugId: (json['dynamicSlugId'] ?? '').toString(),
         title: (json['title'] ?? '').toString(),
+        author: json['author'] as String?,
         coverImage: (json['coverImage'] ?? '').toString().trim(),
         source: (json['source'] ?? '').toString(),
         pageUrl: (json['pageUrl'] ?? '').toString(),

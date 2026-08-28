@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../widgets/common/animated_ambient_background.dart';
+import '../../widgets/player/player_sub_style_modal.dart';
 
 class VideoPlayerSettingsPage extends StatefulWidget {
   const VideoPlayerSettingsPage({super.key});
@@ -43,6 +44,14 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
               'Video Player & Engine Settings',
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 19),
             ),
+            actions: [
+              IconButton(
+                tooltip: 'Reset to Defaults',
+                icon: const Icon(Icons.restart_alt_rounded, size: 22),
+                onPressed: () => _confirmResetToDefaults(palette),
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
           body: AnimatedAmbientBackground(
             child: Center(
@@ -56,31 +65,45 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
 
                     const SizedBox(height: 24),
 
-                    // ── Section 1: Video Decoders & Crash-Free Engine ──
+                    // ── Section 1: Video Decoders & Hardware Acceleration ──
                     _buildSectionHeader('VIDEO DECODERS & HARDWARE ACCELERATION'),
                     const SizedBox(height: 12),
                     _buildDecodersCard(palette),
 
                     const SizedBox(height: 24),
 
-                    // ── Section 2: Buffer Cushion & Anti-Desync Engine ──
-                    _buildSectionHeader('BUFFER CUSHION & ANTI-DESYNC ENGINE'),
+                    // ── Section 2: Engine Performance & Fast Decode (AnymeX) ──
+                    _buildSectionHeader('ENGINE DECODE OPTIMIZATIONS & CACHING'),
+                    const SizedBox(height: 12),
+                    _buildPerformanceOptimizationCard(palette),
+
+                    const SizedBox(height: 24),
+
+                    // ── Section 3: Buffer Cushion & Anti-Desync Engine ──
+                    _buildSectionHeader('BUFFER CUSHION & DEMUXER RESILIENCE'),
                     const SizedBox(height: 12),
                     _buildBufferCushionCard(palette),
 
                     const SizedBox(height: 24),
 
-                    // ── Section 3: Network Continuity & Auto-Reconnect ──
+                    // ── Section 4: Network Continuity & Auto-Reconnect ──
                     _buildSectionHeader('STREAM CONTINUITY & NETWORK RECONNECT'),
                     const SizedBox(height: 12),
                     _buildNetworkReconnectCard(palette),
 
                     const SizedBox(height: 24),
 
-                    // ── Section 4: A/V Master Clock & Sync Calibration ──
+                    // ── Section 5: A/V Master Clock & Sync Calibration ──
                     _buildSectionHeader('A/V MASTER CLOCK & SYNC CALIBRATION'),
                     const SizedBox(height: 12),
                     _buildAudioSyncCard(palette),
+
+                    const SizedBox(height: 24),
+
+                    // ── Section 6: Subtitle Appearance & libass Styling ──
+                    _buildSectionHeader('SUBTITLE APPEARANCE & LIBASS STYLING'),
+                    const SizedBox(height: 12),
+                    _buildSubtitleAppearanceCard(palette),
 
                     const SizedBox(height: 32),
 
@@ -204,7 +227,7 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
                     ),
                     const SizedBox(height: 3),
                     Text(
-                      'libmdk hardware accelerated pipeline with auto software failover.',
+                      'libmpv hardware accelerated pipeline with auto software failover.',
                       style: TextStyle(
                         fontSize: 12.5,
                         color: Colors.white.withValues(alpha: 0.55),
@@ -392,6 +415,172 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
               ),
             );
           }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPerformanceOptimizationCard(AppThemePalette palette) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12151E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // 1. Fast Video Decoding
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            secondary: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: palette.primaryColor.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(Icons.flash_on_rounded, color: palette.primaryColor, size: 20),
+            ),
+            title: const Text(
+              'Fast Video Decoding (vd-lavc-fast)',
+              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white),
+            ),
+            subtitle: Text(
+              'Enables high-throughput FFmpeg fast decode paths to minimize stutter on high-bitrate streams.',
+              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5), height: 1.3),
+            ),
+            value: PlayerSettings.enableFastDecode.value,
+            activeColor: palette.primaryColor,
+            onChanged: (val) => PlayerSettings.setEnableFastDecode(val),
+          ),
+
+          const SizedBox(height: 12),
+          Divider(color: Colors.white.withValues(alpha: 0.06), height: 1),
+          const SizedBox(height: 12),
+
+          // 2. Loop Filter Skipping
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.filter_alt_rounded, color: Color(0xFF10B981), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Deblocking Loop Filter',
+                      style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white),
+                    ),
+                    Text(
+                      'Skip deblocking filter on non-critical frames to reduce CPU/GPU load.',
+                      style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                    ),
+                  ],
+                ),
+              ),
+              DropdownButton<String>(
+                value: PlayerSettings.skipLoopFilter.value,
+                dropdownColor: const Color(0xFF1E2330),
+                underline: const SizedBox(),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                items: const [
+                  DropdownMenuItem(value: 'nonkey', child: Text('Non-Key (Fast)')),
+                  DropdownMenuItem(value: 'noref', child: Text('Non-Ref')),
+                  DropdownMenuItem(value: 'all', child: Text('Skip All')),
+                  DropdownMenuItem(value: 'none', child: Text('None (Quality)')),
+                ],
+                onChanged: (val) {
+                  if (val != null) PlayerSettings.setSkipLoopFilter(val);
+                },
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+          Divider(color: Colors.white.withValues(alpha: 0.06), height: 1),
+          const SizedBox(height: 12),
+
+          // 3. Decoding Threads
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.developer_board_rounded, color: Color(0xFFF59E0B), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Decoder Worker Threads',
+                      style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white),
+                    ),
+                    Text(
+                      'Multi-threaded FFmpeg decode workers (Default: 4).',
+                      style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                    ),
+                  ],
+                ),
+              ),
+              DropdownButton<int>(
+                value: PlayerSettings.lavcThreads.value,
+                dropdownColor: const Color(0xFF1E2330),
+                underline: const SizedBox(),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.white),
+                items: const [
+                  DropdownMenuItem(value: 0, child: Text('Auto')),
+                  DropdownMenuItem(value: 1, child: Text('1 Thread')),
+                  DropdownMenuItem(value: 2, child: Text('2 Threads')),
+                  DropdownMenuItem(value: 4, child: Text('4 Threads')),
+                  DropdownMenuItem(value: 8, child: Text('8 Threads')),
+                ],
+                onChanged: (val) {
+                  if (val != null) PlayerSettings.setLavcThreads(val);
+                },
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+          Divider(color: Colors.white.withValues(alpha: 0.06), height: 1),
+          const SizedBox(height: 12),
+
+          // 4. Disk Stream Cache
+          SwitchListTile.adaptive(
+            contentPadding: EdgeInsets.zero,
+            secondary: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF8B5CF6).withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.disc_full_rounded, color: Color(0xFF8B5CF6), size: 20),
+            ),
+            title: const Text(
+              'Disk Stream Buffer Cache',
+              style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white),
+            ),
+            subtitle: Text(
+              'Smoothly caches media chunks into the OS temporary directory to eliminate RAM pressure.',
+              style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5), height: 1.3),
+            ),
+            value: PlayerSettings.enableDiskCache.value,
+            activeColor: const Color(0xFF8B5CF6),
+            onChanged: (val) => PlayerSettings.setEnableDiskCache(val),
+          ),
         ],
       ),
     );
@@ -766,6 +955,177 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
     );
   }
 
+  Widget _buildSubtitleAppearanceCard(AppThemePalette palette) {
+    final currentPreset = PlayerSettings.subStylePreset.value;
+    final fontName = PlayerSettings.subFont.value == 'subfont' ? 'Default (PlayTorrio Subfont)' : PlayerSettings.subFont.value;
+    final size = PlayerSettings.subFontSize.value;
+    final scale = (PlayerSettings.subScale.value * 100).round();
+
+    Color parseColor(String hex, {Color fallback = Colors.white}) {
+      var str = hex.replaceAll('#', '').trim();
+      if (str.length == 6) str = 'FF$str';
+      if (str.length == 8) {
+        final val = int.tryParse(str, radix: 16);
+        if (val != null) return Color(val);
+      }
+      return fallback;
+    }
+
+    final textColor = parseColor(PlayerSettings.subColor.value);
+    final boxColor = parseColor(PlayerSettings.subBackColor.value, fallback: Colors.transparent);
+    final borderColor = parseColor(PlayerSettings.subBorderColor.value, fallback: Colors.black);
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12151E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 38,
+                    height: 38,
+                    decoration: BoxDecoration(
+                      color: palette.primaryColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(Icons.subtitles_rounded, color: palette.primaryColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Subtitle Styling & Engine Customization',
+                        style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white),
+                      ),
+                      Text(
+                        'Preset: ${currentPreset.label} • $fontName (${size}pt / $scale%)',
+                        style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5)),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.tune_rounded, size: 16),
+                label: const Text('Customize'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: palette.primaryColor,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                onPressed: _openSubtitleCustomizer,
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 14),
+
+          // Mini preview bar
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0A0D14),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.06)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: boxColor,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'PlayTorrio • Sample Subtitle Preview',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: PlayerSettings.subFont.value == 'subfont' ? 'Poppins' : PlayerSettings.subFont.value,
+                        fontSize: 14,
+                        fontWeight: PlayerSettings.subBold.value ? FontWeight.bold : FontWeight.w600,
+                        fontStyle: PlayerSettings.subItalic.value ? FontStyle.italic : FontStyle.normal,
+                        color: textColor,
+                        shadows: [
+                          if (PlayerSettings.subBorderSize.value > 0) ...[
+                            Shadow(color: borderColor, offset: const Offset(-1.2, -1.2)),
+                            Shadow(color: borderColor, offset: const Offset(1.2, -1.2)),
+                            Shadow(color: borderColor, offset: const Offset(1.2, 1.2)),
+                            Shadow(color: borderColor, offset: const Offset(-1.2, 1.2)),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _openSubtitleCustomizer() {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (ctx) => PlayerSubStyleModal(
+        onClose: () => Navigator.pop(ctx),
+      ),
+    );
+  }
+
+  Future<void> _confirmResetToDefaults(AppThemePalette palette) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF13151F),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Reset Player Settings?'),
+        content: Text(
+          'This will restore all video decoding, fast-decode optimizations, caching, buffering, and sync settings to recommended defaults for $_platformName.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            onPressed: () => Navigator.pop(ctx, false),
+          ),
+          TextButton(
+            child: Text('Reset', style: TextStyle(color: palette.primaryColor, fontWeight: FontWeight.bold)),
+            onPressed: () => Navigator.pop(ctx, true),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await PlayerSettings.resetToDefaults();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Video settings reset to $_platformName defaults.'),
+            backgroundColor: const Color(0xFF10B981),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
+  }
+
   Widget _buildResetButton(AppThemePalette palette) {
     return Center(
       child: OutlinedButton.icon(
@@ -777,42 +1137,7 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         ),
-        onPressed: () async {
-          final confirm = await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              backgroundColor: const Color(0xFF13151F),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: const Text('Reset Player Settings?'),
-              content: Text(
-                'This will restore all video decoding, buffering, and sync settings to recommended defaults for $_platformName.',
-                style: const TextStyle(color: Colors.white70),
-              ),
-              actions: [
-                TextButton(
-                  child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
-                  onPressed: () => Navigator.pop(ctx, false),
-                ),
-                TextButton(
-                  child: Text('Reset', style: TextStyle(color: palette.primaryColor, fontWeight: FontWeight.bold)),
-                  onPressed: () => Navigator.pop(ctx, true),
-                ),
-              ],
-            ),
-          );
-          if (confirm == true) {
-            await PlayerSettings.resetToDefaults();
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Video settings reset to $_platformName defaults.'),
-                  backgroundColor: const Color(0xFF10B981),
-                  behavior: SnackBarBehavior.floating,
-                ),
-              );
-            }
-          }
-        },
+        onPressed: () => _confirmResetToDefaults(palette),
       ),
     );
   }

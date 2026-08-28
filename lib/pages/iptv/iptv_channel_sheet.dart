@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../models/iptv/iptv_models.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_controller.dart';
 import '../../utils/navigation/route_transitions.dart';
@@ -27,6 +28,8 @@ class _IptvChannelSheetState extends State<IptvChannelSheet> {
 
   bool _isSelecting = false;
   final Set<String> _selectedUrls = {};
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -34,16 +37,24 @@ class _IptvChannelSheetState extends State<IptvChannelSheet> {
     _ctrl.openHardcodedChannel(widget.channel);
   }
 
-  void _playHit(int index, [Offset? tapPos]) {
-    if (_ctrl.channelResults.isEmpty) return;
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _playHit(ChannelHit hit, [Offset? tapPos]) {
+    final results = _ctrl.channelResults;
+    if (results.isEmpty) return;
+    final index = results.indexOf(hit);
     Navigator.pop(context);
     Navigator.push(
       context,
       LiquidRevealRoute(
         page: IptvPlayerPage(
           channel: widget.channel,
-          hits: _ctrl.channelResults,
-          initialHitIndex: index,
+          hits: results,
+          initialHitIndex: index >= 0 ? index : 0,
           isLive: true,
         ),
         tapPosition: tapPos,
@@ -93,11 +104,21 @@ class _IptvChannelSheetState extends State<IptvChannelSheet> {
         final results = _ctrl.channelResults;
         final isScanning = _ctrl.channelIsRunning;
         final status = _ctrl.channelStatus;
+        final filteredResults = _searchQuery.trim().isEmpty
+            ? results
+            : results.where((hit) {
+                final q = _searchQuery.trim().toLowerCase();
+                final nameMatches = hit.stream.name.toLowerCase().contains(q);
+                final portalMatches = hit.portal.name.toLowerCase().contains(q) ||
+                    hit.portal.portal.username.toLowerCase().contains(q);
+                final formatMatches = hit.stream.containerExt.toLowerCase().contains(q);
+                return nameMatches || portalMatches || formatMatches;
+              }).toList();
         final allSelected = results.isNotEmpty && _selectedUrls.length == results.length;
 
         return Container(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.78,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
           ),
           decoration: BoxDecoration(
             color: const Color(0xFF0C0E15),
@@ -130,7 +151,7 @@ class _IptvChannelSheetState extends State<IptvChannelSheet> {
 
               // Header Banner
               Padding(
-                padding: const EdgeInsets.fromLTRB(22, 10, 16, 12),
+                padding: const EdgeInsets.fromLTRB(22, 10, 16, 10),
                 child: Row(
                   children: [
                     // Channel Short / Icon Badge
@@ -238,6 +259,58 @@ class _IptvChannelSheetState extends State<IptvChannelSheet> {
                 ),
               ),
 
+              // Search Input Field
+              if (results.isNotEmpty || _searchQuery.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(22, 0, 22, 10),
+                  child: Container(
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: _searchQuery.isNotEmpty
+                            ? const Color(0xFF7C5CFF).withValues(alpha: 0.6)
+                            : Colors.white.withValues(alpha: 0.1),
+                        width: 1,
+                      ),
+                    ),
+                    child: TextField(
+                      controller: _searchController,
+                      style: const TextStyle(color: Colors.white, fontSize: 13.5),
+                      cursorColor: const Color(0xFF7C5CFF),
+                      decoration: InputDecoration(
+                        hintText: 'Search ${results.length} channels (e.g. 1080p, 4K, feed name)...',
+                        hintStyle: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.4),
+                          fontSize: 13,
+                        ),
+                        prefixIcon: Icon(
+                          Icons.search_rounded,
+                          color: _searchQuery.isNotEmpty
+                              ? const Color(0xFF7C5CFF)
+                              : Colors.white.withValues(alpha: 0.4),
+                          size: 20,
+                        ),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.close_rounded, color: Colors.white70, size: 18),
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _searchQuery = '');
+                                },
+                              )
+                            : null,
+                        border: InputBorder.none,
+                        contentPadding: const EdgeInsets.symmetric(vertical: 11),
+                      ),
+                      onChanged: (val) {
+                        setState(() => _searchQuery = val);
+                      },
+                    ),
+                  ),
+                ),
+
               // Selection Toolbar (when in edit mode)
               if (_isSelecting)
                 Container(
@@ -336,7 +409,11 @@ class _IptvChannelSheetState extends State<IptvChannelSheet> {
                       const SizedBox(width: 10),
                       Expanded(
                         child: Text(
-                          status.isNotEmpty ? status : '${results.length} live stream feeds available',
+                          status.isNotEmpty
+                              ? status
+                              : (_searchQuery.trim().isNotEmpty
+                                  ? 'Found ${filteredResults.length} of ${results.length} feeds'
+                                  : '${results.length} live stream feeds available'),
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.75),
                             fontSize: 12.5,
@@ -396,171 +473,206 @@ class _IptvChannelSheetState extends State<IptvChannelSheet> {
                           ),
                         ),
                       )
-                    : ListView.separated(
-                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
-                        physics: const BouncingScrollPhysics(),
-                        itemCount: results.length,
-                        separatorBuilder: (_, _) => const SizedBox(height: 10),
-                        itemBuilder: (context, index) {
-                          final hit = results[index];
-                          final isFav = _ctrl.isFavoriteHit(ch.id, hit);
-                          final isSelected = _selectedUrls.contains(hit.streamUrl);
-
-                          return MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: GestureDetector(
-                              onTap: () => _isSelecting
-                                  ? _toggleSelection(hit.streamUrl)
-                                  : _playHit(index),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                decoration: BoxDecoration(
-                                  color: isSelected
-                                      ? const Color(0xFF7C5CFF).withValues(alpha: 0.15)
-                                      : Colors.white.withValues(alpha: 0.05),
-                                  borderRadius: BorderRadius.circular(16),
-                                  border: Border.all(
-                                    color: isSelected
-                                        ? const Color(0xFF7C5CFF)
-                                        : (isFav
-                                            ? const Color(0xFF7C5CFF).withValues(alpha: 0.6)
-                                            : Colors.white.withValues(alpha: 0.08)),
-                                    width: isSelected || isFav ? 1.6 : 1.0,
+                    : (filteredResults.isEmpty
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(24),
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  const Icon(Icons.search_off_rounded, color: Colors.white38, size: 48),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    'No feeds match "$_searchQuery"',
+                                    style: const TextStyle(
+                                      color: Colors.white70,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                                child: Row(
-                                  children: [
-                                    // Selection checkbox or Play icon
-                                    if (_isSelecting)
-                                      Container(
-                                        width: 32,
-                                        height: 32,
-                                        decoration: BoxDecoration(
-                                          color: isSelected
-                                              ? const Color(0xFF7C5CFF)
-                                              : Colors.white.withValues(alpha: 0.06),
-                                          shape: BoxShape.circle,
-                                          border: Border.all(
-                                            color: isSelected
-                                                ? const Color(0xFF7C5CFF)
-                                                : Colors.white38,
-                                            width: 2,
-                                          ),
-                                        ),
-                                        child: isSelected
-                                            ? const Icon(Icons.check_rounded, color: Colors.white, size: 18)
-                                            : null,
-                                      )
-                                    else
-                                      Container(
-                                        width: 36,
-                                        height: 36,
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
-                                          shape: BoxShape.circle,
-                                        ),
-                                        child: const Icon(
-                                          Icons.play_arrow_rounded,
-                                          color: Color(0xFF7C5CFF),
-                                          size: 22,
-                                        ),
+                                  const SizedBox(height: 8),
+                                  TextButton(
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      setState(() => _searchQuery = '');
+                                    },
+                                    child: const Text(
+                                      'Clear Search',
+                                      style: TextStyle(
+                                        color: Color(0xFF7C5CFF),
+                                        fontWeight: FontWeight.bold,
                                       ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 6),
+                            physics: const BouncingScrollPhysics(),
+                            itemCount: filteredResults.length,
+                            separatorBuilder: (_, _) => const SizedBox(height: 10),
+                            itemBuilder: (context, index) {
+                              final hit = filteredResults[index];
+                              final isFav = _ctrl.isFavoriteHit(ch.id, hit);
+                              final isSelected = _selectedUrls.contains(hit.streamUrl);
 
-                                    const SizedBox(width: 14),
-
-                                    // Stream Info
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment: CrossAxisAlignment.start,
-                                        children: [
-                                          Row(
-                                            children: [
-                                              Container(
-                                                width: 7,
-                                                height: 7,
-                                                decoration: const BoxDecoration(
-                                                  color: Colors.greenAccent,
-                                                  shape: BoxShape.circle,
-                                                  boxShadow: [
-                                                    BoxShadow(
-                                                      color: Colors.greenAccent,
-                                                      blurRadius: 4,
-                                                    ),
-                                                  ],
-                                                ),
+                              return MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: GestureDetector(
+                                  onTap: () => _isSelecting
+                                      ? _toggleSelection(hit.streamUrl)
+                                      : _playHit(hit),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                                    decoration: BoxDecoration(
+                                      color: isSelected
+                                          ? const Color(0xFF7C5CFF).withValues(alpha: 0.15)
+                                          : Colors.white.withValues(alpha: 0.05),
+                                      borderRadius: BorderRadius.circular(16),
+                                      border: Border.all(
+                                        color: isSelected
+                                            ? const Color(0xFF7C5CFF)
+                                            : (isFav
+                                                ? const Color(0xFF7C5CFF).withValues(alpha: 0.6)
+                                                : Colors.white.withValues(alpha: 0.08)),
+                                        width: isSelected || isFav ? 1.6 : 1.0,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        // Selection checkbox or Play icon
+                                        if (_isSelecting)
+                                          Container(
+                                            width: 32,
+                                            height: 32,
+                                            decoration: BoxDecoration(
+                                              color: isSelected
+                                                  ? const Color(0xFF7C5CFF)
+                                                  : Colors.white.withValues(alpha: 0.06),
+                                              shape: BoxShape.circle,
+                                              border: Border.all(
+                                                color: isSelected
+                                                    ? const Color(0xFF7C5CFF)
+                                                    : Colors.white38,
+                                                width: 2,
                                               ),
-                                              const SizedBox(width: 6),
-                                              Expanded(
+                                            ),
+                                            child: isSelected
+                                                ? const Icon(Icons.check_rounded, color: Colors.white, size: 18)
+                                                : null,
+                                          )
+                                        else
+                                          Container(
+                                            width: 36,
+                                            height: 36,
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF7C5CFF).withValues(alpha: 0.2),
+                                              shape: BoxShape.circle,
+                                            ),
+                                            child: const Icon(
+                                              Icons.play_arrow_rounded,
+                                              color: Color(0xFF7C5CFF),
+                                              size: 22,
+                                            ),
+                                          ),
+
+                                        const SizedBox(width: 14),
+
+                                        // Stream Info
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Container(
+                                                    width: 7,
+                                                    height: 7,
+                                                    decoration: const BoxDecoration(
+                                                      color: Colors.greenAccent,
+                                                      shape: BoxShape.circle,
+                                                      boxShadow: [
+                                                        BoxShadow(
+                                                          color: Colors.greenAccent,
+                                                          blurRadius: 4,
+                                                        ),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  const SizedBox(width: 6),
+                                                  Expanded(
+                                                    child: Text(
+                                                      hit.stream.name,
+                                                      maxLines: 1,
+                                                      overflow: TextOverflow.ellipsis,
+                                                      style: const TextStyle(
+                                                        color: Colors.white,
+                                                        fontSize: 14.5,
+                                                        fontWeight: FontWeight.w800,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Padding(
+                                                padding: const EdgeInsets.only(left: 13),
                                                 child: Text(
-                                                  hit.stream.name,
+                                                  hit.portal.portal.username.isNotEmpty
+                                                      ? hit.portal.portal.username
+                                                      : (hit.portal.name.isNotEmpty
+                                                          ? hit.portal.name
+                                                          : 'Server ${index + 1}'),
                                                   maxLines: 1,
                                                   overflow: TextOverflow.ellipsis,
-                                                  style: const TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 14.5,
-                                                    fontWeight: FontWeight.w800,
+                                                  style: TextStyle(
+                                                    color: Colors.white.withValues(alpha: 0.5),
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
                                                   ),
                                                 ),
                                               ),
                                             ],
                                           ),
-                                          const SizedBox(height: 2),
-                                          Padding(
-                                            padding: const EdgeInsets.only(left: 13),
-                                            child: Text(
-                                              hit.portal.portal.username.isNotEmpty
-                                                  ? hit.portal.portal.username
-                                                  : (hit.portal.name.isNotEmpty
-                                                      ? hit.portal.name
-                                                      : 'Server ${index + 1}'),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                color: Colors.white.withValues(alpha: 0.5),
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                                        ),
+
+                                        // Format Tag
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white.withValues(alpha: 0.1),
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: Text(
+                                            hit.stream.containerExt.toUpperCase(),
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 10,
+                                              fontWeight: FontWeight.w800,
                                             ),
                                           ),
-                                        ],
-                                      ),
-                                    ),
-
-                                    // Format Tag
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white.withValues(alpha: 0.1),
-                                        borderRadius: BorderRadius.circular(4),
-                                      ),
-                                      child: Text(
-                                        hit.stream.containerExt.toUpperCase(),
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w800,
                                         ),
-                                      ),
-                                    ),
 
-                                    const SizedBox(width: 8),
+                                        const SizedBox(width: 8),
 
-                                    // Favorite Pin
-                                    IconButton(
-                                      icon: Icon(
-                                        isFav ? Icons.star_rounded : Icons.star_outline_rounded,
-                                        color: isFav ? const Color(0xFFFFC107) : Colors.white38,
-                                        size: 22,
-                                      ),
-                                      onPressed: () => _ctrl.toggleFavoriteHit(hit),
+                                        // Favorite Pin
+                                        IconButton(
+                                          icon: Icon(
+                                            isFav ? Icons.star_rounded : Icons.star_outline_rounded,
+                                            color: isFav ? const Color(0xFFFFC107) : Colors.white38,
+                                            size: 22,
+                                          ),
+                                          onPressed: () => _ctrl.toggleFavoriteHit(hit),
+                                        ),
+                                      ],
                                     ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                              );
+                            },
+                          )),
               ),
 
               // Bottom Action Bar
@@ -585,7 +697,9 @@ class _IptvChannelSheetState extends State<IptvChannelSheet> {
                             'Watch Live',
                             style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                           ),
-                          onPressed: () => _playHit(0),
+                          onPressed: filteredResults.isNotEmpty
+                              ? () => _playHit(filteredResults.first)
+                              : () => _playHit(results.first),
                         ),
                       ),
 

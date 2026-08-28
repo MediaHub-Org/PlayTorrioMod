@@ -11,10 +11,13 @@ class WyzieProvider extends SubtitleProvider {
   String get name => 'Wyzie';
 
   static const String _endpoint = 'https://sub.wyzie.io/search';
+  static const String _apiKey = 'wyzie-2q1gc0ypd8mkisqcw0ijt1b9zjytj7ex';
   static const Map<String, String> _headers = {
     'User-Agent':
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Accept': 'application/json',
+    'x-api-key': _apiKey,
+    'Authorization': 'Bearer $_apiKey',
   };
 
   static const Map<String, String> _iso3ToLangName = {
@@ -96,6 +99,7 @@ class WyzieProvider extends SubtitleProvider {
     try {
       final queryParams = <String, String>{
         'source': 'all',
+        'key': _apiKey,
       };
 
       if (imdbId != null && imdbId.isNotEmpty) {
@@ -173,7 +177,7 @@ class WyzieProvider extends SubtitleProvider {
       final outPath = '${dir.path}/wyzie_${DateTime.now().millisecondsSinceEpoch}.$ext';
 
       final file = File(outPath);
-      await file.writeAsBytes(res.bodyBytes);
+      await file.writeAsBytes(res.bodyBytes, flush: true);
       return outPath;
     } catch (e) {
       print('[WyzieProvider] download error: $e');
