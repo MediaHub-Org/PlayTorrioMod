@@ -25,6 +25,7 @@ class PlayerEpisodesPanel extends StatefulWidget {
 
 class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
   final ScrollController _scrollController = ScrollController();
+  final ScrollController _seasonScrollController = ScrollController();
   late int _selectedSeason;
   String? _selectedEpisodeId;
   int? _hoveredIndex;
@@ -55,9 +56,10 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
     }
     _selectedSeason = initialSeason;
 
-    // Auto-scroll to currently playing episode on open
+    // Auto-scroll to currently playing episode and active season tab on open
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _scrollToCurrentEpisode(immediate: true);
+      _scrollToActiveSeason(immediate: true);
     });
   }
 
@@ -145,6 +147,35 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
     }
   }
 
+  void _scrollToActiveSeason({bool immediate = false}) {
+    if (!mounted || _seasons.isEmpty) return;
+    final idx = _seasons.indexOf(_selectedSeason);
+    if (idx < 0) return;
+    final targetOffset = (idx * 86.0).clamp(
+      0.0,
+      _seasonScrollController.hasClients ? _seasonScrollController.position.maxScrollExtent : 9999.0,
+    );
+    if (immediate) {
+      if (_seasonScrollController.hasClients) {
+        _seasonScrollController.jumpTo(targetOffset);
+      } else {
+        Future.delayed(const Duration(milliseconds: 60), () {
+          if (mounted && _seasonScrollController.hasClients) {
+            _seasonScrollController.jumpTo(targetOffset);
+          }
+        });
+      }
+    } else {
+      if (_seasonScrollController.hasClients) {
+        _seasonScrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 220),
+          curve: Curves.easeOutCubic,
+        );
+      }
+    }
+  }
+
   void _selectSeason(int season) {
     if (_selectedSeason == season) return;
     setState(() {
@@ -154,6 +185,8 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
         _selectedEpisodeId = episodesInSeason.first.id;
       }
     });
+
+    _scrollToActiveSeason();
 
     if (_scrollController.hasClients) {
       _scrollController.jumpTo(0.0);
@@ -186,9 +219,24 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
     );
   }
 
+  void _scrollSeason(bool right) {
+    if (!_seasonScrollController.hasClients) return;
+    final current = _seasonScrollController.offset;
+    final target = (current + (right ? 140.0 : -140.0)).clamp(
+      0.0,
+      _seasonScrollController.position.maxScrollExtent,
+    );
+    _seasonScrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
   @override
   void dispose() {
     _scrollController.dispose();
+    _seasonScrollController.dispose();
     super.dispose();
   }
 
@@ -359,62 +407,130 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
   }
 
   Widget _buildSeasonTabs(bool isCompact) {
+    final showArrows = !isCompact && _seasons.length > 2;
+
     return Container(
       height: 48,
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
       color: const Color(0x33000000),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 16),
-        itemCount: _seasons.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final season = _seasons[index];
-          final isActive = season == _selectedSeason;
-          final tabLabel = _seasonLabels[season] ?? 'Season $season';
-
-          return Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () => _selectSeason(season),
-              borderRadius: BorderRadius.circular(10),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? PlayerTheme.accent.withValues(alpha: 0.28)
-                      : Colors.white.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: isActive
-                        ? PlayerTheme.accent.withValues(alpha: 0.80)
-                        : Colors.white.withValues(alpha: 0.10),
-                    width: 1.2,
-                  ),
-                  boxShadow: isActive
-                      ? [
-                          BoxShadow(
-                            color: PlayerTheme.accent.withValues(alpha: 0.35),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ]
-                      : null,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  tabLabel,
-                  style: TextStyle(
-                    color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.70),
-                    fontSize: 12.5,
-                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
-                  ),
-                ),
+      child: Row(
+        children: [
+          // Desktop Left Season Arrow
+          if (showArrows)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, right: 2),
+              child: _buildSeasonArrowButton(
+                icon: Icons.chevron_left_rounded,
+                tooltip: 'Previous Seasons',
+                onTap: () => _scrollSeason(false),
               ),
             ),
-          );
-        },
+
+          // Scrollable Season Tabs
+          Expanded(
+            child: ListView.separated(
+              controller: _seasonScrollController,
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              padding: EdgeInsets.symmetric(horizontal: isCompact ? 12 : 6),
+              itemCount: _seasons.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 8),
+              itemBuilder: (context, index) {
+                final season = _seasons[index];
+                final isActive = season == _selectedSeason;
+                final tabLabel = _seasonLabels[season] ?? 'Season $season';
+
+                return Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _selectSeason(season),
+                    borderRadius: BorderRadius.circular(10),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: isActive
+                            ? PlayerTheme.accent.withValues(alpha: 0.28)
+                            : Colors.white.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isActive
+                              ? PlayerTheme.accent.withValues(alpha: 0.80)
+                              : Colors.white.withValues(alpha: 0.10),
+                          width: 1.2,
+                        ),
+                        boxShadow: isActive
+                            ? [
+                                BoxShadow(
+                                  color: PlayerTheme.accent.withValues(alpha: 0.35),
+                                  blurRadius: 10,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ]
+                            : null,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        tabLabel,
+                        style: TextStyle(
+                          color: isActive ? Colors.white : Colors.white.withValues(alpha: 0.70),
+                          fontSize: 12.5,
+                          fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+
+          // Desktop Right Season Arrow
+          if (showArrows)
+            Padding(
+              padding: const EdgeInsets.only(left: 2, right: 4),
+              child: _buildSeasonArrowButton(
+                icon: Icons.chevron_right_rounded,
+                tooltip: 'Next Seasons',
+                onTap: () => _scrollSeason(true),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSeasonArrowButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onTap,
+  }) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.14),
+                width: 1,
+              ),
+            ),
+            alignment: Alignment.center,
+            child: Icon(
+              icon,
+              size: 20,
+              color: Colors.white.withValues(alpha: 0.85),
+            ),
+          ),
+        ),
       ),
     );
   }
