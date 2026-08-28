@@ -7,27 +7,32 @@ import 'package:fvp/fvp.dart' as fvp;
 import 'package:window_manager/window_manager.dart';
 
 import './services/addon/addon_manager.dart';
-import './services/app_theme_service.dart';
-import './services/app_updater_service.dart';
+import './services/theme/app_theme_service.dart';
+import './services/updater/app_updater_service.dart';
 import './services/audiobook/audiobook_library_service.dart';
 import './services/backup/cloud_backup_settings.dart';
 import './services/download/download_service.dart';
+import './services/books/continue_reading_service.dart';
+import './services/books/reader_settings.dart';
 import './services/continue_watching/continue_watching_service.dart';
-import './services/glass_settings.dart';
+import './services/theme/custom_background_service.dart';
+import './services/theme/glass_settings.dart';
 import './services/audiobook/audiobook_settings.dart';
 import './services/iptv/iptv_controller.dart';
 import './services/iptv/iptv_settings.dart';
 import './services/manga/manga_settings.dart';
+import './services/music/music_download_service.dart';
 import './services/music/music_settings.dart';
 import './services/music/qobuz_music_service.dart';
 import './services/my_list/my_list_service.dart';
-import './services/player_settings.dart';
+import './services/player/player_settings.dart';
 import './services/tmdb/tmdb_settings.dart';
 import './services/stream/local_stream_proxy.dart';
 import './services/stream/torrent_stream_service.dart';
-import './services/env_service.dart';
+import './services/config/env_service.dart';
 import './services/window/window_service.dart';
-import './widgets/update_dialog.dart';
+import './services/p2p/p2p_settings_service.dart';
+import './widgets/updater/update_dialog.dart';
 import './widgets/common/global_shortcuts.dart';
 import './pages/hub/hub_page.dart';
 
@@ -41,29 +46,8 @@ void main() async {
   }
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
   await EnvService.initialize();
-  fvp.registerWith(options: {
-    'platforms': ['windows', 'linux', 'macos', 'android', 'ios'],
-    'video.decoders': Platform.isWindows
-        ? ['MFT:d3d=11:copy=0', 'D3D11:copy=0', 'CUDA:copy=0', 'DXVA', 'dav1d', 'FFmpeg']
-        : Platform.isMacOS || Platform.isIOS
-            ? ['VT:copy=0', 'dav1d', 'FFmpeg']
-            : Platform.isAndroid
-                ? ['AMediaCodec:copy=0', 'dav1d', 'FFmpeg']
-                : ['VAAPI:copy=0', 'CUDA:copy=0', 'dav1d', 'FFmpeg'],
-    'lowLatency': 0,
-    'demux.format.allowed_extensions': 'ALL',
-    'demux.format.protocol_whitelist': 'file,http,https,tcp,tls,crypto,data',
-    'subtitleFontFile': 'assets/subfont.ttf',
-    'player': {
-      'sub-ass-override': 'scale',
-      'sub-font-size': '32',
-      'sub-scale': '1.0',
-    },
-    'global': {
-      'subtitle.fonts.file': 'assets://flutter_assets/assets/subfont.ttf',
-      'subtitle.fonts.family': 'GoNotoKurrent',
-    },
-  });
+  await PlayerSettings.initialize();
+  fvp.registerWith(options: PlayerSettings.getFvpRegisterOptions());
   await Future.wait([
     AddonManager.instance.initialize(),
     AudiobookLibraryService.instance.init(),
@@ -71,15 +55,19 @@ void main() async {
     AudiobookSettings.initialize(),
     CloudBackupSettings.initialize(),
     ContinueWatchingService.initialize(),
+    ContinueReadingService.initialize(),
+    ReaderSettings.initialize(),
+    CustomBackgroundService.initialize(),
     GlassSettings.initialize(),
     IptvController.instance.init(),
     IptvSettings.initialize(),
     MangaSettings.initialize(),
     MusicSettings.initialize(),
+    MusicDownloadService.instance.init(),
     QobuzMusicService.instance.initialize(),
     MyListService.initialize(),
-    PlayerSettings.initialize(),
     TmdbSettings.initialize(),
+    P2pSettingsService.initialize(),
     LocalStreamProxy.instance.start(),
     DownloadService.instance.initialize(),
     TorrentStreamService().start(),
@@ -106,7 +94,9 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!_hasCheckedInitialUpdate) {
         _hasCheckedInitialUpdate = true;
-        _checkForUpdates();
+        Future.delayed(const Duration(milliseconds: 1500), () {
+          if (mounted) _checkForUpdates();
+        });
       }
     });
   }
@@ -129,9 +119,15 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
     try {
       final updater = AppUpdaterService();
       final updateInfo = await updater.checkForUpdates();
-      final context = navigatorKey.currentContext;
+      if (updateInfo == null) return;
 
-      if (updateInfo != null && context != null && context.mounted) {
+      BuildContext? context = navigatorKey.currentContext;
+      for (int i = 0; i < 6 && (context == null || !context.mounted); i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        context = navigatorKey.currentContext;
+      }
+
+      if (context != null && context.mounted && !_isShowingUpdateDialog) {
         _isShowingUpdateDialog = true;
         await showDialog(
           context: context,

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/movie/movie_section.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/addon/addon_manager.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../../utils/search_scope.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../../widgets/search/magnet_files_view.dart';

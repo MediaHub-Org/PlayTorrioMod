@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/audiobook/audiobook_settings.dart';
 
 class AudiobookInteractivePhysicsButton extends StatefulWidget {

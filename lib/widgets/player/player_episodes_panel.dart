@@ -102,7 +102,7 @@ class _PlayerEpisodesPanelState extends State<PlayerEpisodesPanel> {
       _seasonEpisodes = map;
       _seasonLabels = batchLabels;
     } else {
-      final s = 1;
+      const s = 1;
       map[s] = List<Video>.from(widget.videos)
         ..sort((a, b) => (a.episode ?? 0).compareTo(b.episode ?? 0));
       _seasons = [s];

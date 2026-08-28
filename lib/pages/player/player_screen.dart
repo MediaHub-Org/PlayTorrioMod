@@ -19,14 +19,14 @@ import 'package:playtorrio/services/subtitles/subtitle_sync_helper.dart';
 
 import '../../models/stream/stream_model.dart';
 import '../../services/playback_coordinator.dart';
-import '../../services/player_settings.dart';
 import '../../services/stream/torrent_stream_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/local_stream_proxy.dart';
-import '../../services/glass_settings.dart';
+import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
+import '../../services/player/player_settings.dart';
 
 import '../../widgets/player/player_glass.dart';
 import '../../widgets/player/player_top_bar.dart';
@@ -47,7 +47,7 @@ import '../../widgets/player/sub_sync_bar.dart';
 import '../../widgets/player/text_sync_overlay.dart';
 import '../../models/download/download_task_model.dart';
 import '../../services/download/download_service.dart';
-import '../../utils/download_path_helper.dart';
+import '../../utils/download/download_path_helper.dart';
 
 class PlayerScreen extends StatefulWidget {
   final StreamSource source;
@@ -79,6 +79,7 @@ class _PlayerScreenState extends State<PlayerScreen>
     with SingleTickerProviderStateMixin {
   VideoPlayerController? _controller;
   bool _isLoading = true;
+  bool _wasBuffering = false;
   String _statusMessage = 'Initializing...';
   bool _showControls = true;
   bool _isHoveringUI = false;
@@ -217,7 +218,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         _controller = VideoPlayerController.file(localFile);
         _controller!.addListener(_onControllerError);
         _controller!.addListener(_onPlaybackTick);
+        PlayerSettings.applyToController(_controller!);
         await _controller!.initialize();
+        PlayerSettings.applyToController(_controller!);
         _controller!.play();
         if (mounted) setState(() => _isLoading = false);
         return;
@@ -338,6 +341,7 @@ class _PlayerScreenState extends State<PlayerScreen>
       );
       _controller!.addListener(_onControllerError);
       _controller!.addListener(_onPlaybackTick);
+      PlayerSettings.applyToController(_controller!);
 
       try {
         await _controller!.initialize().timeout(
@@ -364,11 +368,14 @@ class _PlayerScreenState extends State<PlayerScreen>
           );
           _controller!.addListener(_onControllerError);
           _controller!.addListener(_onPlaybackTick);
+          PlayerSettings.applyToController(_controller!);
           await _controller!.initialize();
         } else {
           rethrow;
         }
       }
+
+      PlayerSettings.applyToController(_controller!);
 
       _setSubtitleScale(_subtitleScale);
       _applyVolume(_isMuted ? 0.0 : _volume);
@@ -1062,6 +1069,7 @@ class _PlayerScreenState extends State<PlayerScreen>
 
   int _getControllerId(VideoPlayerController c) {
     try {
+      // ignore: invalid_use_of_visible_for_testing_member
       return c.playerId;
     } catch (_) {
       return 0;
@@ -1279,7 +1287,22 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _onPlaybackTick() {
-    if (_controller == null || !_controller!.value.isInitialized || _skipSegments.isEmpty) return;
+    if (_controller == null || !_controller!.value.isInitialized) return;
+
+    // Auto-Resync master clock when recovering from buffer stalls
+    final isBuffering = _controller!.value.isBuffering;
+    if (_wasBuffering && !isBuffering && PlayerSettings.autoResyncOnStall.value) {
+      try {
+        if (PlayerSettings.hardwareAudioClock.value) {
+          _controller?.setProperty('sync', 'audio');
+        }
+      } catch (e) {
+        debugPrint('[PlayerScreen] Auto-resync error: $e');
+      }
+    }
+    _wasBuffering = isBuffering;
+
+    if (_skipSegments.isEmpty) return;
 
     final pos = _controller!.value.position;
     final dur = _controller!.value.duration;
@@ -1596,8 +1619,12 @@ class _PlayerScreenState extends State<PlayerScreen>
                   child: FittedBox(
                     fit: _videoFit,
                     child: SizedBox(
-                      width: _controller!.value.size.width,
-                      height: _controller!.value.size.height,
+                      width: (_controller!.value.size.width > 0)
+                          ? _controller!.value.size.width
+                          : 1920,
+                      height: (_controller!.value.size.height > 0)
+                          ? _controller!.value.size.height
+                          : 1080,
                       child: VideoPlayer(_controller!),
                     ),
                   ),
@@ -1861,67 +1888,81 @@ class _PlayerScreenState extends State<PlayerScreen>
           // Floating Subtitle Menu Popover
           if (_activeMenu == 'subtitle' && !_isLoading)
             Positioned(
-              bottom: MediaQuery.sizeOf(context).width < 680 ? 76 : 96,
-              right: MediaQuery.sizeOf(context).width < 680 ? 16 : 28,
-              child: PlayerSubtitleMenu(
-                groups: _subtitleGroups,
-                embeddedSubtitles: _embeddedSubtitles,
-                selectedEmbeddedIndex: _selectedEmbeddedSubtitleIndex,
-                selectedVariant: _currentSubtitleVariant,
-                isSubtitleEnabled: _isSubtitleEnabled,
-                movieTitle: widget.detail?.name ?? widget.title,
-                imdbId: widget.detail?.id,
-                season: _currentEpisode?.season,
-                episode: _currentEpisode?.episode,
-                year: widget.detail?.year != null ? int.tryParse(widget.detail!.year!) : null,
-                delaySec: _subtitleDelayMs / 1000.0,
-                onSelectVariant: (v) {
-                  if (v != null) _loadSubtitle(v);
-                },
-                onSelectEmbedded: (emb) => _selectEmbeddedSubtitle(emb),
-                onToggleOff: _disableSubtitles,
-                onOpenSyncBar: () {
-                  if (_selectedEmbeddedSubtitleIndex != null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Subtitle sync is not supported for embedded subtitles.'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                    return;
-                  }
-                  setState(() {
-                    _activeMenu = null;
-                    _showSubSyncBar = true;
-                  });
-                },
-                onOpenStyleBar: () {
-                  setState(() => _activeMenu = 'style');
-                },
-                onOpenTextSync: () {
-                  if (_selectedEmbeddedSubtitleIndex != null || _currentSubtitlePath == null || _currentCues.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Speech sync requires an external subtitle file.'),
-                        duration: Duration(seconds: 2),
-                      ),
-                    );
-                    return;
-                  }
-                  setState(() {
-                    _activeMenu = null;
-                    _showTextSyncOverlay = true;
-                  });
-                },
-                onClose: () => setState(() => _activeMenu = null),
+              bottom: MediaQuery.sizeOf(context).height < 500
+                  ? 44
+                  : (MediaQuery.sizeOf(context).width < 560
+                      ? 60
+                      : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96)),
+              right: MediaQuery.sizeOf(context).width < 560
+                  ? 8
+                  : (MediaQuery.sizeOf(context).width < 680 ? 12 : 28),
+              left: MediaQuery.sizeOf(context).width < 560 ? 8 : null,
+              child: Align(
+                alignment: MediaQuery.sizeOf(context).width < 560
+                    ? Alignment.bottomCenter
+                    : Alignment.bottomRight,
+                child: PlayerSubtitleMenu(
+                  groups: _subtitleGroups,
+                  embeddedSubtitles: _embeddedSubtitles,
+                  selectedEmbeddedIndex: _selectedEmbeddedSubtitleIndex,
+                  selectedVariant: _currentSubtitleVariant,
+                  isSubtitleEnabled: _isSubtitleEnabled,
+                  movieTitle: widget.detail?.name ?? widget.title,
+                  imdbId: widget.detail?.id,
+                  season: _currentEpisode?.season,
+                  episode: _currentEpisode?.episode,
+                  year: widget.detail?.year != null ? int.tryParse(widget.detail!.year!) : null,
+                  delaySec: _subtitleDelayMs / 1000.0,
+                  onSelectVariant: (v) {
+                    if (v != null) _loadSubtitle(v);
+                  },
+                  onSelectEmbedded: (emb) => _selectEmbeddedSubtitle(emb),
+                  onToggleOff: _disableSubtitles,
+                  onOpenSyncBar: () {
+                    if (_selectedEmbeddedSubtitleIndex != null) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Subtitle sync is not supported for embedded subtitles.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+                    setState(() {
+                      _activeMenu = null;
+                      _showSubSyncBar = true;
+                    });
+                  },
+                  onOpenStyleBar: () {
+                    setState(() => _activeMenu = 'style');
+                  },
+                  onOpenTextSync: () {
+                    if (_selectedEmbeddedSubtitleIndex != null || _currentSubtitlePath == null || _currentCues.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Speech sync requires an external subtitle file.'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                      return;
+                    }
+                    setState(() {
+                      _activeMenu = null;
+                      _showTextSyncOverlay = true;
+                    });
+                  },
+                  onClose: () => setState(() => _activeMenu = null),
+                ),
               ),
             ),
 
           // Floating Audio Menu Popover
           if (_activeMenu == 'audio' && !_isLoading)
             Positioned(
-              bottom: MediaQuery.sizeOf(context).width < 680 ? 76 : 96,
-              right: MediaQuery.sizeOf(context).width < 680 ? 16 : 28,
+              bottom: MediaQuery.sizeOf(context).height < 500
+                  ? 46
+                  : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96),
+              right: MediaQuery.sizeOf(context).width < 680 ? 12 : 28,
               child: PlayerAudioMenu(
                 audioTracks: _audioTracks,
                 selectedIndex: _selectedAudioTrackIndex,
@@ -1941,8 +1982,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           // Floating Speed Menu Popover
           if (_activeMenu == 'speed' && !_isLoading)
             Positioned(
-              bottom: MediaQuery.sizeOf(context).width < 680 ? 76 : 96,
-              right: MediaQuery.sizeOf(context).width < 680 ? 16 : 28,
+              bottom: MediaQuery.sizeOf(context).height < 500
+                  ? 46
+                  : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96),
+              right: MediaQuery.sizeOf(context).width < 680 ? 12 : 28,
               child: PlayerSpeedMenu(
                 currentRate: _playbackRate,
                 onRateSelected: (rate) {
@@ -1956,8 +1999,10 @@ class _PlayerScreenState extends State<PlayerScreen>
           // Floating Aspect Ratio Popover
           if (_activeMenu == 'aspect' && !_isLoading)
             Positioned(
-              bottom: MediaQuery.sizeOf(context).width < 680 ? 76 : 96,
-              right: MediaQuery.sizeOf(context).width < 680 ? 16 : 28,
+              bottom: MediaQuery.sizeOf(context).height < 500
+                  ? 46
+                  : (MediaQuery.sizeOf(context).width < 680 ? 76 : 96),
+              right: MediaQuery.sizeOf(context).width < 680 ? 12 : 28,
               child: PlayerAspectMenu(
                 currentFit: _videoFit,
                 subtitleScale: _subtitleScale,

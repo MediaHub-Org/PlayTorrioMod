@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 
 /// Clean section header — title on left, optional "See All" on right.
 class SectionHeader extends StatelessWidget {

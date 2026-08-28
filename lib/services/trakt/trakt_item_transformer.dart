@@ -1,4 +1,4 @@
-import '../../models/stremio_addon.dart';
+import '../../models/stremio/stremio_meta.dart';
 
 /// Transforms Trakt API items into [StremioMeta] objects.
 ///

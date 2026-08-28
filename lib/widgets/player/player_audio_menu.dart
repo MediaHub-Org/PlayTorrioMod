@@ -70,11 +70,19 @@ class PlayerAudioMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasTracks = audioTracks.isNotEmpty;
-    final screenWidth = MediaQuery.sizeOf(context).width;
+    final size = MediaQuery.sizeOf(context);
+    final screenWidth = size.width;
+    final screenHeight = size.height;
+    final isCompactH = screenHeight < 500;
+
+    final cardWidth = (360.0).clamp(260.0, screenWidth - 32);
+    final maxTrackListHeight = isCompactH
+        ? (screenHeight - 160).clamp(70.0, 150.0)
+        : (220.0).clamp(120.0, (screenHeight - 200).clamp(120.0, 300.0));
 
     return PlayerGlassCard(
-      width: (360.0).clamp(260.0, screenWidth - 32),
-      padding: const EdgeInsets.all(12),
+      width: cardWidth,
+      padding: EdgeInsets.all(isCompactH ? 8 : 12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -85,13 +93,16 @@ class PlayerAudioMenu extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isCompactH ? 4 : 8,
+                      vertical: isCompactH ? 2 : 4,
+                    ),
                     child: Text(
                       'AUDIO TRACKS',
                       style: TextStyle(
                         color: PlayerTheme.inkSubtle,
-                        fontSize: 10.5,
+                        fontSize: isCompactH ? 9.5 : 10.5,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 1.2,
                       ),
@@ -106,9 +117,9 @@ class PlayerAudioMenu extends StatelessWidget {
                       ),
                       child: Text(
                         '${audioTracks.length}',
-                        style: const TextStyle(
+                        style: TextStyle(
                           color: PlayerTheme.inkSubtle,
-                          fontSize: 10,
+                          fontSize: isCompactH ? 9 : 10,
                           fontWeight: FontWeight.w700,
                         ),
                       ),
@@ -116,8 +127,8 @@ class PlayerAudioMenu extends StatelessWidget {
                 ],
               ),
               PlayerIconButton(
-                size: 28,
-                iconSize: 14,
+                size: isCompactH ? 24 : 28,
+                iconSize: isCompactH ? 12 : 14,
                 icon: const Icon(Icons.close_rounded),
                 tooltip: 'Close',
                 onPressed: onClose,
@@ -125,11 +136,11 @@ class PlayerAudioMenu extends StatelessWidget {
             ],
           ),
 
-          const SizedBox(height: 6),
+          SizedBox(height: isCompactH ? 4 : 6),
 
           // Track List
           ConstrainedBox(
-            constraints: const BoxConstraints(maxHeight: 220),
+            constraints: BoxConstraints(maxHeight: maxTrackListHeight),
             child: hasTracks
                 ? ListView.builder(
                     shrinkWrap: true,
@@ -222,13 +233,13 @@ class PlayerAudioMenu extends StatelessWidget {
                   ),
           ),
 
-          const SizedBox(height: 8),
+          SizedBox(height: isCompactH ? 4 : 8),
           const Divider(color: PlayerTheme.edgeSoft, height: 1),
-          const SizedBox(height: 8),
+          SizedBox(height: isCompactH ? 4 : 8),
 
           // Audio Sync Offset Row
           Container(
-            padding: const EdgeInsets.all(8),
+            padding: EdgeInsets.all(isCompactH ? 6 : 8),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.04),
               borderRadius: BorderRadius.circular(10),
@@ -239,11 +250,11 @@ class PlayerAudioMenu extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text(
+                    Text(
                       'Audio Sync Offset',
                       style: TextStyle(
                         color: PlayerTheme.inkMuted,
-                        fontSize: 12,
+                        fontSize: isCompactH ? 11 : 12,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -253,7 +264,7 @@ class PlayerAudioMenu extends StatelessWidget {
                           '${delaySec > 0 ? "+" : ""}${delaySec.toStringAsFixed(2)}s',
                           style: TextStyle(
                             color: delaySec != 0 ? PlayerTheme.accent : PlayerTheme.inkSubtle,
-                            fontSize: 12.5,
+                            fontSize: isCompactH ? 11.5 : 12.5,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -272,7 +283,7 @@ class PlayerAudioMenu extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: isCompactH ? 4 : 8),
                 Row(
                   children: [
                     Expanded(
@@ -280,13 +291,14 @@ class PlayerAudioMenu extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
                           side: const BorderSide(color: PlayerTheme.edgeSoft),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          padding: EdgeInsets.symmetric(vertical: isCompactH ? 4 : 8),
+                          minimumSize: Size(0, isCompactH ? 28 : 36),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                         onPressed: () => onDelayChanged(((delaySec - 0.1) * 10).round() / 10.0),
-                        child: const Text('−0.1s', style: TextStyle(fontSize: 12)),
+                        child: Text('−0.1s', style: TextStyle(fontSize: isCompactH ? 11 : 12)),
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -295,13 +307,14 @@ class PlayerAudioMenu extends StatelessWidget {
                         style: OutlinedButton.styleFrom(
                           foregroundColor: Colors.white,
                           side: const BorderSide(color: PlayerTheme.edgeSoft),
-                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          padding: EdgeInsets.symmetric(vertical: isCompactH ? 4 : 8),
+                          minimumSize: Size(0, isCompactH ? 28 : 36),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                           ),
                         ),
                         onPressed: () => onDelayChanged(((delaySec + 0.1) * 10).round() / 10.0),
-                        child: const Text('+0.1s', style: TextStyle(fontSize: 12)),
+                        child: Text('+0.1s', style: TextStyle(fontSize: isCompactH ? 11 : 12)),
                       ),
                     ),
                   ],

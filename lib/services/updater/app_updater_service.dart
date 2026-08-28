@@ -58,8 +58,13 @@ class AppUpdaterService {
   String? _findAssetForPlatform(List assets) {
     if (kIsWeb) return null;
 
-    final abi = Abi.current();
-    debugPrint('Detected ABI: $abi');
+    Abi? abi;
+    try {
+      abi = Abi.current();
+      debugPrint('Detected system ABI: $abi');
+    } catch (e) {
+      debugPrint('Error detecting ABI: $e');
+    }
 
     if (Platform.isAndroid) {
       return _findAndroidAsset(assets, abi);
@@ -67,13 +72,14 @@ class AppUpdaterService {
       return _findWindowsAsset(assets, abi);
     } else if (Platform.isLinux) {
       return _findLinuxAsset(assets, abi);
+    } else if (Platform.isMacOS) {
+      return _findMacOSAsset(assets, abi);
     }
-    // macOS / iOS — we just open the releases page, no direct download
     return null;
   }
 
   /// Android: match arm64-v8a, armeabi-v7a, x86_64, or fall back to universal
-  String? _findAndroidAsset(List assets, Abi abi) {
+  String? _findAndroidAsset(List assets, Abi? abi) {
     final apks = assets
         .where((a) => (a['name'] as String).toLowerCase().endsWith('.apk'))
         .toList();
@@ -81,33 +87,32 @@ class AppUpdaterService {
     if (apks.isEmpty) return null;
 
     // Determine architecture keywords to search for
-    List<String> archKeywords;
-    switch (abi) {
-      case Abi.androidArm64:
-        archKeywords = ['arm64-v8a', 'arm64', 'v8a', 'aarch64'];
-        break;
-      case Abi.androidArm:
-        archKeywords = ['armeabi-v7a', 'armeabi', 'v7a', 'armv7'];
-        break;
-      case Abi.androidX64:
-        archKeywords = ['x86_64', 'x86-64', 'x64'];
-        break;
-      default:
-        archKeywords = [];
+    List<String> archKeywords = [];
+    if (abi == Abi.androidArm64) {
+      archKeywords = ['arm64-v8a', 'arm64_v8a', 'arm64', 'v8a', 'aarch64'];
+    } else if (abi == Abi.androidArm) {
+      archKeywords = ['armeabi-v7a', 'armeabi_v7a', 'armeabi', 'v7a', 'armv7', 'arm-v7a'];
+    } else if (abi == Abi.androidX64) {
+      archKeywords = ['x86_64', 'x86-64', 'x64'];
+    } else if (abi == Abi.androidIA32) {
+      archKeywords = ['x86', 'x86_32', 'ia32'];
+    } else {
+      // Default to arm64-v8a on modern Android if ABI couldn't be determined
+      archKeywords = ['arm64-v8a', 'arm64', 'v8a'];
     }
 
-    // Try to find an APK matching our architecture
+    // 1. Try exact architecture match
     for (final keyword in archKeywords) {
       final match = apks
           .where((a) => (a['name'] as String).toLowerCase().contains(keyword))
           .firstOrNull;
       if (match != null) {
-        debugPrint('Matched APK for $abi: ${match['name']}');
+        debugPrint('Matched specific APK for $abi ($keyword): ${match['name']}');
         return match['browser_download_url'];
       }
     }
 
-    // Fall back to a "universal" APK if available
+    // 2. Fall back to a "universal" APK if available
     final universal = apks
         .where((a) => (a['name'] as String).toLowerCase().contains('universal'))
         .firstOrNull;
@@ -116,39 +121,55 @@ class AppUpdaterService {
       return universal['browser_download_url'];
     }
 
-    // Last resort: if there's only one APK, it's probably universal/fat
-    if (apks.length == 1) {
-      debugPrint('Only one APK found, using it: ${apks.first['name']}');
-      return apks.first['browser_download_url'];
+    // 3. Fall back to standard release APK name
+    final standardRelease = apks
+        .where((a) => (a['name'] as String).toLowerCase().contains('release'))
+        .firstOrNull;
+    if (standardRelease != null) {
+      debugPrint('Using standard release APK: ${standardRelease['name']}');
+      return standardRelease['browser_download_url'];
     }
 
-    debugPrint(
-      'No matching APK found for $abi among ${apks.map((a) => a['name']).toList()}',
-    );
-    return null;
+    // 4. Last resort: first available APK
+    debugPrint('Using first available APK: ${apks.first['name']}');
+    return apks.first['browser_download_url'];
   }
 
-  /// Windows: match x64 or arm64 installer
-  String? _findWindowsAsset(List assets, Abi abi) {
+  /// Windows: match x64 or arm64 installer (.exe prioritized over .zip)
+  String? _findWindowsAsset(List assets, Abi? abi) {
     final windowsAssets = assets.where((a) {
       final name = (a['name'] as String).toLowerCase();
-      return name.contains('windows') &&
+      return (name.contains('windows') || name.contains('win') || name.contains('setup') || name.endsWith('.exe')) &&
           (name.endsWith('.exe') || name.endsWith('.msix') || name.endsWith('.zip'));
     }).toList();
 
     if (windowsAssets.isEmpty) return null;
 
-    // If only one Windows asset, use it
-    if (windowsAssets.length == 1) {
-      return windowsAssets.first['browser_download_url'];
+    // 1. Look for installer .exe matching setup/installer
+    final setupExe = windowsAssets
+        .where((a) => (a['name'] as String).toLowerCase().endsWith('.exe') &&
+            ((a['name'] as String).toLowerCase().contains('setup') || (a['name'] as String).toLowerCase().contains('install')))
+        .firstOrNull;
+    if (setupExe != null) {
+      debugPrint('Selected Windows Setup installer: ${setupExe['name']}');
+      return setupExe['browser_download_url'];
     }
 
-    // Multiple Windows assets — pick by architecture
+    // 2. Look for any .exe
+    final anyExe = windowsAssets
+        .where((a) => (a['name'] as String).toLowerCase().endsWith('.exe'))
+        .firstOrNull;
+    if (anyExe != null) {
+      debugPrint('Selected Windows exe: ${anyExe['name']}');
+      return anyExe['browser_download_url'];
+    }
+
+    // 3. Match architecture in remaining assets (.zip/.msix)
     List<String> archKeywords;
     if (abi == Abi.windowsArm64) {
       archKeywords = ['arm64', 'aarch64'];
     } else {
-      archKeywords = ['x64', 'x86_64', 'amd64'];
+      archKeywords = ['x64', 'x86_64', 'amd64', 'win64'];
     }
 
     for (final keyword in archKeywords) {
@@ -158,28 +179,25 @@ class AppUpdaterService {
       if (match != null) return match['browser_download_url'];
     }
 
-    // Fallback to first Windows asset
     return windowsAssets.first['browser_download_url'];
   }
 
   /// Linux: match x64 or arm64 AppImage/deb
-  String? _findLinuxAsset(List assets, Abi abi) {
+  String? _findLinuxAsset(List assets, Abi? abi) {
     final linuxAssets = assets.where((a) {
       final name = (a['name'] as String).toLowerCase();
-      return name.contains('linux') &&
-          (name.endsWith('.appimage') ||
-              name.endsWith('.deb') ||
-              name.endsWith('.tar.gz'));
+      return name.contains('linux') ||
+          name.endsWith('.appimage') ||
+          name.endsWith('.deb') ||
+          name.endsWith('.tar.gz');
     }).toList();
 
     if (linuxAssets.isEmpty) return null;
 
-    // If only one Linux asset, use it
     if (linuxAssets.length == 1) {
       return linuxAssets.first['browser_download_url'];
     }
 
-    // Multiple Linux assets — pick by architecture
     List<String> archKeywords;
     if (abi == Abi.linuxArm64) {
       archKeywords = ['arm64', 'aarch64'];
@@ -194,8 +212,20 @@ class AppUpdaterService {
       if (match != null) return match['browser_download_url'];
     }
 
-    // Fallback to first Linux asset
     return linuxAssets.first['browser_download_url'];
+  }
+
+  /// macOS: match dmg or zip
+  String? _findMacOSAsset(List assets, Abi? abi) {
+    final macAssets = assets.where((a) {
+      final name = (a['name'] as String).toLowerCase();
+      return name.contains('mac') || name.contains('darwin') || name.endsWith('.dmg') || name.endsWith('.pkg');
+    }).toList();
+
+    if (macAssets.isNotEmpty) {
+      return macAssets.first['browser_download_url'];
+    }
+    return null;
   }
 
   bool _isNewerVersion(String current, String latest) {

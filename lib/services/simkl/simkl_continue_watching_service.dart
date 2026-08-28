@@ -1,7 +1,7 @@
 import 'package:flutter/foundation.dart';
 
-import '../../models/advanced_search_selection.dart';
-import '../../models/stremio_addon.dart';
+import '../../models/search/advanced_search_selection.dart';
+import '../../models/stremio/stremio_meta.dart';
 import 'simkl_item_transformer.dart';
 import 'simkl_service.dart';
 

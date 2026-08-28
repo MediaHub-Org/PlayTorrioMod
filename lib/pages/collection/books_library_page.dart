@@ -19,7 +19,7 @@ import '../audiobooks/audiobook_route_transitions.dart';
 import '../manga/manga_details_page.dart';
 import '../manga/manga_reader_page.dart';
 import '../read/book_reader_page.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 
 /// The Books hub's Library: shows the user's liked manga, liked audiobooks,
 /// and playback history, using the shared [LibraryTabs] design.

@@ -9,8 +9,8 @@ import '../../pages/details/details_page.dart';
 import '../../pages/anime/anime_details_page.dart';
 import '../../pages/anime_arabic/anime_arabic_details_page.dart';
 import '../../services/anime_arabic/anime_arabic_service.dart';
-import '../../utils/route_transitions.dart';
-import '../../services/app_theme_service.dart';
+import '../../utils/navigation/route_transitions.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../common/slider_arrow.dart';
 
@@ -447,8 +447,8 @@ class _ContinueWatchingCardState extends State<_ContinueWatchingCard> {
                       ),
                     ),
 
-                    // Action Buttons (Top-Right on Hover: Details + Dismiss)
-                    if (_isHovered)
+                    // Action Buttons (Top-Right: always on mobile, hover-only on desktop)
+                    if (_isHovered || !(defaultTargetPlatform == TargetPlatform.windows || defaultTargetPlatform == TargetPlatform.macOS || defaultTargetPlatform == TargetPlatform.linux))
                       Positioned(
                         top: 6,
                         right: 6,

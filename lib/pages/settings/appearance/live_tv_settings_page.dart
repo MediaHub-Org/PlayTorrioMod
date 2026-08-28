@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../services/app_theme_service.dart';
+import '../../../services/theme/app_theme_service.dart';
 import '../../../services/content_display_enums.dart';
 import '../../../services/iptv/iptv_settings.dart';
 

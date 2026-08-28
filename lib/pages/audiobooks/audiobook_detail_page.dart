@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../models/audiobook/audiobook_model.dart';
 import '../../services/audiobook/audiobook_library_service.dart';
 import '../../services/audiobook/audiobook_player_controller.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/audiobook/audiobook_scraper_service.dart';
 import '../../utils/fullscreen_navigator.dart';
 import 'audiobook_player_screen.dart';

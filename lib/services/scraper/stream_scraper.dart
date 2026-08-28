@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../models/stream/stream_model.dart';
 import '../stream/stream_health_checker.dart';
+import '../p2p/p2p_settings_service.dart';
 
 abstract class StreamScraper {
   String get name;
@@ -54,6 +55,10 @@ class ScraperManager {
     }
   }
 
+  void unregisterTorrentScrapers() {
+    _scrapers.removeWhere((s) => s.name == 'PlayTorrio');
+  }
+
   Stream<StreamSource> scrapeAll({
     required String type,
     required String title,
@@ -64,14 +69,22 @@ class ScraperManager {
   }) {
     final controller = StreamController<StreamSource>();
 
-    if (_scrapers.isEmpty) {
+    final p2pAllowed = P2pSettingsService.isP2pEnabled.value;
+    final activeScrapers = _scrapers.where((s) {
+      if (!p2pAllowed && s.name == 'PlayTorrio') {
+        return false;
+      }
+      return true;
+    }).toList();
+
+    if (activeScrapers.isEmpty) {
       controller.close();
       return controller.stream;
     }
 
-    debugPrint('[ScraperManager] Scraping across ${_scrapers.length} active scrapers (${_scrapers.map((s) => s.runtimeType).join(", ")}) for "$title"...');
+    debugPrint('[ScraperManager] Scraping across ${activeScrapers.length} active scrapers (${activeScrapers.map((s) => s.runtimeType).join(", ")}) for "$title" (P2P enabled: $p2pAllowed)...');
 
-    int pendingScrapers = _scrapers.length;
+    int pendingScrapers = activeScrapers.length;
     int inFlightChecks = 0;
     final seenHashes = <String>{};
     final seenUrls = <String>{};
@@ -82,7 +95,7 @@ class ScraperManager {
       }
     }
 
-    for (final scraper in _scrapers) {
+    for (final scraper in activeScrapers) {
       scraper
           .scrapeStream(
         type: type,
@@ -95,6 +108,13 @@ class ScraperManager {
           .listen(
         (source) {
           if (controller.isClosed) return;
+
+          // If P2P is disabled, strictly discard any torrent source
+          if (!p2pAllowed &&
+              (source.addonName == 'PlayTorrio' ||
+                  (source.infoHash != null && source.infoHash!.isNotEmpty))) {
+            return;
+          }
 
           // Torrent sources pass directly with deduplication
           if (source.infoHash != null && source.infoHash!.isNotEmpty) {

@@ -23,9 +23,12 @@ import '../scraper/sites/movy.dart';
 import '../scraper/sites/vuflix.dart';
 import '../scraper/sites/rivestream.dart';
 import '../scraper/sites/cinejoy.dart';
+import '../scraper/sites/a111477.dart';
+import '../scraper/sites/vadapav.dart';
 import '../anime/anime_scraper_service.dart';
 import '../anime_arabic/anime_arabic_service.dart';
 import '../anime_arabic/anime_arabic_extractor.dart';
+import '../p2p/p2p_settings_service.dart';
 
 /// Service that fetches playback streams from all installed Stremio addons
 /// and built-in scrapers.
@@ -33,8 +36,14 @@ class StreamService {
   StreamService._();
 
   static void _registerBuiltInScrapers() {
-    ScraperManager.instance.registerScraper(KnabenScraper());
-    ScraperManager.instance.registerScraper(TorrentGalaxyScraper());
+    if (P2pSettingsService.isP2pEnabled.value) {
+      ScraperManager.instance.registerScraper(KnabenScraper());
+      ScraperManager.instance.registerScraper(TorrentGalaxyScraper());
+    } else {
+      ScraperManager.instance.unregisterTorrentScrapers();
+    }
+    ScraperManager.instance.registerScraper(A111477Scraper());
+    ScraperManager.instance.registerScraper(VadapavScraper());
     ScraperManager.instance.registerScraper(FourKHDHubScraper());
     ScraperManager.instance.registerScraper(XDownloaderScraper());
     ScraperManager.instance.registerScraper(VideasyScraper());
@@ -62,9 +71,7 @@ class StreamService {
   }) {
     final controller = StreamController<StreamSource>();
 
-    final addons = AddonManager.instance.activeAddons
-        .where((a) => a.manifest.supportsStream)
-        .toList();
+    final addons = AddonManager.instance.activeStreamAddons;
 
     _registerBuiltInScrapers();
 
@@ -239,12 +246,11 @@ class StreamService {
     }
 
     // Otherwise, find the matching Stremio addon
-    final matchingAddons = AddonManager.instance.activeAddons.where(
+    final matchingAddons = AddonManager.instance.activeStreamAddons.where(
       (a) =>
-          a.manifest.supportsStream &&
-          (a.manifest.name.toLowerCase() == normalizedTarget ||
-              a.manifest.name.toLowerCase().contains(normalizedTarget) ||
-              normalizedTarget.contains(a.manifest.name.toLowerCase())),
+          a.manifest.name.toLowerCase() == normalizedTarget ||
+          a.manifest.name.toLowerCase().contains(normalizedTarget) ||
+          normalizedTarget.contains(a.manifest.name.toLowerCase()),
     ).toList();
 
     if (matchingAddons.isNotEmpty) {

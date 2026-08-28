@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../models/stremio_addon.dart';
+import '../../models/stremio/stremio_meta.dart';
 import 'simkl_service.dart';
 
 /// Actions available in the Simkl episode overflow menu.

@@ -7,9 +7,10 @@ import '../../models/anime/anime_media.dart';
 import '../../services/anime/anilist_service.dart';
 import '../../services/anime/anime_library_service.dart';
 import '../../services/anime_arabic/anime_arabic_service.dart';
-import '../../services/glass_settings.dart';
-import '../../utils/route_transitions.dart';
+import '../../services/theme/glass_settings.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/anime/anime_card.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../widgets/anime/anime_slider_section.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/common/filter_dropdown.dart';
@@ -747,12 +748,12 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel>
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(4),
                           color: active
-                              ? const Color(0xFF7C5CFF)
+                              ? AppThemeService.currentPalette.value.primaryColor
                               : Colors.white.withValues(alpha: 0.30),
                           boxShadow: active
                               ? [
                                   BoxShadow(
-                                    color: const Color(0xFF7C5CFF)
+                                    color: AppThemeService.currentPalette.value.primaryColor
                                         .withValues(alpha: 0.55),
                                     blurRadius: 8,
                                   ),
@@ -1067,7 +1068,7 @@ class _AnimeHeroSlide extends StatelessWidget {
                           ),
                         ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF7C5CFF),
+                          backgroundColor: AppThemeService.currentPalette.value.primaryColor,
                           foregroundColor: Colors.white,
                           padding: EdgeInsets.symmetric(
                             horizontal: isCompact ? 18 : 28,
@@ -1077,7 +1078,7 @@ class _AnimeHeroSlide extends StatelessWidget {
                             borderRadius: BorderRadius.circular(14),
                           ),
                           elevation: 12,
-                          shadowColor: const Color(0xFF7C5CFF).withValues(alpha: 0.45),
+                          shadowColor: AppThemeService.currentPalette.value.primaryColor.withValues(alpha: 0.45),
                         ),
                       ),
                       SizedBox(width: isCompact ? 8 : 12),

@@ -7,7 +7,7 @@ import 'package:ota_update/ota_update.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
-import '../services/app_updater_service.dart';
+import '../../services/updater/app_updater_service.dart';
 
 class UpdateDialog extends StatefulWidget {
   final UpdateInfo updateInfo;
@@ -404,21 +404,35 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     case OtaStatus.DOWNLOADING:
                       final value = event.value;
                       if (value != null) {
-                        _downloadProgress =
-                            (double.tryParse(value) ?? 0.0) / 100.0;
+                        final numVal = num.tryParse(value.toString()) ?? 0;
+                        _downloadProgress = (numVal / 100.0).clamp(0.0, 1.0);
                       }
                       break;
                     case OtaStatus.INSTALLING:
                       _downloadProgress = 1.0;
                       break;
-                    case OtaStatus.ALREADY_RUNNING_ERROR:
                     case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
+                      _isDownloading = false;
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Please enable "Install unknown apps" permission for PlayTorrio in Android settings.',
+                          ),
+                          duration: Duration(seconds: 5),
+                          backgroundColor: Colors.orange,
+                        ),
+                      );
+                      Navigator.of(context).pop();
+                      break;
+                    case OtaStatus.ALREADY_RUNNING_ERROR:
                     case OtaStatus.INTERNAL_ERROR:
                     case OtaStatus.DOWNLOAD_ERROR:
                     case OtaStatus.CHECKSUM_ERROR:
+                      _isDownloading = false;
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('Update failed: ${event.status}'),
+                          backgroundColor: Colors.redAccent,
                         ),
                       );
                       Navigator.of(context).pop();
@@ -433,7 +447,10 @@ class _UpdateDialogState extends State<UpdateDialog> {
               if (mounted) {
                 setState(() => _isDownloading = false);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Download failed: $error')),
+                  SnackBar(
+                    content: Text('Download failed: $error'),
+                    backgroundColor: Colors.redAccent,
+                  ),
                 );
               }
             },
@@ -441,9 +458,12 @@ class _UpdateDialogState extends State<UpdateDialog> {
     } catch (e) {
       if (mounted) {
         setState(() => _isDownloading = false);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Update failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Update failed: $e'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
       }
     }
   }

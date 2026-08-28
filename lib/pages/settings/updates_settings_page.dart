@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import '../../services/app_updater_service.dart';
-import '../../widgets/update_dialog.dart';
+import '../../services/updater/app_updater_service.dart';
+import '../../widgets/updater/update_dialog.dart';
 
 class UpdatesSettingsPage extends StatefulWidget {
   const UpdatesSettingsPage({super.key});
@@ -96,8 +96,8 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
               FutureBuilder<PackageInfo>(
                 future: PackageInfo.fromPlatform(),
                 builder: (context, snapshot) {
-                  final version = snapshot.hasData ? snapshot.data!.version : '1.0.0';
-                  final buildNumber = snapshot.hasData ? snapshot.data!.buildNumber : '1';
+                  final version = snapshot.hasData ? snapshot.data!.version : '1.0.2';
+                  final buildNumber = snapshot.hasData ? snapshot.data!.buildNumber : '2';
                   final appName = snapshot.hasData ? snapshot.data!.appName : 'PlayTorrio';
 
                   return Container(

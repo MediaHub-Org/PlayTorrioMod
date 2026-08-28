@@ -1,7 +1,7 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
-import '../../services/glass_settings.dart';
+import '../../services/theme/glass_settings.dart';
 
 /// Design tokens and glass styling for the modern video player UI.
 class PlayerTheme {

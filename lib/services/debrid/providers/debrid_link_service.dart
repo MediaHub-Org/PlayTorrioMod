@@ -31,6 +31,24 @@ class DebridLinkService {
     return key != null && key.isNotEmpty;
   }
 
+  Future<Map<String, dynamic>?> verifyKey(String key) async {
+    final trimmed = key.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      final res = await http.get(
+        Uri.parse('https://debrid-link.com/api/v2/account/infos'),
+        headers: {'Authorization': 'Bearer $trimmed'},
+      );
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        if (data['success'] == true) {
+          return data['value'] as Map<String, dynamic>?;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Map<String, dynamic> _dlDecode(http.Response res) {
     final body = json.decode(res.body) as Map<String, dynamic>;
     if (body['success'] != true) {

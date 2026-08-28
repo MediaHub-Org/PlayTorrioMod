@@ -136,12 +136,32 @@ class InstalledAddon {
   final String baseUrl;
   final AddonManifest manifest;
   bool enabled;
+  bool enableCatalogs;
+  bool enableSearch;
+  bool enableSubtitles;
+  bool enableStreams;
 
   InstalledAddon({
     required this.baseUrl,
     required this.manifest,
     this.enabled = true,
+    this.enableCatalogs = true,
+    this.enableSearch = true,
+    this.enableSubtitles = true,
+    this.enableStreams = true,
   });
+
+  bool get isCatalogsActive =>
+      enabled && enableCatalogs && (manifest.supportsCatalog || manifest.catalogs.isNotEmpty);
+
+  bool get isSearchActive =>
+      enabled && enableSearch && (manifest.catalogs.any((c) => c.supportsSearch) || manifest.supportsCatalog);
+
+  bool get isSubtitlesActive =>
+      enabled && enableSubtitles && manifest.supportsSubtitles;
+
+  bool get isStreamsActive =>
+      enabled && enableStreams && manifest.supportsStream;
 
   factory InstalledAddon.fromJson(Map<String, dynamic> json) {
     return InstalledAddon(
@@ -149,6 +169,10 @@ class InstalledAddon {
       manifest:
           AddonManifest.fromJson(json['manifest'] as Map<String, dynamic>),
       enabled: json['enabled'] as bool? ?? true,
+      enableCatalogs: json['enableCatalogs'] as bool? ?? true,
+      enableSearch: json['enableSearch'] as bool? ?? true,
+      enableSubtitles: json['enableSubtitles'] as bool? ?? true,
+      enableStreams: json['enableStreams'] as bool? ?? true,
     );
   }
 
@@ -156,6 +180,10 @@ class InstalledAddon {
         'baseUrl': baseUrl,
         'manifest': manifest.toJson(),
         'enabled': enabled,
+        'enableCatalogs': enableCatalogs,
+        'enableSearch': enableSearch,
+        'enableSubtitles': enableSubtitles,
+        'enableStreams': enableStreams,
       };
 }
 

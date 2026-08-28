@@ -10,7 +10,7 @@ import '../../services/anime/anime_library_service.dart';
 import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/download/download_service.dart';
 import '../../services/my_list/my_list_service.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/anime/anime_card.dart';
 import '../../widgets/common/library_tabs.dart';
 import '../anime/anime_details_page.dart';

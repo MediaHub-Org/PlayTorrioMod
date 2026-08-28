@@ -16,7 +16,7 @@ import '../../services/anime/anime_scraper_service.dart';
 import '../../services/anime_arabic/anime_arabic_service.dart';
 import '../../services/anime_arabic/anime_arabic_extractor.dart';
 import '../../services/stream/stream_service.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../trakt/trakt_service.dart';
 import '../trakt/trakt_continue_watching_service.dart';
 import '../simkl/simkl_service.dart';
@@ -636,7 +636,7 @@ class ContinueWatchingService {
 
         final rawStreams = await AnimeArabicExtractor.instance.resolveEpisode(ep);
 
-        if (Navigator.canPop(context)) {
+        if (context.mounted && Navigator.canPop(context)) {
           Navigator.pop(context);
         }
 
@@ -659,6 +659,7 @@ class ContinueWatchingService {
             orElse: () => movieDetail.videos.first,
           );
 
+          if (!context.mounted) return;
           Navigator.push(
             context,
             CinematicSlideRoute(
@@ -676,11 +677,12 @@ class ContinueWatchingService {
         }
       } catch (e) {
         debugPrint('[ContinueWatching] Arabic resume error: $e');
-        if (Navigator.canPop(context)) {
+        if (context.mounted && Navigator.canPop(context)) {
           Navigator.pop(context);
         }
       }
 
+      if (!context.mounted) return;
       final card = ArabicAnimeCard(
         slug: slug,
         title: item.title,

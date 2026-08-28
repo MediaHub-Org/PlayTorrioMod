@@ -8,6 +8,7 @@ import 'package:wakelock_plus/wakelock_plus.dart';
 import '../../models/iptv/iptv_models.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/playback_coordinator.dart';
+import '../../services/player/player_settings.dart';
 
 class IptvPlayerPage extends StatefulWidget {
   final HardcodedChannel channel;
@@ -166,7 +167,9 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
         onSeek: (position) => _controller?.seekTo(position),
       );
 
+      PlayerSettings.applyToController(_controller!);
       await _controller!.initialize();
+      PlayerSettings.applyToController(_controller!);
       await _controller!.setVolume(_isMuted ? 0.0 : _volume);
       await _controller!.play();
       _controller!.addListener(_onPlaybackUpdate);

@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../services/addon/addon_manager.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/debrid/debrid_service.dart';
-import '../../services/glass_settings.dart';
+import '../../services/theme/glass_settings.dart';
 import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 
 import 'appearance_settings_page.dart';
+import 'video_player_settings_page.dart';
 import 'debrid_settings_page.dart';
 import 'addons_settings_page.dart';
 import 'general_settings_page.dart';
@@ -16,6 +17,11 @@ import 'trakt_settings_page.dart';
 import 'simkl_settings_page.dart';
 import 'updates_settings_page.dart';
 import 'about_settings_page.dart';
+import '../../services/player/player_settings.dart';
+import '../../services/p2p/p2p_settings_service.dart';
+import '../../widgets/p2p/p2p_warning_dialog.dart';
+
+import '../../widgets/common/animated_ambient_background.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -46,8 +52,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
           appName: 'PlayTorrio',
           packageName: 'com.playtorrio',
-          version: '1.0.0',
-          buildNumber: '1',
+          version: '1.0.2',
+          buildNumber: '2',
         ));
 
     if (mounted) {
@@ -76,9 +82,9 @@ class _SettingsPageState extends State<SettingsPage> {
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF080A0F),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0D1017),
+        backgroundColor: const Color(0xFF0D1017).withValues(alpha: 0.85),
         surfaceTintColor: Colors.transparent,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
@@ -89,7 +95,8 @@ class _SettingsPageState extends State<SettingsPage> {
           style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
         ),
       ),
-      body: Center(
+      body: AnimatedAmbientBackground(
+        child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),
           child: ListView(
@@ -193,7 +200,42 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // 2. Debrid & Cloud Streaming
+              // 2. Video Player & Engine (Decoders, Buffering, A/V Sync)
+              ValueListenableBuilder<int>(
+                valueListenable: PlayerSettings.changeNotifier,
+                builder: (context, _, __) {
+                  final isSoftware = PlayerSettings.forceSoftwareDecoding.value;
+                  final preset = PlayerSettings.decoderPreset.value;
+                  final bufferPreset = PlayerSettings.bufferPreset.value;
+
+                  String badgeText;
+                  Color badgeColor;
+                  if (isSoftware) {
+                    badgeText = 'Software (Safe Sync)';
+                    badgeColor = const Color(0xFFF59E0B);
+                  } else if (preset == DecoderPreset.hardwareAuto) {
+                    badgeText = 'HW Auto · ${bufferPreset.label.split(' ').first}';
+                    badgeColor = const Color(0xFF10B981);
+                  } else {
+                    badgeText = '${preset.title.split(' ').first} · Buffer ${bufferPreset.durationMs ~/ 1000}s';
+                    badgeColor = const Color(0xFF00E5FF);
+                  }
+
+                  return _SettingsCategoryTile(
+                    icon: Icons.play_circle_filled_rounded,
+                    iconColor: const Color(0xFF7C5CFF),
+                    title: 'Video Player & Engine',
+                    subtitle: 'Hardware/software decoders, buffer resilience, anti-desync & A/V clock',
+                    badgeText: badgeText,
+                    badgeColor: badgeColor,
+                    onTap: () => _navigateTo(const VideoPlayerSettingsPage()),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12),
+
+              // 3. Debrid & Cloud Streaming
               _SettingsCategoryTile(
                 icon: Icons.cloud_download_rounded,
                 iconColor: const Color(0xFF00E5FF),
@@ -212,8 +254,8 @@ class _SettingsPageState extends State<SettingsPage> {
               _SettingsCategoryTile(
                 icon: Icons.extension_rounded,
                 iconColor: const Color(0xFF10B981),
-                title: 'Metadata Addons',
-                subtitle: 'Stremio catalogs, movie/series metadata providers',
+                title: 'Addons',
+                subtitle: 'Stremio catalogs and content providers',
                 badgeText: '$addonCount Installed',
                 badgeColor: const Color(0xFF10B981),
                 onTap: () => _navigateTo(const AddonsSettingsPage()),
@@ -221,7 +263,36 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // 4. Trakt Sync
+              // 4. Built-in P2P Torrent Source Toggle (PlayTorrio)
+              ValueListenableBuilder<bool>(
+                valueListenable: P2pSettingsService.isP2pEnabled,
+                builder: (context, isP2p, _) {
+                  return _SettingsSwitchTile(
+                    icon: Icons.hub_rounded,
+                    iconColor: isP2p ? const Color(0xFFF59E0B) : Colors.white54,
+                    title: 'Built-in P2P Torrent Source',
+                    subtitle: isP2p
+                        ? 'PlayTorrio torrent swarms (Knaben, TorrentGalaxy) active'
+                        : 'P2P disabled. Using only direct HTTP streaming (PlayTorrioHTTP)',
+                    badgeText: isP2p ? 'P2P Active' : 'HTTP Only',
+                    badgeColor: isP2p ? const Color(0xFFF59E0B) : const Color(0xFF10B981),
+                    value: isP2p,
+                    onChanged: (val) async {
+                      await P2pSettingsService.setP2pEnabled(val);
+                    },
+                    onInfoTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) => const P2pWarningDialog(),
+                      );
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12),
+
+              // 5. Trakt Sync
               _SettingsCategoryTile(
                 icon: Icons.movie_filter_rounded,
                 iconColor: const Color(0xFFED1C24),
@@ -234,7 +305,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // 5. Simkl Sync
+              // 6. Simkl Sync
               _SettingsCategoryTile(
                 icon: Icons.tv_rounded,
                 iconColor: const Color(0xFF00ADFF),
@@ -258,7 +329,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // 5. App Updates & System
+              // 7. App Updates & System
               _SettingsCategoryTile(
                 icon: Icons.system_update_rounded,
                 iconColor: const Color(0xFFF59E0B),
@@ -271,7 +342,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // 6. About PlayTorrio
+              // 8. About PlayTorrio
               _SettingsCategoryTile(
                 icon: Icons.info_outline_rounded,
                 iconColor: Colors.white70,
@@ -282,6 +353,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ),
+      ),
       ),
     );
   }
@@ -407,6 +479,142 @@ class _SettingsCategoryTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Settings Switch Tile
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SettingsSwitchTile extends StatelessWidget {
+  final IconData icon;
+  final Color iconColor;
+  final String title;
+  final String subtitle;
+  final String? badgeText;
+  final Color? badgeColor;
+  final bool value;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback? onInfoTap;
+
+  const _SettingsSwitchTile({
+    required this.icon,
+    required this.iconColor,
+    required this.title,
+    required this.subtitle,
+    this.badgeText,
+    this.badgeColor,
+    required this.value,
+    required this.onChanged,
+    this.onInfoTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12151E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: value
+              ? iconColor.withValues(alpha: 0.20)
+              : Colors.white.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Row(
+        children: [
+          // Icon Container
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Icon(
+              icon,
+              color: iconColor,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+
+          // Title and Subtitle
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Flexible(
+                      child: Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (onInfoTap != null) ...[
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(Icons.info_outline_rounded, size: 16, color: Colors.white54),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        tooltip: 'P2P Advisory Details',
+                        onPressed: onInfoTap,
+                      ),
+                    ],
+                    if (badgeText != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: (badgeColor ?? iconColor).withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          badgeText!,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: badgeColor ?? iconColor,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    color: Colors.white.withValues(alpha: 0.45),
+                    height: 1.25,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(width: 10),
+
+          // Switch
+          Switch.adaptive(
+            value: value,
+            activeColor: const Color(0xFFF59E0B),
+            activeTrackColor: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+            inactiveThumbColor: Colors.white60,
+            inactiveTrackColor: Colors.white10,
+            onChanged: onChanged,
+          ),
+        ],
       ),
     );
   }

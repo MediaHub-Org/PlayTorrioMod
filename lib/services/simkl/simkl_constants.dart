@@ -1,7 +1,7 @@
 /// Simkl API constants dynamically loaded from environment.
 library;
 
-import '../env_service.dart';
+import '../config/env_service.dart';
 
 String get kSimklClientId => EnvService.simklClientId;
 String get kSimklClientSecret => EnvService.simklClientSecret;

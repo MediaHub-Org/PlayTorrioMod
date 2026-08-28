@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 
 import '../../models/manga/manga.dart';
 import '../../pages/manga/manga_details_page.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/manga/manga_settings.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../common/poster_skeleton.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -44,7 +44,14 @@ class MangaCardSizing {
       baseWidth = 205;
     }
 
-    final cardWidth = baseWidth * density.scale;
+    // Apply density scaling only when not standard (compact shrinks, cinematic grows)
+    if (density == MangaCardDensity.compact) {
+      baseWidth *= 0.85;
+    } else if (density == MangaCardDensity.spacious) {
+      baseWidth *= 1.20;
+    }
+
+    final cardWidth = baseWidth;
     final posterHeight = cardWidth * 1.48;
     final totalHeight = posterHeight + 66;
 

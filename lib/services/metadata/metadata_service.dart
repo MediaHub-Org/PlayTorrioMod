@@ -88,7 +88,11 @@ class MetadataService {
               effectiveBaseUrl,
               fallbackType: type,
             ))
-        .where((movie) => movie.poster != null && movie.poster!.isNotEmpty)
+        .where((movie) =>
+            movie.id.isNotEmpty &&
+            movie.name.isNotEmpty &&
+            movie.poster != null &&
+            movie.poster!.isNotEmpty)
         .toList();
 
     _catalogCache[url] = result;
@@ -132,7 +136,11 @@ class MetadataService {
                 effectiveBaseUrl,
                 fallbackType: type,
               ))
-          .where((movie) => movie.poster != null && movie.poster!.isNotEmpty)
+          .where((movie) =>
+              movie.id.isNotEmpty &&
+              movie.name.isNotEmpty &&
+              movie.poster != null &&
+              movie.poster!.isNotEmpty)
           .toList();
           
       _catalogCache[url] = result;

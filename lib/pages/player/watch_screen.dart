@@ -19,13 +19,13 @@ import '../../models/download/download_task_model.dart';
 import './player_screen.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/download/download_service.dart';
-import '../../services/glass_settings.dart';
-import '../../utils/download_path_helper.dart';
+import '../../services/theme/glass_settings.dart';
+import '../../utils/download/download_path_helper.dart';
 import '../../utils/fullscreen_navigator.dart';
 import '../../widgets/common/performance_liquid_lens.dart';
 import '../settings/settings_page.dart';
 import '../details/details_page.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 
 // ---------------------------------------------------------------------------
 // Design tokens
@@ -115,6 +115,12 @@ class _WatchScreenState extends State<WatchScreen>
 
   Future<void> _loadStreams() async {
     final streamId = widget.selectedEpisode?.id ?? widget.detail.id;
+
+    // 1. Immediately inject any embedded streams from the video (e.g. Torbox/Debrid direct streams)
+    if (widget.selectedEpisode != null && widget.selectedEpisode!.streams.isNotEmpty) {
+      _pendingSources.addAll(widget.selectedEpisode!.streams);
+      _flushPendingSources();
+    }
 
     try {
       await for (final source in StreamService.fetchStreams(

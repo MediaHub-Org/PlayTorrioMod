@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../pages/search/search_page.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 
 /// A small search icon button meant for each catalog/section page's own
 /// title row. Replaces the old global header search bar — search is now

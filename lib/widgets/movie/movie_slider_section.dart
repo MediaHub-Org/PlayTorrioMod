@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/movie/movie_section.dart';
 import '../../pages/catalog/catalog_page.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import './movie_card.dart';
 import '../common/horizontal_slider_scroll.dart';
 import '../common/section_header.dart';

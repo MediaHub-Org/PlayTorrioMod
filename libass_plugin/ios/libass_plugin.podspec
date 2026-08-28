@@ -1,22 +1,24 @@
 Pod::Spec.new do |s|
   s.name             = 'libass_plugin'
   s.version          = '1.0.0'
-  s.summary          = 'Local plugin to bundle libass framework.'
+  s.summary          = 'Local wrapper plugin to bundle libass framework for iOS builds.'
   s.description      = <<-DESC
-Local plugin to bundle libass framework for iOS builds automatically via CocoaPods.
+Local wrapper plugin to bundle libass (ass.framework) for iOS builds automatically via CocoaPods.
                        DESC
-  s.homepage         = 'http://example.com'
-  s.license          = { :file => '../LICENSE' }
-  s.author           = { 'Your Company' => 'email@example.com' }
+  s.homepage         = 'https://github.com/ayman708-UX/PlayTorrioV3'
+  s.license          = { :type => 'MIT' }
+  s.author           = { 'PlayTorrio' => 'dev@playtorrio.app' }
   s.source           = { :path => '.' }
-  s.source_files = 'Classes/**/*'
+  s.source_files     = 'Classes/**/*'
+  s.public_header_files = 'Classes/**/*.h'
   s.dependency 'Flutter'
-  s.platform = :ios, '11.0'
+  s.platform         = :ios, '12.0'
 
-  # Embed the framework so GitHub actions gets it automatically
+  # Embed and link ass.framework into the target application
   s.vendored_frameworks = 'ass.framework'
-  
-  # Flutter.framework does not contain a i386 slice.
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386' }
-  s.swift_version = '5.0'
+
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+    'EXCLUDED_ARCHS[sdk=iphonesimulator*]' => 'i386'
+  }
 end

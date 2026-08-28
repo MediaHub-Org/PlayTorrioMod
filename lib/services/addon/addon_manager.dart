@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/addon/addon.dart';
 import '../../models/movie/movie.dart';
 import '../../models/movie/movie_section.dart';
-import '../../utils/relevance_scorer.dart';
+import '../../utils/search/relevance_scorer.dart';
 import '../metadata/metadata_service.dart';
 
 /// Manages installed Stremio metadata addons.
@@ -26,6 +26,18 @@ class AddonManager {
 
   List<InstalledAddon> get activeAddons =>
       _addons.where((a) => a.enabled).toList();
+
+  List<InstalledAddon> get activeCatalogAddons =>
+      _addons.where((a) => a.isCatalogsActive).toList();
+
+  List<InstalledAddon> get activeSearchAddons =>
+      _addons.where((a) => a.isSearchActive).toList();
+
+  List<InstalledAddon> get activeSubtitleAddons =>
+      _addons.where((a) => a.isSubtitlesActive).toList();
+
+  List<InstalledAddon> get activeStreamAddons =>
+      _addons.where((a) => a.isStreamsActive).toList();
 
   // ── Initialization ────────────────────────────────────────────────────
 
@@ -63,6 +75,16 @@ class AddonManager {
   /// Install an addon by its base URL or manifest URL.
   Future<InstalledAddon> addAddon(String url) async {
     String baseUrl = url.trim();
+
+    // Convert stremio:// or stremio: URI scheme to https://
+    if (baseUrl.startsWith('stremio://')) {
+      baseUrl = 'https://${baseUrl.substring('stremio://'.length)}';
+    } else if (baseUrl.startsWith('stremio:')) {
+      baseUrl = 'https://${baseUrl.substring('stremio:'.length)}';
+    } else if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      baseUrl = 'https://$baseUrl';
+    }
+
     if (baseUrl.endsWith('/manifest.json')) {
       baseUrl = baseUrl.substring(0, baseUrl.length - '/manifest.json'.length);
     }
@@ -111,6 +133,26 @@ class AddonManager {
     await _save();
   }
 
+  Future<void> updateAddonFeature({
+    required String addonId,
+    bool? enableCatalogs,
+    bool? enableSearch,
+    bool? enableSubtitles,
+    bool? enableStreams,
+  }) async {
+    for (final addon in _addons) {
+      if (addon.manifest.id == addonId) {
+        if (enableCatalogs != null) addon.enableCatalogs = enableCatalogs;
+        if (enableSearch != null) addon.enableSearch = enableSearch;
+        if (enableSubtitles != null) addon.enableSubtitles = enableSubtitles;
+        if (enableStreams != null) addon.enableStreams = enableStreams;
+        break;
+      }
+    }
+    MetadataService.clearCache();
+    await _save();
+  }
+
   Future<void> _save() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
@@ -124,7 +166,7 @@ class AddonManager {
   /// Fetch all home page sections from every active addon's catalogs.
   /// Each addon's catalogs are fetched concurrently.
   Future<List<MovieSection>> fetchAllHomeSections() async {
-    final active = activeAddons;
+    final active = activeCatalogAddons;
 
     final addonFutures = active.map(_fetchAddonSections);
     final results = await Future.wait(addonFutures);
@@ -139,7 +181,7 @@ class AddonManager {
 
   /// Streams home page sections one by one as they load, so the UI can populate dynamically.
   Stream<MovieSection> streamHomeSections() async* {
-    final active = activeAddons;
+    final active = activeCatalogAddons;
     final List<Future<MovieSection?>> sectionFutures = [];
 
     // 1. Kick off all network requests concurrently
@@ -278,12 +320,11 @@ class AddonManager {
   }
 
   /// Search across all active addons that support search.
-  /// Search across all active addons.
   ///
   /// If [contentType] is provided (e.g. 'movie', 'series', 'anime'), only
   /// catalogs of that type are searched, scoping results to a section.
   Future<List<MovieSection>> searchAll(String query, {String? contentType}) async {
-    final active = activeAddons;
+    final active = activeSearchAddons;
     final futures = <Future<MovieSection?>>[];
 
     for (final addon in active) {
@@ -346,7 +387,7 @@ class AddonManager {
 
   /// Fetch catalogs filtered by a specific genre across all active addons.
   Future<List<MovieSection>> fetchByGenre(String genre) async {
-    final active = activeAddons;
+    final active = activeCatalogAddons;
     final futures = <Future<MovieSection?>>[];
 
     for (final addon in active) {

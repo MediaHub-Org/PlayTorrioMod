@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../models/anime/anime_media.dart';
+import '../../services/theme/app_theme_service.dart';
 
 class AnimeHeroSpotlight extends StatefulWidget {
   final List<AnimeMedia> featuredAnime;
@@ -256,8 +257,8 @@ class _AnimeHeroSpotlightState extends State<AnimeHeroSpotlight> {
                                 ...anime.genres.take(3),
                               ].join(' • '),
                               style: TextStyle(
-                                color: const Color(0xFF7C5CFF)
-                                    .withValues(alpha: 0.9),
+                                color: AppThemeService.currentPalette.value.primaryColor
+                                    .withValues(alpha: 0.95),
                                 fontSize: isMobile ? 12 : 13,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -286,7 +287,7 @@ class _AnimeHeroSpotlightState extends State<AnimeHeroSpotlight> {
                             children: [
                               ElevatedButton.icon(
                                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFF7C5CFF),
+                                  backgroundColor: AppThemeService.currentPalette.value.primaryColor,
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(20),
                                   ),
@@ -294,7 +295,7 @@ class _AnimeHeroSpotlightState extends State<AnimeHeroSpotlight> {
                                     horizontal: isMobile ? 16 : 22,
                                     vertical: isMobile ? 10 : 12,
                                   ),
-                                  shadowColor: const Color(0xFF7C5CFF)
+                                  shadowColor: AppThemeService.currentPalette.value.primaryColor
                                       .withValues(alpha: 0.5),
                                   elevation: 8,
                                 ),
@@ -375,7 +376,7 @@ class _AnimeHeroSpotlightState extends State<AnimeHeroSpotlight> {
                         height: 6,
                         decoration: BoxDecoration(
                           color: isActive
-                              ? const Color(0xFF7C5CFF)
+                              ? AppThemeService.currentPalette.value.primaryColor
                               : Colors.white.withValues(alpha: 0.3),
                           borderRadius: BorderRadius.circular(3),
                         ),

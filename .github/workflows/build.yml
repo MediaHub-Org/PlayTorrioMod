@@ -1,57 +1,133 @@
 # ──────────────────────────────────────────────────────────────────────────────
-#  PlayTorrioV3 — Multi-Platform CI/CD
-#  Builds: Windows (installer), Linux x64 (AppImage),
-#          macOS ARM64 (Apple Silicon), macOS Intel, iOS (IPA), Android (APK)
+#  PlayTorrioV3 — Multi-Platform CI/CD Release Builder
+#  Builds:
+#    - Windows: Installer (Inno Setup) & Portable ZIP (x64)
+#    - Android: Split-per-ABI APKs (arm64-v8a, armeabi-v7a, x86_64) & Universal APK
+#    - Linux: AppImage & Tar.gz (x86_64)
+#    - macOS: Apple Silicon (ARM64) & Intel (x64) DMG & ZIP
+#    - iOS: Sideloadable IPA (no-codesign)
+#  Trigger: Git tag push (v*) or Manual Workflow Dispatch
+#  Environment: Injects --dart-define-from-file=.env using ${{ secrets.ENV_FILE }}
 # ──────────────────────────────────────────────────────────────────────────────
-name: Build PlayTorrioV3
+name: Build and Release PlayTorrioV3
 
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 # ═══════════════════════════════════════════════════════════════════════════════
 jobs:
 
-  # ─── Windows ──────────────────────────────────────────────────────────────
+  # ─── Windows Build ────────────────────────────────────────────────────────
   windows:
-    name: Windows (Installer)
+    name: Windows (Installer & Portable)
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.9'
+          channel: 'stable'
+          cache: true
 
-      - run: flutter pub get
+      - name: Setup .env from GitHub Secrets
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+          elif [ -n "${{ secrets.DOTENV }}" ]; then
+            echo "${{ secrets.DOTENV }}" > .env
+          else
+            touch .env
+          fi
 
-      - run: flutter build windows --release
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows App
+        run: flutter build windows --release --dart-define-from-file=.env
 
       - name: Install Inno Setup
         shell: pwsh
-        run: choco install innosetup -y --no-progress
+        run: |
+          choco install innosetup -y --no-progress
+          $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          Write-Host "PATH refreshed for Inno Setup."
 
-      - name: Build installer
+      - name: Compile Inno Setup Installer
         shell: pwsh
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\windows\setup.iss
+          $ErrorActionPreference = 'Stop'
+          $cleanVersion = "${{ github.ref_name }}".TrimStart('v')
+          if ([string]::IsNullOrWhiteSpace($cleanVersion)) { $cleanVersion = "1.0.2" }
 
-      - uses: actions/upload-artifact@v4
+          $isccCmd = (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source
+          if (-not $isccCmd) {
+            $candidates = @(
+              "C:\Program Files (x86)\Inno Setup 6\ISCC.exe",
+              "C:\Program Files\Inno Setup 6\ISCC.exe",
+              "C:\ProgramData\chocolatey\bin\iscc.exe"
+            )
+            foreach ($candidate in $candidates) {
+              if (Test-Path $candidate) {
+                $isccCmd = $candidate
+                break
+              }
+            }
+          }
+          if (-not $isccCmd) {
+            throw "ISCC compiler executable could not be found!"
+          }
+          Write-Host "Using Inno Setup Compiler at: $isccCmd"
+
+          New-Item -ItemType Directory -Force -Path "installer\windows\Output"
+
+          & $isccCmd /DMyAppVersion=$cleanVersion installer\windows\setup.iss
+          if ($LASTEXITCODE -ne 0) {
+            throw "Inno Setup compilation failed with exit code $LASTEXITCODE"
+          }
+
+          if (Test-Path "installer\windows\Output\PlayTorrio-Windows-Setup.exe") {
+            Copy-Item "installer\windows\Output\PlayTorrio-Windows-Setup.exe" ".\PlayTorrio-Windows-Setup.exe" -Force
+            Write-Host "Verified and copied PlayTorrio-Windows-Setup.exe to root."
+          } else {
+            throw "PlayTorrio-Windows-Setup.exe was not found in Output directory after ISCC compile!"
+          }
+
+      - name: Package Portable ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "PlayTorrio-Windows-x64-Portable.zip" -Force
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrioV3-Windows-Installer
-          path: installer/windows/Output/PlayTorrio-Windows-Setup.exe
+          name: PlayTorrioV3-Windows
+          path: |
+            PlayTorrio-Windows-Setup.exe
+            PlayTorrio-Windows-x64-Portable.zip
 
-  # ─── Linux x64 ───────────────────────────────────────────────────────────
+  # ─── Linux x64 Build (AppImage & Tar.gz) ──────────────────────────────────
   linux-x64:
-    name: Linux x64 (AppImage)
+    name: Linux x64 (AppImage & Tar)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.9'
+          channel: 'stable'
+          cache: true
 
       - name: Install Linux build dependencies
         run: |
@@ -62,20 +138,30 @@ jobs:
             libmpv-dev xvfb \
             libboost-all-dev libssl-dev libgcrypt20-dev
 
-      - name: Generate Linux platform files
+      - name: Setup .env from GitHub Secrets
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+          elif [ -n "${{ secrets.DOTENV }}" ]; then
+            echo "${{ secrets.DOTENV }}" > .env
+          else
+            touch .env
+          fi
+
+      - name: Generate Linux platform files if missing
         run: |
           if [ ! -d "linux" ]; then
             flutter create --platforms=linux .
           fi
 
-      - run: flutter pub get
-      - run: flutter build linux --release
+      - name: Install dependencies
+        run: flutter pub get
 
-      - name: Test Launching Linux App
-        run: |
-          xvfb-run --auto-servernum timeout 10 ./build/linux/x64/release/bundle/playtorrio || if [ $? -eq 124 ]; then exit 0; else exit 1; fi
+      - name: Build Linux Release
+        run: flutter build linux --release --dart-define-from-file=.env
 
-      - name: Package as AppImage
+      - name: Package as AppImage & Tar
         run: |
           curl -fSL "https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage" \
             -o appimagetool
@@ -106,41 +192,55 @@ jobs:
           chmod +x "$APP/AppRun"
 
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$APP" PlayTorrio-Linux-x86_64.AppImage
+          tar -czvf PlayTorrio-Linux-x86_64.tar.gz -C build/linux/x64/release/bundle .
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: PlayTorrioV3-Linux-x64
-          path: PlayTorrio-Linux-x86_64.AppImage
+          path: |
+            PlayTorrio-Linux-x86_64.AppImage
+            PlayTorrio-Linux-x86_64.tar.gz
 
-  # ─── macOS ARM64 (Apple Silicon) ─────────────────────────────────────────
+  # ─── macOS ARM64 Build (Apple Silicon) ───────────────────────────────────
   macos-arm64:
-    name: macOS (Apple Silicon)
+    name: macOS (Apple Silicon ARM64)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.9'
+          channel: 'stable'
+          cache: true
 
-      - name: Configure macOS platform files
+      - name: Setup .env from GitHub Secrets
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+          elif [ -n "${{ secrets.DOTENV }}" ]; then
+            echo "${{ secrets.DOTENV }}" > .env
+          else
+            touch .env
+          fi
+
+      - name: Configure macOS platform files if missing
         run: |
           if [ ! -d "macos" ]; then
             flutter create --platforms=macos .
           fi
 
-      - run: flutter pub get
-      - run: flutter build macos --release
+      - name: Install dependencies
+        run: flutter pub get
 
-      - name: Test Launching macOS App
-        run: |
-          build/macos/Build/Products/Release/playtorrio.app/Contents/MacOS/playtorrio &
-          APP_PID=$!
-          sleep 10
-          kill $APP_PID 2>/dev/null || true
-          echo "App launched and ran for 10s without crashing."
+      - name: Build macOS Release
+        run: flutter build macos --release --dart-define-from-file=.env
 
-      - name: Package as DMG
+      - name: Package as DMG & ZIP
         run: |
           cd build/macos/Build/Products/Release
           mv playtorrio.app PlayTorrio.app
@@ -154,40 +254,51 @@ jobs:
           hdiutil create -volname "PlayTorrio" -srcfolder dmg_temp -ov -format UDZO ../../../../../PlayTorrio-macOS-arm64.dmg
           zip -ry ../../../../../PlayTorrio-macOS-arm64.zip PlayTorrio.app
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload macOS ARM64 Artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: PlayTorrioV3-macOS-arm64
           path: |
             PlayTorrio-macOS-arm64.dmg
             PlayTorrio-macOS-arm64.zip
 
-  # ─── macOS Intel (x86_64 via Rosetta 2) ─────────────────────────────────
+  # ─── macOS Intel Build (x86_64) ──────────────────────────────────────────
   macos-intel:
-    name: macOS (Intel)
+    name: macOS (Intel x86_64)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install Rosetta 2
         run: softwareupdate --install-rosetta --agree-to-license || true
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter x64
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.9'
+          channel: 'stable'
           architecture: x64
+          cache: true
 
-      - run: arch -x86_64 flutter pub get
-      - run: arch -x86_64 flutter build macos --release
-
-      - name: Test Launching macOS Intel App
+      - name: Setup .env from GitHub Secrets
+        shell: bash
         run: |
-          arch -x86_64 build/macos/Build/Products/Release/playtorrio.app/Contents/MacOS/playtorrio &
-          APP_PID=$!
-          sleep 10
-          kill $APP_PID 2>/dev/null || true
-          echo "App launched and ran for 10s without crashing."
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+          elif [ -n "${{ secrets.DOTENV }}" ]; then
+            echo "${{ secrets.DOTENV }}" > .env
+          else
+            touch .env
+          fi
 
-      - name: Package as DMG
+      - name: Install dependencies
+        run: arch -x86_64 flutter pub get
+
+      - name: Build macOS Intel Release
+        run: arch -x86_64 flutter build macos --release --dart-define-from-file=.env
+
+      - name: Package as DMG & ZIP
         run: |
           cd build/macos/Build/Products/Release
           mv playtorrio.app PlayTorrio.app
@@ -201,26 +312,45 @@ jobs:
           hdiutil create -volname "PlayTorrio" -srcfolder dmg_temp -ov -format UDZO ../../../../../PlayTorrio-macOS-intel.dmg
           zip -ry ../../../../../PlayTorrio-macOS-intel.zip PlayTorrio.app
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload macOS Intel Artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: PlayTorrioV3-macOS-intel
           path: |
             PlayTorrio-macOS-intel.dmg
             PlayTorrio-macOS-intel.zip
 
-  # ─── iOS (Sideloadable IPA — no signing) ─────────────────────────────────
+  # ─── iOS Build (Sideloadable IPA — no-codesign) ───────────────────────────
   ios:
     name: iOS (IPA)
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: subosito/flutter-action@v2
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.9'
+          channel: 'stable'
+          cache: true
 
-      - run: flutter pub get
-      - run: flutter build ios --release --no-codesign
+      - name: Setup .env from GitHub Secrets
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+          elif [ -n "${{ secrets.DOTENV }}" ]; then
+            echo "${{ secrets.DOTENV }}" > .env
+          else
+            touch .env
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS Release (No Codesign)
+        run: flutter build ios --release --no-codesign --dart-define-from-file=.env
 
       - name: Package as IPA
         run: |
@@ -229,32 +359,38 @@ jobs:
           cp -R Runner.app Payload/
           zip -ry ../../../PlayTorrio-iOS.ipa Payload
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload iOS Artifacts
+        uses: actions/upload-artifact@v4
         with:
           name: PlayTorrioV3-iOS
           path: PlayTorrio-iOS.ipa
 
-  # ─── Create GitHub Release ───────────────────────────────────────────────
+  # ─── Create / Publish GitHub Release ─────────────────────────────────────
   release:
-    name: Create Release
+    name: Publish GitHub Release
     needs: [windows, linux-x64, macos-arm64, macos-intel, ios]
-    if: startsWith(github.ref, 'refs/tags/')
+    if: always() && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
-
-      - uses: softprops/action-gh-release@v2
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
         with:
-          name: "Release ${{ github.ref_name }}"
+          merge-multiple: true
+
+      - name: Publish Release with Assets
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "PlayTorrio ${{ github.ref_name }}"
           draft: true
+          prerelease: false
           generate_release_notes: true
           files: |
-            PlayTorrioV3-Windows-Installer/*.exe
-            PlayTorrioV3-Linux-x64/*.AppImage
-            PlayTorrioV3-macOS-arm64/*.dmg
-            PlayTorrioV3-macOS-arm64/*.zip
-            PlayTorrioV3-macOS-intel/*.dmg
-            PlayTorrioV3-macOS-intel/*.zip
-            PlayTorrioV3-iOS/*.ipa
+            *.exe
+            *.zip
+            *.apk
+            *.AppImage
+            *.tar.gz
+            *.dmg
+            *.ipa

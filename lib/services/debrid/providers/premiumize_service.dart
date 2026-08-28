@@ -32,6 +32,23 @@ class PremiumizeService {
     return key != null && key.isNotEmpty;
   }
 
+  Future<Map<String, dynamic>?> verifyKey(String key) async {
+    final trimmed = key.trim();
+    if (trimmed.isEmpty) return null;
+    try {
+      final res = await http.get(
+        Uri.parse('https://www.premiumize.me/api/account/info?apikey=$trimmed'),
+      );
+      if (res.statusCode == 200) {
+        final data = json.decode(res.body);
+        if (data['status'] == 'success') {
+          return data as Map<String, dynamic>?;
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _walkPremiumizeFolder(
     String apiKey,
     String folderId,

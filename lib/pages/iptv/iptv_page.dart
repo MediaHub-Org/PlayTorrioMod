@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
-import '../../services/app_theme_service.dart';
-import '../../services/glass_settings.dart';
+import '../../services/theme/app_theme_service.dart';
+import '../../services/theme/glass_settings.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_controller.dart';
 import '../../services/iptv/iptv_settings.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/iptv/iptv_hero_carousel.dart';
 import '../../widgets/iptv/iptv_slider_section.dart';
@@ -239,7 +239,6 @@ class _IptvPageState extends State<IptvPage> {
           bottom: 40,
           child: CustomScrollTrack(controller: _scrollController),
         ),
-
     ];
 
     return Scaffold(

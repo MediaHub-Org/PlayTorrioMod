@@ -5,7 +5,7 @@ import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
-import '../../services/app_theme_service.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../services/manga/manga_settings.dart';
 import '../../widgets/common/custom_scroll_track.dart';
@@ -468,7 +468,7 @@ class _MangaPageState extends State<MangaPage> {
             padding: EdgeInsets.symmetric(horizontal: sizing.sidePadding, vertical: 8.0),
             sliver: SliverGrid(
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: sizing.cardWidth + (sizing.spacing / 2),
+                maxCrossAxisExtent: sizing.cardWidth + sizing.spacing * 2,
                 mainAxisSpacing: 32.0,
                 crossAxisSpacing: sizing.spacing,
                 mainAxisExtent: sizing.totalHeight,

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_controller.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import 'iptv_player_page.dart';
 
 class IptvChannelSheet extends StatefulWidget {

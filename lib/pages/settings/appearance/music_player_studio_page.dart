@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_easy/liquid_glass_easy.dart';
 
-import '../../../services/app_theme_service.dart';
+import '../../../services/theme/app_theme_service.dart';
 import '../../../services/music/music_settings.dart';
 import '../../../widgets/music/music_interactive_physics_button.dart';
 import '../../../widgets/music/music_waveform_seekbar.dart';

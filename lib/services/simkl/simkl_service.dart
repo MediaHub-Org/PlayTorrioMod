@@ -4,10 +4,10 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import '../../models/profiles/profile_policy.dart';
-import '../episode_tracker_snapshot_revision.dart';
+import '../continue_watching/episode_tracker_snapshot_revision.dart';
 import '../profiles/profile_async_authorization.dart';
 import '../profiles/profile_runtime.dart';
-import '../storage_service.dart';
+import '../storage/storage_service.dart';
 import 'simkl_calendar_service.dart';
 import 'simkl_constants.dart';
 

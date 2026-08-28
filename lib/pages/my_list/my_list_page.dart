@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/my_list/my_list_item.dart';
 import '../../services/my_list/my_list_service.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../details/details_page.dart';
 import '../../models/movie/movie.dart';
 

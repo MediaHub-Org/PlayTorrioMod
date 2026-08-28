@@ -1,7 +1,7 @@
 /// Trakt API constants dynamically loaded from environment.
 library;
 
-import '../env_service.dart';
+import '../config/env_service.dart';
 
 String get kTraktClientId => EnvService.traktClientId;
 String get kTraktClientSecret => EnvService.traktClientSecret;

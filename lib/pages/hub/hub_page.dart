@@ -6,7 +6,7 @@ import '../../widgets/common/nested_navigator.dart';
 import '../../widgets/common/universal_play_bar.dart';
 import '../../utils/hub_controller.dart';
 import '../../utils/hub_navigator.dart';
-import '../../utils/route_transitions.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../../services/app_breakpoints.dart';
 import '../../services/app_spacing.dart';
 import '../../widgets/common/adaptive_nav_shell.dart';

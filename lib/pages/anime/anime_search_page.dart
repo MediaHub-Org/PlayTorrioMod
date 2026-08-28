@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 
 import '../../models/anime/anime_media.dart';
 import '../../services/anime/anilist_service.dart';
-import '../../utils/route_transitions.dart';
+import '../../services/theme/app_theme_service.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/anime/anime_slider_section.dart';
+import '../../widgets/common/animated_ambient_background.dart';
 import 'anime_details_page.dart';
 
 import '../../services/anime_arabic/anime_arabic_service.dart';
@@ -27,13 +29,12 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
   final TextEditingController _searchController = TextEditingController();
   final FocusNode _focusNode = FocusNode();
 
-  late bool _isArabicMode;
+  bool _isArabicMode = false;
   Timer? _debounce;
   bool _isLoading = false;
   bool _allowAdult = false;
   List<AnimeMedia> _allResults = [];
-  Map<int, ArabicAnimeCard> _arabicCardsMap = {};
-  String _lastQuery = '';
+  final Map<int, ArabicAnimeCard> _arabicCardsMap = {};
 
   // Filter selections
   String? _genre;
@@ -72,6 +73,7 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
   @override
   void initState() {
     super.initState();
+    _isArabicMode = widget.initialArabicMode;
     _loadInitialSliders();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
@@ -153,7 +155,6 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
       setState(() {
         _allResults.clear();
         _isLoading = false;
-        _lastQuery = '';
       });
       return;
     }
@@ -167,7 +168,6 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
     final q = (query ?? _searchController.text).trim();
     setState(() {
       _isLoading = true;
-      _lastQuery = q;
     });
 
     try {
@@ -287,10 +287,10 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
                     if (current != null)
                       TextButton(
                         onPressed: () => Navigator.of(ctx).pop(_PickResult<T>(null, true)),
-                        child: const Text(
+                        child: Text(
                           'Clear',
                           style: TextStyle(
-                            color: Color(0xFF7C5CFF),
+                            color: AppThemeService.currentPalette.value.primaryColor,
                             fontWeight: FontWeight.w700,
                             fontSize: 14,
                           ),
@@ -317,7 +317,7 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
                           padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
                           decoration: BoxDecoration(
                             color: selected
-                                ? const Color(0xFF7C5CFF).withValues(alpha: 0.12)
+                                ? AppThemeService.currentPalette.value.primaryColor.withValues(alpha: 0.12)
                                 : Colors.transparent,
                             border: Border(
                               bottom: BorderSide(
@@ -331,16 +331,16 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
                                 child: Text(
                                   label(v),
                                   style: TextStyle(
-                                    color: selected ? const Color(0xFF7C5CFF) : Colors.white,
+                                    color: selected ? AppThemeService.currentPalette.value.primaryColor : Colors.white,
                                     fontSize: 15,
                                     fontWeight: selected ? FontWeight.w800 : FontWeight.w500,
                                   ),
                                 ),
                               ),
                               if (selected)
-                                const Icon(
+                                Icon(
                                   Icons.check_rounded,
-                                  color: Color(0xFF7C5CFF),
+                                  color: AppThemeService.currentPalette.value.primaryColor,
                                   size: 20,
                                 ),
                             ],
@@ -357,15 +357,25 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
       },
     );
 
-    if (picked == null) return;
-    onSelected(picked.cleared ? null : picked.value);
-    _performSearch();
+    if (picked != null) {
+      if (picked.cleared) {
+        setState(() {
+          onSelected(null);
+        });
+        _performSearch();
+      } else if (picked.value != null) {
+        setState(() {
+          onSelected(picked.value);
+        });
+        _performSearch();
+      }
+    }
   }
 
-  Future<void> _pickYear() async {
-    final currentYear = DateTime.now().year;
-    final years = List.generate(60, (i) => currentYear - i);
-    return _pickFromList<int>(
+  void _pickYear() {
+    final now = DateTime.now().year;
+    final years = List.generate(40, (i) => now + 1 - i);
+    _pickFromList<int>(
       title: 'Release Year',
       items: years,
       label: (y) => '$y',
@@ -383,11 +393,12 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
     required VoidCallback onTap,
     IconData? icon,
   }) {
+    final primaryColor = AppThemeService.currentPalette.value.primaryColor;
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: Material(
         color: active
-            ? const Color(0xFF7C5CFF).withValues(alpha: 0.22)
+            ? primaryColor.withValues(alpha: 0.22)
             : Colors.white.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(20),
         child: InkWell(
@@ -399,7 +410,7 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
               borderRadius: BorderRadius.circular(20),
               border: Border.all(
                 color: active
-                    ? const Color(0xFF7C5CFF).withValues(alpha: 0.65)
+                    ? primaryColor.withValues(alpha: 0.65)
                     : Colors.white.withValues(alpha: 0.10),
                 width: 1.1,
               ),
@@ -423,7 +434,7 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
                 Icon(
                   Icons.expand_more_rounded,
                   size: 15,
-                  color: active ? const Color(0xFF7C5CFF) : Colors.white38,
+                  color: active ? primaryColor : Colors.white38,
                 ),
               ],
             ),
@@ -477,32 +488,35 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
             a.format.toUpperCase() != 'MOVIE')
         .toList();
 
-    return Scaffold(
-      backgroundColor: const Color(0xFF080A0F),
-      extendBodyBehindAppBar: true,
-      appBar: PreferredSize(
-        preferredSize: const Size.fromHeight(kToolbarHeight + 62),
-        child: ClipRRect(
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-            child: Container(
-              padding: EdgeInsets.only(top: topPadding + 4, bottom: 8),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    const Color(0xFF080A0F).withValues(alpha: 0.94),
-                    const Color(0xFF080A0F).withValues(alpha: 0.70),
-                  ],
-                ),
-                border: Border(
-                  bottom: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.06),
+    return ValueListenableBuilder<AppThemePalette>(
+      valueListenable: AppThemeService.currentPalette,
+      builder: (context, palette, _) {
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          extendBodyBehindAppBar: true,
+          appBar: PreferredSize(
+            preferredSize: const Size.fromHeight(kToolbarHeight + 62),
+            child: ClipRRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
+                child: Container(
+                  padding: EdgeInsets.only(top: topPadding + 4, bottom: 8),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        palette.scaffoldBackgroundColor.withValues(alpha: 0.94),
+                        palette.scaffoldBackgroundColor.withValues(alpha: 0.70),
+                      ],
+                    ),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Colors.white.withValues(alpha: 0.06),
+                      ),
+                    ),
                   ),
-                ),
-              ),
-              child: Column(
+                  child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   // Row 1: Back Button + Search Bar + 18+ Toggle
@@ -590,12 +604,12 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
                               decoration: BoxDecoration(
                                 color: _isArabicMode
-                                    ? const Color(0xFF7C5CFF).withValues(alpha: 0.25)
+                                    ? palette.primaryColor.withValues(alpha: 0.25)
                                     : Colors.white.withValues(alpha: 0.06),
                                 borderRadius: BorderRadius.circular(10),
                                 border: Border.all(
                                   color: _isArabicMode
-                                      ? const Color(0xFF7C5CFF)
+                                      ? palette.primaryColor
                                       : Colors.white.withValues(alpha: 0.12),
                                   width: 1.2,
                                 ),
@@ -607,7 +621,7 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
                                     _isArabicMode ? '🇸🇦 Arabic' : '🇯🇵 Anime',
                                     style: TextStyle(
                                       color: _isArabicMode
-                                          ? const Color(0xFF7C5CFF)
+                                          ? palette.primaryColor
                                           : Colors.white70,
                                       fontSize: 12,
                                       fontWeight: FontWeight.bold,
@@ -794,101 +808,111 @@ class _AnimeSearchPageState extends State<AnimeSearchPage> {
           ),
         ),
       ),
-      body: Stack(
-        children: [
-          // Content Area
-          if (_isLoading || (_loadingInitial && _allResults.isEmpty && _trendingList.isEmpty))
-            const Center(
-              child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
-            )
-          else if (isSearching && _allResults.isEmpty)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.search_off_rounded,
-                    size: 64,
-                    color: Colors.white.withValues(alpha: 0.2),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    _lastQuery.isNotEmpty
-                        ? 'No anime results for "$_lastQuery"'
-                        : 'No anime found with selected filters',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.6),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
+      body: AnimatedAmbientBackground(
+        child: Stack(
+          children: [
+            // Content Area
+            if (_isLoading || (_loadingInitial && _allResults.isEmpty && _trendingList.isEmpty))
+              Center(
+                child: CircularProgressIndicator(color: palette.primaryColor),
+              )
+            else if (isSearching && _allResults.isEmpty)
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.search_off_rounded,
+                      size: 64,
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
-                  ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No anime found matching your criteria',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Try different keywords or clearing filters',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
+                ),
+              )
+            else if (_allResults.isNotEmpty)
+              ListView(
+                clipBehavior: Clip.none,
+                padding: EdgeInsets.only(
+                  top: topPadding + kToolbarHeight + 80,
+                  bottom: 40,
+                ),
+                physics: const BouncingScrollPhysics(),
+                children: [
+                  if (tvSeries.isNotEmpty)
+                    AnimeSliderSection(
+                      title: 'Anime TV Series',
+                      subtitle: '${tvSeries.length} Results',
+                      animeList: tvSeries,
+                      onAnimeTap: _openDetails,
+                    ),
+                  if (movies.isNotEmpty)
+                    AnimeSliderSection(
+                      title: 'Anime Movies',
+                      subtitle: '${movies.length} Results',
+                      animeList: movies,
+                      onAnimeTap: _openDetails,
+                    ),
+                  if (ovasAndOthers.isNotEmpty)
+                    AnimeSliderSection(
+                      title: 'OVAs, ONAs & Specials',
+                      subtitle: '${ovasAndOthers.length} Results',
+                      animeList: ovasAndOthers,
+                      onAnimeTap: _openDetails,
+                    ),
+                ],
+              )
+            else
+              // Discovery Sliders when not searching
+              ListView(
+                clipBehavior: Clip.none,
+                padding: EdgeInsets.only(
+                  top: topPadding + kToolbarHeight + 80,
+                  bottom: 40,
+                ),
+                physics: const BouncingScrollPhysics(),
+                children: [
+                  if (_trendingList.isNotEmpty)
+                    AnimeSliderSection(
+                      title: 'Trending Anime',
+                      animeList: _trendingList,
+                      onAnimeTap: _openDetails,
+                    ),
+                  if (_popularSeasonList.isNotEmpty)
+                    AnimeSliderSection(
+                      title: 'Popular This Season',
+                      animeList: _popularSeasonList,
+                      onAnimeTap: _openDetails,
+                    ),
+                  if (_topRatedList.isNotEmpty)
+                    AnimeSliderSection(
+                      title: 'All-Time Top Rated',
+                      animeList: _topRatedList,
+                      onAnimeTap: _openDetails,
+                    ),
                 ],
               ),
-            )
-          else if (_allResults.isNotEmpty)
-            ListView(
-              clipBehavior: Clip.none,
-              padding: EdgeInsets.only(
-                top: topPadding + kToolbarHeight + 80,
-                bottom: 40,
-              ),
-              physics: const BouncingScrollPhysics(),
-              children: [
-                if (tvSeries.isNotEmpty)
-                  AnimeSliderSection(
-                    title: 'Anime TV Series',
-                    subtitle: '${tvSeries.length} Results',
-                    animeList: tvSeries,
-                    onAnimeTap: _openDetails,
-                  ),
-                if (movies.isNotEmpty)
-                  AnimeSliderSection(
-                    title: 'Anime Movies',
-                    subtitle: '${movies.length} Results',
-                    animeList: movies,
-                    onAnimeTap: _openDetails,
-                  ),
-                if (ovasAndOthers.isNotEmpty)
-                  AnimeSliderSection(
-                    title: 'OVAs, ONAs & Specials',
-                    subtitle: '${ovasAndOthers.length} Results',
-                    animeList: ovasAndOthers,
-                    onAnimeTap: _openDetails,
-                  ),
-              ],
-            )
-          else
-            // Discovery Sliders when not searching
-            ListView(
-              clipBehavior: Clip.none,
-              padding: EdgeInsets.only(
-                top: topPadding + kToolbarHeight + 80,
-                bottom: 40,
-              ),
-              physics: const BouncingScrollPhysics(),
-              children: [
-                if (_trendingList.isNotEmpty)
-                  AnimeSliderSection(
-                    title: 'Trending Anime',
-                    animeList: _trendingList,
-                    onAnimeTap: _openDetails,
-                  ),
-                if (_popularSeasonList.isNotEmpty)
-                  AnimeSliderSection(
-                    title: 'Popular This Season',
-                    animeList: _popularSeasonList,
-                    onAnimeTap: _openDetails,
-                  ),
-                if (_topRatedList.isNotEmpty)
-                  AnimeSliderSection(
-                    title: 'All-Time Top Rated',
-                    animeList: _topRatedList,
-                    onAnimeTap: _openDetails,
-                  ),
-              ],
-            ),
-        ],
+          ],
+        ),
       ),
+    );
+      },
     );
   }
 }

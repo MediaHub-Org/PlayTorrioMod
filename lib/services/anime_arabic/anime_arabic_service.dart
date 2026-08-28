@@ -351,7 +351,7 @@ class AnimeArabicService {
       .replaceAll('&#039;', "'");
 
   static String _normalizeImg(String src) {
-    final pre = 'serveproxy.com/?url=';
+    const pre = 'serveproxy.com/?url=';
     final i = src.indexOf(pre);
     if (i >= 0) return src.substring(i + pre.length);
     return src;

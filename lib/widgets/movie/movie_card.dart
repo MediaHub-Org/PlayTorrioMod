@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 
 import '../../models/movie/movie.dart';
 import '../../pages/details/details_page.dart';
-import '../../services/app_theme_service.dart';
-import '../../utils/route_transitions.dart';
+import '../../services/theme/app_theme_service.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../common/interactive_card_shell.dart';
 import '../common/poster_skeleton.dart';
 
