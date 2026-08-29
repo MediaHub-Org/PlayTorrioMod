@@ -39,6 +39,13 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   MusicTrack? _currentTrack;
+  // Whether the current track was reached via a "Radio" genre-station tap
+  // rather than a deliberate track/artist/album/playlist pick -- the tracks
+  // are technically identical either way (Radio is just a themed search
+  // shortcut, not a real continuous stream), but downloading a "radio pick"
+  // doesn't match the feature's own framing, so the download button hides
+  // for it specifically.
+  bool _isCurrentTrackFromRadio = false;
   List<MusicTrack> _playlist = [];
   List<MusicTrack> _originalPlaylist = [];
   int _currentIndex = 0;
@@ -63,6 +70,7 @@ class MusicPlayerController extends ChangeNotifier {
 
   // Getters
   MusicTrack? get currentTrack => _currentTrack;
+  bool get isCurrentTrackFromRadio => _isCurrentTrackFromRadio;
   List<MusicTrack> get playlist => _playlist;
   int get currentIndex => _currentIndex;
   bool get isLoading => _isLoading;
@@ -122,7 +130,9 @@ class MusicPlayerController extends ChangeNotifier {
   Future<void> playTrack(
     MusicTrack track, {
     List<MusicTrack>? playlistQueue,
+    bool isRadio = false,
   }) async {
+    _isCurrentTrackFromRadio = isRadio;
     // Ensure only one source plays app-wide: stop any other active source.
     PlaybackCoordinator.activate(
       'music:${track.id}',

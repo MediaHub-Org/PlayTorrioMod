@@ -47,6 +47,10 @@ class _MusicPageState extends State<MusicPage> {
   final FocusNode _keyboardFocusNode = FocusNode();
 
   String _activeTab = 'Music'; // 'Music', 'Search', 'Radio', 'Podcasts', 'Library'
+  // True only when the current search was reached by tapping a Radio
+  // station card, so the resulting tracks play with isRadio: true (see
+  // MusicPlayerController.playTrack) instead of a deliberate track pick.
+  bool _searchIsFromRadio = false;
 
   Map<String, List<MusicTrack>> _sections = {};
   List<MusicArtist> _trendingArtists = [];
@@ -225,7 +229,8 @@ class _MusicPageState extends State<MusicPage> {
     });
   }
 
-  void _onGenreTap(String query) {
+  void _onGenreTap(String query, {bool isRadio = false}) {
+    _searchIsFromRadio = isRadio;
     _searchController.text = query;
     _onSearchChanged(query);
   }
@@ -1044,7 +1049,10 @@ class _MusicPageState extends State<MusicPage> {
           controller: _searchController,
           autofocus: true,
           style: const TextStyle(color: Colors.white),
-          onChanged: _onSearchChanged,
+          onChanged: (value) {
+            _searchIsFromRadio = false;
+            _onSearchChanged(value);
+          },
           decoration: InputDecoration(
             hintText: 'Search music...',
             hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35)),
@@ -1137,8 +1145,10 @@ class _MusicPageState extends State<MusicPage> {
                   onTap: () => _playerController.playTrack(
                     track,
                     playlistQueue: _searchData.tracks,
+                    isRadio: _searchIsFromRadio,
                   ),
                   onMoreTap: () => _showAddToPlaylistMenu(track),
+                  showDownload: !_searchIsFromRadio,
                 );
               },
             ),
@@ -1559,7 +1569,7 @@ class _MusicPageState extends State<MusicPage> {
             return _MusicHoverable(
               scaleFactor: 1.04,
               child: GestureDetector(
-                onTap: () => _onGenreTap(station['query'] as String),
+                onTap: () => _onGenreTap(station['query'] as String, isRadio: true),
                 child: PerformanceLiquidLens(
                   style: PerformanceGlassStyles.menu,
                   child: Container(
@@ -2524,6 +2534,7 @@ class _MusicTrackRow extends StatelessWidget {
   final bool isCurrent;
   final VoidCallback onTap;
   final VoidCallback onMoreTap;
+  final bool showDownload;
 
   const _MusicTrackRow({
     required this.track,
@@ -2531,6 +2542,7 @@ class _MusicTrackRow extends StatelessWidget {
     required this.isCurrent,
     required this.onTap,
     required this.onMoreTap,
+    this.showDownload = true,
   });
 
   @override
@@ -2590,8 +2602,10 @@ class _MusicTrackRow extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            MusicTrackDownloadButton(track: track),
-            const SizedBox(width: 4),
+            if (showDownload) ...[
+              MusicTrackDownloadButton(track: track),
+              const SizedBox(width: 4),
+            ],
             Text(
               track.formattedDuration,
               style: const TextStyle(color: Colors.white38, fontSize: 12),
@@ -4007,14 +4021,15 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer> with SingleT
               ),
             ),
             const Spacer(),
-            _MusicHoverable(
-              scaleFactor: 1.1,
-              child: MusicTrackDownloadButton(
-                track: track,
-                iconSize: 22,
-                idleColor: Colors.white,
+            if (!widget.playerController.isCurrentTrackFromRadio)
+              _MusicHoverable(
+                scaleFactor: 1.1,
+                child: MusicTrackDownloadButton(
+                  track: track,
+                  iconSize: 22,
+                  idleColor: Colors.white,
+                ),
               ),
-            ),
             _MusicHoverable(
               scaleFactor: 1.1,
               child: IconButton(
