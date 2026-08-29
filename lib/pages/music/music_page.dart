@@ -1650,6 +1650,16 @@ class _MusicPageState extends State<MusicPage> {
           icon: Icons.history_rounded,
           builder: (_) => _buildRecentTab(recent),
         ),
+        LibraryTab(
+          label: 'Downloads',
+          icon: Icons.download_rounded,
+          builder: (_) => _MusicDownloadedTracksModal(
+            embedded: true,
+            onClose: () {},
+            onPlayTrack: (t, queue) => _playerController.playTrack(t, playlistQueue: queue),
+            onAddToPlaylist: _showAddToPlaylistMenu,
+          ),
+        ),
       ],
     );
   }
@@ -4762,11 +4772,13 @@ class _MusicDownloadedTracksModal extends StatefulWidget {
   final VoidCallback onClose;
   final Function(MusicTrack, List<MusicTrack>) onPlayTrack;
   final Function(MusicTrack) onAddToPlaylist;
+  final bool embedded;
 
   const _MusicDownloadedTracksModal({
     required this.onClose,
     required this.onPlayTrack,
     required this.onAddToPlaylist,
+    this.embedded = false,
   });
 
   @override
@@ -4801,21 +4813,7 @@ class _MusicDownloadedTracksModalState extends State<_MusicDownloadedTracksModal
     final size = MediaQuery.sizeOf(context);
     final isMobile = size.width < 700;
 
-    return Container(
-      color: Colors.black.withValues(alpha: 0.85),
-      child: Center(
-        child: PerformanceLiquidLens(
-          style: PerformanceGlassStyles.sheet,
-          child: Container(
-            width: isMobile ? size.width - 24 : 760,
-            height: isMobile ? size.height * 0.88 : 660,
-            decoration: BoxDecoration(
-              color: const Color(0xFF0F121C),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
-            ),
-            padding: const EdgeInsets.all(22),
-            child: Column(
+    final content = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Top Header
@@ -4860,10 +4858,11 @@ class _MusicDownloadedTracksModalState extends State<_MusicDownloadedTracksModal
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.close_rounded, color: Colors.white70),
-                      onPressed: widget.onClose,
-                    ),
+                    if (!widget.embedded)
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                        onPressed: widget.onClose,
+                      ),
                   ],
                 ),
 
@@ -5078,7 +5077,30 @@ class _MusicDownloadedTracksModalState extends State<_MusicDownloadedTracksModal
                         ),
                 ),
               ],
+            );
+
+    if (widget.embedded) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+        child: content,
+      );
+    }
+
+    return Container(
+      color: Colors.black.withValues(alpha: 0.85),
+      child: Center(
+        child: PerformanceLiquidLens(
+          style: PerformanceGlassStyles.sheet,
+          child: Container(
+            width: isMobile ? size.width - 24 : 760,
+            height: isMobile ? size.height * 0.88 : 660,
+            decoration: BoxDecoration(
+              color: const Color(0xFF0F121C),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
             ),
+            padding: const EdgeInsets.all(22),
+            child: content,
           ),
         ),
       ),

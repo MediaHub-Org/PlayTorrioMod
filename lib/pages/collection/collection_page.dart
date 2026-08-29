@@ -329,7 +329,10 @@ class _CollectionPageState extends State<CollectionPage> {
   Widget _buildDownloadsTab() {
     return ValueListenableBuilder<List<DownloadTask>>(
       valueListenable: DownloadService.instance.tasksNotifier,
-      builder: (context, downloads, _) {
+      builder: (context, allDownloads, _) {
+        final downloads = allDownloads
+            .where((t) => t.type == 'movie' || t.type == 'series' || t.type == 'anime')
+            .toList();
         if (downloads.isEmpty) {
           return LibraryEmptyState(
             icon: Icons.download_done_rounded,

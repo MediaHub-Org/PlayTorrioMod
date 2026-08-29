@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../../models/audiobook/audiobook_model.dart';
+import '../../models/download/download_task_model.dart';
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
 import '../../services/audiobook/audiobook_library_service.dart';
@@ -11,6 +12,7 @@ import '../../services/audiobook/audiobook_progress_service.dart';
 import '../../services/books/book_library_service.dart';
 import '../../services/books/book_progress_service.dart';
 import '../../services/books/books_service.dart';
+import '../../services/download/download_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../widgets/common/library_tabs.dart';
 import '../../widgets/manga/manga_card.dart';
@@ -269,7 +271,102 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
           icon: Icons.history_rounded,
           builder: (_) => _buildHistoryTab(),
         ),
+        LibraryTab(
+          label: 'Downloads',
+          icon: Icons.download_rounded,
+          builder: (_) => _buildDownloadsTab(),
+        ),
       ],
+    );
+  }
+
+  Widget _buildDownloadsTab() {
+    return ValueListenableBuilder<List<DownloadTask>>(
+      valueListenable: DownloadService.instance.tasksNotifier,
+      builder: (context, allDownloads, _) {
+        final downloads = allDownloads.where((t) => t.type == 'audiobook').toList();
+        if (downloads.isEmpty) {
+          return const LibraryEmptyState(
+            icon: Icons.download_done_rounded,
+            title: 'No Downloads',
+            subtitle: 'Downloaded audiobook chapters will appear here for offline listening.',
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          itemCount: downloads.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final item = downloads[index];
+            final progress = item.totalBytes > 0 ? item.receivedBytes / item.totalBytes : 0.0;
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF12151E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: item.posterUrl != null
+                        ? Image.network(
+                            item.posterUrl!,
+                            width: 50,
+                            height: 75,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 50,
+                              height: 75,
+                              color: Colors.white10,
+                              child: const Icon(Icons.headphones_rounded, color: Colors.white30),
+                            ),
+                          )
+                        : Container(
+                            width: 50,
+                            height: 75,
+                            color: Colors.white10,
+                            child: const Icon(Icons.headphones_rounded, color: Colors.white30),
+                          ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        LinearProgressIndicator(
+                          value: progress > 0 ? progress : null,
+                          backgroundColor: Colors.white10,
+                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${item.status.name.toUpperCase()} • ${(progress * 100).toStringAsFixed(0)}%',
+                          style: const TextStyle(color: Colors.white38, fontSize: 11),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
+                    onPressed: () => DownloadService.instance.deleteDownload(item.id),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
