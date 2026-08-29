@@ -56,7 +56,7 @@ abstract final class BackupService {
       for (final key in prefs.getKeys()) key: prefs.get(key),
     };
     final envelope = {
-      'app': 'PlayTorrioV3',
+      'app': 'PlayTorrioMod',
       'version': 1,
       'exportedAt': DateTime.now().toIso8601String(),
       'data': data,

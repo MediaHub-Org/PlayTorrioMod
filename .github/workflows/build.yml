@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────────────────────
-#  PlayTorrioV3 — Multi-Platform CI/CD Release Builder
+#  PlayTorrioMod — Multi-Platform CI/CD Release Builder
 #  Builds:
 #    - Windows: Installer (Inno Setup) & Portable ZIP (x64)
 #    - Android: Split-per-ABI APKs (arm64-v8a, armeabi-v7a, x86_64) & Universal APK
@@ -9,7 +9,7 @@
 #  Trigger: Git tag push (v*) or Manual Workflow Dispatch
 #  Environment: Injects --dart-define-from-file=.env using ${{ secrets.ENV_FILE }}
 # ──────────────────────────────────────────────────────────────────────────────
-name: Build and Release PlayTorrioV3
+name: Build and Release PlayTorrioMod
 
 on:
   push:
@@ -64,7 +64,13 @@ jobs:
         run: flutter pub get
 
       - name: Build Windows App
-        run: flutter build windows --release --dart-define-from-file=.env
+        shell: bash
+        run: |
+          # flutter_inappwebview_windows uses <experimental/coroutine>, which
+          # newer MSVC (VS 2026 / STL1011) treats as a hard error. Silence the
+          # deprecation so the plugin compiles on the CI runner.
+          export CXXFLAGS="-D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS"
+          flutter build windows --release --dart-define-from-file=.env
 
       - name: Install Inno Setup
         shell: pwsh
@@ -121,7 +127,7 @@ jobs:
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrioV3-Windows
+          name: PlayTorrioMod-Windows
           path: |
             PlayTorrio-Windows-Setup.exe
             PlayTorrio-Windows-x64-Portable.zip
@@ -220,7 +226,7 @@ jobs:
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrioV3-Linux-x64
+          name: PlayTorrioMod-Linux-x64
           path: |
             PlayTorrio-Linux-x86_64.AppImage
             PlayTorrio-Linux-x86_64.tar.gz
@@ -295,7 +301,7 @@ jobs:
       - name: Upload macOS ARM64 Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrioV3-macOS-arm64
+          name: PlayTorrioMod-macOS-arm64
           path: |
             PlayTorrio-macOS-arm64.dmg
             PlayTorrio-macOS-arm64.zip
@@ -368,7 +374,7 @@ jobs:
       - name: Upload macOS Intel Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrioV3-macOS-intel
+          name: PlayTorrioMod-macOS-intel
           path: |
             PlayTorrio-macOS-intel.dmg
             PlayTorrio-macOS-intel.zip
@@ -425,7 +431,7 @@ jobs:
       - name: Upload iOS Artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: PlayTorrioV3-iOS
+          name: PlayTorrioMod-iOS
           path: PlayTorrio-iOS.ipa
 
   # ─── Create / Publish GitHub Release ─────────────────────────────────────
