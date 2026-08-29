@@ -4,6 +4,9 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Unify liked-heart color across content types (AUDIT.md #4) — 2026-08-29
+- **The "like" heart used a different color depending on where it appeared**: Music used pink `0xFFFF4B72` and the universal play bar used purple `0xFF7C5CFF`, while Books/Podcasts/Manga/Audiobooks all used red `0xFFE50914` — directly contradicting the ROADMAP's cross-section consistency principle. Unified every liked-heart to red `0xFFE50914` (Music page, music player studio previews, and the universal play bar). The Movies/Series bookmark and Anime status-picker stay as-is — those are library/status concepts, not likes.
+
 ### Move credentials into secure storage (AUDIT.md #10) — 2026-08-29
 - **Trakt/Simkl access & refresh tokens and the WebDAV cloud-backup password were stored in plaintext `SharedPreferences`** — readable via device/backup access. Now routed through a new `SecureValueStore` (`lib/services/storage/secure_value_store.dart`), a thin wrapper over `flutter_secure_storage` (Keychain/Keystore/Credential Locker depending on platform).
 - **Transparent migration**: on first read, a legacy plaintext value under the same key is copied into secure storage and the plaintext copy deleted — existing installs don't lose saved credentials on upgrade. Falls back to plaintext only if no secure backend exists (e.g. a desktop target missing its keychain), so a credential is never silently dropped.

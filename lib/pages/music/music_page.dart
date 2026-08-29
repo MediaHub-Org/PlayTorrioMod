@@ -2186,7 +2186,7 @@ class _MusicHeroBillboard extends StatelessWidget {
                           ),
                           icon: Icon(
                             isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                            color: isSaved ? const Color(0xFFFF4B72) : Colors.white,
+                            color: isSaved ? const Color(0xFFE50914) : Colors.white,
                           ),
                           onPressed: onSaveTap,
                         ),
@@ -4373,14 +4373,14 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer> with SingleT
         ),
         MusicInteractivePhysicsButton(
           effect: MusicSettings.customHoverEffect.value,
-          glowColor: const Color(0xFFFF4B72),
+          glowColor: const Color(0xFFE50914),
           borderRadius: BorderRadius.circular(20),
           onTap: widget.onToggleSave,
           child: Padding(
             padding: const EdgeInsets.all(6.0),
             child: Icon(
               widget.isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              color: widget.isSaved ? const Color(0xFFFF4B72) : Colors.white70,
+              color: widget.isSaved ? const Color(0xFFE50914) : Colors.white70,
               size: 28,
             ),
           ),

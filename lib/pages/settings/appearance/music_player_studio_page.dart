@@ -477,7 +477,7 @@ class _MusicPlayerStudioPageState extends State<MusicPlayerStudioPage> with Sing
                   IconButton(
                     icon: Icon(
                       _previewIsLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                      color: _previewIsLiked ? const Color(0xFFFF4B72) : Colors.white70,
+                      color: _previewIsLiked ? const Color(0xFFE50914) : Colors.white70,
                       size: 20,
                     ),
                     onPressed: () => setState(() => _previewIsLiked = !_previewIsLiked),
@@ -772,7 +772,7 @@ class _MusicPlayerStudioPageState extends State<MusicPlayerStudioPage> with Sing
             IconButton(
               icon: Icon(
                 _previewIsLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                color: _previewIsLiked ? const Color(0xFFFF4B72) : Colors.white60,
+                color: _previewIsLiked ? const Color(0xFFE50914) : Colors.white60,
                 size: 18,
               ),
               onPressed: () => setState(() => _previewIsLiked = !_previewIsLiked),

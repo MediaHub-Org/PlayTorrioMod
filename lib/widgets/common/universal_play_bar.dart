@@ -130,7 +130,7 @@ class UniversalPlayBar extends StatelessWidget {
                         ? Icons.favorite_rounded
                         : Icons.favorite_border_rounded,
                     color: PlaybackCoordinator.isLiked
-                        ? const Color(0xFF7C5CFF)
+                        ? const Color(0xFFE50914)
                         : Colors.white54,
                     size: 20,
                   ),
