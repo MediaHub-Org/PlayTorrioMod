@@ -9,10 +9,30 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class AppUpdaterService {
-  static const String githubRepo = 'ayman708-UX/PlayTorrioV3';
+  static const String githubRepo = 'MediaHub-Org/PlayTorrioV3';
   static const String githubApiUrl =
       'https://api.github.com/repos/$githubRepo/releases/latest';
   static const String _keyDismissedVersion = 'dismissed_update_version';
+  static const String _keyAutoCheckEnabled = 'auto_check_updates_enabled';
+
+  /// Whether the app should check for updates on launch without being asked.
+  /// Manual checks (the Settings > Updates page's "Check for Updates"
+  /// button) always work regardless of this setting.
+  static Future<bool> isAutoCheckEnabled() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return prefs.getBool(_keyAutoCheckEnabled) ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> setAutoCheckEnabled(bool enabled) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_keyAutoCheckEnabled, enabled);
+    } catch (_) {}
+  }
 
   static Future<void> dismissVersion(String version) async {
     try {

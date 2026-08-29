@@ -107,6 +107,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
 
   Future<void> _checkForUpdates() async {
     if (_isShowingUpdateDialog) return;
+    if (!await AppUpdaterService.isAutoCheckEnabled()) return;
     try {
       final updater = AppUpdaterService();
       final updateInfo = await updater.checkForUpdates();

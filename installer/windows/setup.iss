@@ -5,11 +5,11 @@
 
 #define MyAppName      "PlayTorrio"
 #ifndef MyAppVersion
-#define MyAppVersion   "1.0.6"
+#define MyAppVersion   "1.1.0"
 #endif
-#define MyAppPublisher "ayman708-UX"
+#define MyAppPublisher "MediaHub-Org"
 #define MyAppExeName   "playtorrio.exe"
-#define MyAppURL       "https://github.com/ayman708-UX/PlayTorrioV3"
+#define MyAppURL       "https://github.com/MediaHub-Org/PlayTorrioV3"
 
 [Setup]
 AppId={{9B8C7D6E-5F4E-3D2C-1B0A-9F8E7D6C5B4A}

@@ -12,6 +12,15 @@ class UpdatesSettingsPage extends StatefulWidget {
 
 class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
   bool _isCheckingForUpdates = false;
+  bool _autoCheckEnabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    AppUpdaterService.isAutoCheckEnabled().then((enabled) {
+      if (mounted) setState(() => _autoCheckEnabled = enabled);
+    });
+  }
 
   Future<void> _checkForUpdates(BuildContext context) async {
     setState(() {
@@ -192,6 +201,53 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
                     ),
                   );
                 },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Auto-check toggle
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF12151E),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Check for updates automatically',
+                            style: TextStyle(
+                              fontSize: 13.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Notifies once per new version on launch. Turn off and use "Check for Updates" above whenever you want instead.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.white.withValues(alpha: 0.4),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _autoCheckEnabled,
+                      activeThumbColor: const Color(0xFF7C5CFF),
+                      onChanged: (value) {
+                        setState(() => _autoCheckEnabled = value);
+                        AppUpdaterService.setAutoCheckEnabled(value);
+                      },
+                    ),
+                  ],
+                ),
               ),
 
               const SizedBox(height: 24),
