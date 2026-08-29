@@ -33,7 +33,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
+          flutter-version: '3.44.0'
           channel: 'stable'
           cache: true
 
@@ -125,7 +125,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
+          flutter-version: '3.44.0'
           channel: 'stable'
           cache: true
 
@@ -213,7 +213,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
+          flutter-version: '3.44.0'
           channel: 'stable'
           cache: true
 
@@ -281,7 +281,7 @@ jobs:
       - name: Setup Flutter x64
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
+          flutter-version: '3.44.0'
           channel: 'stable'
           architecture: x64
           cache: true
@@ -341,7 +341,7 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.41.9'
+          flutter-version: '3.44.0'
           channel: 'stable'
           cache: true
 
@@ -389,6 +389,20 @@ jobs:
         with:
           merge-multiple: true
 
+      - name: Generate SHA-256 checksums
+        shell: bash
+        run: |
+          # Generate a SHA256SUMS file for every release asset so users can
+          # verify download integrity. The checksum file itself is uploaded.
+          sha256sum *.exe *.zip *.apk *.AppImage *.tar.gz *.dmg *.ipa 2>/dev/null \
+            > SHA256SUMS || true
+          if [ ! -s SHA256SUMS ]; then
+            echo "No release assets found to checksum." >&2
+            exit 1
+          fi
+          echo "Generated SHA256SUMS:"
+          cat SHA256SUMS
+
       - name: Publish Release with Assets
         uses: softprops/action-gh-release@v2
         with:
@@ -404,3 +418,4 @@ jobs:
             *.tar.gz
             *.dmg
             *.ipa
+            SHA256SUMS
