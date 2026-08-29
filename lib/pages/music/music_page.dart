@@ -1631,9 +1631,14 @@ class _MusicPageState extends State<MusicPage> {
       ),
       tabs: [
         LibraryTab(
-          label: 'Liked Songs',
+          label: 'Songs',
           icon: Icons.favorite_rounded,
           builder: (_) => _buildLikedSongsTab(liked),
+        ),
+        LibraryTab(
+          label: 'Podcasts',
+          icon: Icons.podcasts_rounded,
+          builder: (_) => _buildLikedPodcastsTab(),
         ),
         LibraryTab(
           label: 'Playlists',
@@ -1644,11 +1649,6 @@ class _MusicPageState extends State<MusicPage> {
           label: 'Recent',
           icon: Icons.history_rounded,
           builder: (_) => _buildRecentTab(recent),
-        ),
-        LibraryTab(
-          label: 'Podcasts',
-          icon: Icons.podcasts_rounded,
-          builder: (_) => _buildLikedPodcastsTab(),
         ),
       ],
     );
