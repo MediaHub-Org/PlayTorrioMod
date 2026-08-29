@@ -35,6 +35,7 @@ dependencies:
   html: ^0.15.5
   cached_network_image: ^3.4.1
   shared_preferences: ^2.3.3
+  flutter_secure_storage: ^10.3.1
   url_launcher: ^6.3.2
   torrserver_flutter: ^0.0.5
   media_kit:
@@ -75,6 +76,7 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.3
+  flutter_secure_storage_platform_interface: ^2.0.3
 
 dependency_overrides:
   media_kit:

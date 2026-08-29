@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../storage/secure_value_store.dart';
+
 /// A WebDAV endpoint the user points at their own server (Nextcloud, a
 /// self-hosted WebDAV server, etc.) to store the same JSON envelope
 /// [BackupService.export] already writes locally. No vendor lock-in, no
@@ -28,7 +30,7 @@ abstract final class CloudBackupSettings {
     final prefs = await SharedPreferences.getInstance();
     final url = prefs.getString(_urlKey);
     final user = prefs.getString(_userKey);
-    final pass = prefs.getString(_passKey);
+    final pass = await SecureValueStore.read(_passKey);
     if (url != null && url.isNotEmpty) {
       config.value = CloudBackupConfig(url: url, username: user ?? '', password: pass ?? '');
     }
@@ -40,11 +42,11 @@ abstract final class CloudBackupSettings {
     if (value == null) {
       await prefs.remove(_urlKey);
       await prefs.remove(_userKey);
-      await prefs.remove(_passKey);
+      await SecureValueStore.delete(_passKey);
     } else {
       await prefs.setString(_urlKey, value.url);
       await prefs.setString(_userKey, value.username);
-      await prefs.setString(_passKey, value.password);
+      await SecureValueStore.write(_passKey, value.password);
     }
   }
 }

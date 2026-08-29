@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'secure_value_store.dart';
+
 class StorageService {
   static const _kTraktAccessToken = 'trakt_access_token';
   static const _kTraktRefreshToken = 'trakt_refresh_token';
@@ -13,24 +15,22 @@ class StorageService {
   static final ValueNotifier<int> movieFinishedRevision = ValueNotifier<int>(0);
 
   // ── Trakt ─────────────────────────────────────────────────────────────────
-  static Future<String?> getTraktAccessToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kTraktAccessToken);
+  // Access/refresh tokens are secrets and live in secure storage (Keychain/
+  // Keystore/Credential Locker), not plaintext SharedPreferences.
+  static Future<String?> getTraktAccessToken() {
+    return SecureValueStore.read(_kTraktAccessToken);
   }
 
-  static Future<void> setTraktAccessToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kTraktAccessToken, token);
+  static Future<void> setTraktAccessToken(String token) {
+    return SecureValueStore.write(_kTraktAccessToken, token);
   }
 
-  static Future<String?> getTraktRefreshToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kTraktRefreshToken);
+  static Future<String?> getTraktRefreshToken() {
+    return SecureValueStore.read(_kTraktRefreshToken);
   }
 
-  static Future<void> setTraktRefreshToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kTraktRefreshToken, token);
+  static Future<void> setTraktRefreshToken(String token) {
+    return SecureValueStore.write(_kTraktRefreshToken, token);
   }
 
   static Future<int?> getTraktTokenExpiry() async {
@@ -54,23 +54,21 @@ class StorageService {
   }
 
   static Future<bool> clearTraktAuth() async {
+    await SecureValueStore.delete(_kTraktAccessToken);
+    await SecureValueStore.delete(_kTraktRefreshToken);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_kTraktAccessToken);
-    await prefs.remove(_kTraktRefreshToken);
     await prefs.remove(_kTraktTokenExpiry);
     await prefs.remove(_kTraktUsername);
     return true;
   }
 
   // ── Simkl ─────────────────────────────────────────────────────────────────
-  static Future<String?> getSimklAccessToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString(_kSimklAccessToken);
+  static Future<String?> getSimklAccessToken() {
+    return SecureValueStore.read(_kSimklAccessToken);
   }
 
-  static Future<void> setSimklAccessToken(String token) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kSimklAccessToken, token);
+  static Future<void> setSimklAccessToken(String token) {
+    return SecureValueStore.write(_kSimklAccessToken, token);
   }
 
   static Future<String?> getSimklUsername() async {
@@ -84,8 +82,8 @@ class StorageService {
   }
 
   static Future<void> clearSimklAuth() async {
+    await SecureValueStore.delete(_kSimklAccessToken);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_kSimklAccessToken);
     await prefs.remove(_kSimklUsername);
   }
 }

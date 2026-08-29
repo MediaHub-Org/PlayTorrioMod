@@ -4,6 +4,13 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Move credentials into secure storage (AUDIT.md #10) — 2026-08-29
+- **Trakt/Simkl access & refresh tokens and the WebDAV cloud-backup password were stored in plaintext `SharedPreferences`** — readable via device/backup access. Now routed through a new `SecureValueStore` (`lib/services/storage/secure_value_store.dart`), a thin wrapper over `flutter_secure_storage` (Keychain/Keystore/Credential Locker depending on platform).
+- **Transparent migration**: on first read, a legacy plaintext value under the same key is copied into secure storage and the plaintext copy deleted — existing installs don't lose saved credentials on upgrade. Falls back to plaintext only if no secure backend exists (e.g. a desktop target missing its keychain), so a credential is never silently dropped.
+- `StorageService` (Trakt/Simkl tokens) and `CloudBackupSettings` (WebDAV password) now read/write through `SecureValueStore`; non-secret values (URLs, usernames) stay in `SharedPreferences`.
+- `MyListService.initialize()` now awaits its initial cloud sync so the My List page's "Syncing…" state resolves deterministically (also fixes a widget-test `pumpAndSettle` hang introduced by the extra async hop in secure-storage reads).
+- Added `test/flutter_test_config.dart` with an in-memory `FlutterSecureStoragePlatform` fake so plain `test()`s that reach a secure-storage read don't fail on a missing platform channel.
+
 ### Manga staff photos (ROADMAP #2) — 2026-08-29
 - **Re-examined the "blocked" reasoning and found a real path**: Anime's cast+staff photos work via an exact AniList numeric id lookup (`fetchAnimeDetails`) — no matching risk at all. Manga has no such id (its catalog comes from a plain HTML scrape, weebcentral.com), so getting photos means fuzzy-matching a title against AniList's separate `type: MANGA` search — the actual risk the ROADMAP flagged, confirmed real via a live AniList query.
 - Added `AnilistService.fetchMangaStaff(title)`: searches AniList by title, then only accepts the match if the manga's own title *normalized-exact-matches* (case/punctuation/whitespace-insensitive) one of AniList's romaji/english/native/userPreferred titles — never a "closest guess". Returns `null` (no photos shown, falls back to the existing text-only author) on anything less than a confident match, same risk-averse shape as Books/Podcasts falling back gracefully rather than guessing.

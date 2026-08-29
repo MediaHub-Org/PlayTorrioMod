@@ -25,7 +25,7 @@ abstract final class MyListService {
         items.value = [];
       }
     }
-    syncAll();
+    await syncAll();
   }
 
   static Future<void> syncAll() async {
@@ -134,22 +134,30 @@ abstract final class MyListService {
     final trakt = item.traktId;
     final simkl = item.simklId;
 
-    if (await TraktService.instance.isAuthenticated()) {
-      TraktService.instance.addToWatchlist(
-        imdb ?? '',
-        item.type,
-        tmdbId: tmdb,
-        traktId: trakt,
-      );
+    try {
+      if (await TraktService.instance.isAuthenticated()) {
+        TraktService.instance.addToWatchlist(
+          imdb ?? '',
+          item.type,
+          tmdbId: tmdb,
+          traktId: trakt,
+        );
+      }
+    } catch (e) {
+      debugPrint('MyListService: Trakt sync error: $e');
     }
-    if (await SimklService.instance.isAuthenticated()) {
-      SimklService.instance.addToList(
-        imdb ?? '',
-        item.type,
-        'plantowatch',
-        tmdbId: tmdb,
-        simklId: simkl,
-      );
+    try {
+      if (await SimklService.instance.isAuthenticated()) {
+        SimklService.instance.addToList(
+          imdb ?? '',
+          item.type,
+          'plantowatch',
+          tmdbId: tmdb,
+          simklId: simkl,
+        );
+      }
+    } catch (e) {
+      debugPrint('MyListService: Simkl sync error: $e');
     }
   }
 
@@ -166,22 +174,30 @@ abstract final class MyListService {
     final trakt = item.traktId;
     final simkl = item.simklId;
 
-    if (await TraktService.instance.isAuthenticated()) {
-      TraktService.instance.removeFromWatchlist(
-        imdb ?? '',
-        item.type,
-        tmdbId: tmdb,
-        traktId: trakt,
-      );
+    try {
+      if (await TraktService.instance.isAuthenticated()) {
+        TraktService.instance.removeFromWatchlist(
+          imdb ?? '',
+          item.type,
+          tmdbId: tmdb,
+          traktId: trakt,
+        );
+      }
+    } catch (e) {
+      debugPrint('MyListService: Trakt sync error: $e');
     }
-    if (await SimklService.instance.isAuthenticated()) {
-      SimklService.instance.addToList(
-        imdb ?? '',
-        item.type,
-        'dropped',
-        tmdbId: tmdb,
-        simklId: simkl,
-      );
+    try {
+      if (await SimklService.instance.isAuthenticated()) {
+        SimklService.instance.addToList(
+          imdb ?? '',
+          item.type,
+          'dropped',
+          tmdbId: tmdb,
+          simklId: simkl,
+        );
+      }
+    } catch (e) {
+      debugPrint('MyListService: Simkl sync error: $e');
     }
   }
 
