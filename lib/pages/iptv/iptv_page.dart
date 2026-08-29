@@ -10,7 +10,6 @@ import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/iptv/iptv_hero_carousel.dart';
 import '../../widgets/iptv/iptv_slider_section.dart';
-import '../settings/settings_page.dart';
 import 'iptv_channel_sheet.dart';
 import 'iptv_multiview_page.dart';
 import 'iptv_player_page.dart';
@@ -136,13 +135,6 @@ class _IptvPageState extends State<IptvPage> {
     }
   }
 
-  void _navigateToSettings(Offset? tapPosition) {
-    Navigator.push(
-      context,
-      LiquidRevealRoute(page: const SettingsPage(), tapPosition: tapPosition),
-    );
-  }
-
   void _navigateToSearch(Offset? tapPosition) {
     Navigator.push(
       context,
@@ -266,7 +258,6 @@ class _IptvPageState extends State<IptvPage> {
         child: _IptvGlassAppBar(
           topPadding: topPadding,
           onSearchTap: _navigateToSearch,
-          onSettingsTap: _navigateToSettings,
           onSourcesTap: () => IptvPortalsModal.show(context),
           onMultiViewTap: _navigateToMultiView,
         ),
@@ -317,14 +308,12 @@ class _IptvPageState extends State<IptvPage> {
 class _IptvGlassAppBar extends StatelessWidget {
   final double topPadding;
   final Function(Offset? tapPosition) onSearchTap;
-  final Function(Offset? tapPosition) onSettingsTap;
   final VoidCallback onSourcesTap;
   final VoidCallback onMultiViewTap;
 
   const _IptvGlassAppBar({
     required this.topPadding,
     required this.onSearchTap,
-    required this.onSettingsTap,
     required this.onSourcesTap,
     required this.onMultiViewTap,
   });
@@ -427,15 +416,6 @@ class _IptvGlassAppBar extends StatelessWidget {
             icon: Icons.search_rounded,
             tooltip: 'Search Channels',
             onTapWithPosition: onSearchTap,
-          ),
-
-          const SizedBox(width: 10),
-
-          // Settings button
-          _GlassActionButton(
-            icon: Icons.settings_rounded,
-            tooltip: 'Settings',
-            onTapWithPosition: onSettingsTap,
           ),
         ],
       ),
