@@ -138,6 +138,7 @@ class UniversalPlayBar extends StatelessWidget {
                 ),
               // Play / Pause
               IconButton(
+                tooltip: isPlaying ? 'Pause' : 'Play',
                 icon: Icon(
                   isPlaying
                       ? Icons.pause_circle_filled_rounded

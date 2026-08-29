@@ -21,6 +21,7 @@ class MusicPlayerController extends ChangeNotifier {
 
   Player? _player;
   final List<StreamSubscription> _subscriptions = [];
+  int _loadGeneration = 0;
 
   /// Called when the universal play bar requests expanding the full player.
   VoidCallback? _onExpandRequested;
@@ -181,6 +182,7 @@ class MusicPlayerController extends ChangeNotifier {
   }
 
   Future<void> _loadAndPlayTrack(MusicTrack track, {Duration? startPosition}) async {
+    final int myGeneration = ++_loadGeneration;
     _currentTrack = track;
     _isLoading = true;
     _errorMessage = null;
@@ -208,6 +210,8 @@ class MusicPlayerController extends ChangeNotifier {
       await _player!.dispose();
       _player = null;
     }
+
+    if (myGeneration != _loadGeneration) return;
 
     try {
       final downloadedTrack = MusicDownloadService.instance.getDownloadedTrack(track.id);
@@ -249,7 +253,16 @@ class MusicPlayerController extends ChangeNotifier {
         );
       }
 
-      _subscriptions.addAll([
+      if (myGeneration != _loadGeneration) {
+        await player.dispose();
+        return;
+      }
+
+      // Held locally (not in the shared `_subscriptions` field) until this
+      // call is confirmed to still be the current one -- otherwise a
+      // superseded call's cleanup could cancel a newer call's subscriptions
+      // out from under it.
+      final localSubs = [
         player.stream.playing.listen((playing) {
           _isPlaying = playing;
           notifyListeners();
@@ -280,7 +293,7 @@ class MusicPlayerController extends ChangeNotifier {
           debugPrint('Playback error for ${track.title}: $err');
           notifyListeners();
         }),
-      ]);
+      ];
 
       await player.open(media);
       await player.setVolume(_volume * 100.0);
@@ -289,11 +302,21 @@ class MusicPlayerController extends ChangeNotifier {
         await player.seek(startPosition);
       }
 
+      if (myGeneration != _loadGeneration) {
+        for (final s in localSubs) {
+          s.cancel();
+        }
+        await player.dispose();
+        return;
+      }
+
+      _subscriptions.addAll(localSubs);
       _player = player;
       _isLoading = false;
       _isPlaying = true;
       notifyListeners();
     } catch (e) {
+      if (myGeneration != _loadGeneration) return;
       _isLoading = false;
       _isPlaying = false;
       _errorMessage = 'Could not load audio: ${e.toString()}';

@@ -9,6 +9,7 @@ import '../../services/theme/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../services/manga/manga_settings.dart';
 import '../../widgets/common/custom_scroll_track.dart';
+import '../../widgets/common/error_view.dart';
 import '../../widgets/common/page_search_button.dart';
 import '../../widgets/common/slider_arrow.dart';
 import '../../widgets/manga/manga_card.dart';
@@ -39,6 +40,7 @@ class _MangaPageState extends State<MangaPage> {
   
   bool _isLoading = false;
   bool _isLoadingMore = false;
+  String? _errorMessage;
   int _currentPage = 1;
   String _searchQuery = '';
   
@@ -116,47 +118,64 @@ class _MangaPageState extends State<MangaPage> {
   Future<void> _loadInitialData() async {
     setState(() {
       _isLoading = true;
+      _errorMessage = null;
       _currentPage = 1;
       _mangaList.clear();
     });
-    
-    final results = await Future.wait([
-      _searchQuery.isEmpty 
-          ? _mangaService.getManga(page: _currentPage)
-          : _mangaService.searchManga(_searchQuery, page: _currentPage),
-      _mangaService.getReadingHistory(),
-    ]);
 
-    if (mounted) {
-      setState(() {
-        _mangaList = results[0] as List<Manga>;
-        _readingHistory = results[1] as List<Map<String, dynamic>>;
-        _isLoading = false;
-        
-        _cachedMangaList = _mangaList;
-        _cachedReadingHistory = _readingHistory;
-        _cachedCurrentPage = _currentPage;
-        _cachedSearchQuery = _searchQuery;
-      });
+    try {
+      final results = await Future.wait([
+        _searchQuery.isEmpty
+            ? _mangaService.getManga(page: _currentPage)
+            : _mangaService.searchManga(_searchQuery, page: _currentPage),
+        _mangaService.getReadingHistory(),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _mangaList = results[0] as List<Manga>;
+          _readingHistory = results[1] as List<Map<String, dynamic>>;
+          _isLoading = false;
+
+          _cachedMangaList = _mangaList;
+          _cachedReadingHistory = _readingHistory;
+          _cachedCurrentPage = _currentPage;
+          _cachedSearchQuery = _searchQuery;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
+      }
     }
   }
 
   Future<void> _loadMore() async {
     setState(() => _isLoadingMore = true);
-    
+
     _currentPage++;
-    final newManga = _searchQuery.isEmpty 
-        ? await _mangaService.getManga(page: _currentPage)
-        : await _mangaService.searchManga(_searchQuery, page: _currentPage);
-        
-    if (mounted) {
-      setState(() {
-        _mangaList.addAll(newManga);
-        _isLoadingMore = false;
-        
-        _cachedMangaList = _mangaList;
-        _cachedCurrentPage = _currentPage;
-      });
+    try {
+      final newManga = _searchQuery.isEmpty
+          ? await _mangaService.getManga(page: _currentPage)
+          : await _mangaService.searchManga(_searchQuery, page: _currentPage);
+
+      if (mounted) {
+        setState(() {
+          _mangaList.addAll(newManga);
+          _isLoadingMore = false;
+
+          _cachedMangaList = _mangaList;
+          _cachedCurrentPage = _currentPage;
+        });
+      }
+    } catch (e) {
+      _currentPage--;
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+      }
     }
   }
 
@@ -451,6 +470,15 @@ class _MangaPageState extends State<MangaPage> {
             hasScrollBody: false,
             child: Center(
               child: CircularProgressIndicator(color: Colors.white),
+            ),
+          )
+        else if (_errorMessage != null && _mangaList.isEmpty)
+          SliverFillRemaining(
+            hasScrollBody: false,
+            child: ErrorView(
+              error: _errorMessage,
+              onRetry: _loadInitialData,
+              title: 'Could not load manga',
             ),
           )
         else if (_mangaList.isEmpty || sizing == null)

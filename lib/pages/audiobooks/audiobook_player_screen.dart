@@ -45,6 +45,7 @@ class AudiobookPlayerScreen extends StatefulWidget {
 class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with SingleTickerProviderStateMixin {
   Player? _player;
   final List<StreamSubscription> _playerSubscriptions = [];
+  int _loadGeneration = 0;
   late int _currentChapterIndex;
 
   bool _isLoading = true;
@@ -124,6 +125,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
 
   Future<void> _initChapter(int index) async {
     if (index < 0 || index >= widget.chapters.length) return;
+    final int myGeneration = ++_loadGeneration;
 
     // This screen builds its own playback engine for the fullscreen view,
     // separate from the background AudiobookPlayerController the play bar
@@ -173,6 +175,8 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
       _player = null;
     }
 
+    if (myGeneration != _loadGeneration) return;
+
     setState(() {
       _currentChapterIndex = index;
       _isLoading = true;
@@ -219,6 +223,8 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
         throw Exception('Audio stream URL could not be resolved.');
       }
 
+      if (myGeneration != _loadGeneration) return;
+
       final isLocal = !streamUrl.startsWith('http://') && !streamUrl.startsWith('https://');
       final player = Player();
 
@@ -242,7 +248,11 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
         media = Media(cleanUri.toString(), httpHeaders: headers);
       }
 
-      _playerSubscriptions.addAll([
+      // Held locally (not in the shared `_playerSubscriptions` field) until
+      // this call is confirmed to still be the current one -- otherwise a
+      // superseded call's cleanup could cancel a newer call's subscriptions
+      // out from under it.
+      final localSubs = [
         player.stream.playing.listen((playing) {
           if (mounted) {
             setState(() => _isPlaying = playing);
@@ -281,7 +291,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
             });
           }
         }),
-      ]);
+      ];
 
       await player.open(media);
       await player.setVolume(_volume * 100.0);
@@ -298,6 +308,16 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
 
       if (!mounted) return;
 
+      if (myGeneration != _loadGeneration) {
+        for (final s in localSubs) {
+          s.cancel();
+        }
+        await player.dispose();
+        return;
+      }
+
+      _playerSubscriptions.addAll(localSubs);
+
       setState(() {
         _player = player;
         _isLoading = false;
@@ -306,7 +326,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
 
       _discAnimController.repeat();
     } catch (e) {
-      if (!mounted) return;
+      if (!mounted || myGeneration != _loadGeneration) return;
       setState(() {
         _isLoading = false;
         _errorMessage = 'Playback Error: $e';

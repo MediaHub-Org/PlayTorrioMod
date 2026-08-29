@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 class ErrorView extends StatelessWidget {
   final String? error;
   final VoidCallback onRetry;
+  final String title;
 
   const ErrorView({
     super.key,
     required this.error,
     required this.onRetry,
+    this.title = 'Could not load movies',
   });
 
   @override
@@ -25,9 +27,9 @@ class ErrorView extends StatelessWidget {
               color: Colors.orangeAccent,
             ),
             const SizedBox(height: 14),
-            const Text(
-              'Could not load movies',
-              style: TextStyle(
+            Text(
+              title,
+              style: const TextStyle(
                 fontSize: 21,
                 fontWeight: FontWeight.w800,
               ),

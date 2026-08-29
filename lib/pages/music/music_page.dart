@@ -12,6 +12,7 @@ import '../../services/theme/app_theme_service.dart';
 import '../../services/music/music_download_service.dart';
 import '../../widgets/music/music_track_download_button.dart';
 import '../../services/music/music_library_service.dart';
+import '../../widgets/common/error_view.dart';
 import '../../widgets/common/library_tabs.dart';
 import '../../widgets/common/performance_liquid_lens.dart';
 import '../../widgets/common/slider_arrow.dart';
@@ -53,6 +54,7 @@ class _MusicPageState extends State<MusicPage> {
   bool _searchIsFromRadio = false;
 
   Map<String, List<MusicTrack>> _sections = {};
+  String? _errorMessage;
   List<MusicArtist> _trendingArtists = [];
   List<MusicAlbum> _newReleases = [];
   List<MusicPlaylist> _curatedPlaylists = [];
@@ -151,7 +153,10 @@ class _MusicPageState extends State<MusicPage> {
   }
 
   Future<void> _loadMusicData() async {
-    setState(() => _isLoading = true);
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
     try {
       final sectionsFuture = _musicService.fetchFeaturedSections();
@@ -192,7 +197,12 @@ class _MusicPageState extends State<MusicPage> {
       }
     } catch (e) {
       debugPrint('Error loading music data: $e');
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+          _errorMessage = e.toString();
+        });
+      }
     }
   }
 
@@ -951,6 +961,14 @@ class _MusicPageState extends State<MusicPage> {
     if (_isLoading) {
       return const Center(
         child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
+      );
+    }
+
+    if (_errorMessage != null && _sections.isEmpty) {
+      return ErrorView(
+        error: _errorMessage,
+        onRetry: _loadMusicData,
+        title: 'Could not load music',
       );
     }
 

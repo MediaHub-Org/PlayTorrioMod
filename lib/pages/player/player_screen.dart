@@ -523,7 +523,7 @@ class _PlayerScreenState extends State<PlayerScreen>
         !_autoNextDialogVisible) {
       final pos = state.position;
       final dur = state.duration;
-      if (dur.inSeconds > 0 &&
+      if (dur.inSeconds > 15 &&
           pos.inSeconds >= dur.inSeconds - 15 &&
           pos.inSeconds > 0) {
         _autoNextShown = true;
@@ -931,6 +931,11 @@ class _PlayerScreenState extends State<PlayerScreen>
       return;
     }
 
+    // The player may have been disposed (user backed out) while the
+    // download above was in flight -- don't touch the native player or
+    // widget state after that.
+    if (!mounted) return;
+
     try {
       final file = File(path);
       if (await file.exists()) {
@@ -984,6 +989,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _setSubtitleScale(double scale) {
+    if (!mounted) return;
     final clamped = scale.clamp(0.5, 3.0);
     setState(() => _subtitleScale = clamped);
     PlayerSettings.setSubScale(clamped, player: _player);
@@ -1067,6 +1073,7 @@ class _PlayerScreenState extends State<PlayerScreen>
   }
 
   void _applyVolume(double vol, {bool showHud = false}) {
+    if (!mounted) return;
     final clamped = ((vol * 100).round() / 100.0).clamp(0.0, PlayerVolumeControl.maxVolume);
     setState(() {
       _volume = clamped;
