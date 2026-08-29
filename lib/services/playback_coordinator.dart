@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:flutter/scheduler.dart';
 
 /// A global coordinator that ensures only **one** playback source plays at a
 /// time across the whole app (music, video, audiobooks).
@@ -29,6 +30,20 @@ abstract final class PlaybackCoordinator {
 
   /// Bumped whenever the active source or its state changes, so UI can rebuild.
   static final ValueNotifier<int> revision = ValueNotifier<int>(0);
+
+  /// Bumps [revision], deferring to after the current frame if called while
+  /// Flutter is mid-build/layout/paint -- e.g. `activate()` is commonly
+  /// called from a freshly-pushed player's `initState()`, which runs while
+  /// the *previous* frame's widgets (like the universal play bar listening
+  /// to [revision]) may still be finishing their own build. Notifying
+  /// synchronously in that window trips "setState() called during build".
+  static void _notify() {
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      revision.value++;
+    } else {
+      SchedulerBinding.instance.addPostFrameCallback((_) => revision.value++);
+    }
+  }
 
   /// Registers a source as the active playback source. Any previously active
   /// source is told to stop first.
@@ -82,7 +97,7 @@ abstract final class PlaybackCoordinator {
     _position = Duration.zero;
     _duration = Duration.zero;
     _isPlaying = true;
-    revision.value++;
+    _notify();
   }
 
   /// Releases the source identified by [sourceId] if it is still the active
@@ -105,7 +120,7 @@ abstract final class PlaybackCoordinator {
       _position = Duration.zero;
       _duration = Duration.zero;
       _isPlaying = false;
-      revision.value++;
+      _notify();
     }
   }
 
@@ -134,14 +149,14 @@ abstract final class PlaybackCoordinator {
     _position = Duration.zero;
     _duration = Duration.zero;
     _isPlaying = false;
-    revision.value++;
+    _notify();
   }
 
   /// Updates the playing state of the active source (called by the source).
   static void setPlaying(bool playing) {
     if (_isPlaying == playing) return;
     _isPlaying = playing;
-    revision.value++;
+    _notify();
   }
 
   /// Updates the active source's playback progress so the universal play bar
@@ -150,7 +165,7 @@ abstract final class PlaybackCoordinator {
     if (_position == position && _duration == duration) return;
     _position = position;
     _duration = duration;
-    revision.value++;
+    _notify();
   }
 
   /// Seeks the active source to [position] via the play bar's seek bar.
@@ -181,7 +196,7 @@ abstract final class PlaybackCoordinator {
   /// Toggles the active source's liked state via the universal play bar.
   static void toggleLike() {
     _onToggleLike?.call();
-    revision.value++;
+    _notify();
   }
 
   /// Dismisses the play bar without stopping playback (hides the bar only).
@@ -202,7 +217,7 @@ abstract final class PlaybackCoordinator {
     _position = Duration.zero;
     _duration = Duration.zero;
     _isPlaying = false;
-    revision.value++;
+    _notify();
   }
 
   /// Whether [sourceId] is currently the active playback source.

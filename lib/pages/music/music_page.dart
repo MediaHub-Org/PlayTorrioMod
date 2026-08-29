@@ -2949,7 +2949,7 @@ class _MusicArtistDetailPage extends StatelessWidget {
                     ),
                     Positioned(
                       top: 12,
-                      right: 12,
+                      left: 12,
                       child: IconButton(
                         icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
                         onPressed: () => Navigator.pop(context),
@@ -3103,6 +3103,10 @@ class _MusicAlbumDetailPage extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
+                onPressed: () => Navigator.pop(context),
+              ),
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                 child: CachedNetworkImage(
@@ -3206,10 +3210,6 @@ class _MusicAlbumDetailPage extends StatelessWidget {
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
-                      onPressed: () => Navigator.pop(context),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -3272,6 +3272,10 @@ class _MusicCuratedPlaylistDetailPage extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
+                onPressed: () => Navigator.pop(context),
+              ),
               ClipRRect(
                 borderRadius: BorderRadius.circular(16),
                       child: CachedNetworkImage(
@@ -3362,10 +3366,6 @@ class _MusicCuratedPlaylistDetailPage extends StatelessWidget {
                         ],
                       ),
                     ),
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
-                      onPressed: () => Navigator.pop(context),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -3443,6 +3443,10 @@ class _MusicUserPlaylistDetailPage extends StatelessWidget {
               Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
+                onPressed: () => Navigator.pop(context),
+              ),
               Container(
                 width: isMobile ? 70 : 100,
                       height: isMobile ? 70 : 100,
@@ -3534,10 +3538,6 @@ class _MusicUserPlaylistDetailPage extends StatelessWidget {
                             ),
                         ],
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white70),
-                      onPressed: () => Navigator.pop(context),
                     ),
                   ],
                 ),
@@ -4037,7 +4037,14 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer> with SingleT
     );
 
     if (isDesktop) {
-      return Stack(
+      // Material ancestor: this player is pushed via MaterialPageRoute, which
+      // does NOT itself provide one (that's a common misconception -- it
+      // only supplies transition/Navigator behavior). Without it, every
+      // InkWell inside (e.g. the quality-badge selector below) throws "No
+      // Material widget found" the moment it renders.
+      return Material(
+        type: MaterialType.transparency,
+        child: Stack(
         alignment: Alignment.center,
         children: [
           // Dismissible Scrim with blur
@@ -4107,12 +4114,15 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer> with SingleT
             ),
           ),
         ],
+        ),
       );
     }
 
     // Rebuild on playback/position changes so the progress slider and times
     // stay live inside the expanded player.
-    return AnimatedBuilder(
+    return Material(
+      type: MaterialType.transparency,
+      child: AnimatedBuilder(
       animation: widget.playerController,
       builder: (context, _) {
         return Container(
@@ -4151,6 +4161,7 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer> with SingleT
       ),
         );
       },
+      ),
     );
   }
 
