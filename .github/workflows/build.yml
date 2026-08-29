@@ -37,6 +37,16 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Cache Flutter pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
       - name: Setup .env from GitHub Secrets
         shell: bash
         run: |
@@ -129,6 +139,16 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Cache Flutter pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
       - name: Install Linux build dependencies
         run: |
           sudo apt-get update -y
@@ -218,6 +238,16 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Cache Flutter pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
       - name: Setup .env from GitHub Secrets
         shell: bash
         run: |
@@ -287,6 +317,16 @@ jobs:
           architecture: x64
           cache: true
 
+      - name: Cache Flutter pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool
+          key: ${{ runner.os }}-x64-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-pub-
+
       - name: Setup .env from GitHub Secrets
         shell: bash
         run: |
@@ -346,6 +386,16 @@ jobs:
           channel: 'stable'
           cache: true
 
+      - name: Cache Flutter pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool
+          key: ${{ runner.os }}-ios-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-ios-pub-
+
       - name: Setup .env from GitHub Secrets
         shell: bash
         run: |
@@ -380,7 +430,7 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: [windows, linux-x64, macos-arm64, macos-intel, ios]
-    if: always() && startsWith(github.ref, 'refs/tags/v')
+    if: success() && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -408,9 +458,10 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           name: "PlayTorrio ${{ github.ref_name }}"
-          draft: true
+          draft: false
           prerelease: false
           generate_release_notes: true
+          fail_on_unmatched_files: true
           files: |
             *.exe
             *.zip
