@@ -1,90 +1,89 @@
 import 'package:flutter/material.dart';
 
-/// Comics section in the Read hub.
+import '../../widgets/common/page_search_button.dart';
+
+/// Comics browsing, pending a data source.
 ///
-/// Comics are browsable and readable in the Books hub (ROADMAP item). This page
-/// is the section shell; it shows an empty state until a comics data source is
-/// wired up.
-class ComicsPage extends StatefulWidget {
+/// This is deliberately an explicit empty state rather than an empty grid.
+/// There is no comics provider wired up: every candidate evaluated so far
+/// either routes downloads through a Cloudflare-challenged file host or
+/// renders its chapter list client-side, neither of which is scrapeable
+/// server-side (see docs/ROADMAP.md). Showing a blank grid implied the
+/// catalog was merely empty; this says what is actually going on.
+///
+/// When a source exists, this page becomes a [BrowseScaffold] like the other
+/// catalogs — hero plus rows — and nothing else has to change.
+class ComicsPage extends StatelessWidget {
   const ComicsPage({super.key});
 
   @override
-  State<ComicsPage> createState() => _ComicsPageState();
-}
-
-class _ComicsPageState extends State<ComicsPage> {
-  final List<String> _comics = const [];
-
-  @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
-    final crossAxisCount = width < 600
-        ? 3
-        : width < 900
-            ? 4
-            : width < 1200
-                ? 5
-                : 6;
-
     return CustomScrollView(
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           sliver: SliverToBoxAdapter(
-            child: Text(
-              'Comics',
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 28,
-                fontWeight: FontWeight.w900,
-                letterSpacing: -0.5,
-              ),
+            child: Row(
+              children: [
+                const Expanded(
+                  child: Text(
+                    'Comics',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                ),
+                const PageSearchButton(),
+              ],
             ),
           ),
         ),
-        if (_comics.isEmpty)
-          SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(32),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.menu_book_rounded,
-                    color: Colors.white24,
-                    size: 64,
+                    size: 46,
+                    color: Colors.white.withValues(alpha: 0.28),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 18),
                   const Text(
-                    'Comics coming soon',
-                    style: TextStyle(color: Colors.white54, fontSize: 16),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Comic books will be browsable and readable here.',
-                    style: TextStyle(color: Colors.white30, fontSize: 13),
+                    'No comics source yet',
                     textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Text(
+                      'Comics are not wired up to a provider yet. Manga is '
+                      'available now under the Manga tab, and comics will '
+                      'appear here once a workable source is in place.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.55),
+                        fontSize: 13.5,
+                        height: 1.45,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            sliver: SliverGrid(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 0.62,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => const SizedBox.shrink(),
-                childCount: _comics.length,
-              ),
-            ),
           ),
+        ),
       ],
     );
   }
