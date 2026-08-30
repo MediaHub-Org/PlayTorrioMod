@@ -85,6 +85,13 @@ class _PlayerScreenState extends State<PlayerScreen>
   final ValueNotifier<Duration?> _bufferNotifier = ValueNotifier<Duration?>(null);
 
   bool _isLoading = true;
+
+  /// Set when playback has failed with no automatic way forward. Only movies
+  /// reach this: an episode has the sources panel to fall back to, so it
+  /// recovers there instead. Until this existed, a failed movie left
+  /// _isLoading true forever -- a spinner over a black screen with an error
+  /// caption and nothing to press.
+  String? _fatalError;
   bool _isPlaying = false;
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
@@ -506,7 +513,9 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
 
       setState(() {
+        _isLoading = false;
         _statusMessage = displayMessage;
+        _fatalError = displayMessage;
       });
     }
   }
@@ -1072,9 +1081,83 @@ class _PlayerScreenState extends State<PlayerScreen>
     }
 
     setState(() {
-      _isLoading = true;
+      _isLoading = false;
       _statusMessage = 'Playback error: $errorMsg';
+      _fatalError = 'Playback error: $errorMsg';
     });
+  }
+
+  /// Re-runs stream setup after a failure, so a transient error (a dead CDN
+  /// link, a stalled torrent handshake) does not require leaving the player.
+  Future<void> _retryPlayback() async {
+    if (!mounted) return;
+    setState(() {
+      _fatalError = null;
+      _isLoading = true;
+      _statusMessage = 'Retrying...';
+    });
+    await _initStream();
+  }
+
+  Widget _buildFatalErrorView() {
+    return Container(
+      color: Colors.black.withValues(alpha: 0.88),
+      alignment: Alignment.center,
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline_rounded,
+                color: Colors.white70, size: 44),
+            const SizedBox(height: 16),
+            const Text(
+              'This source failed to play',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 460),
+              child: Text(
+                _fatalError ?? '',
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white60, fontSize: 13),
+              ),
+            ),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 12,
+              runSpacing: 12,
+              alignment: WrapAlignment.center,
+              children: [
+                FilledButton.icon(
+                  onPressed: _retryPlayback,
+                  icon: const Icon(Icons.refresh_rounded, size: 18),
+                  label: const Text('Try again'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: PlayerTheme.accent,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 18),
+                  label: const Text('Pick another source'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: const BorderSide(color: Colors.white24),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _applyVolume(double vol, {bool showHud = false}) {
@@ -1520,6 +1603,10 @@ class _PlayerScreenState extends State<PlayerScreen>
               child: Image.network(widget.backdropUrl!, fit: BoxFit.cover),
             ),
           ),
+
+        // Terminal failure: an actionable panel rather than an endless spinner.
+        if (_fatalError != null)
+          Positioned.fill(child: _buildFatalErrorView()),
 
         // Video Player
         Center(
