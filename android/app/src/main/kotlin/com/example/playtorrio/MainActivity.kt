@@ -4,11 +4,14 @@ import android.content.Context
 import android.net.wifi.WifiManager
 import android.os.Build
 import android.os.PowerManager
-import io.flutter.embedding.android.FlutterActivity
+import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+// AudioServiceActivity, not FlutterActivity: audio_service needs the launch
+// intent routed through it so tapping the playback notification returns to
+// the running app instead of starting a second copy of it.
+class MainActivity : AudioServiceActivity() {
     private val CHANNEL = "com.example.playtorrio/power"
     private var wifiLock: WifiManager.WifiLock? = null
     private var wakeLock: PowerManager.WakeLock? = null

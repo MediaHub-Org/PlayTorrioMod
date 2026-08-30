@@ -4,6 +4,21 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Media session: playback in the Android shade and iOS lock screen — 2026-08-30
+- **Audio played with no system media session attached**: starting a track and pulling down the Android notification shade showed nothing, so the only way to pause was to return to the app — and with no foreground service, Android was free to kill the process the moment the app was backgrounded.
+- Added `MediaSessionService` (`lib/services/media_session/media_session_service.dart`), backed by `audio_service`, which publishes whatever `PlaybackCoordinator` has active to the notification shade, lock screen, Control Center, and Bluetooth/headset buttons — and reflects those buttons back as coordinator calls.
+- **The handler deliberately owns no player.** `audio_service` normally *is* the player, but every source here already has its own controller and the coordinator already knows which one is active. So one handler covers music, podcasts and audiobooks at once, rather than each growing a session of its own.
+- `PlaybackCoordinator` gained `onNext`/`onPrevious` (plus `canSkipNext`/`canSkipPrevious`). A source with nothing to skip to — a single video, a live channel, a podcast episode — leaves them null and the skip buttons disappear rather than appearing dead. Music forwards them to its queue; audiobooks gained `nextChapter`/`previousChapter`, with the usual "restart the chapter unless you are near its start" behaviour on skip-back.
+- The universal play bar shows the same skip pair, so the in-app bar and the shade offer the same controls instead of diverging.
+- Android: `MainActivity` now extends `AudioServiceActivity` so tapping the notification returns to the running app rather than starting a second copy; manifest gained the `AudioService` service, the `MediaButtonReceiver`, and `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (required from Android 14). iOS already declared the `audio` background mode.
+- Initialisation failure is non-fatal — a missing session costs the notification controls, not startup.
+
+### Version 1.1.3, published with a (dev) marker — 2026-08-30
+- **The app could report four different versions depending on where you looked**: releases went out as `v1.1.3-alpha.1`/`.2` while `pubspec.yaml` still said `1.1.2+10`, and Settings, Updates and About each fell back to a hardcoded `1.0.6` when `package_info_plus` could not read the platform bundle.
+- Dropped the alpha suffix — these are ordinary versions now — and bumped to `1.1.3+11`. `AppInfo` gained `channel` (`'dev'`), `versionLabel()` and fallbacks a test pins to `pubspec.yaml`, so all three screens render `1.1.3 (dev)` from one place. Clear `AppInfo.channel` once a release has been verified on hardware.
+- About rewritten from marketing prose into something a tester can act on: a testing-build notice, what the three hubs contain, how content is sourced, and links to the repo, a new issue, and the upstream project.
+- `build.yml`: `alpha_tag` → `release_tag`, plus a `dev_build` toggle (default on) that titles the release `(dev)` and publishes it as a prerelease. The Windows installer no longer stamps a branch name as its version on a plain dispatch.
+
 ### Unify liked-heart color across content types (AUDIT.md #4) — 2026-08-29
 - **The "like" heart used a different color depending on where it appeared**: Music used pink `0xFFFF4B72` and the universal play bar used purple `0xFF7C5CFF`, while Books/Podcasts/Manga/Audiobooks all used red `0xFFE50914` — directly contradicting the ROADMAP's cross-section consistency principle. Unified every liked-heart to red `0xFFE50914` (Music page, music player studio previews, and the universal play bar). The Movies/Series bookmark and Anime status-picker stay as-is — those are library/status concepts, not likes.
 
