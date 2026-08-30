@@ -42,9 +42,16 @@ void main() {
       expect(reconstructed.receivedBytes, equals(500 * 1024 * 1024));
       expect(reconstructed.totalBytes, equals(1000 * 1024 * 1024));
       expect(reconstructed.progressPercent, closeTo(0.5, 0.001));
-      expect(reconstructed.speedLabel, equals('5.00 MB/s'));
-      expect(reconstructed.etaLabel, equals('1m 40s'));
       expect(reconstructed.isDownloading, isTrue);
+
+      // Live transfer telemetry is deliberately not serialized: a speed, ETA
+      // or peer count restored from disk would be stale the moment it is read
+      // back, so toJson omits them and they return to their defaults.
+      expect(reconstructed.speedBytesPerSec, equals(0.0));
+      expect(reconstructed.etaSeconds, isNull);
+      expect(reconstructed.peers, equals(0));
+      expect(reconstructed.speedLabel, equals('0 KB/s'));
+      expect(reconstructed.etaLabel, equals('--'));
       expect(reconstructed.isCompleted, isFalse);
     });
 
