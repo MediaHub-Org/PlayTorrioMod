@@ -4,6 +4,13 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### One Library shape across all three hubs — 2026-08-30
+- **Each hub's Library had invented its own tabs.** Watch had My List / Watchlist / History / Downloads (4), Read had Audiobooks / Books / Manga / History / Downloads (5), Listen had Songs / Podcasts / Playlists / Recent / Downloads (5). Three shapes, three tab counts, and "what I saved" living under three different names — so moving between hubs meant relearning the Library each time.
+- All three now build from one `LibrarySection` enum: **Saved · Continue · History · Downloads**, in that order, with the same labels and icons. A test asserts the enum's shape and that no page hand-rolls a tab list again, which is how they drifted apart before.
+- **Watch**: Watchlist stopped being its own tab. A watchlist entry is just a My List item with `isWatchlist` set, so it is now a toggle beside the type chips — which also makes "series I bookmarked" expressible, where two separate tabs could not compose. Continue reads `activeItems`, History reads `historyItems`; both render through one row builder so they cannot drift visually.
+- **Read**: audiobooks, books and manga became a sub-tab inside Saved, the pattern already used for Movies/Series and Comics/Manga. Continue and History read the same reading log split on progress — past 95% counts as finished, since readers rarely close a book on the exact last page.
+- **Listen**: songs, podcasts and playlists became a sub-tab inside Saved. Music has no half-listened track to resume, so Continue shows the current play queue — the closest real equivalent, and something the Library previously offered no way to see at all.
+
 ### Desktop scroll arrows and row subtitles in the shared browse layout — 2026-08-30
 - **Horizontal rows on desktop could only be scrolled by dragging.** Anime's own slider had hover-revealed arrows; Movies/Series, on the shared `BrowseScaffold`, had none — the same content, two different affordances depending on which section you were in.
 - `BrowseScaffold` rows now carry their own `ScrollController` and fade in the existing shared `SliderArrow` on hover, on pointer devices only. The hero gained the same pair. Touch widths get neither: a swipe already works, and a permanent arrow just covers the artwork.
