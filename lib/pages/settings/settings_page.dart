@@ -22,6 +22,7 @@ import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
 
 import '../../widgets/common/animated_ambient_background.dart';
+import '../../app_info.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -50,7 +51,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final traktAuth = await TraktService.instance.isAuthenticated();
     final simklAuth = await SimklService.instance.isAuthenticated();
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
-          appName: 'PlayTorrio',
+          appName: AppInfo.name,
           packageName: 'com.playtorrio',
           version: '1.0.6',
           buildNumber: '6',
@@ -346,7 +347,7 @@ class _SettingsPageState extends State<SettingsPage> {
               _SettingsCategoryTile(
                 icon: Icons.info_outline_rounded,
                 iconColor: Colors.white70,
-                title: 'About PlayTorrio',
+                title: 'About ${AppInfo.name}',
                 subtitle: 'Architecture, video engine, and credits',
                 onTap: () => _navigateTo(const AboutSettingsPage()),
               ),

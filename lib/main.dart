@@ -34,6 +34,7 @@ import './services/p2p/p2p_settings_service.dart';
 import './widgets/updater/update_dialog.dart';
 import './widgets/common/global_shortcuts.dart';
 import './pages/hub/hub_page.dart';
+import 'app_info.dart';
 
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
@@ -141,7 +142,7 @@ class _PlayTorrioAppState extends State<PlayTorrioApp>
       builder: (context, palette, _) {
         return MaterialApp(
           navigatorKey: navigatorKey,
-          title: 'PlayTorrio',
+          title: AppInfo.name,
           debugShowCheckedModeBanner: false,
           theme: AppThemeService.createThemeData(palette),
           scrollBehavior: const MaterialScrollBehavior().copyWith(

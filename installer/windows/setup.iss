@@ -3,7 +3,7 @@
 ;  Built by CI from: build\windows\x64\runner\Release\
 ; ──────────────────────────────────────────────────────────────────────────────
 
-#define MyAppName      "PlayTorrio"
+#define MyAppName      "PlayTorrioMod"
 #ifndef MyAppVersion
 #define MyAppVersion   "1.1.0"
 #endif
@@ -23,7 +23,7 @@ DefaultGroupName={#MyAppName}
 UninstallDisplayIcon={app}\{#MyAppExeName}
 SetupIconFile=..\..\windows\runner\resources\app_icon.ico
 OutputDir=Output
-OutputBaseFilename=PlayTorrio-Windows-Setup
+OutputBaseFilename=PlayTorrioMod-Windows-Setup
 Compression=lzma2/ultra64
 SolidCompression=yes
 ArchitecturesInstallIn64BitMode=x64compatible
