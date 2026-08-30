@@ -295,7 +295,14 @@ class MusicPlayerController extends ChangeNotifier {
         }),
       ];
 
-      await player.open(media);
+      // Open paused, then configure, then play. open() defaults to play:true,
+      // which starts the track at libmpv's own volume and from 0:00 -- so the
+      // user's volume setting and resume position only landed a moment later,
+      // audible as a blast at the head of every track for anyone not at 100%
+      // and as a blip of the wrong audio when resuming. It also left a
+      // superseded load playing out loud until the generation check below
+      // disposed it, which is what made fast track-skipping overlap.
+      await player.open(media, play: false);
       await player.setVolume(_volume * 100.0);
 
       if (startPosition != null && startPosition > Duration.zero) {
@@ -309,6 +316,8 @@ class MusicPlayerController extends ChangeNotifier {
         await player.dispose();
         return;
       }
+
+      await player.play();
 
       _subscriptions.addAll(localSubs);
       _player = player;
