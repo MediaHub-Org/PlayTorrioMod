@@ -815,7 +815,8 @@ class _VideoPlayerSettingsPageState extends State<VideoPlayerSettingsPage> {
               style: TextStyle(fontSize: 14.5, fontWeight: FontWeight.w700, color: Colors.white),
             ),
             subtitle: Text(
-              'Seamlessly reconnects HLS / HTTP video demuxers without tearing down playback or corrupting timestamps on brief connection drops.',
+              'Seamlessly reconnects HLS / HTTP video demuxers without tearing down playback or corrupting timestamps on brief connection drops. '
+              'Always on for Live TV. Enabling it for movies and episodes can disable seeking on some HLS streams.',
               style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.5), height: 1.3),
             ),
             value: PlayerSettings.enableNetworkReconnect.value,

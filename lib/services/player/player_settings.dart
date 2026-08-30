@@ -221,7 +221,10 @@ abstract final class PlayerSettings {
   /// Returns all available raw decoders suitable for custom decoder chain building on current platform.
   static List<String> getAvailableRawDecoders() {
     if (Platform.isAndroid) {
-      return ['mediacodec', 'mediacodec-copy', 'auto-safe', 'auto-copy', 'no'];
+      // 'mediacodec' (direct-to-Surface) is deliberately absent: it renders
+      // black under enableAndroidSurfaceProducer: false. See
+      // _getDefaultDecodersForPreset.
+      return ['mediacodec-copy', 'auto-safe', 'auto-copy', 'no'];
     } else if (Platform.isWindows) {
       return ['d3d11va', 'd3d11va-copy', 'nvdec', 'nvdec-copy', 'auto-safe', 'auto-copy', 'no'];
     } else if (Platform.isMacOS || Platform.isIOS) {
@@ -249,7 +252,7 @@ abstract final class PlayerSettings {
 
     final savedCustom = prefs.getStringList(_keyCustomDecoders);
     if (savedCustom != null && savedCustom.isNotEmpty) {
-      customDecoders.value = savedCustom;
+      customDecoders.value = _sanitizeDecoders(savedCustom);
     } else {
       customDecoders.value = _getDefaultDecodersForPreset(decoderPreset.value);
     }
@@ -390,6 +393,23 @@ abstract final class PlayerSettings {
     return _getDefaultDecodersForPreset(decoderPreset.value);
   }
 
+  /// Drops decoders that cannot work in this build's configuration, so a
+  /// value persisted by an older version can't strand playback.
+  ///
+  /// Android only: earlier builds seeded the chain with bare 'mediacodec',
+  /// which renders black here (see [_getDefaultDecodersForPreset]). Rewrite
+  /// it to the copy-back variant rather than dropping it, so users who had
+  /// hardware decoding keep it.
+  static List<String> _sanitizeDecoders(List<String> decoders) {
+    if (!Platform.isAndroid) return decoders;
+    final out = <String>[];
+    for (final d in decoders) {
+      final fixed = d == 'mediacodec' ? 'mediacodec-copy' : d;
+      if (!out.contains(fixed)) out.add(fixed);
+    }
+    return out;
+  }
+
   static List<String> _getDefaultDecodersForPreset(DecoderPreset preset) {
     switch (preset) {
       case DecoderPreset.softwareSafe:
@@ -408,7 +428,13 @@ abstract final class PlayerSettings {
         } else if (Platform.isMacOS || Platform.isIOS) {
           return ['videotoolbox', 'auto-safe', 'no'];
         } else if (Platform.isAndroid) {
-          return ['mediacodec', 'auto-safe', 'no'];
+          // MUST stay '-copy'. The Android VideoController is built with
+          // enableAndroidSurfaceProducer: false, so frames are read back
+          // through a texture; plain 'mediacodec' decodes straight to a
+          // Surface we never attach and plays as a black screen with audio.
+          // This list also seeds the 'custom' preset, whose hwdec string is
+          // its first entry -- so a bare 'mediacodec' here breaks that too.
+          return ['mediacodec-copy', 'auto-safe', 'no'];
         } else {
           return ['vaapi', 'nvdec', 'auto-safe', 'no'];
         }
@@ -468,15 +494,20 @@ abstract final class PlayerSettings {
     try {
       final dynamic platform = player.platform;
       if (platform == null) return;
-      if (isLive) {
-        // Live IPTV stream continuity: reconnect on dropouts at the protocol layer
+      // The reconnect knobs in Settings apply here. They are honoured for live
+      // streams always, and for VOD only when the user opts in -- FFmpeg
+      // treats HLS segments as unseekable while reconnect=1 is active, so
+      // enabling it for VOD trades seeking for dropout resilience.
+      final wantsReconnect = isLive || enableNetworkReconnect.value;
+      if (wantsReconnect) {
+        final delayMax = reconnectDelayMax.value;
         await platform.setProperty(
           'stream-lavf-o',
-          'reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_on_http_error=500,502,503,504,reconnect_delay_max=5',
+          'reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,'
+              'reconnect_on_http_error=500,502,503,504,'
+              'reconnect_delay_max=$delayMax',
         );
       } else {
-        // VOD / HLS / Movies / Episodes: DO NOT set reconnect=1 because FFmpeg treats HLS segments
-        // as unseekable streams when reconnect=1 is active. Keeping it clean enables full HLS seeking!
         await platform.setProperty('stream-lavf-o', '');
       }
     } catch (e) {
@@ -526,20 +557,16 @@ abstract final class PlayerSettings {
         await platform.setProperty('audio-delay', audioDelayDefault.value.toString());
       }
 
-      // For torrent streams: DO NOT override anything else. Leave MPV on pure built-in defaults!
+      // Torrent streams are served by the local TorrServer, which does its own
+      // read-ahead and cache management -- layering mpv's demuxer cache and
+      // network timeouts on top of it fights that. Everything above (decoder,
+      // audio filter, subtitles) still applies; only the network/demuxer
+      // tuning below is skipped.
       if (isTorrent) {
         return;
       }
 
-      // 5. Demuxer disk cache directory (Smooth AnymeX chunk buffering)
-      if (enableDiskCache.value) {
-        try {
-          final tempDir = await getTemporaryDirectory();
-          await platform.setProperty('demuxer-cache-dir', tempDir.path);
-        } catch (_) {}
-      }
-
-      // 6. Video Decoder Optimizations (AnymeX)
+      // 5. Video Decoder Optimizations (AnymeX)
       await platform.setProperty('vd-lavc-fast', enableFastDecode.value ? 'yes' : 'no');
       await platform.setProperty('vd-lavc-skiploopfilter', skipLoopFilter.value);
       if (lavcThreads.value > 0) {
@@ -548,7 +575,7 @@ abstract final class PlayerSettings {
         await platform.setProperty('vd-lavc-threads', 'auto');
       }
 
-      // 7. Buffer & Demuxer Cache Configuration (HTTP VOD only)
+      // 6. Buffer & Demuxer Cache Configuration (HTTP VOD only)
       await platform.setProperty('cache', 'yes');
       await platform.setProperty('demuxer-max-bytes', '${getEffectiveMaxBytes()}');
       await platform.setProperty('demuxer-max-back-bytes', '${getEffectiveMaxBackBytes()}');
@@ -556,10 +583,10 @@ abstract final class PlayerSettings {
       await platform.setProperty('demuxer-readahead-secs', '${getEffectiveCacheSecs()}');
       await platform.setProperty('network-timeout', '30');
 
-      // 8. Network Stream Continuity (Live IPTV vs VOD separation)
+      // 7. Network Stream Continuity (Live IPTV vs VOD separation)
       await applyStreamContinuity(player, isLive: isLive);
 
-      // 9. Native HLS & image-disguised (.jpg/.png) stream probing
+      // 8. Native HLS & image-disguised (.jpg/.png) stream probing
       await platform.setProperty('hls-bitrate', 'max');
       await platform.setProperty('demuxer-lavf-probesize', '32768000');
       await platform.setProperty('demuxer-lavf-analyzeduration', '20');

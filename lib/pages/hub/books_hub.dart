@@ -11,8 +11,9 @@ import '../read/books_page.dart';
 
 /// Read hub: Manga, Comics, Audiobooks, and the user's reading collection.
 ///
-/// Sections are switched via the [SectionTopBar] chip bar. The active section
-/// is driven by the shared [HubController] so navigation stays in sync.
+/// Sections are switched via the [SectionTopBar] — chips on tablet/desktop,
+/// a dropdown on mobile. The active section is driven by the shared
+/// [HubController] so navigation stays in sync.
 class BooksHub extends StatelessWidget {
   const BooksHub({super.key});
 
