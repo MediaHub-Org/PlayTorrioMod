@@ -2975,7 +2975,7 @@ class _MusicArtistDetailPage extends StatelessWidget {
                   fit: BoxFit.cover,
                 ),
               ),
-                    Positioned.fill(
+                    const Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -4674,10 +4674,10 @@ class _MusicVolumeControlState extends State<_MusicVolumeControl> {
           SizedBox(
             width: 90,
             child: SliderTheme(
-              data: SliderThemeData(
+              data: const SliderThemeData(
                 trackHeight: 3,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                activeTrackColor: const Color(0xFF7C5CFF),
+                thumbShape: RoundSliderThumbShape(enabledThumbRadius: 5),
+                activeTrackColor: Color(0xFF7C5CFF),
                 inactiveTrackColor: Colors.white24,
                 thumbColor: Colors.white,
               ),

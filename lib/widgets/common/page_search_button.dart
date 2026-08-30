@@ -19,9 +19,7 @@ class PageSearchButton extends StatelessWidget {
       ),
       onPressed: () {
         final box = context.findRenderObject() as RenderBox?;
-        final offset = box != null
-            ? box.localToGlobal(box.size.center(Offset.zero))
-            : null;
+        final offset = box?.localToGlobal(box.size.center(Offset.zero));
         Navigator.push(
           context,
           LiquidRevealRoute(page: const SearchPage(), tapPosition: offset),

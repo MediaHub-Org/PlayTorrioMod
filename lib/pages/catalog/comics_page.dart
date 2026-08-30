@@ -20,12 +20,12 @@ class ComicsPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return CustomScrollView(
       slivers: [
-        SliverPadding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+        const SliverPadding(
+          padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
           sliver: SliverToBoxAdapter(
             child: Row(
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
                     'Comics',
                     style: TextStyle(
@@ -36,7 +36,7 @@ class ComicsPage extends StatelessWidget {
                     ),
                   ),
                 ),
-                const PageSearchButton(),
+                PageSearchButton(),
               ],
             ),
           ),

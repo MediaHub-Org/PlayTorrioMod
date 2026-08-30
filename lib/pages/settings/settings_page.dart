@@ -52,16 +52,16 @@ class _SettingsPageState extends State<SettingsPage> {
     final simklAuth = await SimklService.instance.isAuthenticated();
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
           appName: AppInfo.name,
-          packageName: 'com.playtorrio',
-          version: '1.0.6',
-          buildNumber: '6',
+          packageName: 'com.mediahub.playtorriomod',
+          version: AppInfo.fallbackVersion,
+          buildNumber: AppInfo.fallbackBuildNumber,
         ));
 
     if (mounted) {
       setState(() {
         _useDebrid = useDebrid;
         _debridProvider = provider;
-        _appVersion = pkg.version;
+        _appVersion = AppInfo.versionLabel(pkg.version);
         _traktConnected = traktAuth;
         _simklConnected = simklAuth;
       });
@@ -343,7 +343,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // 8. About PlayTorrio
+              // 8. About the app
               _SettingsCategoryTile(
                 icon: Icons.info_outline_rounded,
                 iconColor: Colors.white70,

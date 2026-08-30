@@ -232,7 +232,7 @@ class _CollectionPageState extends State<CollectionPage> {
       valueListenable: ContinueWatchingService.historyItems,
       builder: (context, historyItems, _) {
         if (historyItems.isEmpty) {
-          return LibraryEmptyState(
+          return const LibraryEmptyState(
             icon: Icons.history_rounded,
             title: 'No Playback History',
             subtitle: 'Movies and episodes you watch will appear here so you can continue where you left off.',
@@ -334,7 +334,7 @@ class _CollectionPageState extends State<CollectionPage> {
             .where((t) => t.type == 'movie' || t.type == 'series' || t.type == 'anime')
             .toList();
         if (downloads.isEmpty) {
-          return LibraryEmptyState(
+          return const LibraryEmptyState(
             icon: Icons.download_done_rounded,
             title: 'No Downloads',
             subtitle: 'Downloaded movies and episodes will appear here for offline viewing.',

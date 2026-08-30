@@ -149,9 +149,9 @@ class UniversalPlayBar extends StatelessWidget {
                 onPressed: PlaybackCoordinator.togglePlayPause,
               ),
               // Close (dismiss the bar)
-              IconButton(
+              const IconButton(
                 tooltip: 'Close',
-                icon: const Icon(
+                icon: Icon(
                   Icons.close_rounded,
                   color: Colors.white54,
                   size: 20,

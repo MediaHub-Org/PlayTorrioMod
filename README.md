@@ -89,12 +89,15 @@ Android APK; merges to `main` run the same checks and refresh the shared build
 cache.
 
 To cut a downloadable build without tagging a release, dispatch the
-**Build and Release** workflow with an `alpha_tag` such as `v1.2.0-alpha.1` —
-it publishes all six platforms as a GitHub prerelease. Leave `alpha_tag` empty
-to build every platform and upload artifacts only.
+**Build and Release** workflow with a `release_tag` such as `v1.2.0` — it
+publishes all six platforms. Leave `release_tag` empty to build every platform
+and upload artifacts only.
 
-Tags matching `v*` publish a full release; a tag carrying a semver prerelease
-suffix (`v1.2.0-rc.1`) publishes as a prerelease.
+Dispatched builds default to `dev_build`, which titles the release `(dev)` and
+publishes it as a GitHub prerelease; the app shows the same marker next to its
+version. Untick it once a build has been verified on a device. Tags matching
+`v*` publish a full release; a tag carrying a semver prerelease suffix
+(`v1.2.0-rc.1`) publishes as a prerelease.
 
 Android release signing needs two repository secrets, and is what lets the
 in-app updater replace an existing install — see
