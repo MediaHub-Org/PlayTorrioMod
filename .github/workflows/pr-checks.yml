@@ -127,6 +127,16 @@ jobs:
             echo "::warning::ANDROID_KEYSTORE_BASE64 is not set - this APK will be signed with a throwaway debug key and will not install over a release-signed build."
             exit 0
           fi
+          if [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::error::ANDROID_KEYSTORE_BASE64 is set but ANDROID_KEYSTORE_PASSWORD is not. Set both, or neither."
+            exit 1
+          fi
+          # Only the keystore and its password are required. keytool lets one
+          # password cover both the store and the key, and the alias is fixed
+          # by convention, so the other two secrets are optional overrides for
+          # a keystore that was created with different values.
+          KEY_ALIAS="${KEY_ALIAS:-playtorriomod}"
+          KEY_PASSWORD="${KEY_PASSWORD:-$KEYSTORE_PASSWORD}"
           echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
           # storeFile is resolved relative to the android/app module directory.
           {
@@ -135,7 +145,7 @@ jobs:
             echo "keyAlias=$KEY_ALIAS"
             echo "keyPassword=$KEY_PASSWORD"
           } > android/key.properties
-          echo "Release signing configured."
+          echo "Release signing configured (alias: $KEY_ALIAS)."
 
       - name: Build Android APK
         run: flutter build apk --release --dart-define-from-file=.env
