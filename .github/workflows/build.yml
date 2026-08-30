@@ -214,6 +214,33 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      # Writes android/key.properties + the keystore from repository secrets so
+      # the release APK is signed with a stable key. Without the secrets (a fork
+      # PR cannot read them) the build falls back to the debug key, which is
+      # regenerated per runner -- fine for a throwaway build, but such an APK
+      # will not install over a properly signed one.
+      - name: Set up Android release signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set - this APK will be signed with a throwaway debug key and will not install over a release-signed build."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+          # storeFile is resolved relative to the android/app module directory.
+          {
+            echo "storeFile=release.keystore"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/key.properties
+          echo "Release signing configured."
+
       - name: Build Split-per-ABI APKs
         run: flutter build apk --release --split-per-abi --dart-define-from-file=.env
 
@@ -295,6 +322,33 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
+
+      # Writes android/key.properties + the keystore from repository secrets so
+      # the release APK is signed with a stable key. Without the secrets (a fork
+      # PR cannot read them) the build falls back to the debug key, which is
+      # regenerated per runner -- fine for a throwaway build, but such an APK
+      # will not install over a properly signed one.
+      - name: Set up Android release signing
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::warning::ANDROID_KEYSTORE_BASE64 is not set - this APK will be signed with a throwaway debug key and will not install over a release-signed build."
+            exit 0
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+          # storeFile is resolved relative to the android/app module directory.
+          {
+            echo "storeFile=release.keystore"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/key.properties
+          echo "Release signing configured."
 
       - name: Build Universal APK
         run: flutter build apk --release --dart-define-from-file=.env
