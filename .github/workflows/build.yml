@@ -7,6 +7,16 @@
 #    - macOS: Apple Silicon (ARM64) & Intel (x64) DMG & ZIP
 #    - iOS: Sideloadable IPA (no-codesign)
 #  Trigger: Git tag push (v*) or Manual Workflow Dispatch
+#
+#  Manual dispatch has two modes:
+#    - alpha_tag empty  -> build all platforms, upload artifacts only.
+#      Use this to check every platform still compiles.
+#    - alpha_tag set    -> additionally publish those builds as a
+#      GitHub *prerelease* under that tag (e.g. v1.1.3-alpha.1), so
+#      testers get download links instead of CI artifacts (which
+#      require a GitHub login and expire).
+#  A pushed tag carrying a semver prerelease suffix (v1.2.0-beta.1)
+#  is published as a prerelease too; a plain v1.2.0 is a full release.
 #  Environment: Injects --dart-define-from-file=.env using ${{ secrets.ENV_FILE }}
 # ──────────────────────────────────────────────────────────────────────────────
 name: Build and Release PlayTorrioMod
@@ -17,6 +27,11 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      alpha_tag:
+        description: 'Publish an alpha prerelease under this tag (e.g. v1.1.3-alpha.1). Leave empty to only upload build artifacts.'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -523,7 +538,15 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: [windows, android, linux-x64, macos-arm64, macos-intel, ios]
-    if: success() && startsWith(github.ref, 'refs/tags/v')
+    # Publishes for a pushed v* tag, or for a manual dispatch that named an
+    # alpha tag. Still requires every platform to have built: a half-published
+    # release is worse than none, and each job's artifacts remain downloadable
+    # from the run either way.
+    if: |
+      success() && (
+        startsWith(github.ref, 'refs/tags/v') ||
+        github.event.inputs.alpha_tag != ''
+      )
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -550,9 +573,14 @@ jobs:
       - name: Publish Release with Assets
         uses: softprops/action-gh-release@v2
         with:
-          name: "PlayTorrio ${{ github.ref_name }}"
+          # On a dispatch the tag comes from the input and is created at the
+          # dispatched ref; on a tag push it is the pushed tag.
+          tag_name: ${{ github.event.inputs.alpha_tag || github.ref_name }}
+          name: "PlayTorrio ${{ github.event.inputs.alpha_tag || github.ref_name }}"
           draft: false
-          prerelease: false
+          # Alpha dispatches are always prereleases, as is any tag carrying a
+          # semver prerelease suffix (v1.2.0-rc.1). Plain v1.2.0 ships as full.
+          prerelease: ${{ github.event.inputs.alpha_tag != '' || contains(github.ref_name, '-') }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |
