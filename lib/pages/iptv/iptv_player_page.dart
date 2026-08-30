@@ -184,6 +184,9 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
 
     try {
       await PlayerSettings.applyToPlayer(_player, isLive: true);
+      // Volume before open: open() starts playback immediately, so setting it
+      // afterwards let a muted channel blast a moment of full-volume audio.
+      _player.setVolume(_isMuted ? 0.0 : _volume * 100.0);
 
       await _player.open(
         Media(
@@ -219,7 +222,6 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
       );
 
       await PlayerSettings.applyToPlayer(_player, isLive: true);
-      _player.setVolume(_isMuted ? 0.0 : _volume * 100.0);
 
       if (!mounted) return;
       setState(() {

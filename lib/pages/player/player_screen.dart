@@ -279,10 +279,13 @@ class _PlayerScreenState extends State<PlayerScreen>
       if (rawUrl != null && (File(rawUrl).existsSync() || _currentSource.name == 'Downloaded')) {
         print('[PlayerScreen] Initializing offline local file playback: $rawUrl');
         await PlayerSettings.applyPreOpenProperties(_player);
+        // Volume before open: open() starts playback immediately, so applying
+        // it afterwards let a muted or quietened video blast a moment of
+        // full-volume audio first.
+        _applyVolume(_isMuted ? 0.0 : _volume);
         await _player.open(Media(rawUrl), play: true);
         await PlayerSettings.applyPostOpenProperties(_player);
         _setSubtitleScale(_subtitleScale);
-        _applyVolume(_isMuted ? 0.0 : _volume);
         if (mounted) setState(() => _isLoading = false);
         return;
       }
@@ -405,6 +408,9 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
       }
 
+      // Volume before open, for the same reason as the offline path above.
+      _applyVolume(_isMuted ? 0.0 : _volume);
+
       await _player.open(
         Media(
           cleanUri.toString(),
@@ -417,7 +423,6 @@ class _PlayerScreenState extends State<PlayerScreen>
       await PlayerSettings.applyPostOpenProperties(_player);
 
       _setSubtitleScale(_subtitleScale);
-      _applyVolume(_isMuted ? 0.0 : _volume);
 
       print('[PlayerScreen SUCCESS] Player opened media successfully for $streamUrl');
 

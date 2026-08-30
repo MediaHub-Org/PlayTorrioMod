@@ -293,7 +293,13 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
         }),
       ];
 
-      await player.open(media);
+      // Open paused, then configure, then play. open() defaults to play:true,
+      // so the chapter started at libmpv's own volume, at 1.0x, and from
+      // 0:00 before the lines below took effect -- audible as a blast at the
+      // head of every chapter, a lurch to the chosen speed, and a blip of
+      // chapter-start audio before the resume seek, which happens on nearly
+      // every open here since audiobooks almost always resume.
+      await player.open(media, play: false);
       await player.setVolume(_volume * 100.0);
       await player.setRate(_playbackSpeed);
 
@@ -306,7 +312,13 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
         _hasRestoredPosition = true;
       }
 
-      if (!mounted) return;
+      if (!mounted) {
+        for (final s in localSubs) {
+          s.cancel();
+        }
+        await player.dispose();
+        return;
+      }
 
       if (myGeneration != _loadGeneration) {
         for (final s in localSubs) {
@@ -315,6 +327,8 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
         await player.dispose();
         return;
       }
+
+      await player.play();
 
       _playerSubscriptions.addAll(localSubs);
 
