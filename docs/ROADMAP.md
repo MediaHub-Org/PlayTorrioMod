@@ -10,11 +10,11 @@ Last reconciled against the tree: **2026-08-30** (v1.1.3+11, dev channel).
 Three top-level hubs are the core navigation: **Watch**, **Listen**, **Read**.
 Each has exactly four sections, the fourth always being Library:
 
-| Hub | Sections |
-|:--|:--|
-| Watch | Movies/Series · Anime · Live TV · Library |
-| Listen | Music · Podcasts · Radio · Library |
-| Read | Audiobooks · Books · Comics/Manga · Library |
+| Hub    | Sections                                    |
+|:-------|:--------------------------------------------|
+| Watch  | Movies/Series · Anime · Live TV · Library   |
+| Listen | Music · Podcasts · Radio · Library          |
+| Read   | Audiobooks · Books · Comics/Manga · Library |
 
 Phones show hubs as icon pills in the header and sections in the bottom bar;
 tablet and desktop show sections as a chip row instead. Search, filters,
@@ -30,31 +30,31 @@ checked against this first.
 Nothing in this group can be closed from CI. Every item is implemented and
 passing `flutter analyze` + the test suite; none has been run on hardware.
 
-| # | Area | What specifically needs checking |
-|---|---|---|
-| 1 | **Media session** (shipped 2026-08-30) | Track title/artist/art in the Android shade; play/pause/skip/stop; audio surviving backgrounding; whether tapping the notification returns to the running app rather than restarting it. iOS lock screen and Control Center likewise. |
-| 2 | **media_kit/libmpv playback** | The engine swap (2026-08-28) changed torrent streaming, live IPTV, subtitle rendering, decoder presets and the volume-boost gesture. Needs a hands-on pass across movie / series / anime / IPTV / music / audiobook. The `mediacodec-copy` fix for the Android black screen (2026-08-29) is part of this. |
-| 3 | **Resume across sources** | `ContinueWatchingService` absorbed `PlaybackHistoryService`. Resume across movie / series / anime / torrent paths is unconfirmed on a device. |
-| 4 | **QA on all five platforms** | Mobile, tablet, desktop, TV. TV needs its own D-pad/remote-input pass. Most work to date has only been exercised on Windows desktop and in CI. |
+| # | Area                                   | What specifically needs checking                                                                                                                                                                                                                                                                          |
+|---|----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 1 | **Media session** (shipped 2026-08-30) | Track title/artist/art in the Android shade; play/pause/skip/stop; audio surviving backgrounding; whether tapping the notification returns to the running app rather than restarting it. iOS lock screen and Control Center likewise.                                                                     |
+| 2 | **media_kit/libmpv playback**          | The engine swap (2026-08-28) changed torrent streaming, live IPTV, subtitle rendering, decoder presets and the volume-boost gesture. Needs a hands-on pass across movie / series / anime / IPTV / music / audiobook. The `mediacodec-copy` fix for the Android black screen (2026-08-29) is part of this. |
+| 3 | **Resume across sources**              | `ContinueWatchingService` absorbed `PlaybackHistoryService`. Resume across movie / series / anime / torrent paths is unconfirmed on a device.                                                                                                                                                             |
+| 4 | **QA on all five platforms**           | Mobile, tablet, desktop, TV. TV needs its own D-pad/remote-input pass. Most work to date has only been exercised on Windows desktop and in CI.                                                                                                                                                            |
 
 Once a build has actually been through this, clear `AppInfo.channel` and the
 `(dev)` marker disappears from the app and from release titles.
 
 ## Code and consistency
 
-| # | Task | Why it is still open |
-|---|---|---|
-| 5 | **Migrate Anime onto `BrowseScaffold`** | Anime has its own hero carousel and its own row widget that do the same job. `BrowseScaffold` gained row subtitles and desktop scroll arrows (2026-08-30) so the migration no longer costs anime any feature; what is left is the `ContinueWatchingSlider` slot between hero and rows, and the Arabic-mode branch, which doubles every row. Worth doing, but it is 600 lines of churn on a page that cannot be checked without running it. |
-| 6 | **35 files do ad-hoc `MediaQuery.sizeOf(context).width`** instead of `AppBreakpoints.of(context)` | 35 independent call sites, no shared risk, no user-visible bug. Migrate opportunistically when a file is touched for another reason, not as a batch pass. |
-| 7 | **`music_page.dart` is 5,220 lines** | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice. |
-| 8 | **GitHub Actions may be pinned to Node-20 majors** | Deliberately not bumped blind: verify the current major for each action against its own releases page first, then bump in one commit and watch a full six-platform dispatch. |
+| # | Task                                                                                              | Why it is still open                                                                                                                                                                                                                                                                                                                                                                                                                       |
+|---|---------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 5 | **Migrate Anime onto `BrowseScaffold`**                                                           | Anime has its own hero carousel and its own row widget that do the same job. `BrowseScaffold` gained row subtitles and desktop scroll arrows (2026-08-30) so the migration no longer costs anime any feature; what is left is the `ContinueWatchingSlider` slot between hero and rows, and the Arabic-mode branch, which doubles every row. Worth doing, but it is 600 lines of churn on a page that cannot be checked without running it. |
+| 6 | **35 files do ad-hoc `MediaQuery.sizeOf(context).width`** instead of `AppBreakpoints.of(context)` | 35 independent call sites, no shared risk, no user-visible bug. Migrate opportunistically when a file is touched for another reason, not as a batch pass.                                                                                                                                                                                                                                                                                  |
+| 7 | **`music_page.dart` is 5,220 lines**                                                              | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice.                                                                                                                                                                                                                                                                              |
+| 8 | **GitHub Actions may be pinned to Node-20 majors**                                                | Deliberately not bumped blind: verify the current major for each action against its own releases page first, then bump in one commit and watch a full six-platform dispatch.                                                                                                                                                                                                                                                               |
 
 ## Content sources
 
-| # | Task | State |
-|---|---|---|
-| 9 | **Comics data source** | `ComicsPage` is an honest empty state, not a placeholder pretending to load. Two leads checked 2026-08-29: `newcomic.info` routes every `.cbr` through `florenfile.com` behind Cloudflare's JS challenge — dead for a server-side fetch. `readcomicsonline.lol` looks structurally right (own CDN, direct `.webp` per page, no archive extraction, same shape as Manga) but its chapter/page data loads client-side and the underlying endpoint did not surface from its JS bundles. Confirming it needs live devtools inspection by a human, not blind guessing. |
-| 10 | **Cast photos for Audiobooks** | Movies/Series, Anime and Manga all have them. Audiobooks stays blocked: AniList does not catalog narrators, and AudiobookBay's listing HTML has no narrator field beyond free text. Would need a narrator-photo database that does not appear to exist publicly. |
+| #  | Task                           | State                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+|----|--------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 9  | **Comics data source**         | `ComicsPage` is an honest empty state, not a placeholder pretending to load. Two leads checked 2026-08-29: `newcomic.info` routes every `.cbr` through `florenfile.com` behind Cloudflare's JS challenge — dead for a server-side fetch. `readcomicsonline.lol` looks structurally right (own CDN, direct `.webp` per page, no archive extraction, same shape as Manga) but its chapter/page data loads client-side and the underlying endpoint did not surface from its JS bundles. Confirming it needs live devtools inspection by a human, not blind guessing. |
+| 10 | **Cast photos for Audiobooks** | Movies/Series, Anime and Manga all have them. Audiobooks stays blocked: AniList does not catalog narrators, and AudiobookBay's listing HTML has no narrator field beyond free text. Would need a narrator-photo database that does not appear to exist publicly.                                                                                                                                                                                                                                                                                                  |
 
 ## Signing and releases
 
