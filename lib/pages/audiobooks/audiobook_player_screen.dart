@@ -13,6 +13,7 @@ import '../../services/audiobook/audiobook_progress_service.dart';
 import '../../services/audiobook/audiobook_settings.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
+import '../../services/discord/discord_rpc_service.dart';
 import '../../widgets/audiobook/audiobook_interactive_physics_button.dart';
 import '../../widgets/audiobook/audiobook_waveform_seekbar.dart';
 import '../settings/appearance/audiobook_player_studio_page.dart';
@@ -84,6 +85,21 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     setState(() {});
   }
 
+  void _updateDiscordRpc({bool? isPaused}) {
+    final chapter = (widget.chapters.isNotEmpty && _currentChapterIndex < widget.chapters.length)
+        ? widget.chapters[_currentChapterIndex]
+        : null;
+    DiscordRpcService.instance.setListeningAudiobook(
+      title: widget.audiobook.title,
+      author: widget.audiobook.author,
+      chapter: chapter?.title,
+      coverUrl: widget.audiobook.coverImage,
+      position: _position,
+      duration: _duration,
+      isPaused: isPaused ?? !_isPlaying,
+    );
+  }
+
   @override
   void dispose() {
     _saveProgress();
@@ -97,6 +113,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     _player?.dispose();
     _discAnimController.dispose();
     TorrentStreamService().cleanup();
+    DiscordRpcService.instance.clearToIdle();
     super.dispose();
   }
 
@@ -200,6 +217,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
         player.stream.playing.listen((playing) {
           if (mounted) {
             setState(() => _isPlaying = playing);
+            _updateDiscordRpc(isPaused: !playing);
             if (playing && !_discAnimController.isAnimating) {
               _discAnimController.repeat();
             } else if (!playing && _discAnimController.isAnimating) {
@@ -218,6 +236,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
               _duration = dur;
               _isLoading = false;
             });
+            _updateDiscordRpc();
           }
         }),
         player.stream.completed.listen((completed) {

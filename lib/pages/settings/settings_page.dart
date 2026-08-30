@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -17,6 +18,7 @@ import 'updates_settings_page.dart';
 import 'about_settings_page.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
+import '../../services/discord/discord_rpc_service.dart';
 
 import '../../widgets/common/animated_ambient_background.dart';
 
@@ -49,8 +51,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
           appName: 'PlayTorrio',
           packageName: 'com.playtorrio',
-          version: '1.0.7',
-          buildNumber: '8',
+          version: '1.0.8',
+          buildNumber: '9',
         ));
 
     if (mounted) {
@@ -253,7 +255,31 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // 5. Trakt Sync
+              // 5. Discord Rich Presence (Desktop Only)
+              if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) ...[
+                ValueListenableBuilder<bool>(
+                  valueListenable: DiscordRpcService.instance.isEnabled,
+                  builder: (context, isDiscordEnabled, _) {
+                    return _SettingsSwitchTile(
+                      icon: Icons.sports_esports_rounded,
+                      iconColor: isDiscordEnabled ? const Color(0xFF5865F2) : Colors.white54,
+                      title: 'Discord Rich Presence',
+                      subtitle: isDiscordEnabled
+                          ? 'Broadcasting movies, shows, music & live activity to Discord'
+                          : 'Disabled. Activity is hidden from Discord',
+                      badgeText: isDiscordEnabled ? 'Active' : 'Disabled',
+                      badgeColor: isDiscordEnabled ? const Color(0xFF5865F2) : Colors.white38,
+                      value: isDiscordEnabled,
+                      onChanged: (val) async {
+                        await DiscordRpcService.instance.setEnabled(val);
+                      },
+                    );
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+
+              // 6. Trakt Sync
               _SettingsCategoryTile(
                 icon: Icons.movie_filter_rounded,
                 iconColor: const Color(0xFFED1C24),

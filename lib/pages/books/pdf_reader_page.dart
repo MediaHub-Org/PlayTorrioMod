@@ -8,6 +8,7 @@ import '../../models/book/reading_progress.dart';
 import '../../services/books/continue_reading_service.dart';
 import '../../services/books/reader_settings.dart';
 import '../../services/window/window_service.dart';
+import '../../services/discord/discord_rpc_service.dart';
 
 class PdfReaderPage extends StatefulWidget {
   final File file;
@@ -37,12 +38,19 @@ class _PdfReaderPageState extends State<PdfReaderPage> {
     super.initState();
     _currentPage = widget.initialPage;
     _pdfController = PdfViewerController();
+    DiscordRpcService.instance.setReadingBook(
+      title: widget.book.title,
+      author: widget.book.author,
+      coverUrl: widget.book.coverUrl,
+      page: _currentPage,
+    );
     _startControlsTimer();
   }
 
   @override
   void dispose() {
     _controlsTimer?.cancel();
+    DiscordRpcService.instance.clearToIdle();
     super.dispose();
   }
 

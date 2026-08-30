@@ -96,4 +96,11 @@ class EnvService {
     if (compileVal.isNotEmpty) return compileVal;
     return get('SIMKL_CLIENT_SECRET');
   }
+
+  // Discord Rich Presence App ID (checks compile-time dart-define first, then runtime .env)
+  static String get discordAppId {
+    const compileVal = String.fromEnvironment('DISCORD_APP_ID');
+    if (compileVal.isNotEmpty) return compileVal;
+    return get('DISCORD_APP_ID');
+  }
 }

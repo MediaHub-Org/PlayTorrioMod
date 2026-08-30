@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:ota_update/ota_update.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 
 import '../../services/updater/app_updater_service.dart';
 
@@ -27,8 +28,15 @@ class _UpdateDialogState extends State<UpdateDialog> {
   static const Color _accentColor = Color(0xFF7C5CFF);
 
   @override
+  void dispose() {
+    WakelockPlus.disable();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return PopScope(
+      canPop: !_isDownloading,
       onPopInvokedWithResult: (didPop, result) {
         if (didPop && !_isDownloading) {
           AppUpdaterService.dismissVersion(widget.updateInfo.latestVersion);
@@ -394,6 +402,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
   }
 
   Future<void> _downloadAndInstallAndroid() async {
+    WakelockPlus.enable();
     setState(() {
       _isDownloading = true;
       _downloadProgress = 0.0;
@@ -420,9 +429,11 @@ class _UpdateDialogState extends State<UpdateDialog> {
                       break;
                     case OtaStatus.INSTALLING:
                       _downloadProgress = 1.0;
+                      WakelockPlus.disable();
                       break;
                     case OtaStatus.PERMISSION_NOT_GRANTED_ERROR:
                       _isDownloading = false;
+                      WakelockPlus.disable();
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
@@ -439,6 +450,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     case OtaStatus.DOWNLOAD_ERROR:
                     case OtaStatus.CHECKSUM_ERROR:
                       _isDownloading = false;
+                      WakelockPlus.disable();
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
                           content: Text('Update failed: ${event.status}'),
@@ -454,6 +466,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
               }
             },
             onError: (error) {
+              WakelockPlus.disable();
               if (mounted) {
                 setState(() => _isDownloading = false);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -466,6 +479,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
             },
           );
     } catch (e) {
+      WakelockPlus.disable();
       if (mounted) {
         setState(() => _isDownloading = false);
         ScaffoldMessenger.of(context).showSnackBar(
@@ -479,6 +493,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
   }
 
   Future<void> _downloadAndInstallDesktop() async {
+    WakelockPlus.enable();
     setState(() {
       _isDownloading = true;
       _downloadProgress = 0.0;
@@ -533,6 +548,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
       await sink.close();
 
       if (mounted) {
+        WakelockPlus.disable();
         setState(() => _isDownloading = false);
 
         await showDialog(
@@ -614,6 +630,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
         }
       }
     } catch (e) {
+      WakelockPlus.disable();
       if (mounted) {
         setState(() => _isDownloading = false);
         ScaffoldMessenger.of(

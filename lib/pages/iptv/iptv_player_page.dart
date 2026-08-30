@@ -11,6 +11,7 @@ import '../../models/iptv/iptv_models.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/player/player_settings.dart';
 import '../../services/window/window_service.dart';
+import '../../services/discord/discord_rpc_service.dart';
 import '../../widgets/player/player_aspect_menu.dart';
 
 class IptvPlayerPage extends StatefulWidget {
@@ -149,6 +150,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
     }
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
     SystemChrome.setPreferredOrientations(DeviceOrientation.values);
+    DiscordRpcService.instance.clearToIdle();
     super.dispose();
   }
 
@@ -157,6 +159,10 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
   }
 
   Future<void> _initPlayer() async {
+    DiscordRpcService.instance.setWatchingLiveTv(
+      channelName: widget.channel.name,
+      logoUrl: widget.channel.iconUrl,
+    );
     if (widget.hits.isEmpty) {
       setState(() {
         _isLoading = false;

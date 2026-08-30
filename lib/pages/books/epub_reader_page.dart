@@ -8,6 +8,7 @@ import '../../services/books/continue_reading_service.dart';
 import '../../services/books/epub_parser_service.dart';
 import '../../services/books/reader_settings.dart';
 import '../../services/window/window_service.dart';
+import '../../services/discord/discord_rpc_service.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import 'widgets/comic_reader_view.dart';
 import 'widgets/epub_content_view.dart';
@@ -61,6 +62,7 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
     _scrollController.removeListener(_onScrollChanged);
     _scrollController.dispose();
     _readerFocusNode.dispose();
+    DiscordRpcService.instance.clearToIdle();
     super.dispose();
   }
 
@@ -73,6 +75,12 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
       _loading = true;
       _error = null;
     });
+
+    DiscordRpcService.instance.setReadingBook(
+      title: widget.book.title,
+      author: widget.book.author,
+      coverUrl: widget.book.coverUrl,
+    );
 
     try {
       final parsed = await EpubParserService.instance.parseBook(
@@ -88,6 +96,14 @@ class _EpubReaderPageState extends State<EpubReaderPage> {
           _currentChapterIndex = 0;
         }
       });
+
+      DiscordRpcService.instance.setReadingBook(
+        title: widget.book.title,
+        author: widget.book.author,
+        coverUrl: widget.book.coverUrl,
+        page: _currentChapterIndex + 1,
+        totalPages: parsed.totalChapters,
+      );
 
       if (widget.initialScrollOffset > 0) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
