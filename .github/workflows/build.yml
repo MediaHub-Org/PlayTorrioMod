@@ -36,6 +36,14 @@ on:
 permissions:
   contents: write
 
+# The pub cache steps below reference ${{ env.PUB_CACHE }}. It has to be set
+# here or it expands to an empty string, and the cache silently stores only
+# .dart_tool -- which is why `flutter pub get` re-downloaded the media_kit git
+# dependencies on every job of every run. Dart honours PUB_CACHE on all three
+# runner OSes, so one workflow-level value covers every job.
+env:
+  PUB_CACHE: ${{ github.workspace }}/.pub-cache
+
 # ═══════════════════════════════════════════════════════════════════════════════
 jobs:
 
@@ -147,9 +155,13 @@ jobs:
             PlayTorrio-Windows-Setup.exe
             PlayTorrio-Windows-x64-Portable.zip
 
-  # ─── Android Build (Split-per-ABI & Universal APKs) ────────────────────────
+  # ─── Android Build (Split-per-ABI APKs) ────────────────────────────────────
+  # The universal APK is built by the `android-universal` job below rather than
+  # here: two release builds in one job ran back to back for ~13 min, and since
+  # Android is the workflow's long pole that set the whole run's wall time.
+  # Two ubuntu jobs cost the same minutes but finish in half the time.
   android:
-    name: Android (Split & Universal APKs)
+    name: Android (Split-per-ABI APKs)
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -205,9 +217,6 @@ jobs:
       - name: Build Split-per-ABI APKs
         run: flutter build apk --release --split-per-abi --dart-define-from-file=.env
 
-      - name: Build Universal APK
-        run: flutter build apk --release --dart-define-from-file=.env
-
       - name: Organize Android APK Outputs
         run: |
           mkdir -p android_apks
@@ -222,15 +231,86 @@ jobs:
           if [ -f "$APK_DIR/app-x86_64-release.apk" ]; then
             cp "$APK_DIR/app-x86_64-release.apk" "android_apks/PlayTorrio-Android-x86_64.apk"
           fi
-          if [ -f "$APK_DIR/app-release.apk" ]; then
-            cp "$APK_DIR/app-release.apk" "android_apks/PlayTorrio-Android-Universal.apk"
-          fi
 
       - name: Upload Android Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: PlayTorrioMod-Android
           path: android_apks/*.apk
+          if-no-files-found: error
+
+  # ─── Android Universal APK ─────────────────────────────────────────────────
+  # Runs alongside the split-per-ABI job rather than after it; see that job's
+  # comment. Kept as a separate artifact so the release picks up both.
+  android-universal:
+    name: Android (Universal APK)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: 'stable'
+          cache: true
+
+      - name: Cache Flutter pub dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PUB_CACHE }}
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ hashFiles('pubspec.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Setup .env from GitHub Secrets
+        shell: bash
+        run: |
+          if [ -n "${{ secrets.ENV_FILE }}" ]; then
+            echo "${{ secrets.ENV_FILE }}" > .env
+          elif [ -n "${{ secrets.DOTENV }}" ]; then
+            echo "${{ secrets.DOTENV }}" > .env
+          else
+            touch .env
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Universal APK
+        run: flutter build apk --release --dart-define-from-file=.env
+
+      - name: Organize Universal APK
+        run: |
+          mkdir -p android_apks
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            android_apks/PlayTorrio-Android-Universal.apk
+
+      - name: Upload Android Universal Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PlayTorrioMod-Android-Universal
+          path: android_apks/*.apk
+          if-no-files-found: error
 
   # ─── Linux x64 Build (AppImage & Tar.gz) ──────────────────────────────────
   linux-x64:
@@ -537,7 +617,7 @@ jobs:
   # ─── Create / Publish GitHub Release ─────────────────────────────────────
   release:
     name: Publish GitHub Release
-    needs: [windows, android, linux-x64, macos-arm64, macos-intel, ios]
+    needs: [windows, android, android-universal, linux-x64, macos-arm64, macos-intel, ios]
     # Publishes for a pushed v* tag, or for a manual dispatch that named an
     # alpha tag. Still requires every platform to have built: a half-published
     # release is worse than none, and each job's artifacts remain downloadable
