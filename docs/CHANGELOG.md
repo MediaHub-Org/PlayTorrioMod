@@ -4,6 +4,13 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Desktop scroll arrows and row subtitles in the shared browse layout — 2026-08-30
+- **Horizontal rows on desktop could only be scrolled by dragging.** Anime's own slider had hover-revealed arrows; Movies/Series, on the shared `BrowseScaffold`, had none — the same content, two different affordances depending on which section you were in.
+- `BrowseScaffold` rows now carry their own `ScrollController` and fade in the existing shared `SliderArrow` on hover, on pointer devices only. The hero gained the same pair. Touch widths get neither: a swipe already works, and a permanent arrow just covers the artwork.
+- Each row is its own widget so one row scrolling does not rebuild the others.
+- `BrowseRow` gained an optional `subtitle`, which `SectionHeader` already rendered.
+- **This was the blocker on migrating Anime**, whose hero and rows have both features. Books was checked and ruled out instead: `BookResult` has no cover URL at all, so a hero and poster rows would be blank rectangles — the text-row list is right for cover-less metadata. Manga's grid is infinite-scrolling with a user-configurable card density, which fixed rows would remove. Both recorded in the roadmap so they are not re-proposed.
+
 ### Media session: playback in the Android shade and iOS lock screen — 2026-08-30
 - **Audio played with no system media session attached**: starting a track and pulling down the Android notification shade showed nothing, so the only way to pause was to return to the app — and with no foreground service, Android was free to kill the process the moment the app was backgrounded.
 - Added `MediaSessionService` (`lib/services/media_session/media_session_service.dart`), backed by `audio_service`, which publishes whatever `PlaybackCoordinator` has active to the notification shade, lock screen, Control Center, and Bluetooth/headset buttons — and reflects those buttons back as coordinator calls.

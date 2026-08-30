@@ -44,7 +44,7 @@ Once a build has actually been through this, clear `AppInfo.channel` and the
 
 | # | Task | Why it is still open |
 |---|---|---|
-| 5 | **Adopt `BrowseScaffold` in Anime, Books and Manga** | Movies/Series moved to the shared hero+rows layout; the other three still build their own arrangements (anime 1,171 lines, manga 795, books 583). Until they move, "one browse layout" is only three-quarters true. |
+| 5 | **Migrate Anime onto `BrowseScaffold`** | Anime has its own hero carousel and its own row widget that do the same job. `BrowseScaffold` gained row subtitles and desktop scroll arrows (2026-08-30) so the migration no longer costs anime any feature; what is left is the `ContinueWatchingSlider` slot between hero and rows, and the Arabic-mode branch, which doubles every row. Worth doing, but it is 600 lines of churn on a page that cannot be checked without running it. |
 | 6 | **35 files do ad-hoc `MediaQuery.sizeOf(context).width`** instead of `AppBreakpoints.of(context)` | 35 independent call sites, no shared risk, no user-visible bug. Migrate opportunistically when a file is touched for another reason, not as a batch pass. |
 | 7 | **`music_page.dart` is 5,220 lines** | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice. |
 | 8 | **GitHub Actions may be pinned to Node-20 majors** | Deliberately not bumped blind: verify the current major for each action against its own releases page first, then bump in one commit and watch a full six-platform dispatch. |
@@ -68,3 +68,5 @@ Once a build has actually been through this, clear `AppInfo.channel` and the
 - **Forcing all four playback controllers onto one `PlaybackCoordinator` contract.** Costs a real adapter per controller type to save two duplicated lines, with no current bug. Revisit if a fifth playback type forgets the sync.
 - **`interneto/tv-multiview`'s channel data.** No stated license, no direct-stream-URL field, ~88 mostly-minor channels. IPTV multi-view shipped as an original grid feature instead.
 - **Renaming the Kotlin source package** from `com.example.playtorrio`. It is a namespace, not an identifier anything outside the module sees.
+- **Putting Books on `BrowseScaffold`.** Checked 2026-08-30: `BookResult` carries no cover URL at all — libgen's list view does not expose one — so a hero and poster rows would render as blank rectangles. The current text-row list is the right layout for cover-less metadata. Reopen only if a cover source appears.
+- **Replacing Manga's grid with `BrowseScaffold`'s rows.** Manga's grid is infinite-scrolling and its card density is a user setting (`MangaSettings.cardDensity`, with a customizer sheet). Fixed-length rows would remove both. Manga could gain a hero *above* its grid, which is a separate and much smaller change.
