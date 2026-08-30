@@ -23,14 +23,34 @@ class HubController extends ChangeNotifier {
   HubController._internal();
 
   AppHub _currentHub = AppHub.media;
-  String _mediaSection = 'movies';
+  String _mediaSection = 'watch';
   String _booksSection = 'audiobooks';
   String _musicTab = 'Music';
+
+  // Each hub exposes exactly four sections, so two pairs that used to be
+  // separate sections are now one section with a sub-tab: Movies/Series and
+  // Comics/Manga. These hold which side of that pair is showing.
+  String _watchType = 'movie';    // 'movie' | 'series'
+  String _readableType = 'manga'; // 'manga' | 'comics'
 
   AppHub get currentHub => _currentHub;
   String get mediaSection => _mediaSection;
   String get booksSection => _booksSection;
   String get musicTab => _musicTab;
+  String get watchType => _watchType;
+  String get readableType => _readableType;
+
+  void setWatchType(String type) {
+    if (_watchType == type) return;
+    _watchType = type;
+    notifyListeners();
+  }
+
+  void setReadableType(String type) {
+    if (_readableType == type) return;
+    _readableType = type;
+    notifyListeners();
+  }
 
   void setHub(AppHub hub) {
     if (_currentHub == hub) return;
@@ -57,12 +77,15 @@ class HubController extends ChangeNotifier {
   }
 
   /// The sections available for the current hub.
+  ///
+  /// Every hub has exactly four, so the mobile bottom bar and the desktop chip
+  /// row have a fixed, evenly-divisible shape. Pairs that would make a fifth
+  /// (Movies/Series, Comics/Manga) are one section with a sub-tab instead.
   List<HubSection> get currentSections {
     switch (_currentHub) {
       case AppHub.media:
         return const [
-          HubSection(id: 'movies', label: 'Movies', icon: Icons.movie_rounded),
-          HubSection(id: 'series', label: 'Series', icon: Icons.live_tv_rounded),
+          HubSection(id: 'watch', label: 'Movies/Series', icon: Icons.movie_rounded),
           HubSection(id: 'anime', label: 'Anime', icon: Icons.animation_rounded),
           HubSection(id: 'iptv', label: 'Live TV', icon: Icons.live_tv_rounded),
           HubSection(id: 'collection', label: 'Library', icon: Icons.video_library_rounded),
@@ -71,15 +94,14 @@ class HubController extends ChangeNotifier {
         return const [
           HubSection(id: 'audiobooks', label: 'Audiobooks', icon: Icons.headphones_rounded),
           HubSection(id: 'books', label: 'Books', icon: Icons.import_contacts_rounded),
-          HubSection(id: 'comics', label: 'Comics', icon: Icons.menu_book_rounded),
-          HubSection(id: 'manga', label: 'Manga', icon: Icons.auto_stories_rounded),
+          HubSection(id: 'readables', label: 'Comics/Manga', icon: Icons.auto_stories_rounded),
           HubSection(id: 'collection', label: 'Library', icon: Icons.collections_bookmark_rounded),
         ];
       case AppHub.music:
         return const [
           HubSection(id: 'Music', label: 'Music', icon: Icons.music_note_rounded),
-          HubSection(id: 'Radio', label: 'Radio', icon: Icons.radio_rounded),
           HubSection(id: 'Podcasts', label: 'Podcasts', icon: Icons.podcasts_rounded),
+          HubSection(id: 'Radio', label: 'Radio', icon: Icons.radio_rounded),
           HubSection(id: 'Library', label: 'Library', icon: Icons.library_music_rounded),
         ];
     }
