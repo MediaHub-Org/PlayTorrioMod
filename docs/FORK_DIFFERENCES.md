@@ -1,6 +1,6 @@
 # Fork Differences — vs `ayman708-UX/PlayTorrioV3`
 
-What this fork (`David7ce/PlayTorrioV3`) does differently from the original
+What this fork (`MediaHub-Org/PlayTorrioMod`) does differently from the original
 upstream repo, as of the last sync (`upstream/main` @ `7899af6`, merged into
 this fork's `pr/navigation-cleanup` @ `207a779`).
 
