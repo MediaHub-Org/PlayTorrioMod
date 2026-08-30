@@ -13,6 +13,17 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 - Android: `MainActivity` now extends `AudioServiceActivity` so tapping the notification returns to the running app rather than starting a second copy; manifest gained the `AudioService` service, the `MediaButtonReceiver`, and `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (required from Android 14). iOS already declared the `audio` background mode.
 - Initialisation failure is non-fatal — a missing session costs the notification controls, not startup.
 
+### Delete 3,769 lines of unreachable code — 2026-08-30
+- Twelve files in `lib/` were imported by nothing. Each had been superseded and left behind rather than removed, so anyone reading the tree had to work out which of two implementations was live:
+  - `services/books/epub_parser_service.dart` (1,246 lines) — `pages/read/book_reader_page.dart` parses EPUB inline with `archive` + `xml`; this parallel parser was never wired to it.
+  - `pages/downloads/downloads_page.dart` (652) — the Library's own Downloads tab (`collection_page.dart`) replaced it. `utils/platform/open_file_location_helper.dart` was orphaned with it.
+  - `widgets/anime/anime_hero_spotlight.dart` (393) — superseded by `BrowseScaffold`'s shared hero.
+  - `widgets/player/player_sub_style_bar.dart` (158) — superseded by `player_sub_style_modal.dart`, which the player and settings both use.
+  - `services/trakt/trakt_list_source.dart` (329), `services/trakt/trakt_episode_model.dart` (117), `services/simkl/simkl_list_source.dart` (285), `services/simkl/simkl_menu_helpers.dart` (321) — the live Trakt/Simkl paths go through `TraktService`/`SimklService`.
+  - `services/books/bookracy_service.dart` (135), `services/anime/anime_stream_service.dart` (35), `models/debrid/debrid_account.dart` (54).
+- Dropped `photo_view` (arrived with the upstream engine merge, imported nowhere) and demoted `video_player_platform_interface` to the transitive dependency it already was. `pubspec.lock` shows no other version movement.
+- `media_kit_libs_video` and `media_kit_libs_windows_video` stay declared despite never being imported — they exist to pull native assets in, not to be used from Dart.
+
 ### One bundle identifier and one product name across all five platforms — 2026-08-30
 - **iOS, macOS and Linux still identified the app as `com.example.playtorrio`** — the `flutter create` placeholder — while Android had already moved to `com.mediahub.playtorriomod`. `com.example.*` is reserved for samples, App Store submission rejects it, and it collided with upstream's own builds.
 - All five now use `com.mediahub.playtorriomod`.
