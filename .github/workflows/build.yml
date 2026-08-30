@@ -135,25 +135,25 @@ jobs:
             throw "Inno Setup compilation failed with exit code $LASTEXITCODE"
           }
 
-          if (Test-Path "installer\windows\Output\PlayTorrio-Windows-Setup.exe") {
-            Copy-Item "installer\windows\Output\PlayTorrio-Windows-Setup.exe" ".\PlayTorrio-Windows-Setup.exe" -Force
-            Write-Host "Verified and copied PlayTorrio-Windows-Setup.exe to root."
+          if (Test-Path "installer\windows\Output\PlayTorrioMod-Windows-Setup.exe") {
+            Copy-Item "installer\windows\Output\PlayTorrioMod-Windows-Setup.exe" ".\PlayTorrioMod-Windows-Setup.exe" -Force
+            Write-Host "Verified and copied PlayTorrioMod-Windows-Setup.exe to root."
           } else {
-            throw "PlayTorrio-Windows-Setup.exe was not found in Output directory after ISCC compile!"
+            throw "PlayTorrioMod-Windows-Setup.exe was not found in Output directory after ISCC compile!"
           }
 
       - name: Package Portable ZIP
         shell: pwsh
         run: |
-          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "PlayTorrio-Windows-x64-Portable.zip" -Force
+          Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "PlayTorrioMod-Windows-x64-Portable.zip" -Force
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: PlayTorrioMod-Windows
           path: |
-            PlayTorrio-Windows-Setup.exe
-            PlayTorrio-Windows-x64-Portable.zip
+            PlayTorrioMod-Windows-Setup.exe
+            PlayTorrioMod-Windows-x64-Portable.zip
 
   # ─── Android Build (Split-per-ABI APKs) ────────────────────────────────────
   # The universal APK is built by the `android-universal` job below rather than
@@ -223,13 +223,13 @@ jobs:
           APK_DIR="build/app/outputs/flutter-apk"
 
           if [ -f "$APK_DIR/app-arm64-v8a-release.apk" ]; then
-            cp "$APK_DIR/app-arm64-v8a-release.apk" "android_apks/PlayTorrio-Android-arm64-v8a.apk"
+            cp "$APK_DIR/app-arm64-v8a-release.apk" "android_apks/PlayTorrioMod-Android-arm64-v8a.apk"
           fi
           if [ -f "$APK_DIR/app-armeabi-v7a-release.apk" ]; then
-            cp "$APK_DIR/app-armeabi-v7a-release.apk" "android_apks/PlayTorrio-Android-armeabi-v7a.apk"
+            cp "$APK_DIR/app-armeabi-v7a-release.apk" "android_apks/PlayTorrioMod-Android-armeabi-v7a.apk"
           fi
           if [ -f "$APK_DIR/app-x86_64-release.apk" ]; then
-            cp "$APK_DIR/app-x86_64-release.apk" "android_apks/PlayTorrio-Android-x86_64.apk"
+            cp "$APK_DIR/app-x86_64-release.apk" "android_apks/PlayTorrioMod-Android-x86_64.apk"
           fi
 
       - name: Upload Android Artifacts
@@ -303,7 +303,7 @@ jobs:
         run: |
           mkdir -p android_apks
           cp build/app/outputs/flutter-apk/app-release.apk \
-            android_apks/PlayTorrio-Android-Universal.apk
+            android_apks/PlayTorrioMod-Android-Universal.apk
 
       - name: Upload Android Universal Artifact
         uses: actions/upload-artifact@v4
@@ -376,23 +376,23 @@ jobs:
             -o appimagetool
           chmod +x appimagetool
 
-          APP=PlayTorrio.AppDir
+          APP=PlayTorrioMod.AppDir
           mkdir -p "$APP"
           cp -r build/linux/x64/release/bundle/* "$APP/"
 
           if [ -f "assets/icon.png" ]; then
-            cp assets/icon.png "$APP/PlayTorrio.png"
+            cp assets/icon.png "$APP/PlayTorrioMod.png"
           elif [ -f "icon.png" ]; then
-            cp icon.png "$APP/PlayTorrio.png"
+            cp icon.png "$APP/PlayTorrioMod.png"
           else
-            touch "$APP/PlayTorrio.png"
+            touch "$APP/PlayTorrioMod.png"
           fi
 
-          cat <<EOF > "$APP/PlayTorrio.desktop"
+          cat <<EOF > "$APP/PlayTorrioMod.desktop"
           [Desktop Entry]
-          Name=PlayTorrio
+          Name=PlayTorrioMod
           Exec=AppRun
-          Icon=PlayTorrio
+          Icon=PlayTorrioMod
           Type=Application
           Categories=AudioVideo;Audio;Video;Player;
           EOF
@@ -400,16 +400,16 @@ jobs:
           printf '#!/bin/sh\ncd "$(dirname "$0")"\nexec ./playtorrio "$@"\n' > "$APP/AppRun"
           chmod +x "$APP/AppRun"
 
-          ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$APP" PlayTorrio-Linux-x86_64.AppImage
-          tar -czvf PlayTorrio-Linux-x86_64.tar.gz -C build/linux/x64/release/bundle .
+          ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$APP" PlayTorrioMod-Linux-x86_64.AppImage
+          tar -czvf PlayTorrioMod-Linux-x86_64.tar.gz -C build/linux/x64/release/bundle .
 
       - name: Upload Linux Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: PlayTorrioMod-Linux-x64
           path: |
-            PlayTorrio-Linux-x86_64.AppImage
-            PlayTorrio-Linux-x86_64.tar.gz
+            PlayTorrioMod-Linux-x86_64.AppImage
+            PlayTorrioMod-Linux-x86_64.tar.gz
 
   # ─── macOS ARM64 Build (Apple Silicon) ───────────────────────────────────
   macos-arm64:
@@ -462,29 +462,29 @@ jobs:
       - name: Package as DMG & ZIP
         run: |
           cd build/macos/Build/Products/Release
-          mv playtorrio.app PlayTorrio.app
+          mv playtorrio.app PlayTorrioMod.app
 
-          codesign --sign - --force --deep PlayTorrio.app
+          codesign --sign - --force --deep PlayTorrioMod.app
 
           mkdir -p dmg_temp
-          cp -R PlayTorrio.app dmg_temp/
+          cp -R PlayTorrioMod.app dmg_temp/
           ln -s /Applications dmg_temp/Applications
 
           sync
           sleep 2
 
           for i in {1..3}; do
-            hdiutil create -volname "PlayTorrio" -srcfolder dmg_temp -ov -format UDZO ../../../../../PlayTorrio-macOS-arm64.dmg && break || sleep 3
+            hdiutil create -volname "PlayTorrioMod" -srcfolder dmg_temp -ov -format UDZO ../../../../../PlayTorrioMod-macOS-arm64.dmg && break || sleep 3
           done
-          zip -ry ../../../../../PlayTorrio-macOS-arm64.zip PlayTorrio.app
+          zip -ry ../../../../../PlayTorrioMod-macOS-arm64.zip PlayTorrioMod.app
 
       - name: Upload macOS ARM64 Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: PlayTorrioMod-macOS-arm64
           path: |
-            PlayTorrio-macOS-arm64.dmg
-            PlayTorrio-macOS-arm64.zip
+            PlayTorrioMod-macOS-arm64.dmg
+            PlayTorrioMod-macOS-arm64.zip
 
   # ─── macOS Intel Build (x86_64) ──────────────────────────────────────────
   macos-intel:
@@ -535,29 +535,29 @@ jobs:
       - name: Package as DMG & ZIP
         run: |
           cd build/macos/Build/Products/Release
-          mv playtorrio.app PlayTorrio.app
+          mv playtorrio.app PlayTorrioMod.app
 
-          codesign --sign - --force --deep PlayTorrio.app
+          codesign --sign - --force --deep PlayTorrioMod.app
 
           mkdir -p dmg_temp
-          cp -R PlayTorrio.app dmg_temp/
+          cp -R PlayTorrioMod.app dmg_temp/
           ln -s /Applications dmg_temp/Applications
 
           sync
           sleep 2
 
           for i in {1..3}; do
-            hdiutil create -volname "PlayTorrio" -srcfolder dmg_temp -ov -format UDZO ../../../../../PlayTorrio-macOS-intel.dmg && break || sleep 3
+            hdiutil create -volname "PlayTorrioMod" -srcfolder dmg_temp -ov -format UDZO ../../../../../PlayTorrioMod-macOS-intel.dmg && break || sleep 3
           done
-          zip -ry ../../../../../PlayTorrio-macOS-intel.zip PlayTorrio.app
+          zip -ry ../../../../../PlayTorrioMod-macOS-intel.zip PlayTorrioMod.app
 
       - name: Upload macOS Intel Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: PlayTorrioMod-macOS-intel
           path: |
-            PlayTorrio-macOS-intel.dmg
-            PlayTorrio-macOS-intel.zip
+            PlayTorrioMod-macOS-intel.dmg
+            PlayTorrioMod-macOS-intel.zip
 
   # ─── iOS Build (Sideloadable IPA — no-codesign) ───────────────────────────
   ios:
@@ -606,13 +606,13 @@ jobs:
           cd build/ios/iphoneos
           mkdir -p Payload
           cp -R Runner.app Payload/
-          zip -ry ../../../PlayTorrio-iOS.ipa Payload
+          zip -ry ../../../PlayTorrioMod-iOS.ipa Payload
 
       - name: Upload iOS Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: PlayTorrioMod-iOS
-          path: PlayTorrio-iOS.ipa
+          path: PlayTorrioMod-iOS.ipa
 
   # ─── Create / Publish GitHub Release ─────────────────────────────────────
   release:
@@ -656,7 +656,7 @@ jobs:
           # On a dispatch the tag comes from the input and is created at the
           # dispatched ref; on a tag push it is the pushed tag.
           tag_name: ${{ github.event.inputs.alpha_tag || github.ref_name }}
-          name: "PlayTorrio ${{ github.event.inputs.alpha_tag || github.ref_name }}"
+          name: "PlayTorrioMod ${{ github.event.inputs.alpha_tag || github.ref_name }}"
           draft: false
           # Alpha dispatches are always prereleases, as is any tag carrying a
           # semver prerelease suffix (v1.2.0-rc.1). Plain v1.2.0 ships as full.

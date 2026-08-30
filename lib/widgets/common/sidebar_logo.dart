@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../app_info.dart';
 
 /// The PlayTorrio logo shown at the top of each hub's sidebar.
 ///
@@ -21,7 +22,7 @@ class SidebarLogo extends StatelessWidget {
         if (isDesktop) ...[
           const SizedBox(width: 10),
           const Text(
-            'PlayTorrio',
+            AppInfo.name,
             style: TextStyle(
               color: Colors.white,
               fontWeight: FontWeight.w900,

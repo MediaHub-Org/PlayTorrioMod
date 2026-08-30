@@ -14,6 +14,7 @@ import '../settings/settings_page.dart';
 import 'media_hub.dart';
 import 'books_hub.dart';
 import 'music_hub.dart';
+import '../../app_info.dart';
 
 /// HubPage: the top-level container hosting all primary app hubs
 /// (Media, Books, Music) in an IndexedStack. Each hub owns its own sidebar
@@ -193,7 +194,7 @@ class _HubPageState extends State<HubPage> {
                 ),
                 const SizedBox(height: 32),
                 Text(
-                  'PlayTorrio',
+                  AppInfo.name,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: titleSize,
@@ -204,7 +205,7 @@ class _HubPageState extends State<HubPage> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Your Cinema Universe',
+                  AppInfo.tagline,
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: subtitleSize,
