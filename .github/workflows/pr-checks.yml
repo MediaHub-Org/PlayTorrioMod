@@ -23,6 +23,11 @@ concurrency:
 permissions:
   contents: read
 
+# Must be set, or ${{ env.PUB_CACHE }} in the cache step below expands to an
+# empty string and only .dart_tool gets cached. See build.yml.
+env:
+  PUB_CACHE: ${{ github.workspace }}/.pub-cache
+
 jobs:
   verify:
     name: Analyze, Test & Android Build
