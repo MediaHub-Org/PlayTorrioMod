@@ -95,6 +95,11 @@ to build every platform and upload artifacts only.
 Tags matching `v*` publish a full release; a tag carrying a semver prerelease
 suffix (`v1.2.0-rc.1`) publishes as a prerelease.
 
+Android release signing needs two repository secrets, and is what lets the
+in-app updater replace an existing install — see
+[release signing](docs/configuration.md#release-signing). Without them builds
+still succeed, signed with a throwaway debug key.
+
 ## Credits
 
 PlayTorrioMod is a fork of [PlayTorrioV3](https://github.com/ayman708-UX/PlayTorrioV3)
