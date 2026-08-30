@@ -1,84 +1,70 @@
 # Project Roadmap — PlayTorrioMod
 
-This document lists the **outstanding** work for PlayTorrioMod. Completed work,
-shipped features, and resolved cleanup are consolidated into `CHANGELOG.md` —
-this file only stays about what's left.
+What is **outstanding**. Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md);
+this file stays about what is left.
 
-## Navigation principle (2026-08-27)
+Last reconciled against the tree: **2026-08-30** (v1.1.3+11, dev channel).
 
-Three top-level hubs stay the core navigation: **Watch, Read, Listen**. Content
-within each hub is organized into subcategories (Movies/Series/Anime under
-Watch; Manga/Comics/Books/Audiobooks under Read; Music/Radio/Podcasts under
-Listen) — not merged into one undifferentiated catalog or list. Filters and
-features are designed around demonstrated user intent, not an exhaustive list
-of content types built out speculatively up front. Search, filters, favorites,
-and the playback experience stay consistent across every section — that
-cross-cutting consistency is what "unified" means here, not the content itself.
-Any future item proposing to merge, flatten, or collapse distinct content-type
-subcategories should be checked against this principle first.
+## Navigation principle
 
-## Known issues
+Three top-level hubs are the core navigation: **Watch**, **Listen**, **Read**.
+Each has exactly four sections, the fourth always being Library:
 
-**Implemented, awaiting manual confirmation — media_kit/libmpv engine swap**
-(see CHANGELOG, 2026-08-28 merge). Upstream fully replaced fvp/mdk with
-media_kit+libmpv; merge conflicts resolved, `flutter analyze`/`flutter test`
-pass, and automated launch/close cycles against the built Windows exe are
-clean. What's *not* yet confirmed: actual playback correctness on a live
-device — torrent streaming, live IPTV, subtitle rendering (libass toggle),
-decoder presets, and the volume-boost gesture all changed under the hood and
-need a real hands-on pass across movie/series/anime/IPTV/music/audiobook
-before trusting this in production.
+| Hub | Sections |
+|:--|:--|
+| Watch | Movies/Series · Anime · Live TV · Library |
+| Listen | Music · Podcasts · Radio · Library |
+| Read | Audiobooks · Books · Comics/Manga · Library |
 
-**Implemented, awaiting manual confirmation — `ContinueWatchingService`/
-`PlaybackHistoryService` merge** (see CHANGELOG). Investigated first (three
-real behavioral differences found, not simple duplication), then merged with
-the user's go-ahead: `ContinueWatchingService` now carries a second
-`historyItems` log (per-episode, never purged) alongside the existing
-per-show `activeItems`, and `PlaybackHistoryService` is deleted entirely.
-Also fixed a real latent bug found while merging — every
-`addPostFrameCallback` write in that file needed an explicit `scheduleFrame()`
-it wasn't getting, caught by the new `continue_watching_service_test.dart`.
-`flutter analyze`/`flutter test` pass, but resume across movie/series/anime/
-torrent paths on a live device hasn't been confirmed yet.
+Phones show hubs as icon pills in the header and sections in the bottom bar;
+tablet and desktop show sections as a chip row instead. Search, filters,
+favourites and playback stay consistent across every section — that
+cross-cutting consistency is what "unified" means here, not the content.
 
-## Upcoming (priority order)
+Any proposal to merge, flatten or collapse distinct content-type sections, or
+to make one hub have a different number of sections than the others, should be
+checked against this first.
 
-Testing-confirmed, concrete items first; speculative and data-blocked items
-pushed toward the end. A favorites/progress-consistency audit across all three
-hubs (2026-08-27) found the same class of bug in Anime and the Read hub, plus
-missing favorites in Books and Podcasts — all shipped same day, see CHANGELOG.
-Everything below is what's left after that audit.
+## Blocked on a device
 
-| # | Task | Notes |
+Nothing in this group can be closed from CI. Every item is implemented and
+passing `flutter analyze` + the test suite; none has been run on hardware.
+
+| # | Area | What specifically needs checking |
 |---|---|---|
-| 1 | **QA pass on all 5 platforms** (mobile, tablet, desktop, TV) | Verify no regressions; TV needs a dedicated D-pad/remote-input pass. Most of this work has only been verified on Windows desktop — blocks real confidence in everything else here. |
-| 2 | **Cast & direction with images — Audiobooks** | Movies/Series, Anime, and now Manga (see CHANGELOG, 2026-08-29) all have cast/staff photos. Audiobooks stays **blocked**: unlike Manga (fuzzy-matched against AniList by title), there's no equivalent photo source for audiobook narrators/authors at all — AniList doesn't catalog audiobook narrators, and AudiobookBay's own listing HTML (checked 2026-08-29, same technique as the genre-filter feature) has no narrator field beyond the free-text title. Would need a dedicated narrator-photo database, which doesn't appear to exist as a free/public API. |
-| 3 | **Read hub: Comics data source** | **Two new leads checked 2026-08-29, both real, neither fully unblocked yet**: (a) `newcomic.info` (DataLife Engine CMS) is live and browsable by category — but every sample checked (5/5) routes its actual `.cbr` download through `florenfile.com`, which sits behind Cloudflare's managed JS challenge ("Just a moment...", confirmed via curl) — not scrapeable server-side without a real browser engine, which this app doesn't (and shouldn't) bundle. This path is dead for the download-then-extract model, same class of problem as the two earlier-dead scrape targets. (b) `readcomicsonline.lol` looks structurally much better — a modern Next.js site serving comic art directly from its own CDN (`cdn.readcomicsonline.lol/covers/<slug>/<n>.webp`, no third-party file host, no archive extraction needed at all, same shape as Manga's direct-image-URL model). But its actual per-page reading data loads client-side after JS execution — the raw HTML has no chapter list or page-image URLs, and a quick check of its JS bundles didn't surface the underlying API endpoint either. Confirming this lead needs either reverse-engineering its minified JS further or live browser inspection (devtools network tab) — real next step, but needs a human with a browser open, not blind guessing. `ComicsPage` stays a placeholder. |
+| 1 | **Media session** (shipped 2026-08-30) | Track title/artist/art in the Android shade; play/pause/skip/stop; audio surviving backgrounding; whether tapping the notification returns to the running app rather than restarting it. iOS lock screen and Control Center likewise. |
+| 2 | **media_kit/libmpv playback** | The engine swap (2026-08-28) changed torrent streaming, live IPTV, subtitle rendering, decoder presets and the volume-boost gesture. Needs a hands-on pass across movie / series / anime / IPTV / music / audiobook. The `mediacodec-copy` fix for the Android black screen (2026-08-29) is part of this. |
+| 3 | **Resume across sources** | `ContinueWatchingService` absorbed `PlaybackHistoryService`. Resume across movie / series / anime / torrent paths is unconfirmed on a device. |
+| 4 | **QA on all five platforms** | Mobile, tablet, desktop, TV. TV needs its own D-pad/remote-input pass. Most work to date has only been exercised on Windows desktop and in CI. |
 
-> **Declined/dropped ideas** (kept short so they don't get re-litigated): mobile
-> hub switching via a drawer — `TopBar`+`SectionTopBar` already cover every width
-> including mobile, a drawer would duplicate that. IPTV multi-view shipped as an
-> original grid feature (see CHANGELOG), not a port of `interneto/tv-multiview`
-> (pure JS/PWA, not a Flutter dependency). That project's channel data (96
-> channels, no stated license, no direct-stream-URL field on `HardcodedChannel`)
-> was evaluated and declined — not proportionate to what ~88 mostly-minor
-> channels would add. Unified hub + submenu navigation component — no concrete
-> problem exists (`TopBar`/`SectionTopBar` already read as one stacked unit, no
-> report has flagged confusion); only real trigger to reopen is mobile's 88px of
-> stacked-bar chrome becoming an actual complaint.
+Once a build has actually been through this, clear `AppInfo.channel` and the
+`(dev)` marker disappears from the app and from release titles.
 
-## Architecture: consistency, SOLID, modularity
+## Code and consistency
 
-- **Playback progress/state syncing to `PlaybackCoordinator`**: Music/audiobook
-  drive it from their own custom controllers; video/IPTV share a duplicated
-  2-line fragment. Forcing all four into one contract costs a real adapter per
-  controller type to save two lines, with no current bug. Left as-is; revisit
-  if a fifth playback type actually forgets the sync.
-- **52 files still do ad-hoc `MediaQuery.sizeOf(context).width` checks** instead
-  of `AppBreakpoints.of(context)` (`TopBar`/`SectionTopBar`'s own token
-  migration is done, see CHANGELOG). Not worth a dedicated batch pass — 52
-  independent call sites, no shared risk, no user-visible bug. Migrate
-  opportunistically whenever a file is next touched for another reason.
+| # | Task | Why it is still open |
+|---|---|---|
+| 5 | **Adopt `BrowseScaffold` in Anime, Books and Manga** | Movies/Series moved to the shared hero+rows layout; the other three still build their own arrangements (anime 1,171 lines, manga 795, books 583). Until they move, "one browse layout" is only three-quarters true. |
+| 6 | **35 files do ad-hoc `MediaQuery.sizeOf(context).width`** instead of `AppBreakpoints.of(context)` | 35 independent call sites, no shared risk, no user-visible bug. Migrate opportunistically when a file is touched for another reason, not as a batch pass. |
+| 7 | **`music_page.dart` is 5,220 lines** | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice. |
+| 8 | **GitHub Actions may be pinned to Node-20 majors** | Deliberately not bumped blind: verify the current major for each action against its own releases page first, then bump in one commit and watch a full six-platform dispatch. |
 
-> Completed items are in the CHANGELOG — pull latest `upstream/main` and confirm
-> the working tree is clean before any commit.
+## Content sources
+
+| # | Task | State |
+|---|---|---|
+| 9 | **Comics data source** | `ComicsPage` is an honest empty state, not a placeholder pretending to load. Two leads checked 2026-08-29: `newcomic.info` routes every `.cbr` through `florenfile.com` behind Cloudflare's JS challenge — dead for a server-side fetch. `readcomicsonline.lol` looks structurally right (own CDN, direct `.webp` per page, no archive extraction, same shape as Manga) but its chapter/page data loads client-side and the underlying endpoint did not surface from its JS bundles. Confirming it needs live devtools inspection by a human, not blind guessing. |
+| 10 | **Cast photos for Audiobooks** | Movies/Series, Anime and Manga all have them. Audiobooks stays blocked: AniList does not catalog narrators, and AudiobookBay's listing HTML has no narrator field beyond free text. Would need a narrator-photo database that does not appear to exist publicly. |
+
+## Signing and releases
+
+- **Android release signing needs two repository secrets** — `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD`. Until they exist, every build is signed with a throwaway debug key, which means each new APK refuses to install over the last one and the in-app updater cannot work. See [release signing](configuration.md#release-signing). The keystore must be generated locally: it is a long-lived credential and should not pass through a chat transcript or CI logs.
+- **No other platform needs signing for updates**, because none of them self-install. See the table in `configuration.md`.
+
+## Declined, so they do not get re-litigated
+
+- **A drawer for mobile hub switching.** Hub pills in the header plus the bottom section bar already cover every width. A drawer would be a third copy of the same control.
+- **A unified hub+submenu component.** The header and section bars already read as one stacked unit. The only trigger to reopen is mobile's stacked chrome becoming an actual complaint.
+- **Forcing all four playback controllers onto one `PlaybackCoordinator` contract.** Costs a real adapter per controller type to save two duplicated lines, with no current bug. Revisit if a fifth playback type forgets the sync.
+- **`interneto/tv-multiview`'s channel data.** No stated license, no direct-stream-URL field, ~88 mostly-minor channels. IPTV multi-view shipped as an original grid feature instead.
+- **Renaming the Kotlin source package** from `com.example.playtorrio`. It is a namespace, not an identifier anything outside the module sees.
