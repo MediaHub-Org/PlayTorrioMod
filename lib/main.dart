@@ -21,6 +21,7 @@ import './services/audiobook/audiobook_settings.dart';
 import './services/iptv/iptv_controller.dart';
 import './services/iptv/iptv_settings.dart';
 import './services/manga/manga_settings.dart';
+import './services/media_session/media_session_service.dart';
 import './services/music/music_download_service.dart';
 import './services/music/music_settings.dart';
 import './services/music/qobuz_music_service.dart';
@@ -70,6 +71,11 @@ void main() async {
     P2pSettingsService.initialize(),
     DownloadService.instance.initialize(),
     TorrentStreamService().start(),
+    // Publishes the active source to the Android/iOS media session. Awaited
+    // with the rest so the session exists before anything can start playing,
+    // but it never throws -- a missing session costs the notification
+    // controls, not startup.
+    MediaSessionService.init(),
   ]);
   runApp(const PlayTorrioApp());
 }

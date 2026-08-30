@@ -10,6 +10,7 @@ import '../../services/continue_watching/continue_watching_service.dart';
 import '../../services/download/download_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../utils/navigation/route_transitions.dart';
+import '../../widgets/common/library_sections.dart';
 import '../../widgets/common/library_tabs.dart';
 import '../details/details_page.dart';
 
@@ -32,6 +33,12 @@ class _CollectionPageState extends State<CollectionPage> {
   String _sortBy = 'recent'; // 'recent', 'title', 'year'
   String _searchQuery = '';
 
+  /// Narrows Saved to items flagged as "watch later". This used to be its own
+  /// tab, but a watchlist item is just a My List item with `isWatchlist` set,
+  /// so it belongs beside the type chips rather than duplicating the whole
+  /// grid, its filter bar and its empty state one tab over.
+  bool _watchlistOnly = false;
+
   @override
   void initState() {
     super.initState();
@@ -46,6 +53,7 @@ class _CollectionPageState extends State<CollectionPage> {
 
   List<MyListItem> _getFilteredAndSortedItems(List<MyListItem> allItems) {
     var filtered = allItems.where((item) {
+      if (_watchlistOnly && !item.isWatchlist) return false;
       if (_filterType == 'movie' && item.type != 'movie') return false;
       if (_filterType == 'series' && item.type != 'series' && item.type != 'anime') return false;
       if (_filterType == 'anime' && item.type != 'anime') return false;
@@ -146,31 +154,22 @@ class _CollectionPageState extends State<CollectionPage> {
       titleIcon: Icons.video_library_rounded,
       initialIndex: widget.initialTabIndex,
       tabs: [
-        LibraryTab(
-          label: 'My List',
-          icon: Icons.favorite_rounded,
-          builder: (context) => _buildMyListTab(),
-        ),
-        LibraryTab(
-          label: 'Watchlist',
-          icon: Icons.bookmark_rounded,
-          builder: (context) => _buildWatchlistTab(),
-        ),
-        LibraryTab(
-          label: 'History',
-          icon: Icons.history_rounded,
-          builder: (context) => _buildHistoryTab(),
-        ),
-        LibraryTab(
-          label: 'Downloads',
-          icon: Icons.download_rounded,
-          builder: (context) => _buildDownloadsTab(),
-        ),
+        for (final section in LibrarySection.values)
+          LibraryTab(
+            label: section.label,
+            icon: section.icon,
+            builder: (context) => switch (section) {
+              LibrarySection.saved => _buildSavedTab(),
+              LibrarySection.inProgress => _buildInProgressTab(),
+              LibrarySection.history => _buildHistoryTab(),
+              LibrarySection.downloads => _buildDownloadsTab(),
+            },
+          ),
       ],
     );
   }
 
-  Widget _buildMyListTab() {
+  Widget _buildSavedTab() {
     return ValueListenableBuilder<List<MyListItem>>(
       valueListenable: MyListService.items,
       builder: (context, allItems, _) {
@@ -182,13 +181,19 @@ class _CollectionPageState extends State<CollectionPage> {
             Expanded(
               child: items.isEmpty
                   ? LibraryEmptyState(
-                      icon: Icons.video_library_rounded,
+                      icon: _watchlistOnly
+                          ? Icons.bookmark_border_rounded
+                          : Icons.video_library_rounded,
                       title: allItems.isEmpty
-                          ? 'Your list is empty'
-                          : 'No matching items',
+                          ? 'Nothing saved yet'
+                          : (_watchlistOnly
+                              ? 'Nothing on your watchlist'
+                              : 'No matching items'),
                       subtitle: allItems.isEmpty
                           ? 'Add movies, series or anime to access them quickly.'
-                          : 'Try adjusting your search or filters.',
+                          : (_watchlistOnly
+                              ? 'Bookmark something to watch later and it lands here.'
+                              : 'Try adjusting your search or filters.'),
                     )
                   : _buildGrid(items),
             ),
@@ -198,31 +203,21 @@ class _CollectionPageState extends State<CollectionPage> {
     );
   }
 
-  Widget _buildWatchlistTab() {
-    return ValueListenableBuilder<List<MyListItem>>(
-      valueListenable: MyListService.items,
-      builder: (context, allItems, _) {
-        final watchlist = allItems.where((i) => i.isWatchlist).toList();
-        final items = _getFilteredAndSortedItems(watchlist);
-
-        return Column(
-          children: [
-            _buildFilterAndSearchBar(watchlist.length),
-            Expanded(
-              child: items.isEmpty
-                  ? LibraryEmptyState(
-                      icon: Icons.bookmark_border_rounded,
-                      title: watchlist.isEmpty
-                          ? 'Watchlist is empty'
-                          : 'No matching items',
-                      subtitle: watchlist.isEmpty
-                          ? 'Save movies or series to watch later.'
-                          : 'Try adjusting your search or filters.',
-                    )
-                  : _buildGrid(items),
-            ),
-          ],
-        );
+  /// Partway through and resumable. Reads `activeItems`, which the service
+  /// purges once something is finished -- unlike History below, which keeps
+  /// the full log.
+  Widget _buildInProgressTab() {
+    return ValueListenableBuilder<List<ContinueWatchingItem>>(
+      valueListenable: ContinueWatchingService.activeItems,
+      builder: (context, items, _) {
+        if (items.isEmpty) {
+          return const LibraryEmptyState(
+            icon: Icons.play_circle_outline_rounded,
+            title: 'Nothing in progress',
+            subtitle: 'Start a movie or episode and it will wait for you here.',
+          );
+        }
+        return _progressList(items, onRemove: null);
       },
     );
   }
@@ -232,99 +227,120 @@ class _CollectionPageState extends State<CollectionPage> {
       valueListenable: ContinueWatchingService.historyItems,
       builder: (context, historyItems, _) {
         if (historyItems.isEmpty) {
-          return LibraryEmptyState(
+          return const LibraryEmptyState(
             icon: Icons.history_rounded,
-            title: 'No Playback History',
-            subtitle: 'Movies and episodes you watch will appear here so you can continue where you left off.',
+            title: 'No playback history',
+            subtitle: 'Everything you watch is logged here, finished or not.',
           );
         }
-
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          itemCount: historyItems.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final item = historyItems[index];
-            final progressPercent = (item.progressPercent * 100).toInt();
-
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF12151E),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: item.posterUrl != null
-                        ? CachedNetworkImage(
-                            imageUrl: item.posterUrl!,
-                            width: 50,
-                            height: 75,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => Container(
-                              width: 50,
-                              height: 75,
-                              color: Colors.white10,
-                              child: const Icon(Icons.movie_rounded, color: Colors.white30),
-                            ),
-                          )
-                        : Container(
-                            width: 50,
-                            height: 75,
-                            color: Colors.white10,
-                            child: const Icon(Icons.movie_rounded, color: Colors.white30),
-                          ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (item.episodeTitle != null) ...[
-                          const SizedBox(height: 2),
-                          Text(
-                            'S${item.season ?? 1} E${item.episode ?? 1} • ${item.episodeTitle!}',
-                            style: const TextStyle(color: Colors.white54, fontSize: 12),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: item.progressPercent,
-                          backgroundColor: Colors.white10,
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '$progressPercent% completed',
-                          style: const TextStyle(color: Colors.white38, fontSize: 11),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
-                    onPressed: () => ContinueWatchingService.removeHistoryItem(item),
-                  ),
-                ],
-              ),
-            );
-          },
+        return _progressList(
+          historyItems,
+          onRemove: ContinueWatchingService.removeHistoryItem,
         );
       },
     );
   }
+
+  /// The row list shared by Continue and History. They differ only in which
+  /// store they read and whether a row can be dismissed, so drawing them from
+  /// one builder is what stops the two drifting apart visually.
+  Widget _progressList(
+    List<ContinueWatchingItem> items, {
+    required void Function(ContinueWatchingItem)? onRemove,
+  }) {
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      itemCount: items.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      itemBuilder: (context, index) {
+        final item = items[index];
+        final progressPercent = (item.progressPercent * 100).toInt();
+
+        return Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: const Color(0xFF12151E),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: item.posterUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: item.posterUrl!,
+                        width: 50,
+                        height: 75,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Container(
+                          width: 50,
+                          height: 75,
+                          color: Colors.white10,
+                          child: const Icon(Icons.movie_rounded,
+                              color: Colors.white30),
+                        ),
+                      )
+                    : Container(
+                        width: 50,
+                        height: 75,
+                        color: Colors.white10,
+                        child: const Icon(Icons.movie_rounded,
+                            color: Colors.white30),
+                      ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.title,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 15),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (item.episodeTitle != null) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        'S${item.season ?? 1} E${item.episode ?? 1} \u2022 ${item.episodeTitle!}',
+                        style: const TextStyle(
+                            color: Colors.white54, fontSize: 12),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                    const SizedBox(height: 8),
+                    LinearProgressIndicator(
+                      value: item.progressPercent,
+                      backgroundColor: Colors.white10,
+                      valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF7C5CFF)),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$progressPercent% completed',
+                      style: const TextStyle(
+                          color: Colors.white38, fontSize: 11),
+                    ),
+                  ],
+                ),
+              ),
+              if (onRemove != null)
+                IconButton(
+                  icon: const Icon(Icons.close_rounded,
+                      color: Colors.white38, size: 20),
+                  onPressed: () => onRemove(item),
+                ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
 
   Widget _buildDownloadsTab() {
     return ValueListenableBuilder<List<DownloadTask>>(
@@ -334,7 +350,7 @@ class _CollectionPageState extends State<CollectionPage> {
             .where((t) => t.type == 'movie' || t.type == 'series' || t.type == 'anime')
             .toList();
         if (downloads.isEmpty) {
-          return LibraryEmptyState(
+          return const LibraryEmptyState(
             icon: Icons.download_done_rounded,
             title: 'No Downloads',
             subtitle: 'Downloaded movies and episodes will appear here for offline viewing.',
@@ -484,6 +500,11 @@ class _CollectionPageState extends State<CollectionPage> {
               _buildChoiceChip('Series', 'series'),
               const SizedBox(width: 6),
               _buildChoiceChip('Anime', 'anime'),
+              const SizedBox(width: 12),
+              _WatchlistChip(
+                selected: _watchlistOnly,
+                onTap: () => setState(() => _watchlistOnly = !_watchlistOnly),
+              ),
               const Spacer(),
               PopupMenuButton<String>(
                 initialValue: _sortBy,
@@ -612,4 +633,59 @@ class _CollectionPageState extends State<CollectionPage> {
     );
   }
 
+}
+
+/// The "watch later" toggle beside the type chips.
+///
+/// Distinct from the type chips because it composes with them -- "Series I
+/// bookmarked" is a real filter, and it would not be expressible if watchlist
+/// were just a fifth mutually-exclusive chip.
+class _WatchlistChip extends StatelessWidget {
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _WatchlistChip({required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: selected ? 'Showing watchlist only' : 'Watchlist only',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: selected ? const Color(0xFF7C5CFF) : const Color(0xFF141824),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected
+                  ? Colors.transparent
+                  : Colors.white.withValues(alpha: 0.1),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                selected
+                    ? Icons.bookmark_rounded
+                    : Icons.bookmark_border_rounded,
+                size: 14,
+                color: selected ? Colors.white : Colors.white60,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'Watchlist',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  color: selected ? Colors.white : Colors.white60,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

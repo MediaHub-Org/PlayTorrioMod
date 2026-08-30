@@ -9,14 +9,16 @@
 #  Trigger: Git tag push (v*) or Manual Workflow Dispatch
 #
 #  Manual dispatch has two modes:
-#    - alpha_tag empty  -> build all platforms, upload artifacts only.
+#    - release_tag empty -> build all platforms, upload artifacts only.
 #      Use this to check every platform still compiles.
-#    - alpha_tag set    -> additionally publish those builds as a
-#      GitHub *prerelease* under that tag (e.g. v1.1.3-alpha.1), so
-#      testers get download links instead of CI artifacts (which
-#      require a GitHub login and expire).
-#  A pushed tag carrying a semver prerelease suffix (v1.2.0-beta.1)
-#  is published as a prerelease too; a plain v1.2.0 is a full release.
+#    - release_tag set   -> additionally publish those builds under that
+#      tag (e.g. v1.1.3), so testers get download links instead of CI
+#      artifacts (which require a GitHub login and expire).
+#  Dispatched builds are marked as GitHub *prereleases* and titled
+#  "(dev)" while they are untested -- flip `dev_build` off once a build
+#  has been verified on a device. A pushed tag carrying a semver
+#  prerelease suffix (v1.2.0-beta.1) is a prerelease too; a plain
+#  v1.2.0 is a full release.
 #  Environment: Injects --dart-define-from-file=.env using ${{ secrets.ENV_FILE }}
 # ──────────────────────────────────────────────────────────────────────────────
 name: Build and Release PlayTorrioMod
@@ -28,10 +30,15 @@ on:
     types: [published]
   workflow_dispatch:
     inputs:
-      alpha_tag:
-        description: 'Publish an alpha prerelease under this tag (e.g. v1.1.3-alpha.1). Leave empty to only upload build artifacts.'
+      release_tag:
+        description: 'Publish a release under this tag (e.g. v1.1.3). Leave empty to only upload build artifacts.'
         required: false
         default: ''
+      dev_build:
+        description: 'Untested build: title it "(dev)" and publish as a prerelease.'
+        type: boolean
+        required: false
+        default: true
 
 permissions:
   contents: write
@@ -106,8 +113,19 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $cleanVersion = "${{ github.ref_name }}".TrimStart('v')
-          if ([string]::IsNullOrWhiteSpace($cleanVersion)) { $cleanVersion = "1.0.6" }
+          # Prefer the dispatched release tag, then a pushed v* tag. On a
+          # plain dispatch github.ref_name is a branch name ("main"), which
+          # is not a version -- fall back to pubspec.yaml so the installer
+          # never advertises a branch as its version.
+          $tag = "${{ github.event.inputs.release_tag }}"
+          if ([string]::IsNullOrWhiteSpace($tag)) { $tag = "${{ github.ref_name }}" }
+          $cleanVersion = $tag.TrimStart('v')
+          if ($cleanVersion -notmatch '^\d+\.\d+') {
+            $pubspec = Select-String -Path pubspec.yaml -Pattern '^version:\s*([^\s+]+)' |
+              Select-Object -First 1
+            $cleanVersion = $pubspec.Matches[0].Groups[1].Value
+          }
+          Write-Host "Installer version: $cleanVersion"
 
           $isccCmd = (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source
           if (-not $isccCmd) {
@@ -471,7 +489,7 @@ jobs:
           Categories=AudioVideo;Audio;Video;Player;
           EOF
 
-          printf '#!/bin/sh\ncd "$(dirname "$0")"\nexec ./playtorrio "$@"\n' > "$APP/AppRun"
+          printf '#!/bin/sh\ncd "$(dirname "$0")"\nexec ./PlayTorrioMod "$@"\n' > "$APP/AppRun"
           chmod +x "$APP/AppRun"
 
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$APP" PlayTorrioMod-Linux-x86_64.AppImage
@@ -536,7 +554,6 @@ jobs:
       - name: Package as DMG & ZIP
         run: |
           cd build/macos/Build/Products/Release
-          mv playtorrio.app PlayTorrioMod.app
 
           codesign --sign - --force --deep PlayTorrioMod.app
 
@@ -609,7 +626,6 @@ jobs:
       - name: Package as DMG & ZIP
         run: |
           cd build/macos/Build/Products/Release
-          mv playtorrio.app PlayTorrioMod.app
 
           codesign --sign - --force --deep PlayTorrioMod.app
 
@@ -692,14 +708,14 @@ jobs:
   release:
     name: Publish GitHub Release
     needs: [windows, android, android-universal, linux-x64, macos-arm64, macos-intel, ios]
-    # Publishes for a pushed v* tag, or for a manual dispatch that named an
-    # alpha tag. Still requires every platform to have built: a half-published
+    # Publishes for a pushed v* tag, or for a manual dispatch that named a
+    # release tag. Still requires every platform to have built: a half-published
     # release is worse than none, and each job's artifacts remain downloadable
     # from the run either way.
     if: |
       success() && (
         startsWith(github.ref, 'refs/tags/v') ||
-        github.event.inputs.alpha_tag != ''
+        github.event.inputs.release_tag != ''
       )
     runs-on: ubuntu-latest
     permissions:
@@ -729,12 +745,12 @@ jobs:
         with:
           # On a dispatch the tag comes from the input and is created at the
           # dispatched ref; on a tag push it is the pushed tag.
-          tag_name: ${{ github.event.inputs.alpha_tag || github.ref_name }}
-          name: "PlayTorrioMod ${{ github.event.inputs.alpha_tag || github.ref_name }}"
+          tag_name: ${{ github.event.inputs.release_tag || github.ref_name }}
+          name: "PlayTorrioMod ${{ github.event.inputs.release_tag || github.ref_name }}${{ github.event.inputs.dev_build == 'false' && ' ' || ' (dev)' }}"
           draft: false
-          # Alpha dispatches are always prereleases, as is any tag carrying a
-          # semver prerelease suffix (v1.2.0-rc.1). Plain v1.2.0 ships as full.
-          prerelease: ${{ github.event.inputs.alpha_tag != '' || contains(github.ref_name, '-') }}
+          # A dev dispatch is a prerelease, as is any tag carrying a semver
+          # prerelease suffix (v1.2.0-rc.1). Plain v1.2.0 ships as full.
+          prerelease: ${{ github.event.inputs.dev_build != 'false' || contains(github.ref_name, '-') }}
           generate_release_notes: true
           fail_on_unmatched_files: true
           files: |

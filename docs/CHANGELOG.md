@@ -4,6 +4,54 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### One Library shape across all three hubs — 2026-08-30
+- **Each hub's Library had invented its own tabs.** Watch had My List / Watchlist / History / Downloads (4), Read had Audiobooks / Books / Manga / History / Downloads (5), Listen had Songs / Podcasts / Playlists / Recent / Downloads (5). Three shapes, three tab counts, and "what I saved" living under three different names — so moving between hubs meant relearning the Library each time.
+- All three now build from one `LibrarySection` enum: **Saved · Continue · History · Downloads**, in that order, with the same labels and icons. A test asserts the enum's shape and that no page hand-rolls a tab list again, which is how they drifted apart before.
+- **Watch**: Watchlist stopped being its own tab. A watchlist entry is just a My List item with `isWatchlist` set, so it is now a toggle beside the type chips — which also makes "series I bookmarked" expressible, where two separate tabs could not compose. Continue reads `activeItems`, History reads `historyItems`; both render through one row builder so they cannot drift visually.
+- **Read**: audiobooks, books and manga became a sub-tab inside Saved, the pattern already used for Movies/Series and Comics/Manga. Continue and History read the same reading log split on progress — past 95% counts as finished, since readers rarely close a book on the exact last page.
+- `SectionSubTabs` now scrolls instead of overflowing. It was written for two-way splits; a three-way one with longer labels ("Audiobooks / Books / Manga") overflowed a 320px phone by 122px, which paints the striped overflow warning over the control. Regression-tested at 320px and again at a 1.6x text scale.
+- **Listen**: songs, podcasts and playlists became a sub-tab inside Saved. Music has no half-listened track to resume, so Continue shows the current play queue — the closest real equivalent, and something the Library previously offered no way to see at all.
+
+### Desktop scroll arrows and row subtitles in the shared browse layout — 2026-08-30
+- **Horizontal rows on desktop could only be scrolled by dragging.** Anime's own slider had hover-revealed arrows; Movies/Series, on the shared `BrowseScaffold`, had none — the same content, two different affordances depending on which section you were in.
+- `BrowseScaffold` rows now carry their own `ScrollController` and fade in the existing shared `SliderArrow` on hover, on pointer devices only. The hero gained the same pair. Touch widths get neither: a swipe already works, and a permanent arrow just covers the artwork.
+- Each row is its own widget so one row scrolling does not rebuild the others.
+- `BrowseRow` gained an optional `subtitle`, which `SectionHeader` already rendered.
+- **This was the blocker on migrating Anime**, whose hero and rows have both features. Books was checked and ruled out instead: `BookResult` has no cover URL at all, so a hero and poster rows would be blank rectangles — the text-row list is right for cover-less metadata. Manga's grid is infinite-scrolling with a user-configurable card density, which fixed rows would remove. Both recorded in the roadmap so they are not re-proposed.
+
+### Media session: playback in the Android shade and iOS lock screen — 2026-08-30
+- **Audio played with no system media session attached**: starting a track and pulling down the Android notification shade showed nothing, so the only way to pause was to return to the app — and with no foreground service, Android was free to kill the process the moment the app was backgrounded.
+- Added `MediaSessionService` (`lib/services/media_session/media_session_service.dart`), backed by `audio_service`, which publishes whatever `PlaybackCoordinator` has active to the notification shade, lock screen, Control Center, and Bluetooth/headset buttons — and reflects those buttons back as coordinator calls.
+- **The handler deliberately owns no player.** `audio_service` normally *is* the player, but every source here already has its own controller and the coordinator already knows which one is active. So one handler covers music, podcasts and audiobooks at once, rather than each growing a session of its own.
+- `PlaybackCoordinator` gained `onNext`/`onPrevious` (plus `canSkipNext`/`canSkipPrevious`). A source with nothing to skip to — a single video, a live channel, a podcast episode — leaves them null and the skip buttons disappear rather than appearing dead. Music forwards them to its queue; audiobooks gained `nextChapter`/`previousChapter`, with the usual "restart the chapter unless you are near its start" behaviour on skip-back.
+- The universal play bar shows the same skip pair, so the in-app bar and the shade offer the same controls instead of diverging.
+- Android: `MainActivity` now extends `AudioServiceActivity` so tapping the notification returns to the running app rather than starting a second copy; manifest gained the `AudioService` service, the `MediaButtonReceiver`, and `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (required from Android 14). iOS already declared the `audio` background mode.
+- Initialisation failure is non-fatal — a missing session costs the notification controls, not startup.
+
+### Delete 3,769 lines of unreachable code — 2026-08-30
+- Twelve files in `lib/` were imported by nothing. Each had been superseded and left behind rather than removed, so anyone reading the tree had to work out which of two implementations was live:
+  - `services/books/epub_parser_service.dart` (1,246 lines) — `pages/read/book_reader_page.dart` parses EPUB inline with `archive` + `xml`; this parallel parser was never wired to it.
+  - `pages/downloads/downloads_page.dart` (652) — the Library's own Downloads tab (`collection_page.dart`) replaced it. `utils/platform/open_file_location_helper.dart` was orphaned with it.
+  - `widgets/anime/anime_hero_spotlight.dart` (393) — superseded by `BrowseScaffold`'s shared hero.
+  - `widgets/player/player_sub_style_bar.dart` (158) — superseded by `player_sub_style_modal.dart`, which the player and settings both use.
+  - `services/trakt/trakt_list_source.dart` (329), `services/trakt/trakt_episode_model.dart` (117), `services/simkl/simkl_list_source.dart` (285), `services/simkl/simkl_menu_helpers.dart` (321) — the live Trakt/Simkl paths go through `TraktService`/`SimklService`.
+  - `services/books/bookracy_service.dart` (135), `services/anime/anime_stream_service.dart` (35), `models/debrid/debrid_account.dart` (54).
+- Dropped `photo_view` (arrived with the upstream engine merge, imported nowhere) and demoted `video_player_platform_interface` to the transitive dependency it already was. `pubspec.lock` shows no other version movement.
+- `media_kit_libs_video` and `media_kit_libs_windows_video` stay declared despite never being imported — they exist to pull native assets in, not to be used from Dart.
+
+### One bundle identifier and one product name across all five platforms — 2026-08-30
+- **iOS, macOS and Linux still identified the app as `com.example.playtorrio`** — the `flutter create` placeholder — while Android had already moved to `com.mediahub.playtorriomod`. `com.example.*` is reserved for samples, App Store submission rejects it, and it collided with upstream's own builds.
+- All five now use `com.mediahub.playtorriomod`.
+- The executable inside every bundle was `playtorrio` / `playtorrio.exe`, and the macOS bundle was `playtorrio.app`, which CI renamed to `PlayTorrioMod.app` after the fact. Renamed at the source instead — `BINARY_NAME`, `PRODUCT_NAME`, the Windows `project()` and version resources, the Inno Setup `MyAppExeName`, the AppImage `AppRun` — so the two post-build `mv` steps could go. Windows Explorer's file properties now read `PlayTorrioMod` instead of `playtorrio`.
+- iOS `CFBundleDisplayName` was `Playtorrio` and `CFBundleName` was `playtorrio`; both now read `PlayTorrioMod`. The macOS copyright string no longer credits "com.example".
+- The Kotlin source package stays `com.example.playtorrio` — it is a namespace, not an identifier anything outside the module sees, and renaming it moves files for no user-visible gain. Documented in `docs/configuration.md` along with a table of where each identity value lives.
+
+### Version 1.1.3, published with a (dev) marker — 2026-08-30
+- **The app could report four different versions depending on where you looked**: releases went out as `v1.1.3-alpha.1`/`.2` while `pubspec.yaml` still said `1.1.2+10`, and Settings, Updates and About each fell back to a hardcoded `1.0.6` when `package_info_plus` could not read the platform bundle.
+- Dropped the alpha suffix — these are ordinary versions now — and bumped to `1.1.3+11`. `AppInfo` gained `channel` (`'dev'`), `versionLabel()` and fallbacks a test pins to `pubspec.yaml`, so all three screens render `1.1.3 (dev)` from one place. Clear `AppInfo.channel` once a release has been verified on hardware.
+- About rewritten from marketing prose into something a tester can act on: a testing-build notice, what the three hubs contain, how content is sourced, and links to the repo, a new issue, and the upstream project.
+- `build.yml`: `alpha_tag` → `release_tag`, plus a `dev_build` toggle (default on) that titles the release `(dev)` and publishes it as a prerelease. The Windows installer no longer stamps a branch name as its version on a plain dispatch.
+
 ### Unify liked-heart color across content types (AUDIT.md #4) — 2026-08-29
 - **The "like" heart used a different color depending on where it appeared**: Music used pink `0xFFFF4B72` and the universal play bar used purple `0xFF7C5CFF`, while Books/Podcasts/Manga/Audiobooks all used red `0xFFE50914` — directly contradicting the ROADMAP's cross-section consistency principle. Unified every liked-heart to red `0xFFE50914` (Music page, music player studio previews, and the universal play bar). The Movies/Series bookmark and Anime status-picker stay as-is — those are library/status concepts, not likes.
 

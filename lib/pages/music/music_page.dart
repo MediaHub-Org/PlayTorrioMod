@@ -13,7 +13,9 @@ import '../../services/music/music_download_service.dart';
 import '../../widgets/music/music_track_download_button.dart';
 import '../../services/music/music_library_service.dart';
 import '../../widgets/common/error_view.dart';
+import '../../widgets/common/library_sections.dart';
 import '../../widgets/common/library_tabs.dart';
+import '../../widgets/common/section_sub_tabs.dart';
 import '../../widgets/common/performance_liquid_lens.dart';
 import '../../widgets/common/slider_arrow.dart';
 import '../../widgets/common/section_top_bar.dart';
@@ -48,6 +50,7 @@ class _MusicPageState extends State<MusicPage> {
   final FocusNode _keyboardFocusNode = FocusNode();
 
   String _activeTab = 'Music'; // 'Music', 'Search', 'Radio', 'Podcasts', 'Library'
+  String _savedType = 'songs'; // Library > Saved sub-tab
   // True only when the current search was reached by tapping a Radio
   // station card, so the resulting tracks play with isRadio: true (see
   // MusicPlayerController.playTrack) instead of a deliberate track pick.
@@ -1648,37 +1651,83 @@ class _MusicPageState extends State<MusicPage> {
         ),
       ),
       tabs: [
-        LibraryTab(
-          label: 'Songs',
-          icon: Icons.favorite_rounded,
-          builder: (_) => _buildLikedSongsTab(liked),
-        ),
-        LibraryTab(
-          label: 'Podcasts',
-          icon: Icons.podcasts_rounded,
-          builder: (_) => _buildLikedPodcastsTab(),
-        ),
-        LibraryTab(
+        for (final section in LibrarySection.values)
+          LibraryTab(
+            label: section.label,
+            icon: section.icon,
+            builder: (_) => switch (section) {
+              LibrarySection.saved => _buildSavedTab(liked, playlists),
+              LibrarySection.inProgress => _buildQueueTab(),
+              LibrarySection.history => _buildRecentTab(recent),
+              LibrarySection.downloads => _MusicDownloadedTracksModal(
+                  embedded: true,
+                  onClose: () {},
+                  onPlayTrack: (t, queue) =>
+                      _playerController.playTrack(t, playlistQueue: queue),
+                  onAddToPlaylist: _showAddToPlaylistMenu,
+                ),
+            },
+          ),
+      ],
+    );
+  }
+
+  /// Songs, podcasts and playlists behind one sub-tab, so the Listen hub's
+  /// Library is the same four tabs as every other hub's rather than five with
+  /// its own names.
+  Widget _buildSavedTab(
+    List<MusicTrack> liked,
+    List<UserPlaylist> playlists,
+  ) {
+    return SectionSubTabs(
+      activeId: _savedType,
+      onSelected: (id) => setState(() => _savedType = id),
+      tabs: const [
+        SubTab(id: 'songs', label: 'Songs', icon: Icons.favorite_rounded),
+        SubTab(id: 'podcasts', label: 'Podcasts', icon: Icons.podcasts_rounded),
+        SubTab(
+          id: 'playlists',
           label: 'Playlists',
           icon: Icons.queue_music_rounded,
-          builder: (_) => _buildPlaylistsTab(playlists),
-        ),
-        LibraryTab(
-          label: 'Recent',
-          icon: Icons.history_rounded,
-          builder: (_) => _buildRecentTab(recent),
-        ),
-        LibraryTab(
-          label: 'Downloads',
-          icon: Icons.download_rounded,
-          builder: (_) => _MusicDownloadedTracksModal(
-            embedded: true,
-            onClose: () {},
-            onPlayTrack: (t, queue) => _playerController.playTrack(t, playlistQueue: queue),
-            onAddToPlaylist: _showAddToPlaylistMenu,
-          ),
         ),
       ],
+      child: switch (_savedType) {
+        'podcasts' => _buildLikedPodcastsTab(),
+        'playlists' => _buildPlaylistsTab(playlists),
+        _ => _buildLikedSongsTab(liked),
+      },
+    );
+  }
+
+  /// Music has no "half-listened track" to resume, so Continue shows the
+  /// queue you are currently working through -- the closest real equivalent,
+  /// and something the Library previously offered no way to see at all.
+  Widget _buildQueueTab() {
+    final queue = _playerController.playlist;
+    if (queue.isEmpty) {
+      return const LibraryEmptyState(
+        icon: Icons.play_circle_outline_rounded,
+        title: 'Nothing queued',
+        subtitle: 'Play an album or playlist and the rest of the queue shows '
+            'up here.',
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      itemCount: queue.length,
+      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final track = queue[index];
+        return _MusicTrackRow(
+          track: track,
+          isPlaying: _playerController.currentTrack?.id == track.id &&
+              _playerController.isPlaying,
+          isCurrent: _playerController.currentTrack?.id == track.id,
+          onTap: () =>
+              _playerController.playTrack(track, playlistQueue: queue),
+          onMoreTap: () => _showAddToPlaylistMenu(track),
+        );
+      },
     );
   }
 
@@ -2975,7 +3024,7 @@ class _MusicArtistDetailPage extends StatelessWidget {
                   fit: BoxFit.cover,
                 ),
               ),
-                    Positioned.fill(
+                    const Positioned.fill(
                       child: DecoratedBox(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
@@ -4674,10 +4723,10 @@ class _MusicVolumeControlState extends State<_MusicVolumeControl> {
           SizedBox(
             width: 90,
             child: SliderTheme(
-              data: SliderThemeData(
+              data: const SliderThemeData(
                 trackHeight: 3,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 5),
-                activeTrackColor: const Color(0xFF7C5CFF),
+                thumbShape: RoundSliderThumbShape(enabledThumbRadius: 5),
+                activeTrackColor: Color(0xFF7C5CFF),
                 inactiveTrackColor: Colors.white24,
                 thumbColor: Colors.white,
               ),

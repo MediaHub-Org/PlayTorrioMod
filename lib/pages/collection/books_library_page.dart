@@ -14,7 +14,9 @@ import '../../services/books/book_progress_service.dart';
 import '../../services/books/books_service.dart';
 import '../../services/download/download_service.dart';
 import '../../services/manga/manga_service.dart';
+import '../../widgets/common/library_sections.dart';
 import '../../widgets/common/library_tabs.dart';
+import '../../widgets/common/section_sub_tabs.dart';
 import '../../widgets/manga/manga_card.dart';
 import '../audiobooks/audiobook_detail_page.dart';
 import '../audiobooks/audiobook_route_transitions.dart';
@@ -23,8 +25,12 @@ import '../manga/manga_reader_page.dart';
 import '../read/book_reader_page.dart';
 import '../../utils/navigation/route_transitions.dart';
 
-/// The Books hub's Library: shows the user's liked manga, liked audiobooks,
-/// and playback history, using the shared [LibraryTabs] design.
+/// The Read hub's Library.
+///
+/// Carries the same four tabs as every other hub (see [LibrarySection]). The
+/// three content types it holds -- audiobooks, books, manga -- are a sub-tab
+/// inside Saved rather than three top-level tabs, which is what used to make
+/// this Library five tabs wide while Watch's was four.
 class BooksLibraryPage extends StatefulWidget {
   const BooksLibraryPage({super.key});
 
@@ -39,6 +45,18 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
 
   List<_HistoryEntry> _historyEntries = [];
   bool _loadingHistory = true;
+
+  /// Which content type Saved is showing.
+  String _savedType = 'audiobooks';
+
+  /// Anything past this counts as finished, so it drops out of Continue and
+  /// stays only in History. Readers rarely close a book on the exact last
+  /// page, so the threshold is short of 100%.
+  static const double _finishedAt = 0.95;
+
+  List<_HistoryEntry> get _inProgressEntries => _historyEntries
+      .where((e) => e.progress != null && e.progress! < _finishedAt)
+      .toList();
 
   @override
   void initState() {
@@ -251,32 +269,43 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
       title: 'Library',
       titleIcon: Icons.collections_bookmark_rounded,
       tabs: [
-        LibraryTab(
+        for (final section in LibrarySection.values)
+          LibraryTab(
+            label: section.label,
+            icon: section.icon,
+            builder: (_) => switch (section) {
+              LibrarySection.saved => _buildSavedTab(),
+              LibrarySection.inProgress => _buildInProgressTab(),
+              LibrarySection.history => _buildHistoryTab(),
+              LibrarySection.downloads => _buildDownloadsTab(),
+            },
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSavedTab() {
+    return SectionSubTabs(
+      activeId: _savedType,
+      onSelected: (id) => setState(() => _savedType = id),
+      tabs: const [
+        SubTab(
+          id: 'audiobooks',
           label: 'Audiobooks',
           icon: Icons.headphones_rounded,
-          builder: (_) => _buildAudiobooksTab(),
         ),
-        LibraryTab(
+        SubTab(
+          id: 'books',
           label: 'Books',
           icon: Icons.import_contacts_rounded,
-          builder: (_) => _buildBooksTab(),
         ),
-        LibraryTab(
-          label: 'Manga',
-          icon: Icons.auto_stories_rounded,
-          builder: (_) => _buildMangaTab(),
-        ),
-        LibraryTab(
-          label: 'History',
-          icon: Icons.history_rounded,
-          builder: (_) => _buildHistoryTab(),
-        ),
-        LibraryTab(
-          label: 'Downloads',
-          icon: Icons.download_rounded,
-          builder: (_) => _buildDownloadsTab(),
-        ),
+        SubTab(id: 'manga', label: 'Manga', icon: Icons.auto_stories_rounded),
       ],
+      child: switch (_savedType) {
+        'books' => _buildBooksTab(),
+        'manga' => _buildMangaTab(),
+        _ => _buildAudiobooksTab(),
+      },
     );
   }
 
@@ -444,20 +473,40 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
     );
   }
 
+  /// Started but not finished. Same store as History, filtered on progress --
+  /// there is only one reading log, and splitting it in the service would be
+  /// a migration for a distinction the UI can make for free.
+  Widget _buildInProgressTab() {
+    final entries = _inProgressEntries;
+    if (entries.isEmpty) {
+      return const LibraryEmptyState(
+        icon: Icons.play_circle_outline_rounded,
+        title: 'Nothing in progress',
+        subtitle: 'Audiobooks, books and manga you are partway through wait '
+            'for you here.',
+      );
+    }
+    return _entryList(entries);
+  }
+
   Widget _buildHistoryTab() {
     if (_historyEntries.isEmpty) {
       return const LibraryEmptyState(
         icon: Icons.history_rounded,
         title: 'No reading history',
-        subtitle: 'Audiobooks, books, and manga you\'re partway through will appear here.',
+        subtitle: 'Everything you open is logged here, finished or not.',
       );
     }
+    return _entryList(_historyEntries);
+  }
+
+  Widget _entryList(List<_HistoryEntry> entries) {
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      itemCount: _historyEntries.length,
+      itemCount: entries.length,
       separatorBuilder: (_, __) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
-        final entry = _historyEntries[index];
+        final entry = entries[index];
         return GestureDetector(
           onTap: entry.onTap,
           child: Container(

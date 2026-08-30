@@ -62,6 +62,8 @@ class AudiobookPlayerController extends ChangeNotifier {
       onExpand: _onExpandRequested,
       onSeek: seekTo,
       onFullStop: stop,
+      onNext: chapters.length > 1 ? nextChapter : null,
+      onPrevious: chapters.length > 1 ? previousChapter : null,
     );
 
     await _loadChapter(chapterIndex, initialPosition: initialPosition);
@@ -150,6 +152,24 @@ class AudiobookPlayerController extends ChangeNotifier {
 
   Future<void> seekTo(Duration position) async {
     await _controller?.seekTo(position);
+  }
+
+  /// Advances to the next chapter. What the media session's skip-forward
+  /// button maps to — an audiobook's chapter list is its queue.
+  Future<void> nextChapter() async {
+    if (_currentIndex >= _chapters.length - 1) return;
+    await _loadChapter(_currentIndex + 1);
+  }
+
+  /// Restarts the current chapter, or steps back a chapter when already near
+  /// its start — the convention every media app's skip-back button follows.
+  Future<void> previousChapter() async {
+    final position = _controller?.value.position ?? Duration.zero;
+    if (position.inSeconds > 3 || _currentIndex == 0) {
+      await seekTo(Duration.zero);
+      return;
+    }
+    await _loadChapter(_currentIndex - 1);
   }
 
   Future<void> stop() async {

@@ -19,6 +19,8 @@ abstract final class PlaybackCoordinator {
   static VoidCallback? _onExpand;
   static VoidCallback? _onOpenArtist;
   static ValueChanged<Duration>? _onSeek;
+  static VoidCallback? _onNext;
+  static VoidCallback? _onPrevious;
   static bool Function()? _isLiked;
   static VoidCallback? _onToggleLike;
   static String? _title;
@@ -60,6 +62,10 @@ abstract final class PlaybackCoordinator {
   /// not just pause. Falls back to [onStop] if not provided.
   /// [onTogglePlayPause] lets the universal play bar toggle this source.
   /// [onOpenArtist] lets the play bar's artist label open the artist view.
+  /// [onNext]/[onPrevious] advance within the source's own queue or chapter
+  /// list. Leave both null for a source with nothing to skip to (a single
+  /// video, a live channel) and the skip controls disappear from the
+  /// notification rather than appearing dead.
   /// [isLiked]/[onToggleLike] let the play bar show and toggle a like
   /// button for this source (music tracks only — leave both null for
   /// video/audiobook/podcast sources, which have no like concept).
@@ -75,6 +81,8 @@ abstract final class PlaybackCoordinator {
     VoidCallback? onOpenArtist,
     ValueChanged<Duration>? onSeek,
     VoidCallback? onFullStop,
+    VoidCallback? onNext,
+    VoidCallback? onPrevious,
     bool Function()? isLiked,
     VoidCallback? onToggleLike,
   }) {
@@ -92,6 +100,8 @@ abstract final class PlaybackCoordinator {
     _onExpand = onExpand;
     _onOpenArtist = onOpenArtist;
     _onSeek = onSeek;
+    _onNext = onNext;
+    _onPrevious = onPrevious;
     _isLiked = isLiked;
     _onToggleLike = onToggleLike;
     _position = Duration.zero;
@@ -115,6 +125,8 @@ abstract final class PlaybackCoordinator {
       _onExpand = null;
       _onOpenArtist = null;
       _onSeek = null;
+      _onNext = null;
+      _onPrevious = null;
       _isLiked = null;
       _onToggleLike = null;
       _position = Duration.zero;
@@ -144,6 +156,8 @@ abstract final class PlaybackCoordinator {
     _onExpand = null;
     _onOpenArtist = null;
     _onSeek = null;
+    _onNext = null;
+    _onPrevious = null;
     _isLiked = null;
     _onToggleLike = null;
     _position = Duration.zero;
@@ -170,6 +184,18 @@ abstract final class PlaybackCoordinator {
 
   /// Seeks the active source to [position] via the play bar's seek bar.
   static void seekTo(Duration position) => _onSeek?.call(position);
+
+  /// Whether the active source can skip forward in its own queue.
+  static bool get canSkipNext => _onNext != null;
+
+  /// Whether the active source can skip backward in its own queue.
+  static bool get canSkipPrevious => _onPrevious != null;
+
+  /// Skips to the next item in the active source's queue.
+  static void skipToNext() => _onNext?.call();
+
+  /// Skips to the previous item in the active source's queue.
+  static void skipToPrevious() => _onPrevious?.call();
 
   /// The active source's current playback position.
   static Duration get position => _position;
@@ -212,6 +238,8 @@ abstract final class PlaybackCoordinator {
     _onExpand = null;
     _onOpenArtist = null;
     _onSeek = null;
+    _onNext = null;
+    _onPrevious = null;
     _isLiked = null;
     _onToggleLike = null;
     _position = Duration.zero;

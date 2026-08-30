@@ -136,6 +136,19 @@ class UniversalPlayBar extends StatelessWidget {
                   ),
                   onPressed: PlaybackCoordinator.toggleLike,
                 ),
+              // Skip back / forward, for a source with a queue. Same pair
+              // the media-session notification publishes, so the bar and the
+              // shade offer the same controls instead of diverging.
+              if (PlaybackCoordinator.canSkipPrevious && !isMobile)
+                const IconButton(
+                  tooltip: 'Previous',
+                  icon: Icon(
+                    Icons.skip_previous_rounded,
+                    color: Colors.white70,
+                    size: 24,
+                  ),
+                  onPressed: PlaybackCoordinator.skipToPrevious,
+                ),
               // Play / Pause
               IconButton(
                 tooltip: isPlaying ? 'Pause' : 'Play',
@@ -148,10 +161,20 @@ class UniversalPlayBar extends StatelessWidget {
                 ),
                 onPressed: PlaybackCoordinator.togglePlayPause,
               ),
+              if (PlaybackCoordinator.canSkipNext)
+                const IconButton(
+                  tooltip: 'Next',
+                  icon: Icon(
+                    Icons.skip_next_rounded,
+                    color: Colors.white70,
+                    size: 24,
+                  ),
+                  onPressed: PlaybackCoordinator.skipToNext,
+                ),
               // Close (dismiss the bar)
-              IconButton(
+              const IconButton(
                 tooltip: 'Close',
-                icon: const Icon(
+                icon: Icon(
                   Icons.close_rounded,
                   color: Colors.white54,
                   size: 20,

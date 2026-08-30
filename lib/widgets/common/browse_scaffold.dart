@@ -2,22 +2,33 @@ import 'package:flutter/material.dart';
 
 import '../../services/app_spacing.dart';
 import '../movie/movie_card.dart';
+import '../../services/app_breakpoints.dart';
 import 'error_view.dart';
 import 'hero_carousel_auto_rotate.dart';
 import 'poster_skeleton.dart';
 import 'section_header.dart';
+import 'slider_arrow.dart';
 
 /// One horizontal row of a [BrowseScaffold].
 class BrowseRow<T> {
   /// Row heading, e.g. "Trending".
   final String title;
 
+  /// Optional line under [title] saying what the row is, e.g. "Currently
+  /// airing hits".
+  final String? subtitle;
+
   final List<T> items;
 
   /// Optional "See all" target for the row's full catalog.
   final VoidCallback? onSeeAll;
 
-  const BrowseRow({required this.title, required this.items, this.onSeeAll});
+  const BrowseRow({
+    required this.title,
+    required this.items,
+    this.subtitle,
+    this.onSeeAll,
+  });
 }
 
 /// The shared browse layout: an auto-rotating hero of the latest items, then
@@ -160,7 +171,13 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
             SliverToBoxAdapter(child: _buildHero(width)),
           for (final row in widget.rows)
             if (row.items.isNotEmpty)
-              SliverToBoxAdapter(child: _buildRow(row, sizing)),
+              SliverToBoxAdapter(
+                child: _BrowseRowView<T>(
+                  row: row,
+                  sizing: sizing,
+                  itemBuilder: widget.itemBuilder,
+                ),
+              ),
         ],
         const SliverToBoxAdapter(child: SizedBox(height: 96)),
       ],
@@ -172,12 +189,14 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
 
   Widget _buildHero(double width) {
     final height = _heroHeight(width);
+    final isDesktop = AppBreakpoints.tierForWidth(width) != ScreenTier.mobile;
     return MouseRegion(
-      onEnter: (_) => isHoveringCarousel = true,
-      onExit: (_) => isHoveringCarousel = false,
+      onEnter: (_) => setState(() => isHoveringCarousel = true),
+      onExit: (_) => setState(() => isHoveringCarousel = false),
       child: SizedBox(
         height: height,
         child: Stack(
+          clipBehavior: Clip.none,
           children: [
             PageView.builder(
               controller: heroPageController,
@@ -186,6 +205,41 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
               itemBuilder: (context, i) =>
                   widget.heroBuilder(context, widget.heroItems[i]),
             ),
+            // Arrows on pointer devices only, and only while the pointer is
+            // over the hero -- a touch user swipes, and a permanently visible
+            // arrow just covers the artwork.
+            if (isDesktop && widget.heroItems.length > 1) ...[
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                left: isHoveringCarousel ? 12 : -60,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: SliderArrow(
+                    icon: Icons.arrow_back_ios_new_rounded,
+                    onTap: () => goToHeroPage(
+                      (currentHeroIndex - 1) % widget.heroItems.length,
+                    ),
+                  ),
+                ),
+              ),
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutCubic,
+                right: isHoveringCarousel ? 12 : -60,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  child: SliderArrow(
+                    icon: Icons.arrow_forward_ios_rounded,
+                    onTap: () => goToHeroPage(
+                      (currentHeroIndex + 1) % widget.heroItems.length,
+                    ),
+                  ),
+                ),
+              ),
+            ],
             if (widget.heroItems.length > 1)
               Positioned(
                 bottom: 12,
@@ -216,29 +270,6 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
           ],
         ),
       ),
-    );
-  }
-
-  Widget _buildRow(BrowseRow<T> row, MovieCardSizing sizing) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SectionHeader(title: row.title, onSeeAll: row.onSeeAll),
-        SizedBox(
-          height: sizing.totalHeight,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: EdgeInsets.symmetric(horizontal: sizing.sidePadding),
-            itemCount: row.items.length,
-            separatorBuilder: (_, __) => SizedBox(width: sizing.spacing),
-            itemBuilder: (context, i) => SizedBox(
-              width: sizing.cardWidth,
-              child: widget.itemBuilder(context, row.items[i]),
-            ),
-          ),
-        ),
-        const SizedBox(height: AppSpacing.md),
-      ],
     );
   }
 
@@ -281,6 +312,147 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
           ),
           const SizedBox(height: AppSpacing.md),
         ],
+      ],
+    );
+  }
+}
+
+/// One row, with desktop scroll arrows that fade in on hover.
+///
+/// Its own widget because each row needs its own [ScrollController] and
+/// "can I still scroll this way" state; keeping that in the scaffold would
+/// mean a map of controllers keyed by row and a rebuild of every row whenever
+/// one of them scrolled.
+class _BrowseRowView<T> extends StatefulWidget {
+  final BrowseRow<T> row;
+  final MovieCardSizing sizing;
+  final Widget Function(BuildContext context, T item) itemBuilder;
+
+  const _BrowseRowView({
+    required this.row,
+    required this.sizing,
+    required this.itemBuilder,
+  });
+
+  @override
+  State<_BrowseRowView<T>> createState() => _BrowseRowViewState<T>();
+}
+
+class _BrowseRowViewState<T> extends State<_BrowseRowView<T>> {
+  final ScrollController _controller = ScrollController();
+  bool _hovering = false;
+  bool _canLeft = false;
+  bool _canRight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_updateEdges);
+    // Extents are unknown until the first layout, so the right arrow would
+    // never appear on a row the user has not scrolled yet.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateEdges());
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_updateEdges);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _updateEdges() {
+    if (!_controller.hasClients) return;
+    final p = _controller.position;
+    final left = p.pixels > 10;
+    final right = p.pixels < p.maxScrollExtent - 10;
+    if (left != _canLeft || right != _canRight) {
+      setState(() {
+        _canLeft = left;
+        _canRight = right;
+      });
+    }
+  }
+
+  /// Scrolls by just under a viewport so the card at the edge stays partly
+  /// visible -- a full-viewport jump loses the reader's place.
+  void _scrollBy(double direction) {
+    if (!_controller.hasClients) return;
+    final p = _controller.position;
+    final target = (p.pixels + direction * p.viewportDimension * 0.8)
+        .clamp(0.0, p.maxScrollExtent);
+    _controller.animateTo(
+      target,
+      duration: const Duration(milliseconds: 400),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sizing = widget.sizing;
+    final isDesktop = AppBreakpoints.of(context) != ScreenTier.mobile;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: widget.row.title,
+          subtitle: widget.row.subtitle,
+          onSeeAll: widget.row.onSeeAll,
+        ),
+        MouseRegion(
+          onEnter: (_) => setState(() => _hovering = true),
+          onExit: (_) => setState(() => _hovering = false),
+          child: SizedBox(
+            height: sizing.totalHeight,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                ListView.separated(
+                  clipBehavior: Clip.none,
+                  controller: _controller,
+                  scrollDirection: Axis.horizontal,
+                  padding: EdgeInsets.symmetric(horizontal: sizing.sidePadding),
+                  itemCount: widget.row.items.length,
+                  separatorBuilder: (_, __) => SizedBox(width: sizing.spacing),
+                  itemBuilder: (context, i) => SizedBox(
+                    width: sizing.cardWidth,
+                    child: widget.itemBuilder(context, widget.row.items[i]),
+                  ),
+                ),
+                if (isDesktop) ...[
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    left: _canLeft && _hovering ? 10 : -60,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: SliderArrow(
+                        icon: Icons.arrow_back_ios_new_rounded,
+                        onTap: () => _scrollBy(-1),
+                      ),
+                    ),
+                  ),
+                  AnimatedPositioned(
+                    duration: const Duration(milliseconds: 250),
+                    curve: Curves.easeOutCubic,
+                    right: _canRight && _hovering ? 10 : -60,
+                    top: 0,
+                    bottom: 0,
+                    child: Center(
+                      child: SliderArrow(
+                        icon: Icons.arrow_forward_ios_rounded,
+                        onTap: () => _scrollBy(1),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
       ],
     );
   }

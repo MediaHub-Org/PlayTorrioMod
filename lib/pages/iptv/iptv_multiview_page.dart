@@ -106,11 +106,11 @@ class _IptvMultiViewPageState extends State<IptvMultiViewPage> {
                 )
               : Column(
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16),
+                    const Padding(
+                      padding: EdgeInsets.all(16),
                       child: Text(
                         'Pick up to $_maxTiles channels to watch at once',
-                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                        style: TextStyle(color: Colors.white70, fontSize: 13),
                       ),
                     ),
                     Expanded(

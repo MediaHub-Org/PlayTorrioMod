@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import '../../app_info.dart';
 import '../../services/updater/app_updater_service.dart';
 import '../../widgets/updater/update_dialog.dart';
 
@@ -92,7 +93,7 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 20),
                 child: Text(
-                  'Keep PlayTorrio up to date with the latest features, security patches, and performance improvements.',
+                  'Keep ${AppInfo.name} up to date with the latest features, security patches, and performance improvements.',
                   style: TextStyle(
                     fontSize: 13.5,
                     color: Colors.white.withValues(alpha: 0.5),
@@ -105,9 +106,11 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
               FutureBuilder<PackageInfo>(
                 future: PackageInfo.fromPlatform(),
                 builder: (context, snapshot) {
-                  final version = snapshot.hasData ? snapshot.data!.version : '1.0.6';
-                  final buildNumber = snapshot.hasData ? snapshot.data!.buildNumber : '6';
-                  final appName = snapshot.hasData ? snapshot.data!.appName : 'PlayTorrio';
+                  final version = AppInfo.versionLabel(snapshot.data?.version);
+                  final buildNumber = snapshot.hasData
+                      ? snapshot.data!.buildNumber
+                      : AppInfo.fallbackBuildNumber;
+                  const appName = AppInfo.name;
 
                   return Container(
                     padding: const EdgeInsets.all(18),
@@ -141,9 +144,9 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text(
+                                  const Text(
                                     appName,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontSize: 16,
                                       fontWeight: FontWeight.w800,
                                       color: Colors.white,
@@ -151,7 +154,7 @@ class _UpdatesSettingsPageState extends State<UpdatesSettingsPage> {
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
-                                    'Installed Version: v$version (Build $buildNumber)',
+                                    'Installed version v$version \u00b7 build $buildNumber',
                                     style: const TextStyle(
                                       color: Colors.white54,
                                       fontSize: 12.5,

@@ -151,6 +151,8 @@ class MusicPlayerController extends ChangeNotifier {
       onOpenArtist: _onOpenArtistRequested,
       onSeek: seekTo,
       onFullStop: stop,
+      onNext: playNext,
+      onPrevious: playPrevious,
       isLiked: () => MusicLibraryService.instance.isTrackLiked(track.id),
       onToggleLike: () => MusicLibraryService.instance.toggleLikeTrack(track),
     );

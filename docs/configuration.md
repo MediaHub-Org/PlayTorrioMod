@@ -2,6 +2,22 @@
 
 <!-- Extracted from README.md so the README stays an overview. -->
 
+## Application identity
+
+One identifier and one product name across every platform. Both are packaging
+inputs, so changing either means changing the build scripts in step — they are
+not driven from `AppInfo`.
+
+| | Value | Set in |
+|:--|:--|:--|
+| Bundle / application id | `com.mediahub.playtorriomod` | `android/app/build.gradle.kts`, the two `project.pbxproj` files, `macos/Runner/Configs/AppInfo.xcconfig`, `linux/CMakeLists.txt` |
+| Executable / bundle name | `PlayTorrioMod` | `windows/CMakeLists.txt`, `linux/CMakeLists.txt` (`BINARY_NAME`), `macos/.../AppInfo.xcconfig` (`PRODUCT_NAME`) |
+| Display name | `AppInfo.name` | `lib/app_info.dart`, mirrored into `AndroidManifest.xml` and `ios/Runner/Info.plist` |
+
+The Kotlin source package stays `com.example.playtorrio`. It is a namespace,
+not an identifier anything outside the module sees, and renaming it moves
+files for no user-visible gain.
+
 ## Platform Support
 
 <table>
