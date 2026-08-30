@@ -9,10 +9,15 @@ import 'top_bar.dart';
 
 /// Tier-aware nav chrome wrapping a hub's content area.
 ///
-/// Desktop/tablet keep the existing [TopBar] unchanged. Mobile collapses
-/// the top bar to logo + settings only and moves hub switching to a
-/// bottom tab bar, matching where Netflix/Disney+/Stremio place primary
-/// navigation on phones (thumb reach) instead of a top-anchored switcher.
+/// Desktop/tablet keep the existing [TopBar]: hub switcher centred, sections
+/// as a chip row beneath it.
+///
+/// Mobile mirrors that hierarchy rather than inverting it. The bottom bar --
+/// the easiest thing to reach on a phone -- carries the four sections of the
+/// current hub, because that is what you switch between constantly. Hubs are
+/// the rarer, coarser choice, so they sit in the header as icon-only pills;
+/// three glyphs cost far less width than three labels, which is what makes
+/// room for the wordmark beside them.
 class AdaptiveNavShell extends StatelessWidget {
   /// Height of the mobile bottom tab bar. Callers positioning other
   /// bottom-anchored chrome (e.g. a mini player) above it on mobile
@@ -47,7 +52,7 @@ class AdaptiveNavShell extends StatelessWidget {
           SizedBox(height: topPadding),
           _MobileTopBar(onSettingsTap: onSettingsTap),
           Expanded(child: child),
-          const SafeArea(top: false, child: _MobileHubTabBar()),
+          const SafeArea(top: false, child: _MobileSectionTabBar()),
         ],
       );
     }
@@ -78,12 +83,16 @@ class _MobileTopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const SidebarLogo(),
+          const Flexible(child: SidebarLogo()),
+          const SizedBox(width: AppSpacing.sm),
+          const _MobileHubPills(),
           const Spacer(),
           if (onSettingsTap != null)
             IconButton(
               onPressed: onSettingsTap,
               tooltip: 'Settings',
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
               icon: const Icon(Icons.settings_rounded, color: Colors.white70, size: 20),
             ),
         ],
@@ -92,10 +101,72 @@ class _MobileTopBar extends StatelessWidget {
   }
 }
 
-class _MobileHubTabBar extends StatelessWidget {
-  const _MobileHubTabBar();
+class _MobileHubPills extends StatelessWidget {
+  const _MobileHubPills();
 
-  static const _tabs = [AppHub.media, AppHub.music, AppHub.books];
+  static const _hubs = [AppHub.media, AppHub.music, AppHub.books];
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: HubController.instance,
+      builder: (context, _) {
+        final current = HubController.instance.currentHub;
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final hub in _hubs)
+              _HubPill(hub: hub, selected: hub == current),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// Icon-only so all three hubs plus the wordmark fit a narrow phone header.
+/// The tooltip and semantics label carry the name for anyone who needs it.
+class _HubPill extends StatelessWidget {
+  final AppHub hub;
+  final bool selected;
+
+  const _HubPill({required this.hub, required this.selected});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Tooltip(
+        message: hub.navLabel,
+        child: InkWell(
+          onTap: () => HubController.instance.setHub(hub),
+          borderRadius: BorderRadius.circular(AppRadii.md),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: 38,
+            height: 32,
+            decoration: BoxDecoration(
+              color: selected ? const Color(0xFF7C5CFF) : Colors.transparent,
+              borderRadius: BorderRadius.circular(AppRadii.md),
+            ),
+            child: Icon(
+              hub.navIcon,
+              size: 18,
+              color: selected ? Colors.white : Colors.white54,
+              semanticLabel: hub.navLabel,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The four sections of the active hub, in the bottom bar where they are
+/// easiest to reach. Every hub has exactly four, so the row divides evenly
+/// and the tabs never change width between hubs.
+class _MobileSectionTabBar extends StatelessWidget {
+  const _MobileSectionTabBar();
 
   @override
   Widget build(BuildContext context) {
@@ -109,12 +180,16 @@ class _MobileHubTabBar extends StatelessWidget {
       child: ListenableBuilder(
         listenable: HubController.instance,
         builder: (context, _) {
-          final current = HubController.instance.currentHub;
+          final sections = HubController.instance.currentSections;
+          final activeId = HubController.instance.currentSectionId;
           return Row(
             children: [
-              for (final hub in _tabs)
+              for (final section in sections)
                 Expanded(
-                  child: _MobileHubTab(hub: hub, selected: hub == current),
+                  child: _SectionTab(
+                    section: section,
+                    selected: section.id == activeId,
+                  ),
                 ),
             ],
           );
@@ -124,28 +199,34 @@ class _MobileHubTabBar extends StatelessWidget {
   }
 }
 
-class _MobileHubTab extends StatelessWidget {
-  final AppHub hub;
+class _SectionTab extends StatelessWidget {
+  final HubSection section;
   final bool selected;
 
-  const _MobileHubTab({required this.hub, required this.selected});
+  const _SectionTab({required this.section, required this.selected});
 
   @override
   Widget build(BuildContext context) {
     final color = selected ? Colors.white : Colors.white54;
     return InkWell(
-      onTap: () => HubController.instance.setHub(hub),
+      onTap: () => HubController.instance.setCurrentSection(section.id),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(hub.navIcon, color: color, size: 22),
+          Icon(section.icon, color: color, size: 21),
           const SizedBox(height: AppSpacing.xs),
-          Text(
-            hub.navLabel,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: Text(
+              section.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: color,
+                fontSize: 10,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w600,
+              ),
             ),
           ),
         ],
