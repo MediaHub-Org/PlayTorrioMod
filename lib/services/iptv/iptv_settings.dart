@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../home/home_page_settings.dart';
+import 'iptv_network.dart';
 
 enum PortalCardStyle {
   rich('Rich Card with Badges'),
@@ -37,6 +38,7 @@ abstract final class IptvSettings {
   static const _keyShowPortalExpiry = 'iptv_show_portal_expiry';
   static const _keyShowPortalConnections = 'iptv_show_portal_connections';
   static const _keyDefaultPortalTab = 'iptv_default_portal_tab';
+  static const _keyDefaultScrapeSource = 'iptv_default_scrape_source';
 
   // Portal Browser Keys
   static const _keyBrowserLayout = 'iptv_browser_layout';
@@ -81,6 +83,8 @@ abstract final class IptvSettings {
   static final ValueNotifier<bool> showPortalExpiry = ValueNotifier<bool>(true);
   static final ValueNotifier<bool> showPortalConnections = ValueNotifier<bool>(true);
   static final ValueNotifier<int> defaultPortalTab = ValueNotifier<int>(0);
+  static final ValueNotifier<CatalogSource> defaultScrapeSource =
+      ValueNotifier<CatalogSource>(CatalogSource.cloudVault);
 
   // Portal Browser Values
   static final ValueNotifier<PortalBrowserLayout> browserLayout =
@@ -133,6 +137,12 @@ abstract final class IptvSettings {
     showPortalExpiry.value = prefs.getBool(_keyShowPortalExpiry) ?? true;
     showPortalConnections.value = prefs.getBool(_keyShowPortalConnections) ?? true;
     defaultPortalTab.value = prefs.getInt(_keyDefaultPortalTab) ?? 0;
+
+    final scrapeSrcStr = prefs.getString(_keyDefaultScrapeSource);
+    defaultScrapeSource.value = CatalogSource.values.firstWhere(
+      (s) => s.name == scrapeSrcStr,
+      orElse: () => CatalogSource.cloudVault,
+    );
 
     // Browser settings
     final bLayoutStr = prefs.getString(_keyBrowserLayout);
@@ -272,6 +282,13 @@ abstract final class IptvSettings {
     defaultPortalTab.value = tabIndex;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyDefaultPortalTab, tabIndex);
+    changeNotifier.value++;
+  }
+
+  static Future<void> setDefaultScrapeSource(CatalogSource source) async {
+    defaultScrapeSource.value = source;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyDefaultScrapeSource, source.name);
     changeNotifier.value++;
   }
 

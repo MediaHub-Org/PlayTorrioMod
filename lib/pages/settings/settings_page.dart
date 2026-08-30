@@ -9,14 +9,12 @@ import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 
 import 'appearance_settings_page.dart';
-import 'video_player_settings_page.dart';
 import 'debrid_settings_page.dart';
 import 'addons_settings_page.dart';
 import 'trakt_settings_page.dart';
 import 'simkl_settings_page.dart';
 import 'updates_settings_page.dart';
 import 'about_settings_page.dart';
-import '../../services/player/player_settings.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
 
@@ -51,8 +49,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
           appName: 'PlayTorrio',
           packageName: 'com.playtorrio',
-          version: '1.0.6',
-          buildNumber: '6',
+          version: '1.0.7',
+          buildNumber: '8',
         ));
 
     if (mounted) {
@@ -197,42 +195,6 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
 
-              const SizedBox(height: 12),
-
-              // 2. Video Player & Engine (Decoders, Buffering, A/V Sync)
-              ValueListenableBuilder<int>(
-                valueListenable: PlayerSettings.changeNotifier,
-                builder: (context, _, __) {
-                  final isSoftware = PlayerSettings.forceSoftwareDecoding.value;
-                  final preset = PlayerSettings.decoderPreset.value;
-                  final bufferPreset = PlayerSettings.bufferPreset.value;
-
-                  String badgeText;
-                  Color badgeColor;
-                  if (isSoftware) {
-                    badgeText = 'Software (Safe Sync)';
-                    badgeColor = const Color(0xFFF59E0B);
-                  } else if (preset == DecoderPreset.hardwareAuto) {
-                    badgeText = 'HW Auto · ${bufferPreset.label.split(' ').first}';
-                    badgeColor = const Color(0xFF10B981);
-                  } else {
-                    badgeText = '${preset.title.split(' ').first} · Buffer ${bufferPreset.durationMs ~/ 1000}s';
-                    badgeColor = const Color(0xFF00E5FF);
-                  }
-
-                  return _SettingsCategoryTile(
-                    icon: Icons.play_circle_filled_rounded,
-                    iconColor: const Color(0xFF7C5CFF),
-                    title: 'Video Player & Engine',
-                    subtitle: 'Hardware/software decoders, buffer resilience, anti-desync & A/V clock',
-                    badgeText: badgeText,
-                    badgeColor: badgeColor,
-                    onTap: () => _navigateTo(const VideoPlayerSettingsPage()),
-                  );
-                },
-              ),
-
-              const SizedBox(height: 12),
 
               // 3. Debrid & Cloud Streaming
               _SettingsCategoryTile(

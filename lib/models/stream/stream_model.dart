@@ -159,4 +159,34 @@ class StreamSource {
     if (name != null && name!.isNotEmpty) return name!;
     return 'Unknown source';
   }
+
+  /// Whether this source is a magnet link or torrent stream.
+  bool get isMagnet =>
+      (infoHash != null && infoHash!.isNotEmpty) ||
+      (url != null && url!.startsWith('magnet:'));
+
+  /// Formatted magnet link with tracker and display name parameters if available.
+  String? get magnetUrl {
+    if (url != null && url!.startsWith('magnet:')) {
+      return url;
+    }
+    if (infoHash != null && infoHash!.isNotEmpty) {
+      var magnet = 'magnet:?xt=urn:btih:$infoHash';
+      if (title != null && title!.isNotEmpty) {
+        magnet += '&dn=${Uri.encodeComponent(title!)}';
+      } else if (name != null && name!.isNotEmpty) {
+        magnet += '&dn=${Uri.encodeComponent(name!)}';
+      }
+      if (sources != null) {
+        for (final src in sources!) {
+          if (src.startsWith('tracker:')) {
+            final trackerUrl = src.replaceFirst('tracker:', '');
+            magnet += '&tr=${Uri.encodeComponent(trackerUrl)}';
+          }
+        }
+      }
+      return magnet;
+    }
+    return null;
+  }
 }

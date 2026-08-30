@@ -7,36 +7,6 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Available decoder preset types tailored for each platform.
-enum DecoderPreset {
-  hardwareAuto('Hardware Accelerated (Auto)', 'Fastest performance, GPU hardware decoded with automatic software fallback.'),
-  hardwareSafe('Hardware Safe Copy', 'GPU decoded with surface copy to fix frame tearing/glitches on certain chipsets.'),
-  softwareSafe('Software Safe (Perfect A/V Sync)', 'CPU decoded via FFmpeg/dav1d. Recommended on slow internet & Android to eliminate buffer desync.'),
-  nvidiaCuda('NVIDIA CUDA / NVDEC', 'Dedicated NVIDIA hardware acceleration for Windows & Linux.'),
-  custom('Custom Decoder Chain', 'User-defined prioritized decoder fallback list.');
-
-  final String title;
-  final String description;
-  const DecoderPreset(this.title, this.description);
-}
-
-/// Buffer resilience cushion preset for network streams.
-enum BufferResiliencePreset {
-  minimal('Minimal (50MB / 5s)', 'Fast start, for high-speed local streams.', 1000, 50, 52428800, 5),
-  standard('Standard (150MB / 15s)', 'Balanced buffering for general streaming.', 3000, 150, 157286400, 15),
-  highResilience('High Resilience (300MB / 30s)', 'Recommended for Android & Wi-Fi. Pre-buffers cushion to prevent rebuffer stalls & A/V drift.', 6000, 300, 314572800, 30),
-  maximum('Maximum (600MB / 60s)', 'Extra large buffer for torrent streaming & congested connections.', 12000, 600, 629145600, 60),
-  custom('Custom Buffer', 'Custom duration and byte capacity.', 6000, 300, 314572800, 30);
-
-  final String label;
-  final String subtitle;
-  final int durationMs;
-  final int packetCount;
-  final int maxBytes;
-  final int cacheSecs;
-  const BufferResiliencePreset(this.label, this.subtitle, this.durationMs, this.packetCount, this.maxBytes, this.cacheSecs);
-}
-
 /// Subtitle styling preset for rapid 1-tap appearance selection.
 enum SubtitleStylePreset {
   classicWhite('Classic White', 'Crisp white text with black outline', '#FFFFFFFF', '#00000000', '#FF000000', 2.0, 0.0, '#00000000', false, false),
@@ -73,26 +43,13 @@ enum SubtitleStylePreset {
   );
 }
 
-/// Central service managing video engine properties, decoder fallback chains,
-/// buffer resilience, anti-desync options, and libass subtitle customization using media_kit / libmpv.
+/// Central service managing video engine properties and subtitle customization
+/// using media_kit / libmpv.
+///
+/// All decoder, buffer, and engine settings are hardcoded to optimal MPV-native
+/// defaults. Users cannot adjust these — MPV picks the best decoder based on
+/// hardware natively. Only subtitle styling remains user-configurable.
 abstract final class PlayerSettings {
-  static const _keyDecoderPreset = 'player_decoder_preset';
-  static const _keyForceSoftwareDecoding = 'player_force_software_decoding';
-  static const _keyCustomDecoders = 'player_custom_decoders';
-  static const _keyBufferPreset = 'player_buffer_preset';
-  static const _keyCustomBufferMs = 'player_custom_buffer_ms';
-  static const _keyCustomBufferCount = 'player_custom_buffer_count';
-  static const _keyEnableFastDecode = 'player_enable_fast_decode';
-  static const _keySkipLoopFilter = 'player_skip_loop_filter';
-  static const _keyLavcThreads = 'player_lavc_threads';
-  static const _keyEnableDiskCache = 'player_enable_disk_cache';
-  static const _keyEnableNetworkReconnect = 'player_enable_network_reconnect';
-  static const _keyReconnectDelayMax = 'player_reconnect_delay_max';
-  static const _keyAutoResyncOnStall = 'player_auto_resync_on_stall';
-  static const _keyLowLatency = 'player_low_latency';
-  static const _keyHardwareAudioClock = 'player_hardware_audio_clock';
-  static const _keyAudioDelayDefault = 'player_audio_delay_default';
-
   // Subtitle Customization Keys
   static const _keySubStylePreset = 'player_sub_style_preset';
   static const _keySubFont = 'player_sub_font';
@@ -110,31 +67,13 @@ abstract final class PlayerSettings {
   static const _keySubPos = 'player_sub_pos';
   static const _keySubAlignX = 'player_sub_align_x';
   static const _keySubAssOverride = 'player_sub_ass_override';
+  static const _keyUseLibass = 'player_use_libass';
 
-  // ValueNotifiers for reactive UI binding
-  static final ValueNotifier<DecoderPreset> decoderPreset =
-      ValueNotifier<DecoderPreset>(DecoderPreset.hardwareAuto);
-  static final ValueNotifier<bool> forceSoftwareDecoding =
-      ValueNotifier<bool>(false);
-  static final ValueNotifier<List<String>> customDecoders =
-      ValueNotifier<List<String>>(<String>[]);
-  static final ValueNotifier<BufferResiliencePreset> bufferPreset =
-      ValueNotifier<BufferResiliencePreset>(
-        // On Android default to high resilience to combat Wi-Fi drops & sync loss
-        Platform.isAndroid ? BufferResiliencePreset.highResilience : BufferResiliencePreset.standard,
-      );
-  static final ValueNotifier<int> customBufferMs = ValueNotifier<int>(6000);
-  static final ValueNotifier<int> customBufferCount = ValueNotifier<int>(300);
-  static final ValueNotifier<bool> enableFastDecode = ValueNotifier<bool>(true);
-  static final ValueNotifier<String> skipLoopFilter = ValueNotifier<String>('nonkey');
-  static final ValueNotifier<int> lavcThreads = ValueNotifier<int>(4);
-  static final ValueNotifier<bool> enableDiskCache = ValueNotifier<bool>(true);
-  static final ValueNotifier<bool> enableNetworkReconnect = ValueNotifier<bool>(false);
-  static final ValueNotifier<int> reconnectDelayMax = ValueNotifier<int>(5);
+  // Hardcoded engine defaults — not user-configurable
+  // autoResyncOnStall and hardwareAudioClock are kept as ValueNotifiers for
+  // compatibility with player_screen.dart but are always true.
   static final ValueNotifier<bool> autoResyncOnStall = ValueNotifier<bool>(true);
-  static final ValueNotifier<bool> lowLatency = ValueNotifier<bool>(false);
   static final ValueNotifier<bool> hardwareAudioClock = ValueNotifier<bool>(true);
-  static final ValueNotifier<double> audioDelayDefault = ValueNotifier<double>(0.0);
 
   // Subtitle Customization ValueNotifiers
   static final ValueNotifier<SubtitleStylePreset> subStylePreset =
@@ -154,7 +93,6 @@ abstract final class PlayerSettings {
   static final ValueNotifier<double> subPos = ValueNotifier<double>(100.0);
   static final ValueNotifier<String> subAlignX = ValueNotifier<String>('center');
   static final ValueNotifier<String> subAssOverride = ValueNotifier<String>('no');
-  static const String _keyUseLibass = 'player_use_libass';
   static final ValueNotifier<bool> useLibass = ValueNotifier<bool>(false);
   static final ValueNotifier<int> changeNotifier = ValueNotifier<int>(0);
 
@@ -181,99 +119,9 @@ abstract final class PlayerSettings {
     'Verdana',
   ];
 
-  /// Returns available decoder presets for the current OS platform.
-  static List<DecoderPreset> getAvailablePresetsForPlatform() {
-    if (Platform.isAndroid) {
-      return [
-        DecoderPreset.hardwareAuto,
-        DecoderPreset.hardwareSafe,
-        DecoderPreset.softwareSafe,
-        DecoderPreset.custom,
-      ];
-    } else if (Platform.isWindows) {
-      return [
-        DecoderPreset.hardwareAuto,
-        DecoderPreset.hardwareSafe,
-        DecoderPreset.nvidiaCuda,
-        DecoderPreset.softwareSafe,
-        DecoderPreset.custom,
-      ];
-    } else if (Platform.isMacOS || Platform.isIOS) {
-      return [
-        DecoderPreset.hardwareAuto,
-        DecoderPreset.hardwareSafe,
-        DecoderPreset.softwareSafe,
-        DecoderPreset.custom,
-      ];
-    } else {
-      // Linux & other
-      return [
-        DecoderPreset.hardwareAuto,
-        DecoderPreset.nvidiaCuda,
-        DecoderPreset.softwareSafe,
-        DecoderPreset.custom,
-      ];
-    }
-  }
-
-  /// Returns all available raw decoders suitable for custom decoder chain building on current platform.
-  static List<String> getAvailableRawDecoders() {
-    if (Platform.isAndroid) {
-      return ['mediacodec', 'mediacodec-copy', 'auto-safe', 'auto-copy', 'no'];
-    } else if (Platform.isWindows) {
-      return ['d3d11va', 'd3d11va-copy', 'nvdec', 'nvdec-copy', 'auto-safe', 'auto-copy', 'no'];
-    } else if (Platform.isMacOS || Platform.isIOS) {
-      return ['videotoolbox', 'videotoolbox-copy', 'auto-safe', 'auto-copy', 'no'];
-    } else {
-      return ['vaapi', 'vaapi-copy', 'nvdec', 'nvdec-copy', 'auto-safe', 'auto-copy', 'no'];
-    }
-  }
-
-  /// Initializes preferences from disk and extracts the bundled font for libass.
+  /// Initializes subtitle preferences from disk and extracts the bundled font for libass.
   static Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
-
-    final presetStr = prefs.getString(_keyDecoderPreset);
-    if (presetStr != null) {
-      decoderPreset.value = DecoderPreset.values.firstWhere(
-        (p) => p.name == presetStr,
-        orElse: () => DecoderPreset.hardwareAuto,
-      );
-    } else {
-      decoderPreset.value = DecoderPreset.hardwareAuto;
-    }
-
-    forceSoftwareDecoding.value = prefs.getBool(_keyForceSoftwareDecoding) ?? false;
-
-    final savedCustom = prefs.getStringList(_keyCustomDecoders);
-    if (savedCustom != null && savedCustom.isNotEmpty) {
-      customDecoders.value = savedCustom;
-    } else {
-      customDecoders.value = _getDefaultDecodersForPreset(decoderPreset.value);
-    }
-
-    final bufStr = prefs.getString(_keyBufferPreset);
-    if (bufStr != null) {
-      bufferPreset.value = BufferResiliencePreset.values.firstWhere(
-        (b) => b.name == bufStr,
-        orElse: () => Platform.isAndroid
-            ? BufferResiliencePreset.highResilience
-            : BufferResiliencePreset.standard,
-      );
-    }
-
-    customBufferMs.value = prefs.getInt(_keyCustomBufferMs) ?? 6000;
-    customBufferCount.value = prefs.getInt(_keyCustomBufferCount) ?? 300;
-    enableFastDecode.value = prefs.getBool(_keyEnableFastDecode) ?? true;
-    skipLoopFilter.value = prefs.getString(_keySkipLoopFilter) ?? 'nonkey';
-    lavcThreads.value = prefs.getInt(_keyLavcThreads) ?? 4;
-    enableDiskCache.value = prefs.getBool(_keyEnableDiskCache) ?? true;
-    enableNetworkReconnect.value = prefs.getBool(_keyEnableNetworkReconnect) ?? false;
-    reconnectDelayMax.value = prefs.getInt(_keyReconnectDelayMax) ?? 5;
-    autoResyncOnStall.value = prefs.getBool(_keyAutoResyncOnStall) ?? true;
-    lowLatency.value = prefs.getBool(_keyLowLatency) ?? false;
-    hardwareAudioClock.value = prefs.getBool(_keyHardwareAudioClock) ?? true;
-    audioDelayDefault.value = prefs.getDouble(_keyAudioDelayDefault) ?? 0.0;
 
     // Load Subtitle Customization Preferences
     final subPresetStr = prefs.getString(_keySubStylePreset);
@@ -354,97 +202,13 @@ abstract final class PlayerSettings {
     }
   }
 
-  /// Returns effective max bytes for demuxer cache
-  static int getEffectiveMaxBytes() {
-    if (bufferPreset.value == BufferResiliencePreset.custom) {
-      return (customBufferMs.value * 50000).clamp(52428800, 629145600);
-    }
-    return bufferPreset.value.maxBytes;
-  }
-
-  /// Returns effective back bytes buffer
-  static int getEffectiveMaxBackBytes() {
-    return 52428800; // 50 MB back buffer
-  }
-
-  /// Returns effective cache seconds for readahead
-  static int getEffectiveCacheSecs() {
-    if (bufferPreset.value == BufferResiliencePreset.custom) {
-      return (customBufferMs.value / 1000).round().clamp(5, 120);
-    }
-    return bufferPreset.value.cacheSecs;
-  }
-
-  /// Returns the effective decoder list for UI or custom decoder configuration.
-  static List<String> getEffectiveDecoders() {
-    if (forceSoftwareDecoding.value) {
-      return ['no'];
-    }
-
-    if (decoderPreset.value == DecoderPreset.custom && customDecoders.value.isNotEmpty) {
-      return List<String>.from(customDecoders.value);
-    }
-    return _getDefaultDecodersForPreset(decoderPreset.value);
-  }
-
-  static List<String> _getDefaultDecodersForPreset(DecoderPreset preset) {
-    switch (preset) {
-      case DecoderPreset.softwareSafe:
-        return ['no'];
-
-      case DecoderPreset.hardwareSafe:
-        return Platform.isAndroid ? ['mediacodec-copy', 'no'] : ['auto-copy', 'no'];
-
-      case DecoderPreset.nvidiaCuda:
-        return Platform.isWindows ? ['nvdec', 'd3d11va', 'no'] : ['nvdec', 'vaapi', 'no'];
-
-      case DecoderPreset.hardwareAuto:
-      case DecoderPreset.custom:
-        if (Platform.isWindows) {
-          return ['d3d11va', 'nvdec', 'auto-safe', 'no'];
-        } else if (Platform.isMacOS || Platform.isIOS) {
-          return ['videotoolbox', 'auto-safe', 'no'];
-        } else if (Platform.isAndroid) {
-          return ['mediacodec', 'auto-safe', 'no'];
-        } else {
-          return ['vaapi', 'nvdec', 'auto-safe', 'no'];
-        }
-    }
-  }
-
-  /// Returns the effective hwdec string for media_kit / libmpv based on active preset & platform
-  static String getEffectiveHwdecString() {
-    if (forceSoftwareDecoding.value) return 'no';
-    switch (decoderPreset.value) {
-      case DecoderPreset.hardwareAuto:
-        return Platform.isAndroid ? 'mediacodec-copy' : (Platform.isWindows ? 'd3d11va' : 'auto-safe');
-      case DecoderPreset.hardwareSafe:
-        return Platform.isAndroid ? 'mediacodec-copy' : 'auto-copy';
-      case DecoderPreset.softwareSafe:
-        return 'no';
-      case DecoderPreset.nvidiaCuda:
-        return 'nvdec';
-      case DecoderPreset.custom:
-        final list = customDecoders.value;
-        if (list.isEmpty || list.contains('no')) return 'no';
-        return list.first;
-    }
-  }
-
   /// Returns a configured [VideoControllerConfiguration] for media_kit [VideoController].
+  /// Uses 'auto-safe' — MPV picks the best hardware decoder natively with automatic software fallback.
   static VideoControllerConfiguration getVideoControllerConfiguration() {
-    final hwdec = getEffectiveHwdecString();
-    return VideoControllerConfiguration(
-      hwdec: hwdec,
-      enableHardwareAcceleration: hwdec != 'no',
-      androidAttachSurfaceAfterVideoParameters: true,
-      enableAndroidSurfaceProducer: false,
-    );
-  }
-
-  /// Returns a configured [VideoControllerConfiguration] for media_kit_video.
-  static VideoControllerConfiguration getMediaKitVideoControllerConfiguration() {
     return const VideoControllerConfiguration(
+      hwdec: 'auto-safe',
+      enableHardwareAcceleration: true,
+      androidAttachSurfaceAfterVideoParameters: true,
       enableAndroidSurfaceProducer: false,
     );
   }
@@ -455,7 +219,7 @@ abstract final class PlayerSettings {
       libass: useLibass.value,
       libassAndroidFont: 'assets/fonts/Poppins-Medium.ttf',
       libassAndroidFontName: 'Poppins',
-      bufferSize: getEffectiveMaxBytes(),
+      bufferSize: 157286400, // 150MB — sensible default
       logLevel: MPVLogLevel.warn,
     );
   }
@@ -481,28 +245,19 @@ abstract final class PlayerSettings {
     }
   }
 
-  /// Pre-Open Properties: Demuxer, hardware decoder, cache buffer, disk cache dir,
-  /// and FFmpeg fast-decode flags that MUST be configured before opening media.
+  /// Pre-Open Properties: Demuxer, hardware decoder, cache buffer, and FFmpeg flags
+  /// that MUST be configured before opening media.
   static Future<void> applyPreOpenProperties(Player player, {bool isLive = false, bool isTorrent = false}) async {
     try {
       final dynamic platform = player.platform;
       if (platform == null) return;
 
-      // 1. Demuxer disk cache directory (Smooth AnymeX chunk buffering)
-      if (enableDiskCache.value) {
-        try {
-          final tempDir = await getTemporaryDirectory();
-          await platform.setProperty('demuxer-cache-dir', tempDir.path);
-        } catch (_) {}
-      }
-
       // 1. Audio Filter & Volume
       await platform.setProperty('af', 'scaletempo2=max-speed=8');
       await platform.setProperty('volume-max', '200');
 
-      // 2. Hardware Decoder selection
-      final effectiveHwdec = getEffectiveHwdecString();
-      await platform.setProperty('hwdec', effectiveHwdec);
+      // 2. Hardware Decoder — let MPV pick natively
+      await platform.setProperty('hwdec', 'auto-safe');
 
       // 3. Libass Engine & Font directory pre-configuration
       if (useLibass.value) {
@@ -518,45 +273,41 @@ abstract final class PlayerSettings {
         await platform.setProperty('sub-visibility', 'no');
       }
 
-      // 4. Default Audio Delay
-      if (audioDelayDefault.value != 0.0) {
-        await platform.setProperty('audio-delay', audioDelayDefault.value.toString());
-      }
+      // 4. A/V sync — hardware audio clock is always the master timeline
+      await platform.setProperty('video-sync', 'audio');
 
-      // For torrent streams: DO NOT override anything else. Leave MPV on pure built-in defaults!
+      // ──────────────────────────────────────────────────────────────────────
+      // TORRENT STREAMS: TorrServer is a local HTTP server that may have data
+      // gaps while downloading pieces. MPV needs generous cache, timeouts, and
+      // reconnect to handle this gracefully instead of dying on any stall.
+      // ──────────────────────────────────────────────────────────────────────
       if (isTorrent) {
+        await platform.setProperty('cache', 'yes');
+        await platform.setProperty('cache-secs', '30');
+        await platform.setProperty('demuxer-readahead-secs', '30');
+        await platform.setProperty('demuxer-max-bytes', '157286400');   // 150MB
+        await platform.setProperty('demuxer-max-back-bytes', '52428800'); // 50MB back buffer
+        await platform.setProperty('network-timeout', '60');            // 60s — torrents need patience
+        await platform.setProperty('stream-lavf-o',
+          'reconnect=1,reconnect_streamed=1,reconnect_on_network_error=1,reconnect_delay_max=10',
+        );
         return;
       }
 
-      // 5. Demuxer disk cache directory (Smooth AnymeX chunk buffering)
-      if (enableDiskCache.value) {
-        try {
-          final tempDir = await getTemporaryDirectory();
-          await platform.setProperty('demuxer-cache-dir', tempDir.path);
-        } catch (_) {}
-      }
-
-      // 6. Video Decoder Optimizations (AnymeX)
-      await platform.setProperty('vd-lavc-fast', enableFastDecode.value ? 'yes' : 'no');
-      await platform.setProperty('vd-lavc-skiploopfilter', skipLoopFilter.value);
-      if (lavcThreads.value > 0) {
-        await platform.setProperty('vd-lavc-threads', '${lavcThreads.value}');
-      } else {
-        await platform.setProperty('vd-lavc-threads', 'auto');
-      }
-
-      // 7. Buffer & Demuxer Cache Configuration (HTTP VOD only)
+      // ──────────────────────────────────────────────────────────────────────
+      // HTTP / HLS / CDN STREAMS: Standard buffering and probing
+      // ──────────────────────────────────────────────────────────────────────
       await platform.setProperty('cache', 'yes');
-      await platform.setProperty('demuxer-max-bytes', '${getEffectiveMaxBytes()}');
-      await platform.setProperty('demuxer-max-back-bytes', '${getEffectiveMaxBackBytes()}');
-      await platform.setProperty('cache-secs', '${getEffectiveCacheSecs()}');
-      await platform.setProperty('demuxer-readahead-secs', '${getEffectiveCacheSecs()}');
+      await platform.setProperty('demuxer-max-bytes', '157286400');   // 150MB
+      await platform.setProperty('demuxer-max-back-bytes', '52428800'); // 50MB back buffer
+      await platform.setProperty('cache-secs', '15');
+      await platform.setProperty('demuxer-readahead-secs', '15');
       await platform.setProperty('network-timeout', '30');
 
-      // 8. Network Stream Continuity (Live IPTV vs VOD separation)
+      // Network Stream Continuity (Live IPTV vs VOD separation)
       await applyStreamContinuity(player, isLive: isLive);
 
-      // 9. Native HLS & image-disguised (.jpg/.png) stream probing
+      // Native HLS & image-disguised (.jpg/.png) stream probing
       await platform.setProperty('hls-bitrate', 'max');
       await platform.setProperty('demuxer-lavf-probesize', '32768000');
       await platform.setProperty('demuxer-lavf-analyzeduration', '20');
@@ -753,8 +504,7 @@ abstract final class PlayerSettings {
 
     final shadows = <Shadow>[];
     if (subBorderSize.value > 0) {
-      final b = subBorderSize.value;
-      final r = b * 0.8;
+      final r = subBorderSize.value * 0.8;
       final d = r * 0.707;
       shadows.addAll([
         Shadow(color: borderColor, offset: Offset(-r, 0)),
@@ -855,89 +605,8 @@ abstract final class PlayerSettings {
   }
 
   // ───────────────────────────────────────────────────────────────────────────
-  // Mutation & Persistence
+  // Subtitle Customization Setters (the only user-configurable settings)
   // ───────────────────────────────────────────────────────────────────────────
-
-  static Future<void> setDecoderPreset(DecoderPreset val) async {
-    decoderPreset.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyDecoderPreset, val.name);
-    _notify();
-  }
-
-  static Future<void> setForceSoftwareDecoding(bool val) async {
-    forceSoftwareDecoding.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyForceSoftwareDecoding, val);
-    _notify();
-  }
-
-  static Future<void> setCustomDecoders(List<String> list) async {
-    customDecoders.value = List.from(list);
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_keyCustomDecoders, list);
-    _notify();
-  }
-
-  static Future<void> setBufferPreset(BufferResiliencePreset val) async {
-    bufferPreset.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyBufferPreset, val.name);
-    _notify();
-  }
-
-  static Future<void> setCustomBuffer(int durationMs, int packetCount) async {
-    customBufferMs.value = durationMs;
-    customBufferCount.value = packetCount;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_keyCustomBufferMs, durationMs);
-    await prefs.setInt(_keyCustomBufferCount, packetCount);
-    _notify();
-  }
-
-  static Future<void> setEnableNetworkReconnect(bool val) async {
-    enableNetworkReconnect.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyEnableNetworkReconnect, val);
-    _notify();
-  }
-
-  static Future<void> setReconnectDelayMax(int val) async {
-    reconnectDelayMax.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_keyReconnectDelayMax, val);
-    _notify();
-  }
-
-  static Future<void> setAutoResyncOnStall(bool val) async {
-    autoResyncOnStall.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyAutoResyncOnStall, val);
-    _notify();
-  }
-
-  static Future<void> setLowLatency(bool val) async {
-    lowLatency.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyLowLatency, val);
-    _notify();
-  }
-
-  static Future<void> setHardwareAudioClock(bool val) async {
-    hardwareAudioClock.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyHardwareAudioClock, val);
-    _notify();
-  }
-
-  static Future<void> setAudioDelayDefault(double val) async {
-    audioDelayDefault.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_keyAudioDelayDefault, val);
-    _notify();
-  }
-
-  // ── Subtitle Customization Setters ──
 
   static Future<void> setSubStylePreset(SubtitleStylePreset preset, {Player? player}) async {
     subStylePreset.value = preset;
@@ -1131,74 +800,8 @@ abstract final class PlayerSettings {
     _notify();
   }
 
-  static Future<void> setEnableFastDecode(bool val) async {
-    enableFastDecode.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyEnableFastDecode, val);
-    _notify();
-  }
-
-  static Future<void> setSkipLoopFilter(String val) async {
-    skipLoopFilter.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keySkipLoopFilter, val);
-    _notify();
-  }
-
-  static Future<void> setLavcThreads(int val) async {
-    lavcThreads.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_keyLavcThreads, val);
-    _notify();
-  }
-
-  static Future<void> setEnableDiskCache(bool val) async {
-    enableDiskCache.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyEnableDiskCache, val);
-    _notify();
-  }
-
   static Future<void> resetToDefaults() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_keyDecoderPreset);
-    await prefs.remove(_keyForceSoftwareDecoding);
-    await prefs.remove(_keyCustomDecoders);
-    await prefs.remove(_keyBufferPreset);
-    await prefs.remove(_keyCustomBufferMs);
-    await prefs.remove(_keyCustomBufferCount);
-    await prefs.remove(_keyEnableFastDecode);
-    await prefs.remove(_keySkipLoopFilter);
-    await prefs.remove(_keyLavcThreads);
-    await prefs.remove(_keyEnableDiskCache);
-    await prefs.remove(_keyEnableNetworkReconnect);
-    await prefs.remove(_keyReconnectDelayMax);
-    await prefs.remove(_keyAutoResyncOnStall);
-    await prefs.remove(_keyLowLatency);
-    await prefs.remove(_keyHardwareAudioClock);
-    await prefs.remove(_keyAudioDelayDefault);
-
-    decoderPreset.value = DecoderPreset.hardwareAuto;
-    forceSoftwareDecoding.value = false;
-    bufferPreset.value = Platform.isAndroid
-        ? BufferResiliencePreset.highResilience
-        : BufferResiliencePreset.standard;
-    customBufferMs.value = 6000;
-    customBufferCount.value = 300;
-    enableFastDecode.value = true;
-    skipLoopFilter.value = 'nonkey';
-    lavcThreads.value = 4;
-    enableDiskCache.value = true;
-    enableNetworkReconnect.value = false;
-    reconnectDelayMax.value = 5;
-    autoResyncOnStall.value = true;
-    lowLatency.value = false;
-    hardwareAudioClock.value = true;
-    audioDelayDefault.value = 0.0;
-    customDecoders.value = _getDefaultDecodersForPreset(DecoderPreset.hardwareAuto);
-
     await resetSubtitleDefaults();
-    _notify();
   }
 
   static void _notify() {
