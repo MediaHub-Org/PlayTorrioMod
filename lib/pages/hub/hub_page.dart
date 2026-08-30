@@ -14,13 +14,12 @@ import '../settings/settings_page.dart';
 import 'media_hub.dart';
 import 'books_hub.dart';
 import 'music_hub.dart';
-import '../../app_info.dart';
 
 /// HubPage: the top-level container hosting all primary app hubs
 /// (Media, Books, Music) in an IndexedStack. Each hub owns its own sidebar
 /// (hub switcher, sections, search, settings) — there's no shared header.
 class HubPage extends StatefulWidget {
-  const HubPage({Key? key}) : super(key: key);
+  const HubPage({super.key});
 
   @override
   State<HubPage> createState() => _HubPageState();
@@ -43,10 +42,6 @@ class _HubPageState extends State<HubPage> {
   static Widget _buildBooksHub() => const NestedNavigator(child: BooksHub());
   static Widget _buildMusicHub() => const NestedNavigator(child: MusicHub());
 
-  // Intro animation state
-  static bool _hasShownIntro = false;
-  late bool _showIntro;
-
   void _setHub(AppHub hub) {
     HubController.instance.setHub(hub);
   }
@@ -54,15 +49,9 @@ class _HubPageState extends State<HubPage> {
   @override
   void initState() {
     super.initState();
-    _showIntro = !_hasShownIntro;
-    _hasShownIntro = true;
 
     // Allow child hub pages to navigate back to the primary media hub.
     HubNavigator.registerGoHome(() => _setHub(AppHub.media));
-
-    if (_showIntro) {
-      _playIntro();
-    }
   }
 
   @override
@@ -80,15 +69,6 @@ class _HubPageState extends State<HubPage> {
       if (Navigator.of(context).canPop()) {
         Navigator.pop(context);
       }
-    }
-  }
-
-  Future<void> _playIntro() async {
-    // Show intro for 1.8 seconds so it feels fast
-    await Future.delayed(const Duration(milliseconds: 1800));
-
-    if (mounted) {
-      setState(() => _showIntro = false);
     }
   }
 
@@ -146,11 +126,9 @@ class _HubPageState extends State<HubPage> {
                 ),
               ),
             ),
-            // Universal Play Bar (hidden during intro)
-            // On desktop/tablet it sits 16px above the bottom; on mobile
-            // it clears AdaptiveNavShell's bottom tab bar.
-            if (!_showIntro)
-              Positioned(
+            // Universal Play Bar. On desktop/tablet it sits 16px above the
+            // bottom; on mobile it clears AdaptiveNavShell's bottom tab bar.
+            Positioned(
                 bottom: tier == ScreenTier.mobile
                     ? AdaptiveNavShell.mobileBottomBarInset(context) + 12
                     : 16,
@@ -160,65 +138,10 @@ class _HubPageState extends State<HubPage> {
                 // it stays visible across every hub, not just Listen.
                 child: const UniversalPlayBar(),
               ),
-            // Intro Splash Screen
-            Positioned.fill(child: _buildIntroOverlay(context)),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildIntroOverlay(BuildContext context) {
-    final screenWidth = MediaQuery.sizeOf(context).width;
-    final titleSize = (screenWidth * 0.08).clamp(40.0, 56.0);
-    final subtitleSize = (screenWidth * 0.03).clamp(16.0, 20.0);
-    final iconSize = (screenWidth * 0.12).clamp(48.0, 72.0);
-
-    return IgnorePointer(
-      ignoring: !_showIntro,
-      child: AnimatedOpacity(
-        opacity: _showIntro ? 1.0 : 0.0,
-        duration: const Duration(milliseconds: 800),
-        curve: Curves.easeInOut,
-        child: Container(
-          color: const Color(0xFF080A0F),
-          child: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Image.asset(
-                  'assets/icon.png',
-                  width: iconSize * 1.5,
-                  height: iconSize * 1.5,
-                  fit: BoxFit.contain,
-                ),
-                const SizedBox(height: 32),
-                Text(
-                  AppInfo.name,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: titleSize,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white,
-                    letterSpacing: -1,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  AppInfo.tagline,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: subtitleSize,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white54,
-                    letterSpacing: 2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
