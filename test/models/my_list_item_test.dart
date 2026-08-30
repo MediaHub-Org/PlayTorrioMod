@@ -4,20 +4,11 @@ import 'package:playtorrio/models/my_list/my_list_item.dart';
 void main() {
   group('MyListItem', () {
     group('uniqueKey', () {
-      test('uses traktId when available', () {
+      // IMDb wins: it is the only id that is unique across every provider,
+      // so keying on it is what lets a Trakt item dedupe against a local one.
+      test('prefers imdbId over every other id', () {
         final item = MyListItem(
           traktId: 123,
-          imdbId: 'tt456',
-          tmdbId: 789,
-          title: 'Test Movie',
-          type: 'movie',
-          addedAt: DateTime(2026),
-        );
-        expect(item.uniqueKey, 'trakt:123');
-      });
-
-      test('falls back to imdbId when no traktId', () {
-        final item = MyListItem(
           imdbId: 'tt456',
           tmdbId: 789,
           title: 'Test Movie',
@@ -27,14 +18,35 @@ void main() {
         expect(item.uniqueKey, 'imdb:tt456');
       });
 
-      test('falls back to tmdbId when no traktId or imdbId', () {
+      test('falls back to tmdbId when no imdbId', () {
         final item = MyListItem(
+          traktId: 123,
           tmdbId: 789,
           title: 'Test Movie',
           type: 'movie',
           addedAt: DateTime(2026),
         );
-        expect(item.uniqueKey, 'tmdb:789');
+        expect(item.uniqueKey, 'tmdb:movie:789');
+      });
+
+      test('falls back to traktId when no imdbId or tmdbId', () {
+        final item = MyListItem(
+          traktId: 123,
+          title: 'Test Movie',
+          type: 'movie',
+          addedAt: DateTime(2026),
+        );
+        expect(item.uniqueKey, 'trakt:movie:123');
+      });
+
+      test('falls back to simklId when it is the only id', () {
+        final item = MyListItem(
+          simklId: 55,
+          title: 'Test Movie',
+          type: 'movie',
+          addedAt: DateTime(2026),
+        );
+        expect(item.uniqueKey, 'simkl:movie:55');
       });
 
       test('falls back to title+year when no IDs', () {
@@ -44,7 +56,7 @@ void main() {
           type: 'movie',
           addedAt: DateTime(2026),
         );
-        expect(item.uniqueKey, 'title:test movie:2024');
+        expect(item.uniqueKey, 'title:movie:test movie:2024');
       });
 
       test('title is lowercased and trimmed in fallback key', () {
@@ -54,7 +66,7 @@ void main() {
           type: 'movie',
           addedAt: DateTime(2026),
         );
-        expect(item.uniqueKey, 'title:the matrix:1999');
+        expect(item.uniqueKey, 'title:movie:the matrix:1999');
       });
 
       test('year defaults to 0 when null in fallback key', () {
@@ -63,15 +75,42 @@ void main() {
           type: 'movie',
           addedAt: DateTime(2026),
         );
-        expect(item.uniqueKey, 'title:unknown:0');
+        expect(item.uniqueKey, 'title:movie:unknown:0');
+      });
+
+      // Only IMDb ids are global; the rest are per-type namespaces, so the
+      // same number must not collapse a movie and a show into one entry.
+      test('provider ids are namespaced by type', () {
+        for (final build in <MyListItem Function(String)>[
+          (t) => MyListItem(traktId: 1, title: 'X', type: t, addedAt: DateTime(2026)),
+          (t) => MyListItem(simklId: 1, title: 'X', type: t, addedAt: DateTime(2026)),
+          (t) => MyListItem(tmdbId: 1, title: 'X', type: t, addedAt: DateTime(2026)),
+        ]) {
+          final movie = build('movie');
+          final show = build('series');
+          expect(movie.uniqueKey, isNot(show.uniqueKey));
+          expect(movie, isNot(equals(show)));
+          expect(movie.matches(show), isFalse);
+        }
+      });
+
+      test('an imdbId is shared across types, so it is not namespaced', () {
+        final item = MyListItem(
+          imdbId: 'tt456',
+          title: 'X',
+          type: 'series',
+          addedAt: DateTime(2026),
+        );
+        expect(item.uniqueKey, 'imdb:tt456');
       });
     });
 
     group('equality', () {
-      test('same uniqueKey means equal', () {
+      test('same uniqueKey means equal, whatever else differs', () {
         final a = MyListItem(traktId: 1, title: 'A', type: 'movie', addedAt: DateTime(2026));
-        final b = MyListItem(traktId: 1, title: 'B', type: 'series', addedAt: DateTime(2025));
+        final b = MyListItem(traktId: 1, title: 'B', type: 'movie', addedAt: DateTime(2025));
         expect(a, equals(b));
+        expect(a.hashCode, b.hashCode);
       });
 
       test('different uniqueKey means not equal', () {

@@ -27,11 +27,20 @@ class MyListItem {
     this.isWatchlist = false,
   });
 
+  /// Identity key used for de-duplication and for [==]/[hashCode].
+  ///
+  /// Only IMDb ids are globally unique; every other provider numbers movies
+  /// and shows in separate namespaces, so Trakt/Simkl/TMDB keys are all
+  /// qualified by [type]. Without that, Trakt movie 1 and Trakt show 1
+  /// collide and one silently shadows the other in My List.
+  ///
+  /// This is in-memory only -- it is never serialized, so the format is free
+  /// to change without migrating stored lists.
   String get uniqueKey {
     if (imdbId != null && imdbId!.isNotEmpty) return 'imdb:$imdbId';
     if (tmdbId != null) return 'tmdb:$type:$tmdbId';
-    if (traktId != null) return 'trakt:$traktId';
-    if (simklId != null) return 'simkl:$simklId';
+    if (traktId != null) return 'trakt:$type:$traktId';
+    if (simklId != null) return 'simkl:$type:$simklId';
     final clean = title.toLowerCase().replaceAll(RegExp(r'[^\w\s]'), '').trim();
     return 'title:$type:$clean:${year ?? 0}';
   }
@@ -44,10 +53,10 @@ class MyListItem {
       return tmdbId == other.tmdbId && type == other.type;
     }
     if (traktId != null && other.traktId != null) {
-      return traktId == other.traktId;
+      return traktId == other.traktId && type == other.type;
     }
     if (simklId != null && other.simklId != null) {
-      return simklId == other.simklId;
+      return simklId == other.simklId && type == other.type;
     }
 
     // Don't fallback to title if there are conflicting IDs of the same authority
