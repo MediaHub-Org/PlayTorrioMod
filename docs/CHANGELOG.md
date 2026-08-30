@@ -13,6 +13,13 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 - Android: `MainActivity` now extends `AudioServiceActivity` so tapping the notification returns to the running app rather than starting a second copy; manifest gained the `AudioService` service, the `MediaButtonReceiver`, and `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (required from Android 14). iOS already declared the `audio` background mode.
 - Initialisation failure is non-fatal — a missing session costs the notification controls, not startup.
 
+### One bundle identifier and one product name across all five platforms — 2026-08-30
+- **iOS, macOS and Linux still identified the app as `com.example.playtorrio`** — the `flutter create` placeholder — while Android had already moved to `com.mediahub.playtorriomod`. `com.example.*` is reserved for samples, App Store submission rejects it, and it collided with upstream's own builds.
+- All five now use `com.mediahub.playtorriomod`.
+- The executable inside every bundle was `playtorrio` / `playtorrio.exe`, and the macOS bundle was `playtorrio.app`, which CI renamed to `PlayTorrioMod.app` after the fact. Renamed at the source instead — `BINARY_NAME`, `PRODUCT_NAME`, the Windows `project()` and version resources, the Inno Setup `MyAppExeName`, the AppImage `AppRun` — so the two post-build `mv` steps could go. Windows Explorer's file properties now read `PlayTorrioMod` instead of `playtorrio`.
+- iOS `CFBundleDisplayName` was `Playtorrio` and `CFBundleName` was `playtorrio`; both now read `PlayTorrioMod`. The macOS copyright string no longer credits "com.example".
+- The Kotlin source package stays `com.example.playtorrio` — it is a namespace, not an identifier anything outside the module sees, and renaming it moves files for no user-visible gain. Documented in `docs/configuration.md` along with a table of where each identity value lives.
+
 ### Version 1.1.3, published with a (dev) marker — 2026-08-30
 - **The app could report four different versions depending on where you looked**: releases went out as `v1.1.3-alpha.1`/`.2` while `pubspec.yaml` still said `1.1.2+10`, and Settings, Updates and About each fell back to a hardcoded `1.0.6` when `package_info_plus` could not read the platform bundle.
 - Dropped the alpha suffix — these are ordinary versions now — and bumped to `1.1.3+11`. `AppInfo` gained `channel` (`'dev'`), `versionLabel()` and fallbacks a test pins to `pubspec.yaml`, so all three screens render `1.1.3 (dev)` from one place. Clear `AppInfo.channel` once a release has been verified on hardware.

@@ -1,5 +1,5 @@
 ; ──────────────────────────────────────────────────────────────────────────────
-;  PlayTorrio — Windows Installer (Inno Setup 6)
+;  PlayTorrioMod — Windows Installer (Inno Setup 6)
 ;  Built by CI from: build\windows\x64\runner\Release\
 ; ──────────────────────────────────────────────────────────────────────────────
 
@@ -8,7 +8,7 @@
 #define MyAppVersion   "1.1.0"
 #endif
 #define MyAppPublisher "MediaHub-Org"
-#define MyAppExeName   "playtorrio.exe"
+#define MyAppExeName   "PlayTorrioMod.exe"
 #define MyAppURL       "https://github.com/MediaHub-Org/PlayTorrioMod"
 
 [Setup]

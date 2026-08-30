@@ -13,9 +13,12 @@
 ///    in `StreamScraper` (to gate P2P) and in `ContinueWatchingService`, and
 ///    they are *persisted* inside saved continue-watching entries. Renaming
 ///    them would strand every saved resume point, so they stay literals.
-///  * **Executable and bundle names** -- the Windows/Linux `BINARY_NAME` and
-///    the macOS `PRODUCT_NAME` are build inputs baked into the installer and
-///    packaging scripts, not display strings.
+///  * **Executable and bundle names** -- the Windows/Linux `BINARY_NAME`, the
+///    macOS `PRODUCT_NAME` and the platform bundle identifiers are build
+///    inputs baked into installers and packaging scripts, not display
+///    strings. They read `PlayTorrioMod` / `com.mediahub.playtorriomod` to
+///    match, but changing them means changing the packaging in step, so they
+///    are not driven from here.
 abstract final class AppInfo {
   /// The app's display name. Shown wherever the product names itself.
   static const String name = 'PlayTorrioMod';

@@ -489,7 +489,7 @@ jobs:
           Categories=AudioVideo;Audio;Video;Player;
           EOF
 
-          printf '#!/bin/sh\ncd "$(dirname "$0")"\nexec ./playtorrio "$@"\n' > "$APP/AppRun"
+          printf '#!/bin/sh\ncd "$(dirname "$0")"\nexec ./PlayTorrioMod "$@"\n' > "$APP/AppRun"
           chmod +x "$APP/AppRun"
 
           ARCH=x86_64 ./appimagetool --appimage-extract-and-run "$APP" PlayTorrioMod-Linux-x86_64.AppImage
@@ -554,7 +554,6 @@ jobs:
       - name: Package as DMG & ZIP
         run: |
           cd build/macos/Build/Products/Release
-          mv playtorrio.app PlayTorrioMod.app
 
           codesign --sign - --force --deep PlayTorrioMod.app
 
@@ -627,7 +626,6 @@ jobs:
       - name: Package as DMG & ZIP
         run: |
           cd build/macos/Build/Products/Release
-          mv playtorrio.app PlayTorrioMod.app
 
           codesign --sign - --force --deep PlayTorrioMod.app
 
