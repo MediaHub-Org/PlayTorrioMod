@@ -45,8 +45,11 @@ class SectionSubTabs extends StatelessWidget {
             AppSpacing.md,
             0,
           ),
-          child: Align(
-            alignment: Alignment.centerLeft,
+          // Scrolls rather than overflows. Two short labels always fit, but a
+          // three-way split with longer ones ("Audiobooks / Books / Manga")
+          // runs past a 360px phone, and further still at a large text scale.
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
             child: Container(
               padding: const EdgeInsets.all(3),
               decoration: BoxDecoration(
