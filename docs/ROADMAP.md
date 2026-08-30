@@ -1,6 +1,6 @@
-# Project Roadmap — PlayTorrioV3
+# Project Roadmap — PlayTorrioMod
 
-This document lists the **outstanding** work for PlayTorrioV3. Completed work,
+This document lists the **outstanding** work for PlayTorrioMod. Completed work,
 shipped features, and resolved cleanup are consolidated into `CHANGELOG.md` —
 this file only stays about what's left.
 
