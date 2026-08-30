@@ -22,6 +22,7 @@ Start at the [project README](../README.md) for an overview and quick start.
 | [Fork differences](FORK_DIFFERENCES.md) | How this fork diverges from upstream |
 | [Audit](AUDIT.md) | Findings log and their resolutions |
 | [Contributing](CONTRIBUTING.md) | How to propose a change |
+| [Branching](branching.md) | Branch model, contributing upstream, pulling upstream changes in |
 
 `superpowers/` holds design specs and plans kept for historical reference; they
 are not maintained as current documentation.

@@ -80,6 +80,7 @@ Everything beyond this page lives in [`docs/`](docs/).
 | [Fork differences](docs/FORK_DIFFERENCES.md) | How this fork diverges from upstream |
 | [Audit](docs/AUDIT.md) | Findings log and their resolutions |
 | [Contributing](docs/CONTRIBUTING.md) | How to propose a change |
+| [Branching](docs/branching.md) | Branch model, contributing upstream, pulling upstream changes in |
 
 ## Building and releases
 
