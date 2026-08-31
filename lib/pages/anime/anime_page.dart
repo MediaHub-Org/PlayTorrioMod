@@ -21,6 +21,7 @@ import 'anime_stream_sheet.dart';
 import 'anime_search_page.dart';
 import '../anime_arabic/anime_arabic_details_page.dart';
 import '../anime_arabic/anime_arabic_stream_sheet.dart';
+import '../../services/app_breakpoints.dart';
 
 const _kAnimeGenres = [
   'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror',
@@ -553,7 +554,7 @@ class _AnimePageState extends State<AnimePage> {
 
     final overlayChildren = <Widget>[
       // Custom Scroll Track (Matching Home Page)
-      if (MediaQuery.sizeOf(context).width > 800)
+      if (AppBreakpoints.of(context) == ScreenTier.desktop)
         Positioned(
           right: 24,
           bottom: 40,

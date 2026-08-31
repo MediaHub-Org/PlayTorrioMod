@@ -6,6 +6,7 @@ import '../../models/movie/movie_section.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/movie/movie_card.dart';
+import '../../services/app_breakpoints.dart';
 
 class CatalogPage extends StatefulWidget {
   final MovieSection section;
@@ -196,7 +197,7 @@ class _CatalogPageState extends State<CatalogPage> {
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
     final sizing = MovieCardSizing.fromWidth(MediaQuery.sizeOf(context).width);
-    final isDesktop = MediaQuery.sizeOf(context).width >= 800;
+    final isDesktop = AppBreakpoints.of(context) == ScreenTier.desktop;
     
     // Calculate safe top padding for grid based on if genres are available
     final hasGenres = widget.section.catalog.genres.isNotEmpty && !_isSearching;

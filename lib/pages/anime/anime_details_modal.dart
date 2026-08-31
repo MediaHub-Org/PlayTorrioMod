@@ -9,6 +9,7 @@ import '../../services/anime/anilist_service.dart';
 import '../../services/anime/anime_library_service.dart';
 import '../../services/anime/extractors/anidb_extractor.dart';
 import '../../widgets/common/performance_liquid_lens.dart';
+import '../../services/app_breakpoints.dart';
 
 class AnimeDetailsModal extends StatefulWidget {
   final AnimeMedia initialAnime;
@@ -138,7 +139,7 @@ class _AnimeDetailsModalState extends State<AnimeDetailsModal> {
     final library = AnimeLibraryService.instance;
     final watchItem = library.getWatchlistItem(_anime.id);
     final size = MediaQuery.sizeOf(context);
-    final isMobile = size.width < 750;
+    final isMobile = AppBreakpoints.of(context) == ScreenTier.mobile;
 
     final modalWidth = isMobile ? size.width - 16 : math.min(size.width * 0.94, 980.0);
     final modalHeight = isMobile ? size.height * 0.94 : math.min(size.height * 0.94, 820.0);

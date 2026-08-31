@@ -188,17 +188,18 @@ Empty-state copy tone is similarly uneven: `type_catalog_page.dart:285` gives an
 - **`anime_details_page.dart:589-600`** — **Low-medium**. The native-language subtitle under the anime title is `Colors.white.withValues(alpha: 0.5)` with no `Shadow`, directly below a title that does carry a drop shadow for legibility. The backdrop scrim only reaches ~42% opacity at that position — the unshadowed subtitle is the weak link in an otherwise-handled visual block.
 - **`lib/widgets/movie/movie_card.dart:110-120`** — **Low**. Card title has no explicit color (inherits default) while the year/type row two lines below explicitly sets alpha values — inconsistent styling approach within one widget, though not a visible contrast bug on its solid dark background.
 
-### Responsive breakpoint values genuinely disagree
+### Responsive breakpoint values genuinely disagree — **Fixed (2026-08-31)**
 
-Going beyond the already-tracked "52 files use ad-hoc checks instead of a shared helper" item — the actual cutoff *values* conflict, not just the implementation style:
+Eight pages asked "is this desktop?" against four different literals — `>= 900`, `>= 800`, `> 800`, `>= 750`, `> 700` — so at an 820px window the nav chrome rendered tablet while Discover, Catalog, Anime, IPTV and the details pages rendered desktop: a visible split down the middle of one screen.
 
-- `sidebar_logo.dart:12`, `music_page.dart:802`, `watch_screen.dart:269`: desktop = width `>= 900`.
-- `discover_page.dart:68`, `catalog_page.dart:199`: desktop = width `>= 800`.
-- `anime_page.dart:556`, `iptv_page.dart:276`: desktop = width `> 800`.
-- `iptv_portal_browser_page.dart:347`: desktop = width `>= 750`.
-- `anime_arabic_details_page.dart:870`: desktop = width `> 700`.
+All eight now ask `AppBreakpoints.of(context)`, whose 900 was already the canonical value and what the nav chrome used. Pages in the 800–899 band therefore now get the tablet layout they were always meant to have, rather than a desktop layout that disagreed with the chrome around it.
 
-At an 820px window, Discover/Catalog/Anime/IPTV render desktop layouts while the sidebar logo, Music page, and Watch screen simultaneously render mobile layouts — a real, user-visible layout split at one concrete width. **Severity: medium.**
+Deliberately left alone, with the reason recorded so they are not "fixed" later by mistake:
+
+- **Grid column ramps** (`width < 600 ? 2 : width < 900 ? 3 : ...`). A grid legitimately has more breakpoints than the three nav tiers, and these already ramp at the canonical 600/900.
+- **The fullscreen music and audiobook players.** They are full-screen takeovers that draw no shared chrome, so their cutoff cannot disagree with anything beside it, and they reflow a player rather than a page.
+
+`test/services/breakpoint_consistency_test.dart` fails on any new 700/750/800 width literal outside those two files.
 
 ### Navigation / back-button consistency
 

@@ -8,6 +8,7 @@ import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/animated_ambient_background.dart';
 import '../../widgets/common/slider_arrow.dart';
 import 'anime_arabic_stream_sheet.dart';
+import '../../services/app_breakpoints.dart';
 
 class _Space {
   static const md = 16.0;
@@ -867,7 +868,7 @@ class _AnimeArabicDetailsPageState extends State<AnimeArabicDetailsPage>
 
   Widget _buildRelatedSection() {
     final related = _details!.related;
-    final isDesktop = MediaQuery.sizeOf(context).width > 700;
+    final isDesktop = AppBreakpoints.of(context) == ScreenTier.desktop;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 26),

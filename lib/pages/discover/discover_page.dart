@@ -6,6 +6,7 @@ import '../../models/movie/movie_section.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/movie/movie_card.dart';
+import '../../services/app_breakpoints.dart';
 
 class DiscoverPage extends StatefulWidget {
   final String query;
@@ -65,7 +66,7 @@ class _DiscoverPageState extends State<DiscoverPage> {
   @override
   Widget build(BuildContext context) {
     final topPadding = MediaQuery.of(context).padding.top;
-    final isDesktop = MediaQuery.sizeOf(context).width >= 800;
+    final isDesktop = AppBreakpoints.of(context) == ScreenTier.desktop;
 
     return Scaffold(
       backgroundColor: const Color(0xFF080A0F),
