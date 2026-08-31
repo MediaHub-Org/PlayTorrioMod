@@ -333,7 +333,6 @@ abstract final class PlayerSettings {
           'assets/fonts/Poppins-SemiBold.ttf',
           'assets/fonts/Poppins-Regular.ttf',
           'assets/fonts/subfont.ttf',
-          'assets/subfont.ttf',
         ];
         for (final candidate in candidateAssets) {
           try {

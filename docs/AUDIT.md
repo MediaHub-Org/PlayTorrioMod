@@ -1,4 +1,4 @@
-# Codebase Audit — PlayTorrioV3
+# Codebase Audit — PlayTorrioMod
 
 **Date:** 2026-08-29
 **Method:** Four parallel read-only audits (security, correctness/reliability, architecture/code-quality, UX/design), each scoped to its own concern and cross-checked against `ROADMAP.md`/`CHANGELOG.md` to avoid re-reporting already-tracked or already-fixed items. All findings are file:line-cited against the actual codebase, not generic checklist advice.
@@ -107,7 +107,7 @@ The items below are the ones worth looking at first — either because they're c
 
 ### Minor reentrancy
 
-- **`lib/pages/iptv/iptv_player_page.dart:279-301`** (`_startWatchdog`) — **Low**. The 3-second `Timer.periodic` calls `_initPlayer()` on freeze-detection with no check for an in-flight `_initPlayer()` from a concurrent manual source switch. Both operate on the same long-lived `_player` (no leak), but can race on `_isLoading`/`_statusMessage` and issue two concurrent `player.open()` calls.
+- **`lib/pages/iptv/iptv_player_page.dart`** (`_startWatchdog`) — **Fixed (2026-08-31)**, and worse than reported. The finding described the 3-second freeze watchdog racing a manual source switch. In fact three call sites entered `_initPlayer()` with no coordination between them — the watchdog, `_switchSource`, and the 1-second auto-failover timer — and only the watchdog had any guard (`!_isLoading`), which stopped it re-entering itself and nothing else. A source tap during a failover ran two `player.open()` calls against the same long-lived player, each having read `_activeHitIndex` at its own start, so whichever open landed last decided which channel you got; the first to finish cleared `_isLoading` while the second was still buffering, and a superseded call's error surfaced over a stream that was loading fine and kicked off a failover chain for a source nobody was watching. Now uses the same `_initGeneration` counter as `music_player_controller` and `audiobook_player_screen`: every entry takes a generation, and each await resumes only if it is still the current one.
 
 ---
 
