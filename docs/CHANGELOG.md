@@ -4,6 +4,12 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Move the artifact actions onto Node 24 — 2026-08-31
+- **I got this wrong twice before getting it right.** First I wrote that the release job ran a step on "the deprecated Node 20" — an assumption. Then I checked the actions' own `action.yml`, found `upload-artifact@v5` and `download-artifact@v5`/`v6` all declaring `using: node20`, and concluded there was nothing to fix, since bumping within those majors changed nothing.
+- **The v1.1.3 release run settled it**: `##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/upload-artifact@v5`. The runner is already overriding them, and GitHub says that override is temporary. That is exactly the "revisit only if a release run actually warns" condition the roadmap entry named.
+- The fix is a *higher major*, not a different v5. Verified from each action's own `action.yml`: `upload-artifact@v6` and `download-artifact@v7` declare `node24`. Both are post-v4, so they remain a compatible pair — the only documented artifact incompatibility is v4-and-above being unable to read `upload-artifact@v3` or below.
+- `checkout@v5`, `cache@v5` and `setup-java@v5` did not appear in the warning and are already on Node 24; they stay.
+- Roadmap item 8 now tracks the real dated fuse instead: every Android build warns that the app and six plugins apply the Kotlin Gradle Plugin, and that *"future versions of Flutter will fail to build"* because of it.
 ### One like control instead of five (AUDIT: favorite schemes, High) — 2026-08-31
 - **Five content types each rendered the same boolean "like" their own way**: two pill variants (Manga inline, Audiobooks via a private `_LikeButton`), a bare `IconButton` (Podcasts), and two list-row hearts (Books, Music). The colours were unified on 2026-08-29; the controls were not.
 - All now use `LikeButton`, in one of two styles.
