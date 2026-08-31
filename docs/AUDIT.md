@@ -157,17 +157,25 @@ The items below are the ones worth looking at first — either because they're c
 
 ## 4. UX & design consistency
 
-### "Favorite" control — 5 different schemes across content types
+### "Favorite" control — 5 different schemes across content types — **Fixed (2026-08-31)**
 
-The single most visible inconsistency in the app, directly contradicting the ROADMAP's own stated principle. **Severity: High.**
+Five content types each rendered the same boolean "like" their own way: two pill variants (Manga inline, Audiobooks via a private `_LikeButton`), a bare `IconButton` (Podcasts), and two list-row hearts (Books, Music), in three different reds. The colours were unified on 2026-08-29; the *controls* were not.
 
-- **Movies/Series** (`details_page.dart:996`): bookmark icon (`bookmark_add_outlined`/`bookmark_added_rounded`), purple `0xFF7C5CFF`, labeled "Add to Library"/"In Library" — a *library* concept, not a heart.
-- **Anime** (`anime_details_page.dart:748-800`): not a toggle at all — a `PopupMenuButton` 4-state status picker (Watching/Plan to Watch/Completed/Dropped), green `0xFF00D294`.
-- **Manga** (`manga_details_page.dart:935-969`) / **Audiobooks** (`audiobook_detail_page.dart:587-649`): heart pill button, labeled "Like"/"Liked", red `0xFFE50914` fill when liked — but the **icon itself turns white**, not red.
-- **Podcasts** (`podcast_details_page.dart:70-76`): plain heart `IconButton` in the app bar, no label, and the icon color **is** red when liked — opposite color logic from the visually-similar Manga/Audiobook pill.
-- **Books** (`books_page.dart:376-380`) / **Music** (`music_page.dart:2150,4386`): heart icon in list rows, red `0xFFE50914` (Books) vs. pink `0xFFFF4B72` (Music) — a third color for the same red-heart concept. **Fixed** — Music's liked-heart color (and the universal play bar's purple `0xFF7C5CFF`) unified to red `0xFFE50914`, matching Books/Podcasts/Manga/Audiobooks.
+All of them now use `LikeButton` (`lib/widgets/common/like_button.dart`), in one of two styles.
 
-Empty-state copy tone is similarly uneven: `type_catalog_page.dart:285` gives an actionable "No content found. Install more addons in Settings." while `manga_page.dart:461` and `podcast_details_page.dart:83` give a flat "No X found" with no next step, despite Manga being equally addon/scrape-dependent. **Severity: low-medium.**
+The two styles looked like they contradicted each other — the pill fills red and turns its icon **white**, the bare icon turns **red**. They do not, and the rule is now written down in the widget rather than rediscovered per page: a filled pill needs a white icon to stay legible against its own red fill; a bare icon has no fill and so must carry the colour itself. Both are `kLikedColor`.
+
+Deliberately **not** folded in, because they are not the same concept:
+
+- **Movies/Series** "Add to Library" — library membership, and a bookmark rather than a heart because that is what it means.
+- **Anime** status — a four-state picker (Watching / Plan to Watch / Completed / Dropped). Collapsing it to a heart would delete the feature.
+- **The fullscreen music player's like** — routes through the studio's user-configurable hover physics, which `LikeButton` would drop. It uses `kLikedColor` and carries the same semantics, so it follows the rules without being the widget.
+
+`LikeButton` also carries `Semantics(button, toggled, label)`, which none of the five had — the bare-icon style has no visible text, so a screen reader previously announced an unlabelled button.
+
+`test/widgets/like_button_test.dart` fails on any new filled/outline heart ternary outside those exceptions.
+
+Empty-state copy tone is still uneven: `type_catalog_page.dart` gives an actionable "No content found. Install more addons in Settings." while `manga_page.dart` and `podcast_details_page.dart` give a flat "No X found" with no next step, despite Manga being equally addon/scrape-dependent. **Still open, severity low-medium.**
 
 ### Error/empty/loading state coverage
 
