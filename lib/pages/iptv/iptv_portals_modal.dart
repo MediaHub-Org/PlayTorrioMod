@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/iptv/iptv_controller.dart';
+import '../../services/iptv/iptv_network.dart';
 import '../../services/iptv/iptv_settings.dart';
 import '../../utils/navigation/route_transitions.dart';
 import 'iptv_portal_browser_page.dart';
@@ -465,10 +466,124 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
                       )
                     : const Icon(Icons.radar_rounded, size: 16, color: Colors.white),
                 label: Text(
-                  _ctrl.isScraping ? 'Scraping Reddit…' : 'Scrape Reddit Portals',
+                  _ctrl.isScraping
+                      ? 'Finding ${_ctrl.scrapeSource == CatalogSource.cloudVault ? 'Cloud Vault' : 'Reddit'}…'
+                      : 'Generate Portals',
                   style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700),
                 ),
                 onPressed: _ctrl.isScraping ? null : _ctrl.scrape,
+              ),
+
+              // Source Selector Popup/Dropdown Menu
+              PopupMenuButton<CatalogSource>(
+                tooltip: 'Choose Portal Source',
+                initialValue: _ctrl.scrapeSource,
+                onSelected: (s) {
+                  _ctrl.setScrapeSource(s);
+                  setState(() {});
+                },
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+                ),
+                color: const Color(0xFF161A26),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9.5),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _ctrl.scrapeSource == CatalogSource.cloudVault
+                            ? Icons.cloud_done_rounded
+                            : Icons.forum_rounded,
+                        size: 15,
+                        color: _ctrl.scrapeSource == CatalogSource.cloudVault
+                            ? const Color(0xFF00E5FF)
+                            : const Color(0xFFFF5722),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _ctrl.scrapeSource == CatalogSource.cloudVault ? 'Cloud Vault' : 'Reddit',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.arrow_drop_down_rounded, size: 18, color: Colors.white70),
+                    ],
+                  ),
+                ),
+                itemBuilder: (ctx) => [
+                  PopupMenuItem(
+                    value: CatalogSource.cloudVault,
+                    child: Row(
+                      children: [
+                        const Icon(Icons.cloud_done_rounded, color: Color(0xFF00E5FF), size: 18),
+                        const SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              children: [
+                                const Text(
+                                  'Cloud Vault (9k+)',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text(
+                                    '9,600+ Portals',
+                                    style: TextStyle(color: Color(0xFF00E5FF), fontSize: 9.5, fontWeight: FontWeight.w800),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const Text(
+                              'High-speed cloud database with 9,000+ live IPTV servers',
+                              style: TextStyle(color: Colors.white60, fontSize: 10.5),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: CatalogSource.reddit,
+                    child: Row(
+                      children: [
+                        Icon(Icons.forum_rounded, color: Color(0xFFFF5722), size: 18),
+                        SizedBox(width: 10),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Reddit Communities',
+                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                            Text(
+                              'Scrapes live shared pastes from IPTV subreddits',
+                              style: TextStyle(color: Colors.white60, fontSize: 10.5),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
 
               OutlinedButton.icon(
@@ -683,9 +798,11 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
           // List of Portals
           Expanded(
             child: _ctrl.verified.isEmpty
-                ? const Center(
-                    child: Text('No verified portals. Tap "Scrape Reddit Portals" to auto-discover.',
-                        style: TextStyle(color: Colors.white54)),
+                ? Center(
+                    child: Text(
+                      'No verified portals. Tap "Generate Portals" (${_ctrl.scrapeSource == CatalogSource.cloudVault ? "Cloud Vault" : "Reddit"}) to auto-discover.',
+                      style: const TextStyle(color: Colors.white54),
+                    ),
                   )
                 : ListView.separated(
                     itemCount: _ctrl.verified.length,
@@ -814,6 +931,30 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
                                               child: Text(
                                                 'Conn: ${p.activeConnections}/${p.maxConnections}',
                                                 style: const TextStyle(color: Colors.white70, fontSize: 10, fontWeight: FontWeight.w600),
+                                              ),
+                                            ),
+                                          if (p.portal.source.isNotEmpty)
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                              decoration: BoxDecoration(
+                                                color: p.portal.source.toLowerCase().contains('cloud') || p.portal.source.toLowerCase().contains('vault')
+                                                    ? const Color(0xFF00E5FF).withValues(alpha: 0.15)
+                                                    : (p.portal.source.toLowerCase().contains('reddit')
+                                                        ? const Color(0xFFFF5722).withValues(alpha: 0.15)
+                                                        : Colors.white.withValues(alpha: 0.08)),
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                p.portal.source,
+                                                style: TextStyle(
+                                                  color: p.portal.source.toLowerCase().contains('cloud') || p.portal.source.toLowerCase().contains('vault')
+                                                      ? const Color(0xFF00E5FF)
+                                                      : (p.portal.source.toLowerCase().contains('reddit')
+                                                          ? const Color(0xFFFF7043)
+                                                          : Colors.white70),
+                                                  fontSize: 9.5,
+                                                  fontWeight: FontWeight.w700,
+                                                ),
                                               ),
                                             ),
                                         ],

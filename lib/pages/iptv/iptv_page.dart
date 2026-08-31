@@ -6,6 +6,7 @@ import '../../services/theme/glass_settings.dart';
 import '../../services/iptv/hardcoded_channels.dart';
 import '../../services/iptv/iptv_controller.dart';
 import '../../services/iptv/iptv_settings.dart';
+import '../../services/discord/discord_rpc_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 import '../../widgets/iptv/iptv_hero_carousel.dart';
@@ -42,6 +43,7 @@ class _IptvPageState extends State<IptvPage> {
   @override
   void initState() {
     super.initState();
+    DiscordRpcService.instance.setWatchingLiveTv(channelName: 'Live TV');
     IptvSettings.changeNotifier.addListener(_onSettingsChanged);
     AppThemeService.currentPalette.addListener(_onSettingsChanged);
     _ctrl.init();
@@ -53,6 +55,7 @@ class _IptvPageState extends State<IptvPage> {
     IptvSettings.changeNotifier.removeListener(_onSettingsChanged);
     AppThemeService.currentPalette.removeListener(_onSettingsChanged);
     _scrollController.dispose();
+    DiscordRpcService.instance.clearToIdle();
     super.dispose();
   }
 

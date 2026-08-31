@@ -5,6 +5,7 @@ import '../../models/iptv/iptv_models.dart';
 import '../../models/iptv/m3u_models.dart';
 import 'hardcoded_channels.dart';
 import 'iptv_network.dart';
+import 'iptv_settings.dart';
 import 'iptv_storage.dart';
 import 'm3u_parser.dart';
 import 'm3u_store.dart';
@@ -33,11 +34,12 @@ class IptvController extends ChangeNotifier {
   String statusText = '';
   List<VerifiedPortal> verified = const [];
 
-  CatalogSource scrapeSource = CatalogSource.best;
+  CatalogSource scrapeSource = CatalogSource.cloudVault;
 
   void setScrapeSource(CatalogSource s) {
     if (s == scrapeSource) return;
     scrapeSource = s;
+    IptvSettings.setDefaultScrapeSource(s);
     _scrapeAfter = null;
     _pendingPortals.clear();
     _pendingKeys.clear();
@@ -156,6 +158,7 @@ class IptvController extends ChangeNotifier {
       ..addAll(stored.map((v) => v.credKey));
 
     m3uPlaylists = await M3uStore.loadAll();
+    scrapeSource = IptvSettings.defaultScrapeSource.value;
 
     // Auto-bootstrap portals if library is completely empty
     if (verified.isEmpty) {

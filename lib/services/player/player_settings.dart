@@ -557,16 +557,39 @@ abstract final class PlayerSettings {
         await platform.setProperty('audio-delay', audioDelayDefault.value.toString());
       }
 
-      // Torrent streams are served by the local TorrServer, which does its own
-      // read-ahead and cache management -- layering mpv's demuxer cache and
-      // network timeouts on top of it fights that. Everything above (decoder,
-      // audio filter, subtitles) still applies; only the network/demuxer
-      // tuning below is skipped.
+      // 5. A/V sync master timeline. This setting was stored and read back but
+      // never applied to a player, so turning it off did nothing.
+      if (hardwareAudioClock.value) {
+        await platform.setProperty('video-sync', 'audio');
+      }
+
+      // ──────────────────────────────────────────────────────────────────────
+      // TORRENT STREAMS. This branch used to return early, on the theory that
+      // TorrServer does its own read-ahead and mpv's cache would fight it. That
+      // was wrong, and upstream (whose author wrote the torrent engine) fixed
+      // it in v1.0.7: TorrServer is a local HTTP server serving a file that is
+      // still downloading, so it *will* have gaps, and an mpv with no cache and
+      // a short timeout dies on the first one rather than waiting it out --
+      // which is exactly the "stream error / stuck" symptom torrent playback
+      // showed. Buffer sizes still follow the user's preset; the long timeout
+      // and the reconnect flags are torrent-specific and not worth exposing.
+      // ──────────────────────────────────────────────────────────────────────
       if (isTorrent) {
+        await platform.setProperty('cache', 'yes');
+        await platform.setProperty('demuxer-max-bytes', '${getEffectiveMaxBytes()}');
+        await platform.setProperty('demuxer-max-back-bytes', '${getEffectiveMaxBackBytes()}');
+        await platform.setProperty('cache-secs', '${getEffectiveCacheSecs()}');
+        await platform.setProperty('demuxer-readahead-secs', '${getEffectiveCacheSecs()}');
+        await platform.setProperty('network-timeout', '60');
+        await platform.setProperty(
+          'stream-lavf-o',
+          'reconnect=1,reconnect_streamed=1,'
+              'reconnect_on_network_error=1,reconnect_delay_max=10',
+        );
         return;
       }
 
-      // 5. Video Decoder Optimizations (AnymeX)
+      // 6. Video Decoder Optimizations (AnymeX)
       await platform.setProperty('vd-lavc-fast', enableFastDecode.value ? 'yes' : 'no');
       await platform.setProperty('vd-lavc-skiploopfilter', skipLoopFilter.value);
       if (lavcThreads.value > 0) {
@@ -575,7 +598,7 @@ abstract final class PlayerSettings {
         await platform.setProperty('vd-lavc-threads', 'auto');
       }
 
-      // 6. Buffer & Demuxer Cache Configuration (HTTP VOD only)
+      // 7. Buffer & Demuxer Cache Configuration (HTTP VOD only)
       await platform.setProperty('cache', 'yes');
       await platform.setProperty('demuxer-max-bytes', '${getEffectiveMaxBytes()}');
       await platform.setProperty('demuxer-max-back-bytes', '${getEffectiveMaxBackBytes()}');
@@ -583,10 +606,10 @@ abstract final class PlayerSettings {
       await platform.setProperty('demuxer-readahead-secs', '${getEffectiveCacheSecs()}');
       await platform.setProperty('network-timeout', '30');
 
-      // 7. Network Stream Continuity (Live IPTV vs VOD separation)
+      // 8. Network Stream Continuity (Live IPTV vs VOD separation)
       await applyStreamContinuity(player, isLive: isLive);
 
-      // 8. Native HLS & image-disguised (.jpg/.png) stream probing
+      // 9. Native HLS & image-disguised (.jpg/.png) stream probing
       await platform.setProperty('hls-bitrate', 'max');
       await platform.setProperty('demuxer-lavf-probesize', '32768000');
       await platform.setProperty('demuxer-lavf-analyzeduration', '20');

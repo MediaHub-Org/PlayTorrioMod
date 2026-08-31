@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import '../../models/iptv/iptv_models.dart';
 import 'pastesh_decryptor.dart';
@@ -533,9 +535,24 @@ class IptvAliveChecker {
 // Catalog Xtream-Codes scraper
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum CatalogSource { best, works }
+enum CatalogSource {
+  cloudVault('Cloud Vault', 'High-speed cloud database with 9,000+ live IPTV servers'),
+  reddit('Reddit', 'Live scrapers from Reddit IPTV subreddits');
+
+  final String label;
+  final String description;
+  const CatalogSource(this.label, this.description);
+}
 
 class IptvScraper {
+  static const _cloudVaultPrimaryUrl =
+      'https://pub-38f23eb5f3304328b9774fadfa233a38.r2.dev/xtreamity-plus-db.csv.gz';
+  static const _cloudVaultBackupUrl =
+      'https://s3.us-west-004.backblazeb2.com/Xtream-STBemu/xtreamity-plus-db.csv.gz';
+
+  static List<IptvPortal>? _cachedCloudPortals;
+  static bool _isLoadingCloudPortals = false;
+
   static const _catalogSubs = ['IPTV_ZONENEW', 'FreeIPTV', 'iptvguru', 'IPTVfree'];
   static const _oauthUa = 'PlayTorrio/1.3.6 (by /u/PlayTorrioApp)';
   static const _oauthClientIds = [
@@ -564,11 +581,132 @@ class IptvScraper {
     'type=m3u', 'output=ts', 'password=', 'username=', 'password', 'username',
   ];
 
+  static Future<List<IptvPortal>> _loadCloudVaultDatabase() async {
+    if (_cachedCloudPortals != null && _cachedCloudPortals!.isNotEmpty) {
+      return _cachedCloudPortals!;
+    }
+    if (_isLoadingCloudPortals) {
+      for (int i = 0; i < 40; i++) {
+        await Future.delayed(const Duration(milliseconds: 150));
+        if (_cachedCloudPortals != null && _cachedCloudPortals!.isNotEmpty) {
+          return _cachedCloudPortals!;
+        }
+      }
+    }
+    _isLoadingCloudPortals = true;
+
+    try {
+      List<int>? bytes;
+      for (final url in [_cloudVaultPrimaryUrl, _cloudVaultBackupUrl]) {
+        try {
+          final res = await http
+              .get(Uri.parse(url), headers: {'User-Agent': _ua})
+              .timeout(const Duration(seconds: 15));
+          if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
+            bytes = res.bodyBytes;
+            break;
+          }
+        } catch (_) {}
+      }
+
+      if (bytes == null || bytes.isEmpty) {
+        _isLoadingCloudPortals = false;
+        return const [];
+      }
+
+      final decompressed = gzip.decode(bytes);
+      final text = utf8.decode(decompressed, allowMalformed: true);
+      final lines = const LineSplitter().convert(text);
+
+      final list = <IptvPortal>[];
+      final seen = <String>{};
+
+      for (final line in lines) {
+        if (line.trim().isEmpty) continue;
+        final parts = _parseCsvLine(line);
+        if (parts.length >= 3) {
+          final host = parts[0].trim();
+          final user = parts[1].trim();
+          final pass = parts[2].trim();
+          if (host.startsWith('http://') || host.startsWith('https://')) {
+            if (user.isNotEmpty && pass.isNotEmpty) {
+              final key = '$user|$pass'.toLowerCase();
+              if (seen.add(key)) {
+                list.add(IptvPortal(
+                  url: host.endsWith('/') ? host.substring(0, host.length - 1) : host,
+                  username: user,
+                  password: pass,
+                  source: 'Cloud Vault',
+                ));
+              }
+            }
+          }
+        }
+      }
+
+      list.shuffle();
+      _cachedCloudPortals = list;
+      return list;
+    } catch (e) {
+      debugPrint('[IptvScraper] Error loading Cloud Vault database: $e');
+      return const [];
+    } finally {
+      _isLoadingCloudPortals = false;
+    }
+  }
+
+  static List<String> _parseCsvLine(String line) {
+    final res = <String>[];
+    final sb = StringBuffer();
+    bool inQuotes = false;
+    for (int i = 0; i < line.length; i++) {
+      final ch = line[i];
+      if (ch == '"') {
+        inQuotes = !inQuotes;
+      } else if (ch == ',' && !inQuotes) {
+        res.add(sb.toString().trim());
+        sb.clear();
+      } else {
+        sb.write(ch);
+      }
+    }
+    res.add(sb.toString().trim());
+    return res;
+  }
+
+  static Future<ScrapePage> _scrapeCloudVaultCatalog({
+    int maxResults = 50,
+    String? after,
+  }) async {
+    final allPortals = await _loadCloudVaultDatabase();
+    if (allPortals.isEmpty) {
+      return const ScrapePage(portals: [], nextAfter: null);
+    }
+
+    var offset = 0;
+    if (after != null && after.startsWith('cloud:')) {
+      offset = int.tryParse(after.replaceFirst('cloud:', '')) ?? 0;
+    }
+
+    if (offset >= allPortals.length) {
+      return const ScrapePage(portals: [], nextAfter: null);
+    }
+
+    final slice = allPortals.skip(offset).take(maxResults).toList();
+    final nextOffset = offset + slice.length;
+    final nextAfter = nextOffset < allPortals.length ? 'cloud:$nextOffset' : null;
+
+    return ScrapePage(portals: slice, nextAfter: nextAfter);
+  }
+
   static Future<ScrapePage> scrapeCatalogPage({
     int maxResults = 50,
     String? after,
-    CatalogSource source = CatalogSource.best,
+    CatalogSource source = CatalogSource.cloudVault,
   }) async {
+    if (source == CatalogSource.cloudVault) {
+      return _scrapeCloudVaultCatalog(maxResults: maxResults, after: after);
+    }
     String? redditAfter;
     if (after != null && after.startsWith('reddit:')) {
       final t = after.substring(7);

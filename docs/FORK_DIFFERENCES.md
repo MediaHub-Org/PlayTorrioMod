@@ -1,8 +1,9 @@
 # Fork Differences — vs `ayman708-UX/PlayTorrioV3`
 
 What this fork (`MediaHub-Org/PlayTorrioMod`) does differently from the original
-upstream repo, as of the last sync (`upstream/main` @ `7899af6`, merged into
-this fork's `pr/navigation-cleanup` @ `207a779`).
+upstream repo, as of the last sync (`upstream/main` @ `cd10d6c`, upstream's v1.0.8,
+merged into this fork's `main`). The fork is level with upstream: zero
+commits behind.
 
 Most of upstream's own features (Trakt/Simkl sync, the Debrid/download
 engine, `AppThemeService`, the per-content-type "player studio" settings)
@@ -86,6 +87,43 @@ session, documented in `CHANGELOG.md` under "Architecture":
 - `HeroCarouselAutoRotate` mixin (anime/IPTV hero carousel timers)
 - `SectionedHubScaffold` (Watch/Read hub shells)
 - `_MusicModalShell` (the four music detail pages' shared wrapper)
+
+## Deliberate divergences from upstream v1.0.7 / v1.0.8
+
+Upstream's two latest releases were merged in full except for these, each a
+considered call rather than a merge accident:
+
+- **The advanced player settings stay.** Upstream v1.0.7 deleted the whole
+  decoder/buffer/performance settings system (`video_player_settings_page.dart`,
+  1,235 lines, plus 491 lines of `PlayerSettings`) in favour of hardcoded mpv
+  defaults with `hwdec: auto-safe`. This fork keeps it, because that is where
+  the Android black-screen fix lives: with `enableAndroidSurfaceProducer:
+  false`, plain `mediacodec` decodes to a Surface nothing attaches, and the
+  explicit `mediacodec-copy` is what makes video appear. Losing the settings
+  page would also remove user control this fork's users already have.
+- **Upstream's torrent tuning was taken, and it overrode ours.** The same
+  release fixed something this fork had backwards: torrent playback used to
+  skip mpv's cache entirely, on the theory that TorrServer's own read-ahead
+  made it redundant. Upstream — whose author wrote the torrent engine —
+  pointed out that TorrServer serves a file that is still downloading, so it
+  *will* stall, and an mpv with no cache and a 30s timeout dies on the first
+  gap. Their generous cache, 60s timeout and reconnect flags are now in, with
+  buffer sizes still following the user's preset.
+- **Discord Rich Presence is off by default.** Upstream ships it on. It
+  publishes the title of whatever you are watching, reading or listening to
+  to everyone who can see your Discord profile; for a client that plays
+  torrented and scraped content, that is not something to start doing on a
+  user's behalf unasked. The Settings toggle is unchanged — only the default.
+  Pinned by `test/services/discord_rpc_default_test.dart` so a future merge
+  cannot quietly flip it back.
+- **Upstream's PDF / MOBI / FB2 reader pages were not restored.** This fork's
+  Read hub is EPUB-only (`lib/pages/read/book_reader_page.dart`), and its
+  book search filters libgen results to EPUB, so upstream's `pdfrx`,
+  `dart_mobi` and `fb2_parse` readers would have nothing to open. This is a
+  real capability gap rather than a preference — see `ROADMAP.md`.
+- **Version, bundle id and product name are this fork's**, not upstream's, so
+  the merge never carries `1.0.8`, `com.playtorrio` or `playtorrio.exe` back
+  in.
 
 ## Known-not-carried-over
 

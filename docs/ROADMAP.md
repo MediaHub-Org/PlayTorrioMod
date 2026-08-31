@@ -3,7 +3,8 @@
 What is **outstanding**. Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md);
 this file stays about what is left.
 
-Last reconciled against the tree: **2026-08-30** (v1.1.3+11, dev channel).
+Last reconciled against the tree: **2026-08-31** (v1.1.3+11, dev channel,
+level with upstream @ `cd10d6c` / v1.0.8).
 
 ## Navigation principle
 
@@ -47,14 +48,35 @@ Once a build has actually been through this, clear `AppInfo.channel` and the
 | 5 | **Migrate Anime onto `BrowseScaffold`**                                                           | Anime has its own hero carousel and its own row widget that do the same job. `BrowseScaffold` gained row subtitles and desktop scroll arrows (2026-08-30) so the migration no longer costs anime any feature; what is left is the `ContinueWatchingSlider` slot between hero and rows, and the Arabic-mode branch, which doubles every row. Worth doing, but it is 600 lines of churn on a page that cannot be checked without running it. |
 | 6 | **35 files do ad-hoc `MediaQuery.sizeOf(context).width`** instead of `AppBreakpoints.of(context)` | 35 independent call sites, no shared risk, no user-visible bug. Migrate opportunistically when a file is touched for another reason, not as a batch pass.                                                                                                                                                                                                                                                                                  |
 | 7 | **`music_page.dart` is 5,220 lines**                                                              | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice.                                                                                                                                                                                                                                                                              |
-| 8 | **GitHub Actions may be pinned to Node-20 majors**                                                | Deliberately not bumped blind: verify the current major for each action against its own releases page first, then bump in one commit and watch a full six-platform dispatch.                                                                                                                                                                                                                                                               |
+| 8 | **`actions/download-artifact` is still on v4**                                                     | The rest moved to v5 (`checkout`, `cache`, `setup-java`, `upload-artifact`) on 2026-08-31. Download stayed behind, so the release job still runs one step on the deprecated Node 20. Not broken — the v3→v4 artifact-backend split is what made mixing majors fail, and v4→v5 was a runtime bump — but it should match. Check the action's own releases page for the current major before bumping, then watch a full six-platform dispatch, since the release job only runs on a dispatch or tag and never on a PR. |
 
 ## Content sources
 
 | #  | Task                           | State                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 |----|--------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 9  | **Comics data source**         | `ComicsPage` is an honest empty state, not a placeholder pretending to load. Two leads checked 2026-08-29: `newcomic.info` routes every `.cbr` through `florenfile.com` behind Cloudflare's JS challenge — dead for a server-side fetch. `readcomicsonline.lol` looks structurally right (own CDN, direct `.webp` per page, no archive extraction, same shape as Manga) but its chapter/page data loads client-side and the underlying endpoint did not surface from its JS bundles. Confirming it needs live devtools inspection by a human, not blind guessing. |
-| 10 | **Cast photos for Audiobooks** | Movies/Series, Anime and Manga all have them. Audiobooks stays blocked: AniList does not catalog narrators, and AudiobookBay's listing HTML has no narrator field beyond free text. Would need a narrator-photo database that does not appear to exist publicly.                                                                                                                                                                                                                                                                                                  |
+| 9  | **Read hub is EPUB-only**      | Upstream has PDF, MOBI and FB2 readers (`pdfrx`, `dart_mobi`, `fb2_parse`) under `lib/pages/books/`; this fork's Read hub has one EPUB reader, and `BooksService._parseResults` drops every libgen row whose format is not `epub`. Restoring the other three means porting the reader pages *and* widening that filter — a feature port, not a merge. Found during the v1.0.8 merge (2026-08-31).                                                                                                                                                                 |
+| 10 | **Comics data source**         | `ComicsPage` is an honest empty state, not a placeholder pretending to load. Two leads checked 2026-08-29: `newcomic.info` routes every `.cbr` through `florenfile.com` behind Cloudflare's JS challenge — dead for a server-side fetch. `readcomicsonline.lol` looks structurally right (own CDN, direct `.webp` per page, no archive extraction, same shape as Manga) but its chapter/page data loads client-side and the underlying endpoint did not surface from its JS bundles. Confirming it needs live devtools inspection by a human, not blind guessing. |
+| 11 | **Cast photos for Audiobooks** | Movies/Series, Anime and Manga all have them. Audiobooks stays blocked: AniList does not catalog narrators, and AudiobookBay's listing HTML has no narrator field beyond free text. Would need a narrator-photo database that does not appear to exist publicly.                                                                                                                                                                                                                                                                                                  |
+
+## Staying level with upstream
+
+The fork tracks `ayman708-UX/PlayTorrioV3`. As of 2026-08-31 it is **zero
+commits behind** (`upstream/main` @ `cd10d6c`, v1.0.8).
+
+Merging upstream is not a `git merge` and a green analyzer — the last two syncs
+both had real breakage in regions git's 3-way diff never flagged, because only
+one side had touched them. The routine that catches it:
+
+1. `git merge upstream/main --no-commit`, then resolve.
+2. Identity files always resolve to ours: `pubspec.yaml` version,
+   `build.gradle.kts`, the two `project.pbxproj`, `AppInfo.xcconfig`,
+   `CMakeLists.txt`, `Runner.rc`, `setup.iss`, `build.yml`.
+3. Read `docs/FORK_DIFFERENCES.md` § *Deliberate divergences* and confirm each
+   one survived — they are exactly what a merge silently reverts.
+4. Grep for this fork's landmark fixes: `mediacodec-copy`,
+   `MediaSessionService.init`, `LibrarySection.values`, the namespaced
+   `my_list_item` keys, `_buildFatalErrorView`.
+5. Then `flutter analyze` and the suite.
 
 ## Signing and releases
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../models/movie/movie_detail.dart';
 import '../../models/movie/video.dart';
 import '../../models/stream/stream_model.dart';
@@ -668,6 +669,56 @@ class _PlayerSourcesPanelState extends State<PlayerSourcesPanel> {
                 ),
 
                 const SizedBox(width: 8),
+
+                if (source.isMagnet && source.magnetUrl != null) ...[
+                  Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(16),
+                      onTap: () {
+                        Clipboard.setData(ClipboardData(text: source.magnetUrl!));
+                        HapticFeedback.lightImpact();
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: const Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(Icons.check_circle_rounded, color: Color(0xFF10B981), size: 18),
+                                SizedBox(width: 8),
+                                Text(
+                                  'Magnet link copied to clipboard',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            backgroundColor: const Color(0xFF1A1D26),
+                            behavior: SnackBarBehavior.floating,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            duration: const Duration(seconds: 2),
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.link_rounded,
+                          color: Colors.white70,
+                          size: 16,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                ],
 
                 // Play Button Icon
                 Container(

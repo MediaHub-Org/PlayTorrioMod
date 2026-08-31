@@ -68,32 +68,11 @@ class TorrentStreamService {
 
   final ParseTorrentTitle _ptt = ParseTorrentTitle();
 
-  /// Optimal high-speed streaming settings for TorrServer.
-  static const TorrServerSettings fastestSettings = TorrServerSettings(
-    cacheSize: 200 * 1024 * 1024, // 200 MB sliding RAM cache
-    readerReadAHead: 95, // 95% aggressive pre-buffer ahead of playhead
-    preloadCache: 2, // 2% quick start for instant playback and instant seeking
-    useDisk: false, // RAM-only streaming (zero disk I/O / flash wear)
-    removeCacheOnDrop: true, // Free RAM immediately when closing stream
-    connectionsLimit: 60, // Optimal peer connections for high throughput without router choking
-    downloadRateLimit: 0, // 0 = Unlimited max download speed
-    uploadRateLimit: 100, // 100 KB/s cap protects downstream TCP ACK bandwidth
-    disableDHT: false, // DHT enabled for trackerless discovery
-    disablePEX: false, // Peer Exchange enabled for fast swarm expansion
-    disableUTP: false, // uTP enabled for latency/ISP resilience
-    disableTCP: false, // TCP enabled
-    disableUPNP: false, // UPnP enabled for automatic port forwarding
-    enableLPD: true, // Local Peer Discovery enabled
-    retrackersMode: 1, // Add public retrackers automatically
-    torrentDisconnectTimeout: 20, // Quick disconnect of stale peers
-    responsiveMode: true, // Prioritize instant playback responsiveness
-  );
-
   // ─────────────────────────────────────────────────────────────────────────
   // Lifecycle
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// Starts the TorrServer engine. Safe to call multiple times.
+  /// Starts the TorrServer engine using native defaults. Safe to call multiple times.
   Future<bool> start() async {
     if (_controller.isRunning && _state == EngineState.ready) return true;
     if (_state == EngineState.starting) {
@@ -107,16 +86,11 @@ class TorrentStreamService {
 
     _setState(EngineState.starting);
     try {
-      _log('Starting TorrServer engine with fastest streaming settings...');
-      await _controller.start(settings: fastestSettings);
+      _log('Starting TorrServer engine with native defaults...');
+      await _controller.start();
       final version = await _controller.echo();
-      try {
-        await _controller.setSettings(fastestSettings);
-      } catch (e) {
-        _log('setSettings non-fatal: $e');
-      }
       _setState(EngineState.ready);
-      _log('TorrServer ready at ${_controller.baseUrl} (version: $version, cache: 200MB RAM, preload: 15%)');
+      _log('TorrServer ready at ${_controller.baseUrl} (version: $version, default engine settings)');
       return true;
     } catch (e, st) {
       _log('Failed to start TorrServer: $e\n$st');
