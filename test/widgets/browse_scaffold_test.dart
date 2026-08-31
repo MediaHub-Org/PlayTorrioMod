@@ -76,19 +76,34 @@ void main() {
       expect(find.text('Top popular series'), findsOneWidget);
     });
 
-    testWidgets('mobile gets no scroll arrows', (tester) async {
+    testWidgets('arrows stay off-screen until the row is hovered',
+        (tester) async {
+      // Arrows are gated on hover alone, not on width or platform: a touch
+      // device never fires onEnter, so it never reveals one. That means they
+      // are *built* at every size, and what matters is that they sit outside
+      // the viewport until a pointer arrives — asserting they are absent
+      // would have been asserting the old width check, not the behaviour.
       setSurfaceWidth(tester, 400);
       await tester.pumpWidget(wrap(build(
         hero: ['a', 'b', 'c'],
-        rows: [BrowseRow(title: 'Trending', items: items(20))],
+        rows: [BrowseRow(title: 'Trending', items: items(30))],
       )));
       await tester.pumpAndSettle();
 
-      // Touch users swipe. Arrows would only cover artwork.
-      expect(find.byType(SliderArrow), findsNothing);
+      final width = tester.view.physicalSize.width / tester.view.devicePixelRatio;
+      for (final arrow in tester.widgetList<SliderArrow>(find.byType(SliderArrow))) {
+        final rect = tester.getRect(find.byWidget(arrow));
+        expect(
+          rect.right <= 0 || rect.left >= width,
+          isTrue,
+          reason: 'an un-hovered arrow must be off-screen, not overlapping '
+              'the artwork it sits on (was at $rect on a ${width}px surface)',
+        );
+      }
     });
 
-    testWidgets('desktop gets hero and row arrows', (tester) async {
+    testWidgets('a hero with several slides and a scrollable row both get '
+        'a back and forward arrow', (tester) async {
       setSurfaceWidth(tester, 1400);
       await tester.pumpWidget(wrap(build(
         hero: ['a', 'b', 'c'],
@@ -96,12 +111,12 @@ void main() {
       )));
       await tester.pumpAndSettle();
 
-      // Two per carousel: back and forward. They are positioned offscreen
-      // until hover, so they are built either way.
+      // Two per carousel: back and forward, for the hero and for the row.
       expect(find.byType(SliderArrow), findsNWidgets(4));
     });
 
     testWidgets('a single hero slide gets no hero arrows', (tester) async {
+      // Nothing to page to, so the arrows would be dead controls.
       setSurfaceWidth(tester, 1400);
       await tester.pumpWidget(wrap(build(hero: ['only'])));
       await tester.pumpAndSettle();

@@ -4,6 +4,13 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### One row implementation instead of two — 2026-08-31
+- **`AnimeSliderSection` and `BrowseScaffold`'s row were the same widget written twice**: same `MovieCardSizing`, same `SectionHeader`, same hover-revealed `SliderArrow`, same 0.8-viewport scroll step. Two adjacent screens, free to drift apart on card size, spacing or arrow behaviour with nothing to stop them.
+- Extracted `BrowseRowView<T>` as the one implementation. `BrowseScaffold` builds its rows from it; `AnimeSliderSection` is now a 40-line wrapper that supplies `AnimeCard`. Net −300 lines across the two files.
+- **Arrows are now gated on hover alone**, dropping the width check in one copy and the `defaultTargetPlatform` check in the other. Both were proxies for "has a pointer", and wrong in opposite directions: a Windows tablet in touch mode got arrows it could not hover, an Android device with a mouse got none. A touch device never fires `onEnter`, so hover answers the question directly.
+- The existing "mobile gets no scroll arrows" test caught the change, as intended. It now asserts the stronger property — that an un-hovered arrow sits *off-screen* rather than merely absent — since asserting absence was asserting the old width check rather than the behaviour.
+- **Migrating the anime page itself onto `BrowseScaffold` was dropped**, and the roadmap records why: `AnimeSliderSection` is also used by `anime_search_page`, so converting only the anime page would have left two row implementations on adjacent screens — the exact problem this change removes.
+
 ### Fix the IPTV player opening two streams at once (AUDIT #minor-reentrancy) — 2026-08-31
 - **Three call sites entered `_initPlayer()` with no coordination**: the 3-second freeze watchdog, `_switchSource` when the user picks another source, and the 1-second auto-failover after an error. Only the watchdog had a guard, and `!_isLoading` only stopped it re-entering *itself*.
 - Tapping a source during a failover therefore ran two `player.open()` calls against the same long-lived player, each having read `_activeHitIndex` at its own start — so whichever `open()` landed last decided which channel you actually got. The first to finish cleared `_isLoading` while the second was still buffering, and a superseded call's error surfaced over a stream that was loading fine, starting a failover chain for a source nobody was watching.
