@@ -60,7 +60,7 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -70,7 +70,7 @@ jobs:
           cache: true
 
       - name: Cache Flutter pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -166,7 +166,7 @@ jobs:
           Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "PlayTorrioMod-Windows-x64-Portable.zip" -Force
 
       - name: Upload Windows Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: PlayTorrioMod-Windows
           path: |
@@ -183,10 +183,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -199,7 +199,7 @@ jobs:
           cache: true
 
       - name: Cache Flutter pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -209,7 +209,7 @@ jobs:
             ${{ runner.os }}-pub-
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.gradle/caches
@@ -288,7 +288,7 @@ jobs:
           fi
 
       - name: Upload Android Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: PlayTorrioMod-Android
           path: android_apks/*.apk
@@ -302,10 +302,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Java 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '17'
@@ -318,7 +318,7 @@ jobs:
           cache: true
 
       - name: Cache Flutter pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -328,7 +328,7 @@ jobs:
             ${{ runner.os }}-pub-
 
       - name: Cache Gradle
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.gradle/caches
@@ -398,7 +398,7 @@ jobs:
             android_apks/PlayTorrioMod-Android-Universal.apk
 
       - name: Upload Android Universal Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: PlayTorrioMod-Android-Universal
           path: android_apks/*.apk
@@ -410,7 +410,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -420,7 +420,7 @@ jobs:
           cache: true
 
       - name: Cache Flutter pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -496,7 +496,7 @@ jobs:
           tar -czvf PlayTorrioMod-Linux-x86_64.tar.gz -C build/linux/x64/release/bundle .
 
       - name: Upload Linux Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: PlayTorrioMod-Linux-x64
           path: |
@@ -509,7 +509,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -519,7 +519,7 @@ jobs:
           cache: true
 
       - name: Cache Flutter pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -570,7 +570,7 @@ jobs:
           zip -ry ../../../../../PlayTorrioMod-macOS-arm64.zip PlayTorrioMod.app
 
       - name: Upload macOS ARM64 Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: PlayTorrioMod-macOS-arm64
           path: |
@@ -583,7 +583,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Rosetta 2
         run: softwareupdate --install-rosetta --agree-to-license || true
@@ -597,7 +597,7 @@ jobs:
           cache: true
 
       - name: Cache Flutter pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -642,7 +642,7 @@ jobs:
           zip -ry ../../../../../PlayTorrioMod-macOS-intel.zip PlayTorrioMod.app
 
       - name: Upload macOS Intel Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: PlayTorrioMod-macOS-intel
           path: |
@@ -655,7 +655,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -665,7 +665,7 @@ jobs:
           cache: true
 
       - name: Cache Flutter pub dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ${{ env.PUB_CACHE }}
@@ -699,7 +699,7 @@ jobs:
           zip -ry ../../../PlayTorrioMod-iOS.ipa Payload
 
       - name: Upload iOS Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: PlayTorrioMod-iOS
           path: PlayTorrioMod-iOS.ipa
