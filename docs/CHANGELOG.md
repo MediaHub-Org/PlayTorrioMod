@@ -4,6 +4,14 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### One like control instead of five (AUDIT: favorite schemes, High) — 2026-08-31
+- **Five content types each rendered the same boolean "like" their own way**: two pill variants (Manga inline, Audiobooks via a private `_LikeButton`), a bare `IconButton` (Podcasts), and two list-row hearts (Books, Music). The colours were unified on 2026-08-29; the controls were not.
+- All now use `LikeButton`, in one of two styles.
+- **The two styles only looked contradictory.** The pill fills red and turns its icon *white*; the bare icon turns *red*. That is correct, and the reason is now in the widget rather than rediscovered per page: a filled pill needs a white icon to stay legible against its own fill, while a bare icon has no fill and must carry the colour itself. Both use `kLikedColor`.
+- **Not folded in, because they are different concepts**: Movies/Series' "Add to Library" (library membership, hence a bookmark); Anime's four-state status picker (collapsing it to a heart would delete the feature); and the fullscreen music player's like, which routes through the studio's configurable hover physics — it uses `kLikedColor` and the same semantics without being the widget.
+- **Gained accessibility none of the five had**: `Semantics(button, toggled, label)`. The bare-icon style has no visible text, so a screen reader previously announced an unlabelled button.
+- A test fails on any new filled/outline heart ternary outside those exceptions. Its first draft flagged a sub-tab icon and an empty-state glyph — matching the *ternary* rather than the icon name is what distinguishes a toggle from decoration.
+
 ### One answer to "is this desktop?" (AUDIT: breakpoint values disagree) — 2026-08-31
 - **Eight pages asked the question against four different literals** — `>= 900`, `>= 800`, `> 800`, `>= 750`, `> 700`. At an 820px window the nav chrome rendered tablet while Discover, Catalog, Anime, IPTV, the details page and the Arabic anime details page rendered desktop: a visible split down the middle of one screen.
 - All eight now ask `AppBreakpoints.of(context)`. Its 900 was already canonical and already what the nav chrome used, so the outliers moved up to it rather than the shared value moving down for them. Pages in the 800–899 band now get the tablet layout they were meant to have instead of a desktop one that disagreed with the chrome around it.

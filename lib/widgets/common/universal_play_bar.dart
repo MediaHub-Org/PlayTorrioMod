@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/playback_coordinator.dart';
+import 'like_button.dart';
 
 /// A universal bottom play bar shown across all hubs (Media, Books, Music).
 ///
@@ -123,18 +124,11 @@ class UniversalPlayBar extends StatelessWidget {
               ],
               // Like (music tracks only)
               if (PlaybackCoordinator.canLike)
-                IconButton(
-                  tooltip: PlaybackCoordinator.isLiked ? 'Unlike' : 'Like',
-                  icon: Icon(
-                    PlaybackCoordinator.isLiked
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    color: PlaybackCoordinator.isLiked
-                        ? const Color(0xFFE50914)
-                        : Colors.white54,
-                    size: 20,
-                  ),
-                  onPressed: PlaybackCoordinator.toggleLike,
+                LikeButton(
+                  isLiked: PlaybackCoordinator.isLiked,
+                  onTap: PlaybackCoordinator.toggleLike,
+                  style: LikeButtonStyle.icon,
+                  size: 20,
                 ),
               // Skip back / forward, for a source with a queue. Same pair
               // the media-session notification publishes, so the bar and the

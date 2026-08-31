@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import '../../services/podcast/podcast_library_service.dart';
 import '../../services/podcast/podcast_player_controller.dart';
 import '../../services/podcast/podcast_service.dart';
+import '../../widgets/common/like_button.dart';
 
 /// Episode list for one podcast, fetched live from its RSS feed.
 class PodcastDetailsPage extends StatefulWidget {
@@ -67,12 +68,10 @@ class _PodcastDetailsPageState extends State<PodcastDetailsPage> {
         backgroundColor: const Color(0xFF080A0F),
         title: Text(widget.podcast.name, maxLines: 1, overflow: TextOverflow.ellipsis),
         actions: [
-          IconButton(
-            icon: Icon(
-              _isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              color: _isLiked ? const Color(0xFFE50914) : Colors.white70,
-            ),
-            onPressed: _toggleLike,
+          LikeButton(
+            isLiked: _isLiked,
+            onTap: _toggleLike,
+            style: LikeButtonStyle.icon,
           ),
         ],
       ),
