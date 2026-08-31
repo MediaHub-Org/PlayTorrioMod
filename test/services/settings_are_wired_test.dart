@@ -19,8 +19,6 @@ const _appliedInOwnFile = {
   'changeNotifier',
   'audioDelayDefault', // applied in PlayerSettings.applyPreOpenProperties
   'hardwareAudioClock', // ditto, since 2026-08-31
-  'selectedMiniPreset', // see ROADMAP: the mini player it configures is gone
-  'componentOrderMini', // ditto
 };
 
 List<String> _notifierNames(String source) => RegExp(
