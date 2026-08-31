@@ -4,6 +4,12 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Remove the Music Player Studio's Mini Bar half — 2026-08-31
+- **It configured a widget that does not exist.** The studio's "Mini Bar" target let you pick a preset, drag components into an order and watch a live preview, then told you it was "set as active bottom bar". This fork replaced upstream's per-page mini players with the shared `UniversalPlayBar`, which reads none of `MusicSettings` — so none of it ever reached the screen.
+- Wiring it up instead was the other option and was rejected: the bar is shared across music, video, audiobooks and podcasts, so a music-only component order would make it rearrange itself whenever you switched source type. The one-shared-bar architecture is the fork's design; a music-only mini-player customiser contradicts it.
+- Removed the Fullscreen/Mini switcher, the mini preview card and its component builder, `MusicMiniPlayerPreset`, `selectedMiniPreset`, `componentOrderMini`, `reorderMiniComponents` and `setSelectedMiniPreset` — 280 lines. The Fullscreen studio, which genuinely works (`music_page.dart` reads `selectedFullscreenPreset`), is untouched.
+- `settings_are_wired_test.dart` no longer needs its two exemptions, so the rule is now unconditional: every persisted setting is read by something.
+
 ### One answer to "is this desktop?" (AUDIT: breakpoint values disagree) — 2026-08-31
 - **Eight pages asked the question against four different literals** — `>= 900`, `>= 800`, `> 800`, `>= 750`, `> 700`. At an 820px window the nav chrome rendered tablet while Discover, Catalog, Anime, IPTV, the details page and the Arabic anime details page rendered desktop: a visible split down the middle of one screen.
 - All eight now ask `AppBreakpoints.of(context)`. Its 900 was already canonical and already what the nav chrome used, so the outliers moved up to it rather than the shared value moving down for them. Pages in the 800–899 band now get the tablet layout they were meant to have instead of a desktop one that disagreed with the chrome around it.
