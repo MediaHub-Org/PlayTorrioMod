@@ -4,6 +4,11 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Delete 184 lines of settings that were never read — 2026-08-31
+- **Found by asking a question the last two bugs suggested**: `enableNetworkReconnect` and then `hardwareAudioClock` were both stored, restored on launch and exposed as settings, yet never applied to anything. Two of the same bug is a pattern, so all 130 persisted settings were checked mechanically.
+- **19 more were dead.** `MusicSettings` and `AudiobookSettings` each carried a full ambient-light block (enable/pattern/intensity/speed), plus card density, lossless badges, liquid glass, drawer toggles and player-chrome flags; `IptvSettings` carried an ambient-light toggle. Every one had a pref key, a notifier, a loader line, a setter and a reset line — and no UI writing it and nothing reading it. They read as copy-paste of `MangaSettings`, where the same settings genuinely work (UI plus a consumer in `manga_page.dart`).
+- `test/services/settings_are_wired_test.dart` now walks every settings service and fails on a persisted value nothing outside its own file reads. Settings that are deliberately applied in-file (`audioDelayDefault`, `hardwareAudioClock`) are listed explicitly with a note saying where.
+
 ### Merge upstream v1.0.7 + v1.0.8 — the fork is level again — 2026-08-31
 - **Took**: Discord Rich Presence (`discord_rpc_service.dart`, wired into 10 call sites), the IPTV portal/network work and its new `defaultScrapeSource` setting, `watch_screen`'s copy-magnet button, the `stream_model` additions, torrent-stream and sources-panel tweaks, updater wakelock protections.
 - **Upstream fixed something this fork had backwards.** Torrent playback used to skip mpv's cache entirely, on the theory that TorrServer's own read-ahead made it redundant. Upstream — whose author wrote the torrent engine — points out that TorrServer serves a file that is *still downloading*, so it will have gaps, and an mpv with no cache and a 30s timeout dies on the first one. That is plausibly part of the "stream error / stuck" symptom torrent playback showed. Their generous cache, 60s timeout and reconnect flags are now in; buffer sizes still follow the user's preset rather than being hardcoded.

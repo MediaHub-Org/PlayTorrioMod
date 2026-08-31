@@ -30,7 +30,6 @@ abstract final class IptvSettings {
   static const _keyCardHoverZoom = 'iptv_card_hover_zoom';
   static const _keyShowHdBadge = 'iptv_show_hd_badge';
   static const _keyShowCategoryTag = 'iptv_show_category_tag';
-  static const _keyEnableAmbientLights = 'iptv_enable_ambient_lights';
   static const _keyVisibleCategories = 'iptv_visible_categories';
 
   // Portals Modal Keys
@@ -73,7 +72,6 @@ abstract final class IptvSettings {
   static final ValueNotifier<double> cardHoverZoom = ValueNotifier<double>(1.06);
   static final ValueNotifier<bool> showHdBadge = ValueNotifier<bool>(true);
   static final ValueNotifier<bool> showCategoryTag = ValueNotifier<bool>(true);
-  static final ValueNotifier<bool> enableAmbientLights = ValueNotifier<bool>(true);
   static final ValueNotifier<List<String>> visibleCategories =
       ValueNotifier<List<String>>(List.from(defaultCategories));
 
@@ -119,7 +117,6 @@ abstract final class IptvSettings {
     cardHoverZoom.value = prefs.getDouble(_keyCardHoverZoom) ?? 1.06;
     showHdBadge.value = prefs.getBool(_keyShowHdBadge) ?? true;
     showCategoryTag.value = prefs.getBool(_keyShowCategoryTag) ?? true;
-    enableAmbientLights.value = prefs.getBool(_keyEnableAmbientLights) ?? true;
 
     final savedCats = prefs.getStringList(_keyVisibleCategories);
     if (savedCats != null && savedCats.isNotEmpty) {
@@ -213,12 +210,6 @@ abstract final class IptvSettings {
     changeNotifier.value++;
   }
 
-  static Future<void> setEnableAmbientLights(bool val) async {
-    enableAmbientLights.value = val;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyEnableAmbientLights, val);
-    changeNotifier.value++;
-  }
 
   static Future<void> toggleCategoryVisibility(String category) async {
     final list = List<String>.from(visibleCategories.value);
