@@ -155,11 +155,19 @@ class _WatchScreenState extends State<WatchScreen>
 
   String? _selectedAddonFilter;
   String? _selectedSizeFilter;
+  String _selectedTypeFilter = 'all'; // 'all', 'debrid', 'torrent', 'direct'
 
   List<StreamSource> get _filteredSources {
     var list = List<StreamSource>.from(_sources);
     if (_selectedAddonFilter != null) {
       list = list.where((s) => s.addonName == _selectedAddonFilter).toList();
+    }
+    if (_selectedTypeFilter == 'debrid') {
+      list = list.where((s) => s.isDebrid).toList();
+    } else if (_selectedTypeFilter == 'torrent') {
+      list = list.where((s) => s.isTorrent).toList();
+    } else if (_selectedTypeFilter == 'direct') {
+      list = list.where((s) => s.isHttpDirect).toList();
     }
     if (_selectedSizeFilter != null) {
       switch (_selectedSizeFilter) {
@@ -437,6 +445,37 @@ class _WatchScreenState extends State<WatchScreen>
                     ),
                     if (_sources.isNotEmpty) ...[
                       const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        child: Row(
+                          children: [
+                            _buildTypeChip('all', 'All (${_sources.length})', Icons.apps_rounded, null),
+                            const SizedBox(width: 6),
+                            _buildTypeChip(
+                              'debrid',
+                              '⚡ Debrid (${_sources.where((s) => s.isDebrid).length})',
+                              Icons.bolt_rounded,
+                              const Color(0xFF00E5FF),
+                            ),
+                            const SizedBox(width: 6),
+                            _buildTypeChip(
+                              'torrent',
+                              '🧲 Torrents (${_sources.where((s) => s.isTorrent).length})',
+                              Icons.share_rounded,
+                              const Color(0xFF7C5CFF),
+                            ),
+                            const SizedBox(width: 6),
+                            _buildTypeChip(
+                              'direct',
+                              '🌐 Direct (${_sources.where((s) => s.isHttpDirect).length})',
+                              Icons.link_rounded,
+                              const Color(0xFF10B981),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         physics: const BouncingScrollPhysics(),
@@ -989,6 +1028,41 @@ class _WatchScreenState extends State<WatchScreen>
         ),
         const SizedBox(height: _S.sm),
 
+        // Stream Type Filter Bar (All / Debrid / Torrents / Direct HTTP)
+        if (_sources.isNotEmpty) ...[
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                _buildTypeChip('all', 'All (${_sources.length})', Icons.apps_rounded, null),
+                const SizedBox(width: 6),
+                _buildTypeChip(
+                  'debrid',
+                  '⚡ Debrid (${_sources.where((s) => s.isDebrid).length})',
+                  Icons.bolt_rounded,
+                  const Color(0xFF00E5FF),
+                ),
+                const SizedBox(width: 6),
+                _buildTypeChip(
+                  'torrent',
+                  '🧲 Torrents (${_sources.where((s) => s.isTorrent).length})',
+                  Icons.share_rounded,
+                  const Color(0xFF7C5CFF),
+                ),
+                const SizedBox(width: 6),
+                _buildTypeChip(
+                  'direct',
+                  '🌐 Direct (${_sources.where((s) => s.isHttpDirect).length})',
+                  Icons.link_rounded,
+                  const Color(0xFF10B981),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: _S.sm),
+        ],
+
         // Source count
         Text(
           _isLoadingSources
@@ -1004,6 +1078,35 @@ class _WatchScreenState extends State<WatchScreen>
         else
           _buildSourcesList(filtered, isDesktop),
       ],
+    );
+  }
+
+  Widget _buildTypeChip(String typeKey, String label, IconData icon, Color? color) {
+    final isSelected = _selectedTypeFilter == typeKey;
+    final activeColor = color ?? _C.accent;
+
+    return ChoiceChip(
+      label: Text(label),
+      selected: isSelected,
+      selectedColor: activeColor.withValues(alpha: 0.25),
+      backgroundColor: const Color(0xFF13151C),
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : Colors.white70,
+        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+        fontSize: 11.5,
+      ),
+      side: BorderSide(
+        color: isSelected ? activeColor : Colors.white.withValues(alpha: 0.1),
+        width: isSelected ? 1.5 : 1.0,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      onSelected: (selected) {
+        if (selected) {
+          setState(() {
+            _selectedTypeFilter = typeKey;
+          });
+        }
+      },
     );
   }
 

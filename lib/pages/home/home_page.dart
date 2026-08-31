@@ -22,6 +22,7 @@ import '../../widgets/common/error_view.dart';
 import '../../widgets/home/continue_watching_slider.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../search/search_page.dart';
+import '../ai/wewatch_quiz_page.dart';
 import '../settings/settings_page.dart';
 import '../../services/theme/dock_settings.dart';
 import '../../widgets/common/app_liquid_dock.dart';
@@ -560,6 +561,26 @@ class _GlassAppBar extends StatelessWidget {
               ),
             ),
             const Spacer(),
+            // AI Taste Profile Quiz
+            Builder(
+              builder: (context) {
+                final palette = AppThemeService.currentPalette.value;
+                return IconButton(
+                  icon: Icon(
+                    Icons.auto_awesome_rounded,
+                    color: palette.primaryColor,
+                    size: 22,
+                  ),
+                  tooltip: 'AI Taste Quiz',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WeWatchQuizPage()),
+                    );
+                  },
+                );
+              },
+            ),
             // Search
             Builder(
               builder: (context) {

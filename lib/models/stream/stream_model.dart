@@ -165,6 +165,22 @@ class StreamSource {
       (infoHash != null && infoHash!.isNotEmpty) ||
       (url != null && url!.startsWith('magnet:'));
 
+  /// Whether this source is delivered via a Debrid cache service.
+  bool get isDebrid {
+    final n = (name ?? '').toLowerCase();
+    final t = (title ?? '').toLowerCase();
+    final u = (url ?? '').toLowerCase();
+    return n.contains('[rd') || n.contains('[tb') || n.contains('[ad') || n.contains('[pm') ||
+           n.contains('debrid') || t.contains('debrid') || u.contains('real-debrid') ||
+           u.contains('torbox') || u.contains('alldebrid') || u.contains('premiumize');
+  }
+
+  /// Whether this source is a P2P / Torrent stream.
+  bool get isTorrent => isMagnet && !isDebrid;
+
+  /// Whether this source is a direct HTTP/HTTPS web stream.
+  bool get isHttpDirect => (url != null && url!.isNotEmpty) && !isMagnet && !isDebrid;
+
   /// Formatted magnet link with tracker and display name parameters if available.
   String? get magnetUrl {
     if (url != null && url!.startsWith('magnet:')) {

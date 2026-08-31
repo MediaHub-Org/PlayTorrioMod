@@ -663,25 +663,30 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
 
   // ── Top Header Bar ──
   Widget _buildTopAppBar(BuildContext context, AppThemePalette palette, {bool isDesktop = false}) {
+    final screenW = MediaQuery.sizeOf(context).width;
+    final isMobile = screenW < 560;
+
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 20, vertical: 8),
       child: Row(
         children: [
           _PlayerIconButton(
             icon: isDesktop ? Icons.close_rounded : Icons.arrow_back_ios_new_rounded,
             palette: palette,
+            size: isMobile ? 20 : 24,
             onTap: () => Navigator.pop(context),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: isMobile ? 8 : 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   widget.audiobook.title,
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
-                    fontSize: 16,
+                    fontSize: isMobile ? 14.5 : 16,
                     fontWeight: FontWeight.bold,
                   ),
                   maxLines: 1,
@@ -694,15 +699,19 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         if (isTorrent) ...[
-                          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFB74D), size: 12),
-                          const SizedBox(width: 4),
+                          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFFB74D), size: 11),
+                          const SizedBox(width: 3),
                         ],
-                        Text(
-                          isTorrent ? 'AUDIOBOOKBAY (TORRENT)' : widget.audiobook.source.toUpperCase(),
-                          style: TextStyle(
-                            color: isTorrent ? const Color(0xFFFFB74D) : palette.primaryColor,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
+                        Flexible(
+                          child: Text(
+                            isTorrent ? 'AUDIOBOOKBAY (TORRENT)' : widget.audiobook.source.toUpperCase(),
+                            style: TextStyle(
+                              color: isTorrent ? const Color(0xFFFFB74D) : palette.primaryColor,
+                              fontSize: isMobile ? 9.5 : 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ),
                       ],
@@ -712,9 +721,10 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
               ],
             ),
           ),
+          SizedBox(width: isMobile ? 6 : 10),
           // Autoplay Switch
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 6 : 10, vertical: 2),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.06),
               borderRadius: BorderRadius.circular(20),
@@ -723,36 +733,43 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
-                  'Autoplay',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 11.5,
-                    fontWeight: FontWeight.w600,
+                if (!isMobile) ...[
+                  const Text(
+                    'Autoplay',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                Switch(
-                  value: _autoplayNext,
-                  onChanged: (val) => setState(() => _autoplayNext = val),
-                  activeColor: palette.primaryColor,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  const SizedBox(width: 4),
+                ],
+                Transform.scale(
+                  scale: isMobile ? 0.75 : 0.85,
+                  child: Switch(
+                    value: _autoplayNext,
+                    onChanged: (val) => setState(() => _autoplayNext = val),
+                    activeColor: palette.primaryColor,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          SizedBox(width: isMobile ? 4 : 8),
           // Customizer Button
           _PlayerIconButton(
             icon: Icons.tune_rounded,
+            size: isMobile ? 20 : 24,
             palette: palette,
             tooltip: 'Customize Audio Player',
             onTap: () => _showPlayerCustomizer(context),
           ),
-          const SizedBox(width: 6),
+          SizedBox(width: isMobile ? 4 : 6),
           // Chapters Button
           _PlayerIconButton(
             icon: Icons.format_list_bulleted_rounded,
+            size: isMobile ? 20 : 24,
             palette: palette,
             tooltip: 'Chapters List',
             onTap: () => setState(() => _showChaptersDrawer = true),
@@ -840,23 +857,24 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     final seekStyle = AudiobookSettings.customSeekbarStyle.value;
 
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 860),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 860),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Spacer(),
+              const SizedBox(height: 8),
               // Cover Art with 3D Float Shadow
-              _buildCoverArtCard(hasCover, palette, size: isWide ? 220 : 170),
-              const SizedBox(height: 20),
+              _buildCoverArtCard(hasCover, palette, size: isWide ? 220 : 160),
+              const SizedBox(height: 18),
               _buildTitleSection(currentChapter),
-              const Spacer(),
+              const SizedBox(height: 18),
 
               // Glass Control Island
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
                 decoration: BoxDecoration(
                   color: const Color(0xFF0F121C).withValues(alpha: 0.88),
                   borderRadius: BorderRadius.circular(24),
@@ -887,7 +905,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
             ],
           ),
         ),
@@ -947,66 +965,69 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     AppThemePalette palette,
   ) {
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 580),
-        child: Container(
-          margin: const EdgeInsets.all(24),
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            color: const Color(0xFF0C0F17).withValues(alpha: 0.94),
-            borderRadius: BorderRadius.circular(32),
-            border: Border.all(color: palette.primaryColor.withValues(alpha: 0.4), width: 1.5),
-            boxShadow: [
-              BoxShadow(
-                color: palette.primaryColor.withValues(alpha: 0.3),
-                blurRadius: 30,
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: hasCover
-                        ? CachedNetworkImage(imageUrl: widget.audiobook.coverImage, width: 48, height: 48, fit: BoxFit.cover)
-                        : Container(width: 48, height: 48, color: Colors.white12),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          currentChapter?.title ?? 'Chapter ${_currentChapterIndex + 1}',
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.5),
-                        ),
-                        Text(
-                          widget.audiobook.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
-                        ),
-                      ],
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 580),
+          child: Container(
+            margin: const EdgeInsets.all(12),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0C0F17).withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(28),
+              border: Border.all(color: palette.primaryColor.withValues(alpha: 0.4), width: 1.5),
+              boxShadow: [
+                BoxShadow(
+                  color: palette.primaryColor.withValues(alpha: 0.3),
+                  blurRadius: 30,
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: hasCover
+                          ? CachedNetworkImage(imageUrl: widget.audiobook.coverImage, width: 48, height: 48, fit: BoxFit.cover)
+                          : Container(width: 48, height: 48, color: Colors.white12),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              AudiobookWaveformSeekbar(
-                position: _position,
-                duration: _duration,
-                isPlaying: _isPlaying,
-                style: AudiobookSeekbarStyle.gradientProgress,
-                onSeek: (pos) => _player?.seek(pos),
-              ),
-              const SizedBox(height: 12),
-              _buildMainControlsCluster(palette),
-            ],
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            currentChapter?.title ?? 'Chapter ${_currentChapterIndex + 1}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14.5),
+                          ),
+                          Text(
+                            widget.audiobook.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                AudiobookWaveformSeekbar(
+                  position: _position,
+                  duration: _duration,
+                  isPlaying: _isPlaying,
+                  style: AudiobookSeekbarStyle.gradientProgress,
+                  onSeek: (pos) => _player?.seek(pos),
+                ),
+                const SizedBox(height: 12),
+                _buildMainControlsCluster(palette),
+              ],
+            ),
           ),
         ),
       ),
@@ -1021,19 +1042,20 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     AppThemePalette palette,
   ) {
     return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 820),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 820),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              const Spacer(),
+              const SizedBox(height: 8),
               // Oversized 3D Card
-              _buildCoverArtCard(hasCover, palette, size: isWide ? 260 : 200),
-              const SizedBox(height: 24),
+              _buildCoverArtCard(hasCover, palette, size: isWide ? 260 : 180),
+              const SizedBox(height: 20),
               _buildTitleSection(currentChapter),
-              const Spacer(),
+              const SizedBox(height: 20),
               AudiobookWaveformSeekbar(
                 position: _position,
                 duration: _duration,
@@ -1043,7 +1065,7 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
               ),
               const SizedBox(height: 16),
               _buildMainControlsCluster(palette),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
             ],
           ),
         ),
@@ -1297,66 +1319,108 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
     );
   }
 
-  // ── Main Controls Cluster (Prev, Rewind, Play, Forward, Next, Speed) ──
+  // ── Main Controls Cluster (Prev, Rewind, Play, Forward, Next, Speed, Volume) ──
   Widget _buildMainControlsCluster(AppThemePalette palette) {
     final playBtnStyle = AudiobookSettings.customPlayButtonStyle.value;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: [
-        // Speed Selector Pill
-        _buildSpeedSelectorPill(palette),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 560;
 
-        // Prev Chapter
-        _PlayerIconButton(
+        final prevBtn = _PlayerIconButton(
           icon: Icons.skip_previous_rounded,
-          size: 28,
+          size: isNarrow ? 24 : 28,
           palette: palette,
+          tooltip: 'Previous Chapter',
           onTap: _currentChapterIndex > 0 ? () => _initChapter(_currentChapterIndex - 1) : null,
-        ),
+        );
 
-        // Rewind 10s
-        _PlayerIconButton(
+        final rewBtn = _PlayerIconButton(
           icon: Icons.replay_10_rounded,
-          size: 28,
+          size: isNarrow ? 24 : 28,
           palette: palette,
+          tooltip: 'Rewind 10s',
           onTap: () => _seekRelative(-10),
-        ),
+        );
 
-        // Custom Styled Play/Pause Button
-        GestureDetector(
+        final playButton = GestureDetector(
           onTap: _togglePlayPause,
           child: _buildPlayButtonByStyle(playBtnStyle, palette),
-        ),
+        );
 
-        // Forward 10s
-        _PlayerIconButton(
+        final fwdBtn = _PlayerIconButton(
           icon: Icons.forward_10_rounded,
-          size: 28,
+          size: isNarrow ? 24 : 28,
           palette: palette,
+          tooltip: 'Forward 10s',
           onTap: () => _seekRelative(10),
-        ),
+        );
 
-        // Next Chapter
-        _PlayerIconButton(
+        final nextBtn = _PlayerIconButton(
           icon: Icons.skip_next_rounded,
-          size: 28,
+          size: isNarrow ? 24 : 28,
           palette: palette,
+          tooltip: 'Next Chapter',
           onTap: _currentChapterIndex < widget.chapters.length - 1
               ? () => _initChapter(_currentChapterIndex + 1)
               : null,
-        ),
+        );
 
-        // Volume Button
-        _VolumeButton(
+        final speedPill = _buildSpeedSelectorPill(palette);
+
+        final volumeBtn = _VolumeButton(
           volume: _volume,
           palette: palette,
           onVolumeChanged: (v) {
             setState(() => _volume = v);
             _player?.setVolume(v * 100.0);
           },
-        ),
-      ],
+        );
+
+        if (isNarrow) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Primary 5 Playback Controls
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  prevBtn,
+                  rewBtn,
+                  playButton,
+                  fwdBtn,
+                  nextBtn,
+                ],
+              ),
+              const SizedBox(height: 12),
+              // Secondary Utility Row: Speed and Volume
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    speedPill,
+                    volumeBtn,
+                  ],
+                ),
+              ),
+            ],
+          );
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            speedPill,
+            prevBtn,
+            rewBtn,
+            playButton,
+            fwdBtn,
+            nextBtn,
+            volumeBtn,
+          ],
+        );
+      },
     );
   }
 
@@ -1667,9 +1731,10 @@ class _PlayerIconButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final enabled = onTap != null;
+    final padding = size <= 22 ? 7.0 : 10.0;
 
     final btn = Container(
-      padding: const EdgeInsets.all(10),
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.08),
         shape: BoxShape.circle,
@@ -1723,15 +1788,16 @@ class _VolumeButtonState extends State<_VolumeButton> {
           icon: widget.volume == 0
               ? Icons.volume_off_rounded
               : (widget.volume > 0.5 ? Icons.volume_up_rounded : Icons.volume_down_rounded),
-          size: 24,
+          size: 22,
           palette: widget.palette,
+          tooltip: 'Volume',
           onTap: () {
             setState(() => _showSlider = !_showSlider);
           },
         ),
         if (_showSlider)
           SizedBox(
-            width: 86,
+            width: 80,
             child: SliderTheme(
               data: SliderThemeData(
                 trackHeight: 3,
