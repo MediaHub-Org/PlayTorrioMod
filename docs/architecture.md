@@ -173,10 +173,10 @@ PlayTorrioV3/
 ├── linux/                                   # Linux platform — CMake, C++ runner, GTK embedding
 ├── windows/                                 # Windows platform — CMake, C++ runner, Win32 embedding
 ├── test/
-│   ├── widget_test.dart                     # Smoke test — app renders "PlayTorrio" text
-│   └── subtitle_test.dart                   # Integration test — Subdl subtitle search
-├── bin/
-│   └── inspect.dart                         # Standalone WeebCentral HTML scraping debug tool
+│   ├── widget_test.dart                     # Smoke test — the app renders and settles
+│   ├── services/                            # Settings wiring, media session, scrapers, backup
+│   ├── widgets/                             # Browse scaffold, nav shell, library tabs, sub-tabs
+│   └── models/                              # My List keys, movie/stream/addon parsing
 ├── pubspec.yaml                             # Flutter project config — dependencies, assets, launcher icons
 ├── analysis_options.yaml                    # Dart lint rules
 └── README.md                                # This file

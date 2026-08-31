@@ -71,6 +71,20 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
   DateTime _lastPositionChange = DateTime.now();
   int _retryCount = 0;
 
+  /// Bumped on every [_initPlayer] entry so a call that has been superseded
+  /// can bail instead of finishing.
+  ///
+  /// Three things call `_initPlayer` and none of them used to coordinate: the
+  /// freeze watchdog every 3s, `_switchSource` when the user picks another
+  /// source, and the auto-failover timer after an error. The watchdog's
+  /// `!_isLoading` check only stopped it re-entering itself. A source tap
+  /// during a failover ran two `player.open()` calls against the same
+  /// long-lived player, each having read `_activeHitIndex` at its own start --
+  /// so whichever open landed last decided which channel you got, and the
+  /// first to finish cleared `_isLoading` while the second was still
+  /// buffering.
+  int _initGeneration = 0;
+
   bool get _isLiveStream {
     if (widget.isLive != null) return widget.isLive!;
     final currentHit = widget.hits.isNotEmpty && _activeHitIndex < widget.hits.length
@@ -168,6 +182,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
   }
 
   Future<void> _initPlayer() async {
+    final myGeneration = ++_initGeneration;
     DiscordRpcService.instance.setWatchingLiveTv(
       channelName: widget.channel.name,
       logoUrl: widget.channel.iconUrl,
@@ -190,6 +205,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
 
     try {
       await PlayerSettings.applyToPlayer(_player, isLive: true);
+      if (myGeneration != _initGeneration) return;
       // Volume before open: open() starts playback immediately, so setting it
       // afterwards let a muted channel blast a moment of full-volume audio.
       _player.setVolume(_isMuted ? 0.0 : _volume * 100.0);
@@ -205,6 +221,10 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
         ),
         play: true,
       );
+      // A newer call is already opening its own stream; leaving this one to
+      // finish would overwrite its coordinator registration and its loading
+      // state with a channel the user has moved on from.
+      if (myGeneration != _initGeneration) return;
 
       // Ensure only one source plays app-wide: stop any other active source.
       // Keyed by channel (not by hit/source), so switching sources or
@@ -229,7 +249,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
 
       await PlayerSettings.applyToPlayer(_player, isLive: true);
 
-      if (!mounted) return;
+      if (!mounted || myGeneration != _initGeneration) return;
       setState(() {
         _isLoading = false;
         _retryCount = 0;
@@ -240,7 +260,10 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
       _startHideControlsTimer();
     } catch (e) {
       debugPrint('[IPTV Player Error] $e');
-      if (!mounted) return;
+      // A superseded call's failure is not this channel's failure -- letting
+      // it through would show an error over a stream that is loading fine,
+      // and start a failover chain for a source nobody is watching.
+      if (!mounted || myGeneration != _initGeneration) return;
       setState(() {
         _isLoading = false;
         _statusMessage = 'Feed failed. Trying alternative source…';
@@ -250,7 +273,7 @@ class _IptvPlayerPageState extends State<IptvPlayerPage>
       if (widget.hits.length > 1 && _retryCount < 3) {
         _retryCount++;
         Future.delayed(const Duration(seconds: 1), () {
-          if (!mounted) return;
+          if (!mounted || myGeneration != _initGeneration) return;
           final nextIdx = (_activeHitIndex + 1) % widget.hits.length;
           _switchSource(nextIdx);
         });

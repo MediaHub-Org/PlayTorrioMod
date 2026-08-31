@@ -4,6 +4,18 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Fix the IPTV player opening two streams at once (AUDIT #minor-reentrancy) — 2026-08-31
+- **Three call sites entered `_initPlayer()` with no coordination**: the 3-second freeze watchdog, `_switchSource` when the user picks another source, and the 1-second auto-failover after an error. Only the watchdog had a guard, and `!_isLoading` only stopped it re-entering *itself*.
+- Tapping a source during a failover therefore ran two `player.open()` calls against the same long-lived player, each having read `_activeHitIndex` at its own start — so whichever `open()` landed last decided which channel you actually got. The first to finish cleared `_isLoading` while the second was still buffering, and a superseded call's error surfaced over a stream that was loading fine, starting a failover chain for a source nobody was watching.
+- Now uses the same `_initGeneration` counter as `music_player_controller` and `audiobook_player_screen`: every entry takes a generation and each await resumes only if it is still current. Third player to get this treatment; the pattern is now the house answer for "one long-lived player, several things that reopen it".
+
+### Remove files that cannot build, run, or be reached — 2026-08-31
+- **`web/`** — 6 files of `flutter create` scaffolding for a platform the app cannot target: `media_kit`/libmpv, `torrserver_flutter` and `flutter_inappwebview` have no web support, no CI job builds it, and the platform matrix has never listed it.
+- **`bin/inspect.dart`** — an 84-line scratch script that scrapes one hardcoded WeebCentral manga URL. Referenced by nothing but the architecture doc's file tree.
+- **`assets/subfont.ttf`** — byte-identical duplicate of `assets/fonts/subfont.ttf` (157 KB), shipped twice in every build. `PlayerSettings` already tried the `fonts/` copy first, so the fallback path was dead too.
+- **`docs/superpowers/`** — 780 lines of agent task-lists for the design-system and nav work, all shipped, and now actively misleading: the plan describes keeping `TopBar` on tablet/desktop, which the hub-pill restructure replaced. What shipped is in the CHANGELOG.
+- Kept `docs/AUDIT.md` despite its age — most of its findings (accessibility, contrast, breakpoint disagreements, god files, testing gaps) are still open. Only its title was stale, still saying PlayTorrioV3.
+
 ### Delete 184 lines of settings that were never read — 2026-08-31
 - **Found by asking a question the last two bugs suggested**: `enableNetworkReconnect` and then `hardwareAudioClock` were both stored, restored on launch and exposed as settings, yet never applied to anything. Two of the same bug is a pattern, so all 130 persisted settings were checked mechanically.
 - **19 more were dead.** `MusicSettings` and `AudiobookSettings` each carried a full ambient-light block (enable/pattern/intensity/speed), plus card density, lossless badges, liquid glass, drawer toggles and player-chrome flags; `IptvSettings` carried an ambient-light toggle. Every one had a pref key, a notifier, a loader line, a setter and a reset line — and no UI writing it and nothing reading it. They read as copy-paste of `MangaSettings`, where the same settings genuinely work (UI plus a consumer in `manga_page.dart`).
