@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../content_display_enums.dart';
 
 enum AudiobookPlayerPreset {
   modernGlass('Modern Glass Island', 'Sleek floating glassmorphism player with waveform scrubber & ambient glow'),
@@ -68,16 +67,12 @@ enum AudiobookCardDensity {
 abstract final class AudiobookSettings {
   // Atmosphere & Lighting Keys
   static const _keyEnableAmbientLights = 'audiobook_enable_ambient_lights';
-  static const _keyAmbientPattern = 'audiobook_ambient_pattern';
-  static const _keyAmbientIntensity = 'audiobook_ambient_intensity';
-  static const _keyAmbientSpeed = 'audiobook_ambient_speed';
 
   // Discovery & UI Keys
   static const _keyEnableSpotlight = 'audiobook_enable_spotlight';
   static const _keyShowContinueListening = 'audiobook_show_continue_listening';
   static const _keyCardDensity = 'audiobook_card_density';
   static const _keyShowCategoryPills = 'audiobook_show_category_pills';
-  static const _keyShowDurationBadge = 'audiobook_show_duration_badge';
   static const _keyCardHoverGlow = 'audiobook_card_hover_glow';
 
   // Player Engine Keys
@@ -86,18 +81,10 @@ abstract final class AudiobookSettings {
   static const _keyCustomPlayButtonStyle = 'audiobook_custom_play_button_style';
   static const _keyCustomHoverEffect = 'audiobook_custom_hover_effect';
   static const _keyCustomArtworkStyle = 'audiobook_custom_artwork_style';
-  static const _keyEnableLiquidGlass = 'audiobook_enable_liquid_glass';
-  static const _keyShowSpeedControl = 'audiobook_show_speed_control';
-  static const _keyShowSkip10Buttons = 'audiobook_show_skip10_buttons';
-  static const _keyShowChaptersQuickButton = 'audiobook_show_chapters_quick_button';
   static const _keyComponentOrder = 'audiobook_component_order';
 
   // Atmosphere Notifiers
   static final ValueNotifier<bool> enableAmbientLights = ValueNotifier<bool>(true);
-  static final ValueNotifier<AmbientLightPattern> ambientLightPattern =
-      ValueNotifier<AmbientLightPattern>(AmbientLightPattern.dualOrbs);
-  static final ValueNotifier<double> ambientLightIntensity = ValueNotifier<double>(0.22);
-  static final ValueNotifier<double> ambientLightSpeed = ValueNotifier<double>(1.0);
 
   // Discovery Notifiers
   static final ValueNotifier<bool> enableSpotlight = ValueNotifier<bool>(true);
@@ -105,7 +92,6 @@ abstract final class AudiobookSettings {
   static final ValueNotifier<AudiobookCardDensity> cardDensity =
       ValueNotifier<AudiobookCardDensity>(AudiobookCardDensity.standard);
   static final ValueNotifier<bool> showCategoryPills = ValueNotifier<bool>(true);
-  static final ValueNotifier<bool> showDurationBadge = ValueNotifier<bool>(true);
   static final ValueNotifier<bool> cardHoverGlow = ValueNotifier<bool>(true);
 
   // Player Engine Notifiers
@@ -119,10 +105,6 @@ abstract final class AudiobookSettings {
       ValueNotifier<AudiobookHoverEffect>(AudiobookHoverEffect.glowAura);
   static final ValueNotifier<AudiobookArtworkStyle> customArtworkStyle =
       ValueNotifier<AudiobookArtworkStyle>(AudiobookArtworkStyle.square3D);
-  static final ValueNotifier<bool> enableLiquidGlass = ValueNotifier<bool>(true);
-  static final ValueNotifier<bool> showSpeedControl = ValueNotifier<bool>(true);
-  static final ValueNotifier<bool> showSkip10Buttons = ValueNotifier<bool>(true);
-  static final ValueNotifier<bool> showChaptersQuickButton = ValueNotifier<bool>(true);
   static final ValueNotifier<List<String>> componentOrder = ValueNotifier<List<String>>([
     'artwork',
     'title',
@@ -138,13 +120,6 @@ abstract final class AudiobookSettings {
     final prefs = await SharedPreferences.getInstance();
 
     enableAmbientLights.value = prefs.getBool(_keyEnableAmbientLights) ?? true;
-    final patternStr = prefs.getString(_keyAmbientPattern);
-    ambientLightPattern.value = AmbientLightPattern.values.firstWhere(
-      (p) => p.name == patternStr,
-      orElse: () => AmbientLightPattern.dualOrbs,
-    );
-    ambientLightIntensity.value = prefs.getDouble(_keyAmbientIntensity) ?? 0.22;
-    ambientLightSpeed.value = prefs.getDouble(_keyAmbientSpeed) ?? 1.0;
 
     enableSpotlight.value = prefs.getBool(_keyEnableSpotlight) ?? true;
     showContinueListening.value = prefs.getBool(_keyShowContinueListening) ?? true;
@@ -154,7 +129,6 @@ abstract final class AudiobookSettings {
       orElse: () => AudiobookCardDensity.standard,
     );
     showCategoryPills.value = prefs.getBool(_keyShowCategoryPills) ?? true;
-    showDurationBadge.value = prefs.getBool(_keyShowDurationBadge) ?? true;
     cardHoverGlow.value = prefs.getBool(_keyCardHoverGlow) ?? true;
 
     final presetStr = prefs.getString(_keySelectedPlayerPreset);
@@ -187,10 +161,6 @@ abstract final class AudiobookSettings {
       orElse: () => AudiobookArtworkStyle.square3D,
     );
 
-    enableLiquidGlass.value = prefs.getBool(_keyEnableLiquidGlass) ?? true;
-    showSpeedControl.value = prefs.getBool(_keyShowSpeedControl) ?? true;
-    showSkip10Buttons.value = prefs.getBool(_keyShowSkip10Buttons) ?? true;
-    showChaptersQuickButton.value = prefs.getBool(_keyShowChaptersQuickButton) ?? true;
 
     final orderList = prefs.getStringList(_keyComponentOrder);
     if (orderList != null && orderList.isNotEmpty) {
@@ -206,26 +176,8 @@ abstract final class AudiobookSettings {
     await prefs.setBool(_keyEnableAmbientLights, val);
   }
 
-  static Future<void> setAmbientLightPattern(AmbientLightPattern val) async {
-    ambientLightPattern.value = val;
-    changeNotifier.value++;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_keyAmbientPattern, val.name);
-  }
 
-  static Future<void> setAmbientLightIntensity(double val) async {
-    ambientLightIntensity.value = val;
-    changeNotifier.value++;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_keyAmbientIntensity, val);
-  }
 
-  static Future<void> setAmbientLightSpeed(double val) async {
-    ambientLightSpeed.value = val;
-    changeNotifier.value++;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setDouble(_keyAmbientSpeed, val);
-  }
 
   static Future<void> setEnableSpotlight(bool val) async {
     enableSpotlight.value = val;
@@ -255,12 +207,6 @@ abstract final class AudiobookSettings {
     await prefs.setBool(_keyShowCategoryPills, val);
   }
 
-  static Future<void> setShowDurationBadge(bool val) async {
-    showDurationBadge.value = val;
-    changeNotifier.value++;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyShowDurationBadge, val);
-  }
 
   static Future<void> setCardHoverGlow(bool val) async {
     cardHoverGlow.value = val;
@@ -304,33 +250,9 @@ abstract final class AudiobookSettings {
     await prefs.setString(_keyCustomArtworkStyle, val.name);
   }
 
-  static Future<void> setEnableLiquidGlass(bool val) async {
-    enableLiquidGlass.value = val;
-    changeNotifier.value++;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyEnableLiquidGlass, val);
-  }
 
-  static Future<void> setShowSpeedControl(bool val) async {
-    showSpeedControl.value = val;
-    changeNotifier.value++;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyShowSpeedControl, val);
-  }
 
-  static Future<void> setShowSkip10Buttons(bool val) async {
-    showSkip10Buttons.value = val;
-    changeNotifier.value++;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyShowSkip10Buttons, val);
-  }
 
-  static Future<void> setShowChaptersQuickButton(bool val) async {
-    showChaptersQuickButton.value = val;
-    changeNotifier.value++;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_keyShowChaptersQuickButton, val);
-  }
 
   static Future<void> setComponentOrder(List<String> val) async {
     componentOrder.value = List.from(val);
