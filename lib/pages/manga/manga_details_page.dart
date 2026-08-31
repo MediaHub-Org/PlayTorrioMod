@@ -11,6 +11,7 @@ import '../../services/theme/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../utils/fullscreen_navigator.dart';
 import 'manga_reader_page.dart';
+import '../../widgets/common/like_button.dart';
 
 class MangaDetailsPage extends StatefulWidget {
   final Manga manga;
@@ -932,47 +933,8 @@ class _MangaDetailsPageState extends State<MangaDetailsPage> {
     );
   }
 
-  Widget _buildLikeButton() {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: _toggleLike,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          decoration: BoxDecoration(
-            color: _isLiked
-                ? const Color(0xFFE50914)
-                : Colors.white.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: _isLiked
-                  ? const Color(0xFFE50914)
-                  : Colors.white.withValues(alpha: 0.2),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                _isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                color: _isLiked ? Colors.white : Colors.white70,
-                size: 20,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                _isLiked ? 'Liked' : 'Like',
-                style: TextStyle(
-                  color: _isLiked ? Colors.white : Colors.white70,
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  Widget _buildLikeButton() =>
+      LikeButton(isLiked: _isLiked, onTap: _toggleLike, size: 20);
 
   Widget _buildAppBar() {
     final topPadding = MediaQuery.paddingOf(context).top;

@@ -7,6 +7,7 @@ import '../../services/books/book_library_service.dart';
 import '../../services/books/book_progress_service.dart';
 import '../../services/books/books_service.dart';
 import 'book_reader_page.dart';
+import '../../widgets/common/like_button.dart';
 
 /// Books section in the Read hub: search libgen.li, download an epub, and
 /// read it in-app. Ported/restyled from PlayTorrioV2's `books_screen.dart`.
@@ -371,13 +372,11 @@ class _BookRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: Icon(
-                    isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                    color: isLiked ? const Color(0xFFE50914) : Colors.white38,
-                    size: 20,
-                  ),
-                  onPressed: onToggleLike,
+                LikeButton(
+                  isLiked: isLiked,
+                  onTap: onToggleLike,
+                  style: LikeButtonStyle.icon,
+                  size: 20,
                 ),
                 const Icon(Icons.download_rounded, color: Colors.white38, size: 20),
               ],

@@ -31,6 +31,7 @@ import '../../services/music/music_service.dart';
 import '../../services/music/music_settings.dart';
 import '../../widgets/music/music_interactive_physics_button.dart';
 import '../../widgets/music/music_waveform_seekbar.dart';
+import '../../widgets/common/like_button.dart';
 
 class MusicPage extends StatefulWidget {
   const MusicPage({super.key});
@@ -2227,18 +2228,11 @@ class _MusicHeroBillboard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 12),
-                      _MusicHoverable(
-                        scaleFactor: 1.1,
-                        child: IconButton(
-                          style: IconButton.styleFrom(
-                            backgroundColor: Colors.white.withValues(alpha: 0.15),
-                          ),
-                          icon: Icon(
-                            isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                            color: isSaved ? const Color(0xFFE50914) : Colors.white,
-                          ),
-                          onPressed: onSaveTap,
-                        ),
+                      LikeButton(
+                        isLiked: isSaved,
+                        onTap: onSaveTap,
+                        style: LikeButtonStyle.icon,
+                        size: 24,
                       ),
                       const SizedBox(width: 8),
                       _MusicHoverable(
@@ -4420,17 +4414,29 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer> with SingleT
             ],
           ),
         ),
+        // Not a LikeButton: the fullscreen player runs its like through the
+        // studio's configurable hover physics, which LikeButton would drop.
+        // It follows the same rules -- kLikedColor, filled when liked, no
+        // fill behind it -- via the shared constant, so the colour cannot
+        // drift even though the widget differs.
         MusicInteractivePhysicsButton(
           effect: MusicSettings.customHoverEffect.value,
-          glowColor: const Color(0xFFE50914),
+          glowColor: kLikedColor,
           borderRadius: BorderRadius.circular(20),
           onTap: widget.onToggleSave,
           child: Padding(
             padding: const EdgeInsets.all(6.0),
-            child: Icon(
-              widget.isSaved ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              color: widget.isSaved ? const Color(0xFFE50914) : Colors.white70,
-              size: 28,
+            child: Semantics(
+              button: true,
+              toggled: widget.isSaved,
+              label: widget.isSaved ? 'Remove from liked' : 'Add to liked',
+              child: Icon(
+                widget.isSaved
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                color: widget.isSaved ? kLikedColor : Colors.white70,
+                size: 28,
+              ),
             ),
           ),
         ),
