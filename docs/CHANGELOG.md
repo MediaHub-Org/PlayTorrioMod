@@ -4,6 +4,12 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### One answer to "is this desktop?" (AUDIT: breakpoint values disagree) — 2026-08-31
+- **Eight pages asked the question against four different literals** — `>= 900`, `>= 800`, `> 800`, `>= 750`, `> 700`. At an 820px window the nav chrome rendered tablet while Discover, Catalog, Anime, IPTV, the details page and the Arabic anime details page rendered desktop: a visible split down the middle of one screen.
+- All eight now ask `AppBreakpoints.of(context)`. Its 900 was already canonical and already what the nav chrome used, so the outliers moved up to it rather than the shared value moving down for them. Pages in the 800–899 band now get the tablet layout they were meant to have instead of a desktop one that disagreed with the chrome around it.
+- **Not touched, deliberately**: grid column ramps (`width < 600 ? 2 : width < 900 ? 3 : …`) — a grid legitimately has more breakpoints than three nav tiers, and those already ramp at the canonical values — and the fullscreen music and audiobook players, which draw no shared chrome so cannot disagree with anything beside them.
+- A test fails on any new 700/750/800 width literal outside those two files. The first draft of it flagged the grid ramps too; narrowing it to the values that actually drifted is what makes it a rule rather than a nuisance.
+
 ### One row implementation instead of two — 2026-08-31
 - **`AnimeSliderSection` and `BrowseScaffold`'s row were the same widget written twice**: same `MovieCardSizing`, same `SectionHeader`, same hover-revealed `SliderArrow`, same 0.8-viewport scroll step. Two adjacent screens, free to drift apart on card size, spacing or arrow behaviour with nothing to stop them.
 - Extracted `BrowseRowView<T>` as the one implementation. `BrowseScaffold` builds its rows from it; `AnimeSliderSection` is now a 40-line wrapper that supplies `AnimeCard`. Net −300 lines across the two files.

@@ -16,6 +16,7 @@ import 'iptv_multiview_page.dart';
 import 'iptv_player_page.dart';
 import 'iptv_portals_modal.dart';
 import 'iptv_search_page.dart';
+import '../../services/app_breakpoints.dart';
 
 class IptvPage extends StatefulWidget {
   const IptvPage({super.key});
@@ -267,7 +268,7 @@ class _IptvPageState extends State<IptvPage> {
       ),
 
       // Custom Scroll Track (Matching Home & Anime Page)
-      if (MediaQuery.sizeOf(context).width > 800)
+      if (AppBreakpoints.of(context) == ScreenTier.desktop)
         Positioned(
           right: 24,
           bottom: 40,

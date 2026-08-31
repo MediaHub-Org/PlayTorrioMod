@@ -15,6 +15,7 @@ import '../../services/tmdb/tmdb_settings.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../discover/discover_page.dart';
 import '../player/watch_screen.dart';
+import '../../services/app_breakpoints.dart';
 // ---------------------------------------------------------------------------
 // Design tokens
 // ---------------------------------------------------------------------------
@@ -417,7 +418,7 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
   }
 
   bool _isDesktop([BuildContext? ctx]) {
-    return MediaQuery.sizeOf(ctx ?? context).width >= 800;
+    return AppBreakpoints.of(ctx ?? context) == ScreenTier.desktop;
   }
 
   @override

@@ -12,6 +12,7 @@ import '../../services/iptv/iptv_storage.dart';
 import '../../services/discord/discord_rpc_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import 'iptv_player_page.dart';
+import '../../services/app_breakpoints.dart';
 
 class IptvPortalBrowserPage extends StatefulWidget {
   final VerifiedPortal? portal;
@@ -348,7 +349,7 @@ class _IptvPortalBrowserPageState extends State<IptvPortalBrowserPage> {
   }
 
   bool _isDesktop(BuildContext context) {
-    return MediaQuery.sizeOf(context).width >= 750;
+    return AppBreakpoints.of(context) == ScreenTier.desktop;
   }
 
   String _selectedCategoryName() {
