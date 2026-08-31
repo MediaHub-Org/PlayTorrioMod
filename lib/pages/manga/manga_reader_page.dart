@@ -8,6 +8,7 @@ import '../../models/manga/manga_chapter.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../services/manga/manga_settings.dart';
+import '../../services/discord/discord_rpc_service.dart';
 import '../../widgets/common/custom_scroll_track.dart';
 
 class MangaReaderPage extends StatefulWidget {
@@ -87,6 +88,7 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
     _verticalScrollController.dispose();
     _deckScrollController.dispose();
     _transformationController.dispose();
+    DiscordRpcService.instance.clearToIdle();
     super.dispose();
   }
 
@@ -137,6 +139,11 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
     setState(() => _isLoading = true);
 
     final chapter = widget.chapters[_currentChapterIndex];
+    DiscordRpcService.instance.setReadingManga(
+      title: widget.manga.title,
+      chapter: chapter.name.isNotEmpty ? chapter.name : 'Chapter ${chapter.number}',
+      coverUrl: widget.manga.coverNormal.isNotEmpty ? widget.manga.coverNormal : widget.manga.coverSmall,
+    );
     final urls = await _mangaService.getChapterImages(chapter.id);
 
     if (mounted) {

@@ -10,6 +10,7 @@ import 'music_download_service.dart';
 import 'music_library_service.dart';
 import 'music_service.dart';
 import 'youtube_stream_http.dart';
+import '../discord/discord_rpc_service.dart';
 
 enum MusicRepeatMode { off, all, one }
 
@@ -267,6 +268,7 @@ class MusicPlayerController extends ChangeNotifier {
       final localSubs = [
         player.stream.playing.listen((playing) {
           _isPlaying = playing;
+          _updateDiscordRpc(isPaused: !playing);
           notifyListeners();
         }),
         player.stream.position.listen((pos) {
@@ -280,6 +282,7 @@ class MusicPlayerController extends ChangeNotifier {
           if (dur > Duration.zero) {
             _duration = dur;
             _isLoading = false;
+            _updateDiscordRpc();
             notifyListeners();
           }
         }),
@@ -293,6 +296,7 @@ class MusicPlayerController extends ChangeNotifier {
           _isPlaying = false;
           _errorMessage = 'Could not load audio: $err';
           debugPrint('Playback error for ${track.title}: $err');
+          DiscordRpcService.instance.clearToIdle();
           notifyListeners();
         }),
       ];
@@ -376,6 +380,7 @@ class MusicPlayerController extends ChangeNotifier {
       _loadAndPlayTrack(_playlist[0]);
     } else {
       _isPlaying = false;
+      _updateDiscordRpc(isPaused: true);
       notifyListeners();
     }
   }
@@ -385,6 +390,7 @@ class MusicPlayerController extends ChangeNotifier {
       await _player!.play();
       _isPlaying = true;
       PlaybackCoordinator.setPlaying(true);
+      _updateDiscordRpc(isPaused: false);
       notifyListeners();
     } else if (_currentTrack != null) {
       await _loadAndPlayTrack(_currentTrack!);
@@ -396,6 +402,7 @@ class MusicPlayerController extends ChangeNotifier {
       await _player!.pause();
       _isPlaying = false;
       PlaybackCoordinator.setPlaying(false);
+      _updateDiscordRpc(isPaused: true);
       notifyListeners();
     }
   }
@@ -522,7 +529,25 @@ class MusicPlayerController extends ChangeNotifier {
     _playlist = [];
     _currentIndex = 0;
     _isPlaying = false;
+    _updateDiscordRpc();
     notifyListeners();
+  }
+
+  void _updateDiscordRpc({bool? isPaused}) {
+    final track = _currentTrack;
+    if (track == null) {
+      DiscordRpcService.instance.clearToIdle();
+      return;
+    }
+    DiscordRpcService.instance.setListeningMusic(
+      title: track.title,
+      artist: track.artist,
+      album: track.album,
+      coverUrl: track.coverUrl,
+      position: _position,
+      duration: _duration,
+      isPlaying: !(isPaused ?? !_isPlaying),
+    );
   }
 
   @override
@@ -535,6 +560,7 @@ class MusicPlayerController extends ChangeNotifier {
     }
     _subscriptions.clear();
     _player?.dispose();
+    DiscordRpcService.instance.clearToIdle();
     super.dispose();
   }
 }
