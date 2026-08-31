@@ -166,7 +166,7 @@ jobs:
           Compress-Archive -Path "build\windows\x64\runner\Release\*" -DestinationPath "PlayTorrioMod-Windows-x64-Portable.zip" -Force
 
       - name: Upload Windows Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: PlayTorrioMod-Windows
           path: |
@@ -288,7 +288,7 @@ jobs:
           fi
 
       - name: Upload Android Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: PlayTorrioMod-Android
           path: android_apks/*.apk
@@ -398,7 +398,7 @@ jobs:
             android_apks/PlayTorrioMod-Android-Universal.apk
 
       - name: Upload Android Universal Artifact
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: PlayTorrioMod-Android-Universal
           path: android_apks/*.apk
@@ -496,7 +496,7 @@ jobs:
           tar -czvf PlayTorrioMod-Linux-x86_64.tar.gz -C build/linux/x64/release/bundle .
 
       - name: Upload Linux Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: PlayTorrioMod-Linux-x64
           path: |
@@ -570,7 +570,7 @@ jobs:
           zip -ry ../../../../../PlayTorrioMod-macOS-arm64.zip PlayTorrioMod.app
 
       - name: Upload macOS ARM64 Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: PlayTorrioMod-macOS-arm64
           path: |
@@ -642,7 +642,7 @@ jobs:
           zip -ry ../../../../../PlayTorrioMod-macOS-intel.zip PlayTorrioMod.app
 
       - name: Upload macOS Intel Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: PlayTorrioMod-macOS-intel
           path: |
@@ -699,7 +699,7 @@ jobs:
           zip -ry ../../../PlayTorrioMod-iOS.ipa Payload
 
       - name: Upload iOS Artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v6
         with:
           name: PlayTorrioMod-iOS
           path: PlayTorrioMod-iOS.ipa
@@ -722,7 +722,7 @@ jobs:
       contents: write
     steps:
       - name: Download all build artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           merge-multiple: true
 

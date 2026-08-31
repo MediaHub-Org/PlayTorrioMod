@@ -4,6 +4,13 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Move the artifact actions onto Node 24 — 2026-08-31
+- **I got this wrong twice before getting it right.** First I wrote that the release job ran a step on "the deprecated Node 20" — an assumption. Then I checked the actions' own `action.yml`, found `upload-artifact@v5` and `download-artifact@v5`/`v6` all declaring `using: node20`, and concluded there was nothing to fix, since bumping within those majors changed nothing.
+- **The v1.1.3 release run settled it**: `##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/upload-artifact@v5`. The runner is already overriding them, and GitHub says that override is temporary. That is exactly the "revisit only if a release run actually warns" condition the roadmap entry named.
+- The fix is a *higher major*, not a different v5. Verified from each action's own `action.yml`: `upload-artifact@v6` and `download-artifact@v7` declare `node24`. Both are post-v4, so they remain a compatible pair — the only documented artifact incompatibility is v4-and-above being unable to read `upload-artifact@v3` or below.
+- `checkout@v5`, `cache@v5` and `setup-java@v5` did not appear in the warning and are already on Node 24; they stay.
+- Roadmap item 8 now tracks the real dated fuse instead: every Android build warns that the app and six plugins apply the Kotlin Gradle Plugin, and that *"future versions of Flutter will fail to build"* because of it.
+
 ### One answer to "is this desktop?" (AUDIT: breakpoint values disagree) — 2026-08-31
 - **Eight pages asked the question against four different literals** — `>= 900`, `>= 800`, `> 800`, `>= 750`, `> 700`. At an 820px window the nav chrome rendered tablet while Discover, Catalog, Anime, IPTV, the details page and the Arabic anime details page rendered desktop: a visible split down the middle of one screen.
 - All eight now ask `AppBreakpoints.of(context)`. Its 900 was already canonical and already what the nav chrome used, so the outliers moved up to it rather than the shared value moving down for them. Pages in the 800–899 band now get the tablet layout they were meant to have instead of a desktop one that disagreed with the chrome around it.
