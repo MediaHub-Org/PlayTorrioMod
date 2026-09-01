@@ -4,6 +4,28 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased]
 
+### Watchlist/Watched/Liked as three independent buttons; a real isLiked field; Anime type preserved in Simkl sync (ROADMAP #18/#25) — 2026-09-02
+- `MyListItem` gains `isLiked`, independent of `isWatchlist`/`isWatched` — those two stay mutually exclusive, Liked can be true alongside either (a title can be Watched and Liked at once). `MyListService.toggleLiked` added; `mergeWith` now OR-combines all three status flags instead of dropping them on a Trakt/Simkl re-sync merge.
+- **Fixed a mislabeling bug from this session's own item 22**: the Saved tab's "Liked" filter chip was reading `isWatched`, not a real Liked field — there wasn't one yet. Now reads `isLiked`, and dropped the cross-clearing with Watchlist that made sense for Watched but not for the now-independent Liked.
+- `details_page.dart`'s single `PopupMenuButton` status picker (Watchlist/Watched, one dropdown) is now three separate buttons — Watchlist, Watched (still mutually exclusive with each other), and a `LikeButton` for Liked. Matches Anime's own multi-button status shape instead of hiding a third state a tap deeper.
+- **Found and fixed while scoping this**: `MyListItem.fromTraktJson`/`fromSimklJson` never actually set `isWatchlist: true`, despite only ever being called with data from each service's own watchlist/plan-to-watch list — a synced item never showed as "Watchlist" in the Saved filter or the detail picker despite genuinely being one.
+- **Anime type preserved for Simkl sync**: `fromSimklJson` gains a `bucketType` param (the movies/shows/anime bucket it came from, already known by the caller) and now keeps `type: 'anime'` instead of collapsing it into `'series'`. The Saved tab's Movies/Series/Anime filter chips already existed in the UI with nothing to filter on for anime — Simkl-synced anime now shows up under the Anime chip. Trakt has no anime concept in its API at all, so `fromTraktJson` can't gain the same fix; anime synced only from Trakt still shows as Series. Anime added locally through Anime's own pages (`AnimeLibraryService`, a separate four-state store) still doesn't reach this at all — left open, a bigger unification question than this pass.
+- Cast enrichment (`details_page.dart`'s `_fetchCastFromTmdb`) loosened from skipping TMDB whenever the addon supplied even one cast photo, to skipping only once the addon's own cast is ~70%+ photographed — a single photo was keeping TMDB's usually-longer credits list from ever loading (ROADMAP #27).
+
+### Movies & Series header/hero cleanup, sort bug, card icon, nav layout, download paths (ROADMAP #15/#16/#17/#22/#23/#28/#29/#30) — 2026-09-02
+- **Movies & Series header**: dropped the redundant "Movies"/"Series" title (already said by the section pill); Genre/Decade/Sort dropdowns moved up next to the search icon, matching Anime's layout.
+- **Hero carousels bigger**: `BrowseScaffold._heroHeight` was flat and width-only (240/320/420px, no screen-height factor) — now screen-height-relative like Anime's and Live TV's own heroes (up to 560px), instead of capping well under upstream's pre-fork sizing.
+- **Movies & Series' hero is now clickable**: had no tap handler at all; now opens Details, matching what Anime's and Live TV's heroes already do.
+- **Newest/Oldest sort pill fixed** — two bugs: it only ever affected the filtered-grid view, doing nothing in the default rows view (now sorts within each row too); and it compared decade buckets instead of actual parsed years, so same-decade titles never reordered against each other.
+- **Movie/Anime cards**: dropped the hover play-icon overlay — both cards already open Details on any tap regardless of where on the card, so the icon implied a direct-play affordance the card never had.
+- **TopBar layout fix**: the hub-switcher used `Stack`+`Center`, which centers on the *full* bar width and doesn't reserve space for the logo/settings button either side — on a narrow tablet width the truly-centered tabs could grow into the settings button, reading as it being "displaced." Now a `Row` of three equal-width sections, with the center wrapped in `FittedBox` so three tabs never overflow at the 700px tablet floor.
+- **Minimum window size**: 360×640 floor added via `window_manager.setMinimumSize` — previously unset, the window could be dragged arbitrarily small.
+- **Download paths unified**: Music and Books downloads were hardcoded to app-internal storage (`getApplicationDocumentsDirectory`, invisible on Android's scoped storage, gone on uninstall) while video and audiobook downloads already used `DownloadPathHelper`'s user-visible, user-configurable Downloads folder. Both now route through the same helper.
+
+### Song rows: Like icon instead of a redundant inline Download; New Playlist scoped to Saved/Playlists (ROADMAP #20/#21) — 2026-09-02
+- `_MusicTrackRow`'s inline `MusicTrackDownloadButton` replaced with a `LikeButton` — download was already reachable from the "..." menu's own quick action, making the row's copy a second entry point for the same thing; there was no inline Like anywhere before.
+- "New Playlist" removed from the persistent toolbar shown across every Listen sub-tab (added this session for item 24) — now lives only in Saved → Playlists itself and the "..." track menu's own inline create action, not a third button duplicating either.
+
 ## [1.1.4] — 2026-09-02
 
 ### Dropped the (dev) channel marker
