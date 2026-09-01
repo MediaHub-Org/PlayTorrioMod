@@ -30,6 +30,7 @@ class _MangaPageState extends State<MangaPage> {
   static List<Map<String, dynamic>>? _cachedReadingHistory;
   static int _cachedCurrentPage = 1;
   static String _cachedSearchQuery = '';
+  static String _cachedSelectedGenre = 'All';
   static double _cachedScrollOffset = 0.0;
 
   final MangaService _mangaService = MangaService();
@@ -43,6 +44,7 @@ class _MangaPageState extends State<MangaPage> {
   bool _isLoadingMore = false;
   int _currentPage = 1;
   String _searchQuery = '';
+  String _selectedGenre = 'All';
   
   // Track grid layout dimensions
   late double _screenWidth;
@@ -52,6 +54,7 @@ class _MangaPageState extends State<MangaPage> {
     super.initState();
     _scrollController = ScrollController(initialScrollOffset: _cachedScrollOffset);
     _searchController.text = _cachedSearchQuery;
+    _selectedGenre = _cachedSelectedGenre;
     
     MangaSettings.changeNotifier.addListener(_onSettingsChanged);
     AppThemeService.currentPalette.addListener(_onSettingsChanged);
@@ -61,6 +64,7 @@ class _MangaPageState extends State<MangaPage> {
       _readingHistory = _cachedReadingHistory!;
       _currentPage = _cachedCurrentPage;
       _searchQuery = _cachedSearchQuery;
+      _selectedGenre = _cachedSelectedGenre;
       // Refresh reading history in background silently
       _mangaService.getReadingHistory().then((history) {
         if (mounted) {
@@ -124,7 +128,7 @@ class _MangaPageState extends State<MangaPage> {
     
     final results = await Future.wait([
       _searchQuery.isEmpty 
-          ? _mangaService.getManga(page: _currentPage)
+          ? _mangaService.getManga(page: _currentPage, tag: _selectedGenre == 'All' ? null : _selectedGenre)
           : _mangaService.searchManga(_searchQuery, page: _currentPage),
       _mangaService.getReadingHistory(),
     ]);
@@ -139,6 +143,7 @@ class _MangaPageState extends State<MangaPage> {
         _cachedReadingHistory = _readingHistory;
         _cachedCurrentPage = _currentPage;
         _cachedSearchQuery = _searchQuery;
+        _cachedSelectedGenre = _selectedGenre;
       });
     }
   }
@@ -148,7 +153,7 @@ class _MangaPageState extends State<MangaPage> {
     
     _currentPage++;
     final newManga = _searchQuery.isEmpty 
-        ? await _mangaService.getManga(page: _currentPage)
+        ? await _mangaService.getManga(page: _currentPage, tag: _selectedGenre == 'All' ? null : _selectedGenre)
         : await _mangaService.searchManga(_searchQuery, page: _currentPage);
         
     if (mounted) {
@@ -165,6 +170,18 @@ class _MangaPageState extends State<MangaPage> {
   void _onSearchChanged(String query) {
     if (_searchQuery == query) return;
     _searchQuery = query;
+    _loadInitialData();
+  }
+
+  void _onGenreSelected(String genre) {
+    if (_selectedGenre == genre && _searchQuery.isEmpty) return;
+    setState(() {
+      _selectedGenre = genre;
+      _cachedSelectedGenre = genre;
+      _searchQuery = '';
+      _searchController.clear();
+      _cachedSearchQuery = '';
+    });
     _loadInitialData();
   }
 
@@ -399,6 +416,7 @@ class _MangaPageState extends State<MangaPage> {
   }
 
   Widget _buildScrollableContent() {
+    final palette = AppThemeService.currentPalette.value;
     final density = MangaSettings.cardDensity.value;
     final sizing = MangaCardSizing.fromWidth(_screenWidth, density: density);
     final showContinue = MangaSettings.showContinueReading.value;
@@ -454,7 +472,9 @@ class _MangaPageState extends State<MangaPage> {
               vertical: isMobile ? 12.0 : 16.0,
             ),
             child: Text(
-              _searchQuery.isNotEmpty ? 'Search Results' : 'Discover Manga',
+              _searchQuery.isNotEmpty
+                  ? 'Search Results'
+                  : (_selectedGenre == 'All' ? 'Discover Manga' : '$_selectedGenre Manga'),
               style: TextStyle(
                 color: Colors.white,
                 fontSize: isMobile ? 22 : 28,
@@ -464,6 +484,71 @@ class _MangaPageState extends State<MangaPage> {
             ),
           ),
         ),
+
+        // ── Genre Filter Bar (Horizontal scrollable pills) ──
+        if (_searchQuery.isEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: isMobile ? 16.0 : 32.0,
+                right: isMobile ? 16.0 : 32.0,
+                bottom: 16.0,
+              ),
+              child: SizedBox(
+                height: 38,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: MangaService.popularGenres.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final genre = MangaService.popularGenres[index];
+                    final isSelected = genre == _selectedGenre;
+                    return InkWell(
+                      onTap: () => _onGenreSelected(genre),
+                      borderRadius: BorderRadius.circular(20),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? palette.primaryColor.withValues(alpha: 0.22)
+                              : Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? palette.primaryColor.withValues(alpha: 0.7)
+                                : Colors.white.withValues(alpha: 0.08),
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: palette.primaryColor.withValues(alpha: 0.25),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            genre,
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : Colors.white.withValues(alpha: 0.7),
+                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                              fontSize: 13,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
         
         if (_isLoading && _mangaList.isEmpty)
           const SliverFillRemaining(

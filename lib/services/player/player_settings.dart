@@ -43,13 +43,82 @@ enum SubtitleStylePreset {
   );
 }
 
-/// Central service managing video engine properties and subtitle customization
+/// Anime4K GLSL shader upscaling presets for libmpv / media_kit.
+enum Anime4KPreset {
+  off(
+    'Off',
+    'Standard video playback without neural upscaling shaders',
+    [],
+  ),
+  modeAFast(
+    'Mode A (Fast / Balanced)',
+    'Restores line art and upscales cleanly. Balanced GPU load, ideal for 1080p anime and mobile/integrated GPUs.',
+    [
+      'Anime4K_Clamp_Highlights.glsl',
+      'Anime4K_Restore_CNN_M.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+      'Anime4K_AutoDownscalePre_x2.glsl',
+      'Anime4K_AutoDownscalePre_x4.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+    ],
+  ),
+  modeAHQ(
+    'Mode A (High Quality / HQ)',
+    'Ultra-crisp perceptual line reconstruction and upscale using Very Large CNNs. Best for discrete desktop GPUs.',
+    [
+      'Anime4K_Clamp_Highlights.glsl',
+      'Anime4K_Restore_CNN_VL.glsl',
+      'Anime4K_Upscale_CNN_x2_VL.glsl',
+      'Anime4K_AutoDownscalePre_x2.glsl',
+      'Anime4K_AutoDownscalePre_x4.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+    ],
+  ),
+  modeB(
+    'Mode B (Soft / Denoise)',
+    'Soft line reconstruction and artifact reduction. Best for blurry, compressed, or older anime.',
+    [
+      'Anime4K_Clamp_Highlights.glsl',
+      'Anime4K_Restore_CNN_Soft_M.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+      'Anime4K_AutoDownscalePre_x2.glsl',
+      'Anime4K_AutoDownscalePre_x4.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+    ],
+  ),
+  modeC(
+    'Mode C (Deblur / Upscale)',
+    'Aggressive deblurring and scaling. Best for 720p / 480p low-resolution anime streams.',
+    [
+      'Anime4K_Clamp_Highlights.glsl',
+      'Anime4K_Upscale_Denoise_CNN_x2_M.glsl',
+      'Anime4K_AutoDownscalePre_x2.glsl',
+      'Anime4K_AutoDownscalePre_x4.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+    ],
+  );
+
+  final String label;
+  final String description;
+  final List<String> shaderFiles;
+
+  const Anime4KPreset(
+    this.label,
+    this.description,
+    this.shaderFiles,
+  );
+}
+
+/// Central service managing video engine properties, Anime4K upscaling, and subtitle customization
 /// using media_kit / libmpv.
 ///
 /// All decoder, buffer, and engine settings are hardcoded to optimal MPV-native
 /// defaults. Users cannot adjust these — MPV picks the best decoder based on
-/// hardware natively. Only subtitle styling remains user-configurable.
+/// hardware natively. Subtitle styling and Anime4K upscaling are user-configurable.
 abstract final class PlayerSettings {
+  // Video & Anime4K Upscaling Keys
+  static const _keyAnime4kPreset = 'player_anime4k_preset';
+
   // Subtitle Customization Keys
   static const _keySubStylePreset = 'player_sub_style_preset';
   static const _keySubFont = 'player_sub_font';
@@ -75,6 +144,10 @@ abstract final class PlayerSettings {
   static final ValueNotifier<bool> autoResyncOnStall = ValueNotifier<bool>(true);
   static final ValueNotifier<bool> hardwareAudioClock = ValueNotifier<bool>(true);
 
+  // Anime4K Video Upscaling ValueNotifier
+  static final ValueNotifier<Anime4KPreset> anime4kPreset =
+      ValueNotifier<Anime4KPreset>(Anime4KPreset.off);
+
   // Subtitle Customization ValueNotifiers
   static final ValueNotifier<SubtitleStylePreset> subStylePreset =
       ValueNotifier<SubtitleStylePreset>(SubtitleStylePreset.classicWhite);
@@ -95,6 +168,10 @@ abstract final class PlayerSettings {
   static final ValueNotifier<String> subAssOverride = ValueNotifier<String>('no');
   static final ValueNotifier<bool> useLibass = ValueNotifier<bool>(false);
   static final ValueNotifier<int> changeNotifier = ValueNotifier<int>(0);
+
+  // Extracted shader paths for Anime4K GLSL engine
+  static String? _extractedAnime4kDir;
+  static String? get extractedAnime4kDir => _extractedAnime4kDir;
 
   // Extracted font paths for libass font fallback
   static String? _extractedFontDir;
@@ -119,9 +196,18 @@ abstract final class PlayerSettings {
     'Verdana',
   ];
 
-  /// Initializes subtitle preferences from disk and extracts the bundled font for libass.
+  /// Initializes subtitle & Anime4K upscaling preferences from disk and extracts bundled assets.
   static Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
+
+    // Load Anime4K Upscaling Preference
+    final anime4kPresetStr = prefs.getString(_keyAnime4kPreset);
+    if (anime4kPresetStr != null) {
+      anime4kPreset.value = Anime4KPreset.values.firstWhere(
+        (p) => p.name == anime4kPresetStr,
+        orElse: () => Anime4KPreset.off,
+      );
+    }
 
     // Load Subtitle Customization Preferences
     final subPresetStr = prefs.getString(_keySubStylePreset);
@@ -150,6 +236,88 @@ abstract final class PlayerSettings {
 
     // Extract bundled font for libass fallback
     await _extractLibassFontFallback();
+
+    // Extract bundled Anime4K GLSL shaders for libmpv upscaling pipeline
+    await _extractAnime4kShaders();
+  }
+
+  /// Extracts bundled Anime4K GLSL shaders from assets to persistent disk storage for libmpv glsl-shaders property.
+  static Future<void> _extractAnime4kShaders() async {
+    try {
+      Directory? targetDir;
+      try {
+        targetDir = await getApplicationSupportDirectory();
+      } catch (_) {
+        targetDir = await getTemporaryDirectory();
+      }
+
+      final shadersDir = Directory(p.join(targetDir.path, 'shaders', 'anime4k'));
+      if (!await shadersDir.exists()) {
+        await shadersDir.create(recursive: true);
+      }
+
+      final shaderFiles = [
+        'Anime4K_AutoDownscalePre_x2.glsl',
+        'Anime4K_AutoDownscalePre_x4.glsl',
+        'Anime4K_Clamp_Highlights.glsl',
+        'Anime4K_Darken_Fast.glsl',
+        'Anime4K_Darken_HQ.glsl',
+        'Anime4K_Darken_VeryFast.glsl',
+        'Anime4K_Deblur_DoG.glsl',
+        'Anime4K_Deblur_Original.glsl',
+        'Anime4K_Denoise_Bilateral_Mean.glsl',
+        'Anime4K_Denoise_Bilateral_Median.glsl',
+        'Anime4K_Denoise_Bilateral_Mode.glsl',
+        'Anime4K_Restore_CNN_L.glsl',
+        'Anime4K_Restore_CNN_M.glsl',
+        'Anime4K_Restore_CNN_S.glsl',
+        'Anime4K_Restore_CNN_Soft_L.glsl',
+        'Anime4K_Restore_CNN_Soft_M.glsl',
+        'Anime4K_Restore_CNN_Soft_S.glsl',
+        'Anime4K_Restore_CNN_Soft_UL.glsl',
+        'Anime4K_Restore_CNN_Soft_VL.glsl',
+        'Anime4K_Restore_CNN_UL.glsl',
+        'Anime4K_Restore_CNN_VL.glsl',
+        'Anime4K_Thin_Fast.glsl',
+        'Anime4K_Thin_HQ.glsl',
+        'Anime4K_Thin_VeryFast.glsl',
+        'Anime4K_Upscale_CNN_x2_L.glsl',
+        'Anime4K_Upscale_CNN_x2_M.glsl',
+        'Anime4K_Upscale_CNN_x2_S.glsl',
+        'Anime4K_Upscale_CNN_x2_UL.glsl',
+        'Anime4K_Upscale_CNN_x2_VL.glsl',
+        'Anime4K_Upscale_Deblur_DoG_x2.glsl',
+        'Anime4K_Upscale_Deblur_Original_x2.glsl',
+        'Anime4K_Upscale_Denoise_CNN_x2_L.glsl',
+        'Anime4K_Upscale_Denoise_CNN_x2_M.glsl',
+        'Anime4K_Upscale_Denoise_CNN_x2_S.glsl',
+        'Anime4K_Upscale_Denoise_CNN_x2_UL.glsl',
+        'Anime4K_Upscale_Denoise_CNN_x2_VL.glsl',
+        'Anime4K_Upscale_DoG_x2.glsl',
+        'Anime4K_Upscale_DTD_x2.glsl',
+        'Anime4K_Upscale_Original_x2.glsl',
+      ];
+
+      for (final filename in shaderFiles) {
+        final shaderFile = File(p.join(shadersDir.path, filename));
+        if (!await shaderFile.exists() || (await shaderFile.length()) == 0) {
+          try {
+            final data = await rootBundle.load('assets/shaders/anime4k/$filename');
+            if (data.lengthInBytes > 0) {
+              await shaderFile.writeAsBytes(
+                data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+                flush: true,
+              );
+            }
+          } catch (_) {}
+        }
+      }
+
+      _extractedAnime4kDir = shadersDir.path;
+      debugPrint('[PlayerSettings] Anime4K shaders extracted to: $_extractedAnime4kDir');
+    } catch (e) {
+      debugPrint('[PlayerSettings] Error extracting Anime4K shaders: $e');
+    }
   }
 
   /// Extracts assets/fonts/Poppins-Medium.ttf or subfont.ttf to persistent disk storage for libass font provider
@@ -275,6 +443,23 @@ abstract final class PlayerSettings {
 
       // 4. A/V sync — hardware audio clock is always the master timeline
       await platform.setProperty('video-sync', 'audio');
+
+      // 5. Anime4K GLSL Shader Upscaling Pipeline (Applied statically before playback)
+      if (anime4kPreset.value != Anime4KPreset.off && _extractedAnime4kDir != null) {
+        final files = anime4kPreset.value.shaderFiles;
+        if (files.isNotEmpty) {
+          final separator = Platform.isWindows ? ';' : ':';
+          final shaderChain = files
+              .map((f) => p.join(_extractedAnime4kDir!, f))
+              .join(separator);
+          await platform.setProperty('glsl-shaders', shaderChain);
+          debugPrint('[PlayerSettings] Applied Anime4K pre-open shader chain: ${anime4kPreset.value.label}');
+        } else {
+          await platform.setProperty('glsl-shaders', '');
+        }
+      } else {
+        await platform.setProperty('glsl-shaders', '');
+      }
 
       // ──────────────────────────────────────────────────────────────────────
       // TORRENT STREAMS: TorrServer is a local HTTP server that may have data
@@ -758,6 +943,17 @@ abstract final class PlayerSettings {
     _notify();
   }
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // Video & Anime4K Upscaling Setters
+  // ───────────────────────────────────────────────────────────────────────────
+
+  static Future<void> setAnime4kPreset(Anime4KPreset preset) async {
+    anime4kPreset.value = preset;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAnime4kPreset, preset.name);
+    _notify();
+  }
+
   static Future<void> resetSubtitleDefaults({Player? player}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keySubStylePreset);
@@ -801,6 +997,9 @@ abstract final class PlayerSettings {
   }
 
   static Future<void> resetToDefaults() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyAnime4kPreset);
+    anime4kPreset.value = Anime4KPreset.off;
     await resetSubtitleDefaults();
   }
 

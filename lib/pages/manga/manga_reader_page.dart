@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -550,8 +551,13 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                         ),
             ),
 
-            // Custom Vertical Scroller for Webtoon Mode
-            if (_readingMode == MangaReadingMode.webtoon && !_isLoading && _pageUrls.isNotEmpty && MangaSettings.showScrollTrack.value)
+            // Custom Vertical Scroller for Webtoon Mode (Desktop only, removed for mobile)
+            if (_readingMode == MangaReadingMode.webtoon &&
+                !_isLoading &&
+                _pageUrls.isNotEmpty &&
+                MangaSettings.showScrollTrack.value &&
+                !(Platform.isAndroid || Platform.isIOS) &&
+                MediaQuery.sizeOf(context).width >= 700)
               Positioned(
                 right: 20,
                 top: 100,

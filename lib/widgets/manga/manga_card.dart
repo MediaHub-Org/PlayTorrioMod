@@ -95,6 +95,12 @@ class _MangaCardState extends State<MangaCard> {
     final showBadge = MangaSettings.showContentTypeBadge.value;
     final ambientGlow = MangaSettings.ambientCardGlow.value;
 
+    final genreText = manga.tags.isNotEmpty ? manga.tags.first : (manga.type.isNotEmpty ? manga.type : '');
+    final metaText = [
+      if (showYear && manga.year.isNotEmpty) manga.year,
+      if (genreText.isNotEmpty) genreText,
+    ].join(' • ');
+
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       onEnter: (_) {
@@ -174,14 +180,14 @@ class _MangaCardState extends State<MangaCard> {
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                if (showYear) ...[
+                if (metaText.isNotEmpty || showYear) ...[
                   const SizedBox(height: 3),
                   Text(
-                    manga.year.isNotEmpty ? manga.year : 'Unknown Year',
+                    metaText.isNotEmpty ? metaText : 'Unknown Year',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: 12.5,
                       fontWeight: FontWeight.w500,
                       color: Colors.white.withOpacity(0.55),
                       letterSpacing: -0.1,
