@@ -208,4 +208,50 @@ abstract final class MyListService {
       add(item);
     }
   }
+
+  static MyListItem? _find(MyListItem item) {
+    for (final i in items.value) {
+      if (i.uniqueKey == item.uniqueKey || i.matches(item)) return i;
+    }
+    return null;
+  }
+
+  static void _setLocal(MyListItem item) {
+    final newList = <MyListItem>[
+      item,
+      ...items.value.where((i) => i.uniqueKey != item.uniqueKey && !i.matches(item)),
+    ];
+    newList.sort((a, b) => b.addedAt.compareTo(a.addedAt));
+    if (newList.length > maxItems) newList.removeRange(maxItems, newList.length);
+    items.value = newList;
+    _persist();
+  }
+
+  /// Marks [item] Watchlist ("want to watch"), clearing Watched if it was
+  /// set -- the two are mutually exclusive. Tapping the already-active
+  /// state removes the item from the list entirely. Syncs to Trakt/Simkl
+  /// the same way [add] already did, since a local Watchlist entry is
+  /// exactly what those services call a watchlist entry.
+  static void setWatchlist(MyListItem item) {
+    final existing = _find(item);
+    if (existing != null && existing.isWatchlist) {
+      remove(item);
+      return;
+    }
+    _setLocal((existing ?? item).copyWith(isWatchlist: true, isWatched: false));
+    if (existing == null) _syncCloudAdd(item);
+  }
+
+  /// Marks [item] Watched, clearing Watchlist if it was set. Local-only --
+  /// no Trakt/Simkl "mark as watched" call is wired (that's a different
+  /// endpoint from the watchlist add/remove above; wire cloud sync here if
+  /// that becomes a real ask).
+  static void setWatched(MyListItem item) {
+    final existing = _find(item);
+    if (existing != null && existing.isWatched) {
+      remove(item);
+      return;
+    }
+    _setLocal((existing ?? item).copyWith(isWatched: true, isWatchlist: false));
+  }
 }

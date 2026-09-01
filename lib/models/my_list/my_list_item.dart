@@ -12,6 +12,7 @@ class MyListItem {
   final DateTime addedAt;
   final MyListSource source;
   final bool isWatchlist;
+  final bool isWatched;
 
   const MyListItem({
     this.traktId,
@@ -25,6 +26,7 @@ class MyListItem {
     required this.addedAt,
     this.source = MyListSource.local,
     this.isWatchlist = false,
+    this.isWatched = false,
   });
 
   /// Identity key used for de-duplication and for [==]/[hashCode].
@@ -196,6 +198,7 @@ class MyListItem {
       'addedAt': addedAt.toIso8601String(),
       'source': source.name,
       'isWatchlist': isWatchlist,
+      'isWatched': isWatched,
     };
   }
 
@@ -220,6 +223,7 @@ class MyListItem {
           : DateTime.now(),
       source: src,
       isWatchlist: json['isWatchlist'] as bool? ?? false,
+      isWatched: json['isWatched'] as bool? ?? false,
     );
   }
 
@@ -234,6 +238,8 @@ class MyListItem {
     String? poster,
     DateTime? addedAt,
     MyListSource? source,
+    bool? isWatchlist,
+    bool? isWatched,
   }) {
     return MyListItem(
       traktId: traktId ?? this.traktId,
@@ -246,6 +252,8 @@ class MyListItem {
       poster: poster ?? this.poster,
       addedAt: addedAt ?? this.addedAt,
       source: source ?? this.source,
+      isWatchlist: isWatchlist ?? this.isWatchlist,
+      isWatched: isWatched ?? this.isWatched,
     );
   }
 

@@ -28,6 +28,11 @@ class _Space {
   static const xxl = 48.0;
 }
 
+/// Menu choices for the library status picker (`_buildLibraryButton`).
+/// Watchlist and Watched are mutually exclusive on [MyListItem] -- see
+/// [MyListService.setWatchlist]/[MyListService.setWatched].
+enum _LibraryStatus { watchlist, watched, remove }
+
 class _Palette {
   static const bg = Color(0xFF0B0D12);
   static const surface = Color(0xFF15171F);
@@ -956,69 +961,19 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
     );
   }
 
-  Widget _buildLibraryButton({required bool fullWidth}) {
-    return ValueListenableBuilder<List<MyListItem>>(
-      valueListenable: MyListService.items,
-      builder: (context, items, _) {
-        final inList = _detail != null &&
-            MyListService.isInList(
-              MyListItem.fromMovieDetail(
-                id: _detail!.id,
-                name: _detail!.name,
-                poster: _detail!.poster,
-                year: _detail!.year,
-                type: _detail!.type,
-                imdbId: _detail!.id.startsWith('tt') ? _detail!.id : null,
-                tmdbId: _detail!.tmdbId != null ? int.tryParse(_detail!.tmdbId!) : null,
-              ),
-            );
-
-        return _HoverButton(
-          onTap: () => _toggleMyList(),
-          child: Container(
-            width: fullWidth ? double.infinity : null,
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-            decoration: BoxDecoration(
-              color: inList
-                  ? const Color(0xFF7C5CFF).withOpacity(0.18)
-                  : Colors.white.withOpacity(0.08),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: inList
-                    ? const Color(0xFF7C5CFF).withOpacity(0.35)
-                    : Colors.white.withOpacity(0.14),
-              ),
-            ),
-            child: Row(
-              mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  inList ? Icons.bookmark_added_rounded : Icons.bookmark_add_outlined,
-                  color: inList ? const Color(0xFF7C5CFF) : Colors.white,
-                  size: 22,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  inList ? 'In Library' : 'Add to Library',
-                  style: TextStyle(
-                    color: inList ? const Color(0xFF7C5CFF) : Colors.white,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
+  /// The current My List entry for this title, if any -- null means neither
+  /// Watchlist nor Watched.
+  MyListItem? _myListEntry(List<MyListItem> items) {
+    if (_detail == null) return null;
+    final probe = _buildMyListItem();
+    for (final i in items) {
+      if (i.uniqueKey == probe.uniqueKey || i.matches(probe)) return i;
+    }
+    return null;
   }
 
-  void _toggleMyList() {
-    if (_detail == null) return;
-
-    final item = MyListItem.fromMovieDetail(
+  MyListItem _buildMyListItem() {
+    return MyListItem.fromMovieDetail(
       id: _detail!.id,
       name: _detail!.name,
       poster: _detail!.poster,
@@ -1027,8 +982,90 @@ class _DetailsPageState extends State<DetailsPage> with SingleTickerProviderStat
       imdbId: _detail!.id.startsWith('tt') ? _detail!.id : null,
       tmdbId: _detail!.tmdbId != null ? int.tryParse(_detail!.tmdbId!) : null,
     );
+  }
 
-    MyListService.toggle(item);
+  /// Status picker matching Anime's own (`anime_details_page.dart`'s
+  /// `_buildLibraryButton`) -- same PopupMenuButton shape, same "current
+  /// status as the button's own label" pattern -- so the two content types
+  /// present this control identically instead of two different widgets that
+  /// happen to do a similar job.
+  Widget _buildLibraryButton({required bool fullWidth}) {
+    return ValueListenableBuilder<List<MyListItem>>(
+      valueListenable: MyListService.items,
+      builder: (context, items, _) {
+        final entry = _myListEntry(items);
+        final isWatched = entry?.isWatched ?? false;
+        final isWatchlist = entry?.isWatchlist ?? false;
+        final color = isWatched
+            ? const Color(0xFF00D294)
+            : (isWatchlist ? const Color(0xFF7C5CFF) : Colors.white);
+
+        return PopupMenuButton<_LibraryStatus>(
+          onSelected: (status) {
+            final item = _buildMyListItem();
+            switch (status) {
+              case _LibraryStatus.watchlist:
+                MyListService.setWatchlist(item);
+              case _LibraryStatus.watched:
+                MyListService.setWatched(item);
+              case _LibraryStatus.remove:
+                MyListService.remove(item);
+            }
+          },
+          color: const Color(0xFF161A26),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: Colors.white.withOpacity(0.1)),
+          ),
+          itemBuilder: (context) => [
+            const PopupMenuItem(
+              value: _LibraryStatus.watchlist,
+              child: Text('Watchlist', style: TextStyle(color: Colors.white)),
+            ),
+            const PopupMenuItem(
+              value: _LibraryStatus.watched,
+              child: Text('Watched', style: TextStyle(color: Colors.white)),
+            ),
+            if (entry != null)
+              const PopupMenuItem(
+                value: _LibraryStatus.remove,
+                child: Text('Remove from List', style: TextStyle(color: Colors.white54)),
+              ),
+          ],
+          child: Container(
+            width: fullWidth ? double.infinity : null,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            decoration: BoxDecoration(
+              color: entry != null
+                  ? color.withOpacity(0.18)
+                  : Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: entry != null ? color.withOpacity(0.35) : Colors.white.withOpacity(0.14),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: fullWidth ? MainAxisSize.max : MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  isWatched
+                      ? Icons.check_circle_rounded
+                      : (isWatchlist ? Icons.bookmark_added_rounded : Icons.bookmark_add_outlined),
+                  color: color,
+                  size: 22,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  isWatched ? 'Watched' : (isWatchlist ? 'Watchlist' : 'Add to List'),
+                  style: TextStyle(color: color, fontSize: 14, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
   }
 
   Widget _buildSynopsis(String text) {
