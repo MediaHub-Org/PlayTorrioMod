@@ -293,7 +293,7 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(18),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
             color: const Color(0xFF12151E),
             borderRadius: BorderRadius.circular(16),
@@ -304,35 +304,37 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage> {
           child: Row(
             children: [
               Container(
-                width: 46,
-                height: 46,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: iconColor.withValues(alpha: 0.14),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(icon, color: iconColor, size: 24),
+                child: Icon(icon, color: iconColor, size: 22),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       children: [
-                        Flexible(
+                        Expanded(
                           child: Text(
                             title,
                             style: const TextStyle(
-                              fontSize: 16,
+                              fontSize: 15,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                             ),
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        const SizedBox(width: 6),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                           decoration: BoxDecoration(
                             color: badgeColor.withValues(alpha: 0.15),
                             borderRadius: BorderRadius.circular(6),
@@ -340,30 +342,33 @@ class _AppearanceSettingsPageState extends State<AppearanceSettingsPage> {
                           child: Text(
                             badgeText,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.w800,
                               color: badgeColor,
                             ),
+                            maxLines: 1,
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       subtitle,
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.white.withValues(alpha: 0.45),
-                        height: 1.35,
+                        height: 1.25,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               Icon(
                 Icons.arrow_forward_ios_rounded,
-                size: 16,
+                size: 14,
                 color: Colors.white.withValues(alpha: 0.3),
               ),
             ],

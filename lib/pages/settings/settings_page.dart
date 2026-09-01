@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../services/addon/addon_manager.dart';
@@ -20,6 +21,7 @@ import 'about_settings_page.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
 import '../../services/discord/discord_rpc_service.dart';
+import '../../services/backup/backup_restore_service.dart';
 
 import '../../widgets/common/animated_ambient_background.dart';
 import '../../app_info.dart';
@@ -38,6 +40,232 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _appVersion;
   bool _traktConnected = false;
   bool _simklConnected = false;
+
+  void _showBackupRestoreDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: const Color(0xFF12151E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.backup_rounded, color: Color(0xFF10B981), size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Backup & Restore',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                            Text(
+                              'Cross-device JSON configuration',
+                              style: TextStyle(fontSize: 12, color: Colors.white54),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Export your configuration (installed addons, IPTV portals, Debrid keys & themes) to JSON or import on another device.',
+                    style: TextStyle(fontSize: 13, color: Colors.white.withValues(alpha: 0.7), height: 1.4),
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF10B981),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.file_upload_outlined, size: 18),
+                          label: const Text('Export JSON', style: TextStyle(fontWeight: FontWeight.bold)),
+                          onPressed: () async {
+                            final jsonStr = await BackupRestoreService.exportSettingsJson();
+                            await Clipboard.setData(ClipboardData(text: jsonStr));
+                            if (!ctx.mounted) return;
+                            Navigator.pop(ctx);
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Configuration JSON copied to clipboard! Save or paste it on any device.'),
+                                  backgroundColor: Color(0xFF10B981),
+                                  duration: Duration(seconds: 4),
+                                ),
+                              );
+                            }
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.file_download_outlined, size: 18),
+                          label: const Text('Import JSON', style: TextStyle(fontWeight: FontWeight.bold)),
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _showImportJsonInputDialog();
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showImportJsonInputDialog() {
+    final textController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return Dialog(
+          backgroundColor: const Color(0xFF12151E),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+            side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: Padding(
+              padding: const EdgeInsets.all(22),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.file_download_outlined, color: Color(0xFF00E5FF), size: 22),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Paste Configuration JSON',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.white),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, color: Colors.white54),
+                        onPressed: () => Navigator.pop(ctx),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: textController,
+                    maxLines: 8,
+                    style: const TextStyle(color: Colors.white, fontSize: 12, fontFamily: 'monospace'),
+                    decoration: InputDecoration(
+                      hintText: 'Paste backup JSON here...',
+                      hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3)),
+                      filled: true,
+                      fillColor: const Color(0xFF0A0C12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.all(12),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        icon: const Icon(Icons.paste_rounded, size: 16, color: Color(0xFF00E5FF)),
+                        label: const Text('Paste from Clipboard', style: TextStyle(color: Color(0xFF00E5FF))),
+                        onPressed: () async {
+                          final data = await Clipboard.getData(Clipboard.kTextPlain);
+                          if (data?.text != null) {
+                            textController.text = data!.text!;
+                          }
+                        },
+                      ),
+                      const Spacer(),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF00E5FF),
+                          foregroundColor: Colors.black,
+                          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                        ),
+                        child: const Text('Restore Now', style: TextStyle(fontWeight: FontWeight.bold)),
+                        onPressed: () async {
+                          final txt = textController.text.trim();
+                          if (txt.isEmpty) return;
+                          try {
+                            final msg = await BackupRestoreService.importSettingsJson(txt);
+                            if (!ctx.mounted) return;
+                            Navigator.pop(ctx);
+                            if (mounted) {
+                              _loadOverviewState();
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(msg),
+                                  backgroundColor: const Color(0xFF10B981),
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (!ctx.mounted) return;
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(
+                                content: Text('Import Failed: $e'),
+                                backgroundColor: Colors.redAccent,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 
   @override
   void initState() {
@@ -318,7 +546,21 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // 7. App Updates & System
+              // Backup & Restore (JSON) -- settings/addons/IPTV portals export,
+              // distinct from General & Data's full-store backup above.
+              _SettingsCategoryTile(
+                icon: Icons.backup_rounded,
+                iconColor: const Color(0xFF10B981),
+                title: 'Backup & Restore',
+                subtitle: 'Export or import your settings, addons & IPTV portals (JSON)',
+                badgeText: 'JSON',
+                badgeColor: const Color(0xFF10B981),
+                onTap: _showBackupRestoreDialog,
+              ),
+
+              const SizedBox(height: 12),
+
+              // App Updates & System
               _SettingsCategoryTile(
                 icon: Icons.system_update_rounded,
                 iconColor: const Color(0xFFF59E0B),
@@ -331,7 +573,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
               const SizedBox(height: 12),
 
-              // 8. About the app
+              // About the app
               _SettingsCategoryTile(
                 icon: Icons.info_outline_rounded,
                 iconColor: Colors.white70,
@@ -379,7 +621,7 @@ class _SettingsCategoryTile extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
           decoration: BoxDecoration(
             color: const Color(0xFF12151E),
             borderRadius: BorderRadius.circular(16),
@@ -391,8 +633,8 @@ class _SettingsCategoryTile extends StatelessWidget {
             children: [
               // Icon Container with subtle tinted background
               Container(
-                width: 44,
-                height: 44,
+                width: 42,
+                height: 42,
                 decoration: BoxDecoration(
                   color: iconColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
@@ -403,30 +645,32 @@ class _SettingsCategoryTile extends StatelessWidget {
                   size: 22,
                 ),
               ),
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
 
               // Title and Subtitle
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
                   children: [
                     Row(
                       children: [
-                        Flexible(
+                        Expanded(
                           child: Text(
                             title,
                             style: const TextStyle(
-                              fontSize: 15.5,
+                              fontSize: 15,
                               fontWeight: FontWeight.w700,
                               color: Colors.white,
                             ),
+                            maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
                         if (badgeText != null) ...[
-                          const SizedBox(width: 8),
+                          const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
                               color: (badgeColor ?? iconColor).withValues(alpha: 0.14),
                               borderRadius: BorderRadius.circular(6),
@@ -434,10 +678,11 @@ class _SettingsCategoryTile extends StatelessWidget {
                             child: Text(
                               badgeText!,
                               style: TextStyle(
-                                fontSize: 10.5,
+                                fontSize: 10,
                                 fontWeight: FontWeight.w700,
                                 color: badgeColor ?? iconColor,
                               ),
+                              maxLines: 1,
                             ),
                           ),
                         ],
@@ -449,20 +694,21 @@ class _SettingsCategoryTile extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.white.withValues(alpha: 0.45),
+                        height: 1.25,
                       ),
-                      maxLines: 1,
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
 
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
 
               // Chevron right
               Icon(
                 Icons.arrow_forward_ios_rounded,
-                size: 15,
+                size: 14,
                 color: Colors.white.withValues(alpha: 0.25),
               ),
             ],
@@ -503,7 +749,7 @@ class _SettingsSwitchTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
         color: const Color(0xFF12151E),
         borderRadius: BorderRadius.circular(16),
@@ -517,8 +763,8 @@ class _SettingsSwitchTile extends StatelessWidget {
         children: [
           // Icon Container
           Container(
-            width: 44,
-            height: 44,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: iconColor.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(12),
@@ -529,23 +775,25 @@ class _SettingsSwitchTile extends StatelessWidget {
               size: 22,
             ),
           ),
-          const SizedBox(width: 14),
+          const SizedBox(width: 12),
 
           // Title and Subtitle
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
                   children: [
-                    Flexible(
+                    Expanded(
                       child: Text(
                         title,
                         style: const TextStyle(
-                          fontSize: 15,
+                          fontSize: 14.5,
                           fontWeight: FontWeight.w700,
                           color: Colors.white,
                         ),
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -562,7 +810,7 @@ class _SettingsSwitchTile extends StatelessWidget {
                     if (badgeText != null) ...[
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: (badgeColor ?? iconColor).withValues(alpha: 0.14),
                           borderRadius: BorderRadius.circular(6),
@@ -570,10 +818,11 @@ class _SettingsSwitchTile extends StatelessWidget {
                         child: Text(
                           badgeText!,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: 9.5,
                             fontWeight: FontWeight.w700,
                             color: badgeColor ?? iconColor,
                           ),
+                          maxLines: 1,
                         ),
                       ),
                     ],
@@ -587,21 +836,26 @@ class _SettingsSwitchTile extends StatelessWidget {
                     color: Colors.white.withValues(alpha: 0.45),
                     height: 1.25,
                   ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
 
-          const SizedBox(width: 10),
+          const SizedBox(width: 8),
 
           // Switch
-          Switch.adaptive(
-            value: value,
-            activeColor: const Color(0xFFF59E0B),
-            activeTrackColor: const Color(0xFFF59E0B).withValues(alpha: 0.35),
-            inactiveThumbColor: Colors.white60,
-            inactiveTrackColor: Colors.white10,
-            onChanged: onChanged,
+          Transform.scale(
+            scale: 0.9,
+            child: Switch.adaptive(
+              value: value,
+              activeColor: const Color(0xFFF59E0B),
+              activeTrackColor: const Color(0xFFF59E0B).withValues(alpha: 0.35),
+              inactiveThumbColor: Colors.white60,
+              inactiveTrackColor: Colors.white10,
+              onChanged: onChanged,
+            ),
           ),
         ],
       ),

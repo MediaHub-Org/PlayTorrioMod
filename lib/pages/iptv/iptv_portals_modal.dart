@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../services/theme/app_theme_service.dart';
+import '../../models/iptv/iptv_models.dart';
 import '../../services/iptv/iptv_controller.dart';
 import '../../services/iptv/iptv_network.dart';
 import '../../services/iptv/iptv_settings.dart';
@@ -46,6 +47,25 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
   final Set<String> _selectedM3uIds = {};
 
   Offset? _tapPosition;
+
+  String _portalSourceFilter = 'all'; // 'all', 'custom', 'cloud', 'reddit', 'fav'
+
+  List<VerifiedPortal> get _filteredPortals {
+    return _ctrl.verified.where((p) {
+      if (_portalSourceFilter == 'fav') return _ctrl.isFavoritePortal(p.key);
+      final src = p.portal.source.toLowerCase();
+      if (_portalSourceFilter == 'custom') {
+        return src.isEmpty || src.contains('custom') || src.contains('manual');
+      }
+      if (_portalSourceFilter == 'cloud') {
+        return src.contains('cloud') || src.contains('vault');
+      }
+      if (_portalSourceFilter == 'reddit') {
+        return src.contains('reddit');
+      }
+      return true;
+    }).toList();
+  }
 
   @override
   void initState() {
@@ -362,75 +382,95 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
             borderRadius: BorderRadius.circular(24),
             side: BorderSide(color: Colors.white.withValues(alpha: 0.12)),
           ),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680, maxHeight: 680),
-            child: Column(
-              children: [
-                // Header
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 20, 12),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: palette.primaryColor.withValues(alpha: 0.18),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Icon(Icons.settings_input_antenna_rounded,
-                            color: palette.primaryColor, size: 22),
-                      ),
-                      const SizedBox(width: 12),
-                      const Text(
-                        'IPTV Portals & Playlists',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 20),
-                        tooltip: 'Customize Modal Style',
-                        onPressed: () => _openModalCustomizer(context),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white54),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                ),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isMobile = constraints.maxWidth < 480;
 
-                // Tab Bar
-                TabBar(
-                  controller: _tabController,
-                  indicatorColor: palette.primaryColor,
-                  indicatorWeight: 3,
-                  labelColor: Colors.white,
-                  unselectedLabelColor: Colors.white54,
-                  labelStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                  tabs: [
-                    Tab(text: 'Xtream Panels (${_ctrl.verified.length})'),
-                    Tab(text: 'M3U Playlists (${_ctrl.m3uPlaylists.length})'),
+              return ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 680, maxHeight: 680),
+                child: Column(
+                  children: [
+                    // Header
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(isMobile ? 14 : 20, isMobile ? 14 : 18, isMobile ? 10 : 16, 10),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(isMobile ? 6 : 8),
+                            decoration: BoxDecoration(
+                              color: palette.primaryColor.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              Icons.settings_input_antenna_rounded,
+                              color: palette.primaryColor,
+                              size: isMobile ? 19 : 22,
+                            ),
+                          ),
+                          SizedBox(width: isMobile ? 8 : 12),
+                          Expanded(
+                            child: Text(
+                              'IPTV Portals & Playlists',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: isMobile ? 16 : 19,
+                                fontWeight: FontWeight.w900,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.tune_rounded, color: Colors.white70, size: 19),
+                            tooltip: 'Customize Modal Style',
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.all(6),
+                            constraints: const BoxConstraints(),
+                            onPressed: () => _openModalCustomizer(context),
+                          ),
+                          const SizedBox(width: 4),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.all(6),
+                            constraints: const BoxConstraints(),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Tab Bar
+                    TabBar(
+                      controller: _tabController,
+                      indicatorColor: palette.primaryColor,
+                      indicatorWeight: 3,
+                      labelColor: Colors.white,
+                      unselectedLabelColor: Colors.white54,
+                      labelStyle: TextStyle(fontWeight: FontWeight.w800, fontSize: isMobile ? 12.5 : 14),
+                      unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: isMobile ? 12.5 : 14),
+                      tabs: [
+                        Tab(text: 'Xtream Panels (${_ctrl.verified.length})'),
+                        Tab(text: 'M3U Playlists (${_ctrl.m3uPlaylists.length})'),
+                      ],
+                    ),
+
+                    const Divider(color: Colors.white10, height: 1),
+
+                    // Tab Views
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildPortalsTab(),
+                          _buildM3uTab(),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
-
-                const Divider(color: Colors.white10, height: 1),
-
-                // Tab Views
-                Expanded(
-                  child: TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _buildPortalsTab(),
-                      _buildM3uTab(),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+              );
+            },
           ),
         );
       },
@@ -439,7 +479,8 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
 
   Widget _buildPortalsTab() {
     final palette = AppThemeService.currentPalette.value;
-    final allSelected = _ctrl.verified.isNotEmpty && _selectedPortalKeys.length == _ctrl.verified.length;
+    final currentList = _filteredPortals;
+    final allSelected = currentList.isNotEmpty && _selectedPortalKeys.length == currentList.length;
 
     return Padding(
       padding: const EdgeInsets.all(20),
@@ -524,38 +565,43 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
                   PopupMenuItem(
                     value: CatalogSource.cloudVault,
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const Icon(Icons.cloud_done_rounded, color: Color(0xFF00E5FF), size: 18),
                         const SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              children: [
-                                const Text(
-                                  'Cloud Vault (9k+)',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                                ),
-                                const SizedBox(width: 6),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(4),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    'Cloud Vault',
+                                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                                   ),
-                                  child: const Text(
-                                    '9,600+ Portals',
-                                    style: TextStyle(color: Color(0xFF00E5FF), fontSize: 9.5, fontWeight: FontWeight.w800),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF00E5FF).withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Text(
+                                      '9.6k+',
+                                      style: TextStyle(color: Color(0xFF00E5FF), fontSize: 9.5, fontWeight: FontWeight.w800),
+                                    ),
                                   ),
-                                ),
-                              ],
-                            ),
-                            const Text(
-                              'High-speed cloud database with 9,000+ live IPTV servers',
-                              style: TextStyle(color: Colors.white60, fontSize: 10.5),
-                            ),
-                          ],
+                                ],
+                              ),
+                              const Text(
+                                'High-speed cloud database with live IPTV servers',
+                                style: TextStyle(color: Colors.white60, fontSize: 10.5),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -563,22 +609,27 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
                   const PopupMenuItem(
                     value: CatalogSource.reddit,
                     child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(Icons.forum_rounded, color: Color(0xFFFF5722), size: 18),
                         SizedBox(width: 10),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              'Reddit Communities',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
-                            Text(
-                              'Scrapes live shared pastes from IPTV subreddits',
-                              style: TextStyle(color: Colors.white60, fontSize: 10.5),
-                            ),
-                          ],
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Reddit Communities',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                              ),
+                              Text(
+                                'Scrapes live shared pastes from subreddits',
+                                style: TextStyle(color: Colors.white60, fontSize: 10.5),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -626,82 +677,96 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
           if (_isPortalsEditMode && _ctrl.verified.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: const Color(0xFF7C5CFF).withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: const Color(0xFF7C5CFF).withValues(alpha: 0.3)),
               ),
-              child: Row(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    icon: Icon(
-                      allSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
-                      size: 17,
-                      color: const Color(0xFF00D2EF),
-                    ),
-                    label: Text(
-                      allSelected ? 'Deselect All' : 'Select All',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        if (allSelected) {
-                          _selectedPortalKeys.clear();
-                        } else {
-                          _selectedPortalKeys.clear();
-                          _selectedPortalKeys.addAll(_ctrl.verified.map((v) => v.key));
-                        }
-                      });
-                    },
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: Icon(
+                          allSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
+                          size: 17,
+                          color: const Color(0xFF00D2EF),
+                        ),
+                        label: Text(
+                          allSelected ? 'Deselect All' : 'Select All',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            if (allSelected) {
+                              _selectedPortalKeys.clear();
+                            } else {
+                              _selectedPortalKeys.clear();
+                              _selectedPortalKeys.addAll(currentList.map((v) => v.key));
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '(${_selectedPortalKeys.length}/${currentList.length})',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '(${_selectedPortalKeys.length}/${_ctrl.verified.length})',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  // Delete Selected
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    icon: const Icon(Icons.delete_rounded, size: 14),
-                    label: Text(
-                      'Delete (${_selectedPortalKeys.length})',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                    onPressed: _selectedPortalKeys.isEmpty ? null : _deleteSelectedPortals,
-                  ),
-                  const SizedBox(width: 6),
-                  // Delete All
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.redAccent,
-                      side: const BorderSide(color: Colors.redAccent),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: _deleteAllPortals,
-                    child: const Text('Delete All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      // Delete Selected
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: const Icon(Icons.delete_rounded, size: 14),
+                        label: Text(
+                          'Delete (${_selectedPortalKeys.length})',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: _selectedPortalKeys.isEmpty ? null : _deleteSelectedPortals,
+                      ),
+                      // Delete All
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(color: Colors.redAccent),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: _deleteAllPortals,
+                        child: const Text('Delete All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -793,24 +858,79 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
             ),
           ],
 
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
+
+          // Source Filter Bar
+          if (_ctrl.verified.isNotEmpty) ...[
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              physics: const BouncingScrollPhysics(),
+              child: Row(
+                children: [
+                  _buildSourceChip('all', 'All (${_ctrl.verified.length})', Icons.apps_rounded, palette),
+                  const SizedBox(width: 6),
+                  _buildSourceChip(
+                    'custom',
+                    'My Portals (${_ctrl.verified.where((p) {
+                      final s = p.portal.source.toLowerCase();
+                      return s.isEmpty || s.contains('custom') || s.contains('manual');
+                    }).length})',
+                    Icons.lock_rounded,
+                    palette,
+                    activeColor: const Color(0xFF10B981),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildSourceChip(
+                    'cloud',
+                    'Cloud Vault (${_ctrl.verified.where((p) => p.portal.source.toLowerCase().contains('cloud') || p.portal.source.toLowerCase().contains('vault')).length})',
+                    Icons.cloud_done_rounded,
+                    palette,
+                    activeColor: const Color(0xFF00E5FF),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildSourceChip(
+                    'reddit',
+                    'Reddit (${_ctrl.verified.where((p) => p.portal.source.toLowerCase().contains('reddit')).length})',
+                    Icons.forum_rounded,
+                    palette,
+                    activeColor: const Color(0xFFFF5722),
+                  ),
+                  const SizedBox(width: 6),
+                  _buildSourceChip(
+                    'fav',
+                    'Favorites ⭐ (${_ctrl.verified.where((p) => _ctrl.isFavoritePortal(p.key)).length})',
+                    Icons.star_rounded,
+                    palette,
+                    activeColor: const Color(0xFFFFC107),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
 
           // List of Portals
           Expanded(
-            child: _ctrl.verified.isEmpty
-                ? Center(
-                    child: Text(
-                      'No verified portals. Tap "Generate Portals" (${_ctrl.scrapeSource == CatalogSource.cloudVault ? "Cloud Vault" : "Reddit"}) to auto-discover.',
-                      style: const TextStyle(color: Colors.white54),
-                    ),
-                  )
-                : ListView.separated(
-                    itemCount: _ctrl.verified.length,
-                    separatorBuilder: (_, _) => const SizedBox(height: 8),
-                    itemBuilder: (context, index) {
-                      final p = _ctrl.verified[index];
-                      final isFav = _ctrl.isFavoritePortal(p.key);
-                      final isSelected = _selectedPortalKeys.contains(p.key);
+            child: () {
+              final portals = _filteredPortals;
+              if (portals.isEmpty) {
+                return Center(
+                  child: Text(
+                    _ctrl.verified.isEmpty
+                        ? 'No verified portals. Tap "Generate Portals" (${_ctrl.scrapeSource == CatalogSource.cloudVault ? "Cloud Vault" : "Reddit"}) to auto-discover.'
+                        : 'No portals found in "$_portalSourceFilter" filter.',
+                    style: const TextStyle(color: Colors.white54),
+                  ),
+                );
+              }
+
+              return ListView.separated(
+                itemCount: portals.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final p = portals[index];
+                  final isFav = _ctrl.isFavoritePortal(p.key);
+                  final isSelected = _selectedPortalKeys.contains(p.key);
 
                       final isRich = IptvSettings.portalCardStyle.value == PortalCardStyle.rich;
                       final showExp = IptvSettings.showPortalExpiry.value && p.expiry.isNotEmpty;
@@ -996,10 +1116,41 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
                         ),
                       );
                     },
-                  ),
+                  );
+                }(),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildSourceChip(String filterKey, String label, IconData icon, AppThemePalette palette, {Color? activeColor}) {
+    final isSelected = _portalSourceFilter == filterKey;
+    final color = activeColor ?? palette.primaryColor;
+
+    return ChoiceChip(
+      avatar: Icon(icon, size: 14, color: isSelected ? Colors.white : Colors.white60),
+      label: Text(label),
+      selected: isSelected,
+      selectedColor: color.withValues(alpha: 0.3),
+      backgroundColor: const Color(0xFF141722),
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : Colors.white70,
+        fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+        fontSize: 11.5,
+      ),
+      side: BorderSide(
+        color: isSelected ? color : Colors.white.withValues(alpha: 0.1),
+        width: isSelected ? 1.5 : 1.0,
+      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      onSelected: (selected) {
+        if (selected) {
+          setState(() {
+            _portalSourceFilter = filterKey;
+          });
+        }
+      },
     );
   }
 
@@ -1053,82 +1204,96 @@ class _IptvPortalsModalState extends State<IptvPortalsModal>
           if (_isM3uEditMode && _ctrl.m3uPlaylists.isNotEmpty) ...[
             const SizedBox(height: 12),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               decoration: BoxDecoration(
                 color: palette.primaryColor.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: palette.primaryColor.withValues(alpha: 0.3)),
               ),
-              child: Row(
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  TextButton.icon(
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    icon: Icon(
-                      allSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
-                      size: 17,
-                      color: const Color(0xFF00D2EF),
-                    ),
-                    label: Text(
-                      allSelected ? 'Deselect All' : 'Select All',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
-                    ),
-                    onPressed: () {
-                      setState(() {
-                        if (allSelected) {
-                          _selectedM3uIds.clear();
-                        } else {
-                          _selectedM3uIds.clear();
-                          _selectedM3uIds.addAll(_ctrl.m3uPlaylists.map((pl) => pl.id));
-                        }
-                      });
-                    },
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      TextButton.icon(
+                        style: TextButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: Icon(
+                          allSelected ? Icons.deselect_rounded : Icons.select_all_rounded,
+                          size: 17,
+                          color: const Color(0xFF00D2EF),
+                        ),
+                        label: Text(
+                          allSelected ? 'Deselect All' : 'Select All',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            if (allSelected) {
+                              _selectedM3uIds.clear();
+                            } else {
+                              _selectedM3uIds.clear();
+                              _selectedM3uIds.addAll(_ctrl.m3uPlaylists.map((pl) => pl.id));
+                            }
+                          });
+                        },
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        '(${_selectedM3uIds.length}/${_ctrl.m3uPlaylists.length})',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.7),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '(${_selectedM3uIds.length}/${_ctrl.m3uPlaylists.length})',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const Spacer(),
-                  // Delete Selected
-                  ElevatedButton.icon(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.redAccent,
-                      foregroundColor: Colors.white,
-                      elevation: 0,
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    icon: const Icon(Icons.delete_rounded, size: 14),
-                    label: Text(
-                      'Delete (${_selectedM3uIds.length})',
-                      style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
-                    onPressed: _selectedM3uIds.isEmpty ? null : _deleteSelectedM3u,
-                  ),
-                  const SizedBox(width: 6),
-                  // Delete All
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.redAccent,
-                      side: const BorderSide(color: Colors.redAccent),
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      minimumSize: Size.zero,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    onPressed: _deleteAllM3u,
-                    child: const Text('Delete All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      // Delete Selected
+                      ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.redAccent,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        icon: const Icon(Icons.delete_rounded, size: 14),
+                        label: Text(
+                          'Delete (${_selectedM3uIds.length})',
+                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                        ),
+                        onPressed: _selectedM3uIds.isEmpty ? null : _deleteSelectedM3u,
+                      ),
+                      // Delete All
+                      OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.redAccent,
+                          side: const BorderSide(color: Colors.redAccent),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                        onPressed: _deleteAllM3u,
+                        child: const Text('Delete All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
                   ),
                 ],
               ),

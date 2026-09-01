@@ -1,14 +1,18 @@
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/movie/movie_section.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/addon/addon_manager.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../../utils/search_scope.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../../widgets/search/magnet_files_view.dart';
+import '../ai/wewatch_quiz_page.dart';
 import '../player/player_screen.dart';
 
 class SearchPage extends StatefulWidget {
@@ -29,6 +33,82 @@ class _SearchPageState extends State<SearchPage> {
 
   bool _isMagnetMode = false;
   String _magnetQuery = '';
+
+  List<String> _searchHistory = [];
+  List<MovieSection> _suggestedSections = [];
+  bool _isLoadingSuggestions = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSearchHistory();
+    _loadSuggestions();
+  }
+
+  Future<void> _loadSearchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    final history = prefs.getStringList('search_history') ?? [];
+    if (mounted) {
+      setState(() {
+        _searchHistory = history;
+      });
+    }
+  }
+
+  Future<void> _saveSearchHistory(String query) async {
+    if (query.trim().isEmpty) return;
+    final prefs = await SharedPreferences.getInstance();
+    final history = prefs.getStringList('search_history') ?? [];
+    history.remove(query);
+    history.insert(0, query);
+    if (history.length > 10) history.removeLast();
+    await prefs.setStringList('search_history', history);
+    if (mounted) {
+      setState(() {
+        _searchHistory = history;
+      });
+    }
+  }
+
+  Future<void> _removeSearchHistory(String query) async {
+    final prefs = await SharedPreferences.getInstance();
+    final history = prefs.getStringList('search_history') ?? [];
+    history.remove(query);
+    await prefs.setStringList('search_history', history);
+    if (mounted) {
+      setState(() {
+        _searchHistory = history;
+      });
+    }
+  }
+
+  Future<void> _clearSearchHistory() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove('search_history');
+    if (mounted) {
+      setState(() {
+        _searchHistory = [];
+      });
+    }
+  }
+
+  Future<void> _loadSuggestions() async {
+    try {
+      final sections = await AddonManager.instance.fetchAllHomeSections();
+      if (mounted) {
+        setState(() {
+          _suggestedSections = sections.take(4).toList();
+          _isLoadingSuggestions = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _isLoadingSuggestions = false;
+        });
+      }
+    }
+  }
 
   static bool _isMagnetLink(String text) {
     final trimmed = text.trim();
@@ -126,6 +206,8 @@ class _SearchPageState extends State<SearchPage> {
 
   void _performSearch(String query) async {
     final trimmed = query.trim();
+    if (trimmed.isEmpty) return;
+
     if (_isStreamLink(trimmed)) {
       _playDirectStream(trimmed);
       return;
@@ -140,6 +222,8 @@ class _SearchPageState extends State<SearchPage> {
       });
       return;
     }
+
+    _saveSearchHistory(trimmed);
 
     setState(() {
       _isLoading = true;
@@ -164,6 +248,18 @@ class _SearchPageState extends State<SearchPage> {
         _isLoading = false;
         _results = [];
       });
+    }
+  }
+
+  void _pasteFromClipboard() async {
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    final text = data?.text?.trim();
+    if (text != null && text.isNotEmpty) {
+      _searchController.text = text;
+      _onSearchChanged(text);
+      if (!_isMagnetLink(text) && !_isStreamLink(text)) {
+        _performSearch(text);
+      }
     }
   }
 
@@ -237,24 +333,54 @@ class _SearchPageState extends State<SearchPage> {
                               fontSize: 14,
                             ),
                             border: InputBorder.none,
+                            prefixIcon: const Icon(
+                              Icons.search_rounded,
+                              size: 19,
+                              color: Colors.white38,
+                            ),
                             contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
+                              horizontal: 12,
                               vertical: 12,
                             ),
-                            suffixIcon: _searchController.text.isNotEmpty
-                                ? IconButton(
+                            suffixIcon: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (_searchController.text.isNotEmpty)
+                                  IconButton(
                                     icon: const Icon(Icons.close_rounded, size: 18),
                                     color: Colors.white60,
+                                    splashRadius: 18,
                                     onPressed: () {
                                       _searchController.clear();
                                       _onSearchChanged('');
                                     },
                                   )
-                                : const Icon(
-                                    Icons.search_rounded,
-                                    size: 20,
-                                    color: Colors.white54,
+                                else ...[
+                                  IconButton(
+                                    icon: Icon(
+                                      Icons.auto_awesome_rounded,
+                                      size: 17,
+                                      color: AppThemeService.currentPalette.value.primaryColor,
+                                    ),
+                                    tooltip: 'AI Taste Quiz',
+                                    splashRadius: 18,
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(builder: (_) => const WeWatchQuizPage()),
+                                      );
+                                    },
                                   ),
+                                  IconButton(
+                                    icon: const Icon(Icons.content_paste_rounded, size: 17),
+                                    tooltip: 'Paste from clipboard',
+                                    color: Colors.white54,
+                                    splashRadius: 18,
+                                    onPressed: _pasteFromClipboard,
+                                  ),
+                                ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -313,31 +439,101 @@ class _SearchPageState extends State<SearchPage> {
               },
             )
           else
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    Icons.manage_search_rounded,
-                    size: 72,
-                    color: Colors.white.withValues(alpha: 0.15),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    SearchScope.label != null
-                        ? 'Search ${SearchScope.label}'
-                        : 'Search across all addons',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.4),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            _buildDiscoveryEmptyState(topPadding),
         ],
       ),
+    );
+  }
+
+  Widget _buildDiscoveryEmptyState(double topPadding) {
+    return ListView(
+      clipBehavior: Clip.none,
+      padding: EdgeInsets.only(
+        top: topPadding + kToolbarHeight + 14,
+        bottom: 40 + MediaQuery.paddingOf(context).bottom,
+      ),
+      physics: const BouncingScrollPhysics(),
+      children: [
+        // Recent Searches
+        if (_searchHistory.isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'RECENT SEARCHES',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white38,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+                GestureDetector(
+                  onTap: _clearSearchHistory,
+                  child: const Text(
+                    'Clear All',
+                    style: TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF00E5FF),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _searchHistory.map((query) {
+                return InputChip(
+                  label: Text(query),
+                  labelStyle: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w500),
+                  backgroundColor: Colors.white.withValues(alpha: 0.07),
+                  side: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+                  onPressed: () {
+                    _searchController.text = query;
+                    _performSearch(query);
+                  },
+                  onDeleted: () => _removeSearchHistory(query),
+                  deleteIconColor: Colors.white38,
+                  deleteIcon: const Icon(Icons.close_rounded, size: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                );
+              }).toList(),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+
+        // Discover / Trending Content
+        if (_suggestedSections.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16),
+            child: Text(
+              'TRENDING & SUGGESTED',
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w800,
+                color: Colors.white38,
+                letterSpacing: 1.1,
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          ..._suggestedSections.map((sec) => MovieSliderSection(section: sec)),
+        ] else if (_isLoadingSuggestions) ...[
+          const SizedBox(height: 32),
+          const Center(child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFF7C5CFF))),
+        ],
+      ],
     );
   }
 }

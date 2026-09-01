@@ -589,7 +589,7 @@ class _DebridSettingsPageState extends State<DebridSettingsPage> {
     final isObscured = _obscuredMap[name] ?? true;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       decoration: BoxDecoration(
         color: const Color(0xFF12151E),
         borderRadius: BorderRadius.circular(16),
@@ -602,7 +602,10 @@ class _DebridSettingsPageState extends State<DebridSettingsPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
                 name,
@@ -612,10 +615,9 @@ class _DebridSettingsPageState extends State<DebridSettingsPage> {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              if (isActive) ...[
-                const SizedBox(width: 8),
+              if (isActive)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
                     color: const Color(0xFF00E5FF).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
@@ -629,11 +631,9 @@ class _DebridSettingsPageState extends State<DebridSettingsPage> {
                     ),
                   ),
                 ),
-              ],
-              if (statusBadge != null) ...[
-                const SizedBox(width: 8),
+              if (statusBadge != null)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                   decoration: BoxDecoration(
                     color: (badgeColor ?? const Color(0xFF10B981)).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(6),
@@ -645,9 +645,10 @@ class _DebridSettingsPageState extends State<DebridSettingsPage> {
                       fontWeight: FontWeight.w800,
                       color: badgeColor ?? const Color(0xFF10B981),
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-              ],
             ],
           ),
           const SizedBox(height: 3),
@@ -657,6 +658,8 @@ class _DebridSettingsPageState extends State<DebridSettingsPage> {
               color: Colors.white.withValues(alpha: 0.45),
               fontSize: 11.5,
             ),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 10),
           Row(
@@ -675,7 +678,7 @@ class _DebridSettingsPageState extends State<DebridSettingsPage> {
                     filled: true,
                     fillColor: const Color(0xFF0D1017),
                     isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
@@ -693,7 +696,9 @@ class _DebridSettingsPageState extends State<DebridSettingsPage> {
                       children: [
                         if (controller.text.isNotEmpty)
                           IconButton(
-                            icon: const Icon(Icons.clear_rounded, color: Colors.white38, size: 18),
+                            icon: const Icon(Icons.clear_rounded, color: Colors.white38, size: 16),
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(),
                             tooltip: 'Clear',
                             onPressed: () {
                               controller.clear();
@@ -704,8 +709,10 @@ class _DebridSettingsPageState extends State<DebridSettingsPage> {
                           icon: Icon(
                             isObscured ? Icons.visibility_off_rounded : Icons.visibility_rounded,
                             color: Colors.white38,
-                            size: 18,
+                            size: 16,
                           ),
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(),
                           tooltip: isObscured ? 'Show Key' : 'Hide Key',
                           onPressed: () {
                             setState(() {
@@ -714,22 +721,25 @@ class _DebridSettingsPageState extends State<DebridSettingsPage> {
                           },
                         ),
                         IconButton(
-                          icon: const Icon(Icons.content_paste_rounded, color: Color(0xFF00E5FF), size: 18),
+                          icon: const Icon(Icons.content_paste_rounded, color: Color(0xFF00E5FF), size: 16),
+                          padding: const EdgeInsets.all(4),
+                          constraints: const BoxConstraints(),
                           tooltip: 'Paste from Clipboard',
                           onPressed: () => _pasteToController(controller),
                         ),
+                        const SizedBox(width: 4),
                       ],
                     ),
                   ),
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 8),
               ElevatedButton(
                 onPressed: isLoading ? null : onSave,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: const Color(0xFF00E5FF),
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   elevation: 0,
                 ),

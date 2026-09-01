@@ -166,7 +166,7 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
 
               // Status Card
               Container(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(18),
                 decoration: BoxDecoration(
                   color: const Color(0xFF12151E),
                   borderRadius: BorderRadius.circular(16),
@@ -176,10 +176,11 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                         : Colors.white.withValues(alpha: 0.08),
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final isNarrow = constraints.maxWidth < 460;
+
+                    final infoWidget = Row(
                       children: [
                         Container(
                           width: 44,
@@ -195,13 +196,15 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 4,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   const Text(
                                     'Trakt.tv',
                                     style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800, color: Colors.white),
                                   ),
-                                  const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                                     decoration: BoxDecoration(
@@ -221,127 +224,154 @@ class _TraktSettingsPageState extends State<TraktSettingsPage> {
                                 ],
                               ),
                               const SizedBox(height: 4),
-                              Text(
-                                _isLoading
-                                    ? 'Checking credentials...'
-                                    : _isAuthed
-                                        ? 'Logged in as ${_username ?? 'Trakt User'}'
-                                        : 'Sign in to activate two-way cloud sync',
-                                style: TextStyle(
-                                  fontSize: 13,
-                                  color: Colors.white.withValues(alpha: 0.5),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_isAuthed)
-                          OutlinedButton(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: const Color(0xFFEF4444),
-                              side: BorderSide(color: const Color(0xFFEF4444).withValues(alpha: 0.4)),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            ),
-                            onPressed: _logout,
-                            child: const Text('Disconnect', style: TextStyle(fontWeight: FontWeight.bold)),
-                          )
-                        else if (!_pairing)
-                          ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFFED1C24),
-                              foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                            ),
-                            onPressed: _startPairing,
-                            icon: const Icon(Icons.qr_code_rounded, size: 18),
-                            label: const Text('Connect Trakt', style: TextStyle(fontWeight: FontWeight.bold)),
-                          ),
-                      ],
-                    ),
-
-                    if (_pairing && _userCode != null) ...[
-                      const SizedBox(height: 20),
-                      const Divider(color: Colors.white10),
-                      const SizedBox(height: 16),
-                      Center(
-                        child: Column(
-                          children: [
-                            const Text(
-                              'Enter this activation code at trakt.tv/activate:',
-                              style: TextStyle(fontSize: 13, color: Colors.white70),
-                            ),
-                            const SizedBox(height: 12),
-                            InkWell(
-                              onTap: () {
-                                Clipboard.setData(ClipboardData(text: _userCode!));
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Code copied to clipboard!')),
-                                );
-                              },
-                              borderRadius: BorderRadius.circular(12),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                                decoration: BoxDecoration(
-                                  color: Colors.black45,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: const Color(0xFFED1C24).withValues(alpha: 0.5)),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      _userCode!,
-                                      style: const TextStyle(
-                                        fontSize: 24,
-                                        fontWeight: FontWeight.w900,
-                                        letterSpacing: 4,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    const Icon(Icons.copy_rounded, color: Colors.white70, size: 20),
-                                  ],
-                                ),
-                              ),
-                            ),
-                            const SizedBox(height: 14),
-                            ElevatedButton.icon(
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.white.withValues(alpha: 0.12),
-                                foregroundColor: Colors.white,
-                                elevation: 0,
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                              ),
-                              onPressed: () => _openBrowser('https://trakt.tv/activate'),
-                              icon: const Icon(Icons.open_in_browser_rounded, size: 16),
-                              label: const Text('Open trakt.tv/activate', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                            ),
-                            const SizedBox(height: 14),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFED1C24)),
-                                ),
-                                const SizedBox(width: 10),
                                 Text(
-                                  'Waiting for authorization on trakt.tv...',
-                                  style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
+                                  _isLoading
+                                      ? 'Checking credentials...'
+                                      : _isAuthed
+                                          ? 'Logged in as ${_username ?? 'Trakt User'}'
+                                          : 'Sign in to activate two-way cloud sync',
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.white.withValues(alpha: 0.5),
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
+                          ),
+                        ],
+                      );
+
+                      Widget? actionWidget;
+                      if (_isAuthed) {
+                        actionWidget = OutlinedButton(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: const Color(0xFFEF4444),
+                            side: BorderSide(color: const Color(0xFFEF4444).withValues(alpha: 0.4)),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                          ),
+                          onPressed: _logout,
+                          child: const Text('Disconnect', style: TextStyle(fontWeight: FontWeight.bold)),
+                        );
+                      } else if (!_pairing) {
+                        actionWidget = ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFFED1C24),
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          ),
+                          onPressed: _startPairing,
+                          icon: const Icon(Icons.qr_code_rounded, size: 18),
+                          label: const Text('Pair Account', style: TextStyle(fontWeight: FontWeight.bold)),
+                        );
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (isNarrow) ...[
+                            infoWidget,
+                            if (actionWidget != null) ...[
+                              const SizedBox(height: 14),
+                              SizedBox(width: double.infinity, child: actionWidget),
+                            ],
+                          ] else ...[
+                            Row(
+                              children: [
+                                Expanded(child: infoWidget),
+                                if (actionWidget != null) ...[
+                                  const SizedBox(width: 14),
+                                  actionWidget,
+                                ],
+                              ],
+                            ),
                           ],
-                        ),
-                      ),
-                    ],
-                  ],
+                          if (_pairing && _userCode != null) ...[
+                            const SizedBox(height: 20),
+                            const Divider(color: Colors.white10),
+                            const SizedBox(height: 16),
+                            Center(
+                              child: Column(
+                                children: [
+                                  const Text(
+                                    'Enter this activation code at trakt.tv/activate:',
+                                    style: TextStyle(fontSize: 13, color: Colors.white70),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  InkWell(
+                                    onTap: () {
+                                      Clipboard.setData(ClipboardData(text: _userCode!));
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Code copied to clipboard!')),
+                                      );
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+                                      decoration: BoxDecoration(
+                                        color: Colors.black45,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(color: const Color(0xFFED1C24).withValues(alpha: 0.5)),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            _userCode!,
+                                            style: const TextStyle(
+                                              fontSize: 24,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 4,
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          const Icon(Icons.copy_rounded, color: Colors.white70, size: 20),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  ElevatedButton.icon(
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: Colors.white.withValues(alpha: 0.12),
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                    ),
+                                    onPressed: () => _openBrowser('https://trakt.tv/activate'),
+                                    icon: const Icon(Icons.open_in_browser_rounded, size: 16),
+                                    label: const Text('Open trakt.tv/activate', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                                  ),
+                                  const SizedBox(height: 14),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(strokeWidth: 2, color: Color(0xFFED1C24)),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        'Waiting for authorization on trakt.tv...',
+                                        style: TextStyle(fontSize: 12, color: Colors.white.withValues(alpha: 0.6)),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ],
+                      );
+                    },
+                  ),
                 ),
-              ),
 
               const SizedBox(height: 24),
 

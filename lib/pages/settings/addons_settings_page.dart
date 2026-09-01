@@ -526,38 +526,42 @@ class _AddonCard extends StatelessWidget {
 
           // Type badges + Remove
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              ...m.types.map(
-                (type) => Padding(
-                  padding: const EdgeInsets.only(right: 6),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 9,
-                      vertical: 3.5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.06),
-                      borderRadius: BorderRadius.circular(7),
-                    ),
-                    child: Text(
-                      type,
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: Colors.white.withValues(alpha: 0.5),
-                        fontWeight: FontWeight.w600,
+              Expanded(
+                child: Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: m.types.map(
+                    (type) => Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(7),
+                      ),
+                      child: Text(
+                        type,
+                        style: TextStyle(
+                          fontSize: 10.5,
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                     ),
-                  ),
+                  ).toList(),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.delete_outline_rounded, size: 20),
                 color: Colors.red.withValues(alpha: 0.6),
                 onPressed: onRemove,
                 tooltip: 'Remove addon',
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               ),
             ],
           ),

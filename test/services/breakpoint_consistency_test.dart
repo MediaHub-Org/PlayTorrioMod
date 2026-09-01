@@ -41,8 +41,13 @@ void main() {
 
       final offenders = <String>[];
       for (final file in _dartFiles('lib')) {
+        // Directory.listSync yields backslash paths on Windows; the
+        // exemption set is written with forward slashes for readability,
+        // so normalise before comparing or the exemption silently never
+        // matches on Windows.
         final path = file.path;
-        if (_fullScreenPlayers.contains(path)) continue;
+        final normalizedPath = path.replaceAll('\\', '/');
+        if (_fullScreenPlayers.contains(normalizedPath)) continue;
         for (final line in file.readAsLinesSync()) {
           if (_driftedCutoff.hasMatch(line)) offenders.add('$path: ${line.trim()}');
         }

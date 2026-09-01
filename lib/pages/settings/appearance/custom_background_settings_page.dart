@@ -305,19 +305,22 @@ class _CustomBackgroundSettingsPageState extends State<CustomBackgroundSettingsP
                       ),
                       const SizedBox(height: 12),
 
-                      GridView.builder(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          childAspectRatio: 1.45,
-                          crossAxisSpacing: 10,
-                          mainAxisSpacing: 10,
-                        ),
-                        itemCount: CustomBackgroundService.presets.length,
-                        itemBuilder: (context, index) {
-                          final preset = CustomBackgroundService.presets[index];
-                          final isSelected = customBg.imageUrl == preset.fullUrl;
+                      LayoutBuilder(
+                        builder: (context, constraints) {
+                          final isNarrow = constraints.maxWidth < 460;
+                          return GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: isNarrow ? 2 : 3,
+                              childAspectRatio: isNarrow ? 1.55 : 1.45,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                            ),
+                            itemCount: CustomBackgroundService.presets.length,
+                            itemBuilder: (context, index) {
+                              final preset = CustomBackgroundService.presets[index];
+                              final isSelected = customBg.imageUrl == preset.fullUrl;
 
                           return InkWell(
                             onTap: () async {
@@ -395,8 +398,10 @@ class _CustomBackgroundSettingsPageState extends State<CustomBackgroundSettingsP
                               ),
                             ),
                           );
-                        },
-                      ),
+                          },
+                        );
+                      },
+                    ),
 
                       const SizedBox(height: 28),
 
