@@ -25,6 +25,9 @@ class WindowService with WindowListener {
       windowManager.addListener(this);
       final isFs = await windowManager.isFullScreen();
       isFullscreenNotifier.value = isFs;
+      // Nothing below the phone-portrait breakpoint the layout was designed
+      // for -- without this the window can be dragged arbitrarily small.
+      await windowManager.setMinimumSize(const Size(360, 640));
       // Defers the actual close until we call destroy() below, instead of
       // the OS killing the process mid-teardown while LocalStreamProxy's
       // server (and other background services) are still live.
@@ -51,7 +54,9 @@ class WindowService with WindowListener {
         final next = !isFullscreenNotifier.value;
         isFullscreenNotifier.value = next;
         if (next) {
-          await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+          await SystemChrome.setEnabledSystemUIMode(
+            SystemUiMode.immersiveSticky,
+          );
         } else {
           await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
         }

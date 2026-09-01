@@ -116,16 +116,16 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
       stopHeroAutoRotate();
       return;
     }
-    startHeroAutoRotate(
-      itemCount: widget.heroItems.length,
-      interval: interval,
-    );
+    startHeroAutoRotate(itemCount: widget.heroItems.length, interval: interval);
   }
 
-  double _heroHeight(double width) {
-    if (width < 600) return 240;
-    if (width < 1000) return 320;
-    return 420;
+  // Height-relative like Anime's and Live TV's hero carousels, not the flat
+  // 240/320/420 width tiers this used to have -- those capped out well under
+  // upstream's own pre-fork hero (up to 680px on desktop).
+  double _heroHeight(double width, double screenHeight) {
+    if (width < 600) return (screenHeight * 0.42).clamp(340.0, 420.0);
+    if (width < 1100) return (screenHeight * 0.48).clamp(360.0, 480.0);
+    return (screenHeight * 0.52).clamp(380.0, 560.0);
   }
 
   @override
@@ -148,7 +148,8 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
     }
 
     final hasContent =
-        widget.heroItems.isNotEmpty || widget.rows.any((r) => r.items.isNotEmpty);
+        widget.heroItems.isNotEmpty ||
+        widget.rows.any((r) => r.items.isNotEmpty);
 
     if (!widget.isLoading && !hasContent && widget.emptyState != null) {
       return Column(
@@ -161,8 +162,7 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
 
     final content = CustomScrollView(
       slivers: [
-        if (widget.header != null)
-          SliverToBoxAdapter(child: widget.header!),
+        if (widget.header != null) SliverToBoxAdapter(child: widget.header!),
         if (widget.isLoading)
           SliverToBoxAdapter(child: _buildLoading(sizing, width))
         else ...[
@@ -189,7 +189,7 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
   }
 
   Widget _buildHero(double width) {
-    final height = _heroHeight(width);
+    final height = _heroHeight(width, MediaQuery.sizeOf(context).height);
     return MouseRegion(
       onEnter: (_) => setState(() => isHoveringCarousel = true),
       onExit: (_) => setState(() => isHoveringCarousel = false),
@@ -280,7 +280,7 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Container(
-          height: _heroHeight(width),
+          height: _heroHeight(width, MediaQuery.sizeOf(context).height),
           margin: const EdgeInsets.only(bottom: AppSpacing.md),
           color: Colors.white.withValues(alpha: 0.04),
         ),

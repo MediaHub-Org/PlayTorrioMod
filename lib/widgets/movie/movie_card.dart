@@ -72,23 +72,21 @@ class MovieCard extends StatelessWidget {
   final Movie movie;
   final VoidCallback? onTap;
 
-  const MovieCard({
-    super.key,
-    required this.movie,
-    this.onTap,
-  });
+  const MovieCard({super.key, required this.movie, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return InteractiveCardShell(
       pressedScale: 0.97,
-      onTap: onTap ??
+      onTap:
+          onTap ??
           () {
             Navigator.push(
               context,
               LiquidRevealRoute(
                 page: DetailsPage(movie: movie),
-                tapPosition: null, // Let it center if tapPosition not easily available
+                tapPosition:
+                    null, // Let it center if tapPosition not easily available
               ),
             );
           },
@@ -145,7 +143,9 @@ class MovieCard extends StatelessWidget {
                   ),
                 ),
               Text(
-                movie.type == 'series' ? 'Series' : (movie.type == 'anime' ? 'Anime' : 'Movie'),
+                movie.type == 'series'
+                    ? 'Series'
+                    : (movie.type == 'anime' ? 'Anime' : 'Movie'),
                 style: TextStyle(
                   fontSize: 13,
                   color: Colors.white.withOpacity(0.42),
@@ -208,9 +208,7 @@ class _PosterFrame extends StatelessWidget {
           fit: StackFit.expand,
           children: [
             // Background fill
-            const ColoredBox(
-              color: Color(0xFF171A23),
-            ),
+            const ColoredBox(color: Color(0xFF171A23)),
 
             // Poster image (cached)
             if (hasPoster)
@@ -270,7 +268,10 @@ class _PosterFrame extends StatelessWidget {
                 opacity: hovered ? 1.0 : 0.0,
                 duration: const Duration(milliseconds: 170),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: (contentType == 'series' || contentType == 'anime')
                         ? palette.accentColor.withOpacity(0.90)
@@ -284,7 +285,9 @@ class _PosterFrame extends StatelessWidget {
                     ],
                   ),
                   child: Text(
-                    contentType == 'series' ? 'SERIES' : (contentType == 'anime' ? 'ANIME' : 'MOVIE'),
+                    contentType == 'series'
+                        ? 'SERIES'
+                        : (contentType == 'anime' ? 'ANIME' : 'MOVIE'),
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w800,
@@ -301,21 +304,34 @@ class _PosterFrame extends StatelessWidget {
               Builder(
                 builder: (context) {
                   final parsed = double.tryParse(imdbRating!);
-                  final displayRating = parsed != null ? (parsed % 1 == 0 ? parsed.toInt().toString() : parsed.toStringAsFixed(1)) : imdbRating!;
+                  final displayRating = parsed != null
+                      ? (parsed % 1 == 0
+                            ? parsed.toInt().toString()
+                            : parsed.toStringAsFixed(1))
+                      : imdbRating!;
                   return Positioned(
                     right: 9,
                     top: 9,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3.5),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 6,
+                        vertical: 3.5,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xE6080A0F),
                         borderRadius: BorderRadius.circular(7),
-                        border: Border.all(color: Colors.white.withOpacity(0.15)),
+                        border: Border.all(
+                          color: Colors.white.withOpacity(0.15),
+                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          const Icon(Icons.star_rounded, color: Color(0xFFFFB800), size: 12),
+                          const Icon(
+                            Icons.star_rounded,
+                            color: Color(0xFFFFB800),
+                            size: 12,
+                          ),
                           const SizedBox(width: 3),
                           Text(
                             displayRating,
@@ -344,41 +360,6 @@ class _PosterFrame extends StatelessWidget {
                           ? Colors.white.withOpacity(0.28)
                           : Colors.white.withOpacity(0.08),
                       width: hovered ? 1.35 : 1,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-
-            // Play button (bottom-right, hover reveal)
-            Positioned(
-              right: 10,
-              bottom: 10,
-              child: AnimatedOpacity(
-                opacity: hovered ? 1 : 0,
-                duration: const Duration(milliseconds: 150),
-                child: AnimatedScale(
-                  scale: hovered ? 1 : 0.82,
-                  duration: const Duration(milliseconds: 150),
-                  curve: Curves.easeOutBack,
-                  child: Container(
-                    width: 39,
-                    height: 39,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white.withOpacity(0.95),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.40),
-                          blurRadius: 16,
-                          offset: const Offset(0, 7),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.play_arrow_rounded,
-                      color: Color(0xFF11131B),
-                      size: 29,
                     ),
                   ),
                 ),

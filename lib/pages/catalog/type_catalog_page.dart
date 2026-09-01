@@ -3,11 +3,13 @@ import 'package:flutter/material.dart';
 import '../../models/movie/movie.dart';
 import '../../models/movie/movie_section.dart';
 import '../../services/addon/addon_manager.dart';
+import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/browse_scaffold.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/page_search_button.dart';
 import '../../widgets/movie/movie_card.dart';
+import '../details/details_page.dart';
 
 enum _CatalogSort { yearNewest, yearOldest }
 
@@ -19,11 +21,7 @@ class TypeCatalogPage extends StatefulWidget {
   final String type; // 'movie' | 'series'
   final String title;
 
-  const TypeCatalogPage({
-    super.key,
-    required this.type,
-    required this.title,
-  });
+  const TypeCatalogPage({super.key, required this.type, required this.title});
 
   @override
   State<TypeCatalogPage> createState() => _TypeCatalogPageState();
@@ -48,24 +46,34 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
   bool _loadingGenre = false;
 
   static int? _decadeOf(Movie m) {
+    final year = _yearOf(m);
+    return year == null ? null : (year ~/ 10) * 10;
+  }
+
+  static int? _yearOf(Movie m) {
     final match = RegExp(r'\d{4}').firstMatch(m.year ?? '');
-    if (match == null) return null;
-    return (int.parse(match.group(0)!) ~/ 10) * 10;
+    return match == null ? null : int.parse(match.group(0)!);
+  }
+
+  List<Movie> _sorted(List<Movie> items) {
+    final sorted = List.of(items);
+    switch (_sort) {
+      case _CatalogSort.yearNewest:
+        sorted.sort((a, b) => (_yearOf(b) ?? -1).compareTo(_yearOf(a) ?? -1));
+      case _CatalogSort.yearOldest:
+        sorted.sort(
+          (a, b) => (_yearOf(a) ?? 99999).compareTo(_yearOf(b) ?? 99999),
+        );
+    }
+    return sorted;
   }
 
   List<Movie> get _visibleItems {
     final base = _genreFilter == null ? _items : _genreItems;
-    var items = _decadeFilter == null
+    final items = _decadeFilter == null
         ? base
         : base.where((m) => _decadeOf(m) == _decadeFilter).toList();
-    items = List.of(items);
-    switch (_sort) {
-      case _CatalogSort.yearNewest:
-        items.sort((a, b) => (_decadeOf(b) ?? -1).compareTo(_decadeOf(a) ?? -1));
-      case _CatalogSort.yearOldest:
-        items.sort((a, b) => (_decadeOf(a) ?? 99999).compareTo(_decadeOf(b) ?? 99999));
-    }
-    return items;
+    return _sorted(items);
   }
 
   /// A genre or decade choice cannot be answered by rows of curated catalogs,
@@ -124,8 +132,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
         if (trimmed.isEmpty) return false;
         if (RegExp(r'^\d{4}$').hasMatch(trimmed)) return false;
         return true;
-      }).toList()
-        ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      }).toList()..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
 
       if (!mounted) return;
       setState(() {
@@ -204,7 +211,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
             if (section.movies.isNotEmpty)
               BrowseRow<Movie>(
                 title: section.title,
-                items: section.movies,
+                items: _sorted(section.movies),
               ),
         ],
         heroBuilder: _buildHeroSlide,
@@ -222,86 +229,75 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
     return _buildFilteredGrid(context);
   }
 
-  /// Title, search, and the genre/decade/sort filters. Shared by both views so
-  /// the controls do not move when switching between rows and the grid.
+  /// Search plus the genre/decade/sort filters, one row -- no separate title,
+  /// since the section pill/bottom-bar tab already says "Movies" or "Series".
+  /// Shared by both views so the controls do not move when switching between
+  /// rows and the grid.
   Widget _buildHeader(BuildContext context) {
     final decades = _items.map(_decadeOf).whereType<int>().toSet().toList()
       ..sort((a, b) => b.compareTo(a));
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 10,
+        runSpacing: 10,
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  widget.title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
-                  ),
+          if (_availableGenres.isNotEmpty) ...[
+            FilterDropdown<String?>(
+              label: _genreFilter ?? 'All genres',
+              icon: Icons.category_rounded,
+              items: [
+                const PopupMenuItem(value: null, child: Text('All genres')),
+                for (final g in _availableGenres)
+                  PopupMenuItem(value: g, child: Text(g)),
+              ],
+              onSelected: _selectGenreFilter,
+            ),
+            if (_loadingGenre)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: Color(0xFF7C5CFF),
                 ),
               ),
-              const PageSearchButton(),
-            ],
-          ),
-          if (decades.isNotEmpty || _availableGenres.isNotEmpty) ...[
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                if (_availableGenres.isNotEmpty) ...[
-                  FilterDropdown<String?>(
-                    label: _genreFilter ?? 'All genres',
-                    icon: Icons.category_rounded,
-                    items: [
-                      const PopupMenuItem(value: null, child: Text('All genres')),
-                      for (final g in _availableGenres)
-                        PopupMenuItem(value: g, child: Text(g)),
-                    ],
-                    onSelected: _selectGenreFilter,
-                  ),
-                  if (_loadingGenre)
-                    const SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Color(0xFF7C5CFF),
-                      ),
-                    ),
-                ],
-                FilterDropdown<int?>(
-                  label: _decadeFilter == null ? 'All decades' : '${_decadeFilter}s',
-                  icon: Icons.calendar_today_rounded,
-                  items: [
-                    const PopupMenuItem(value: null, child: Text('All decades')),
-                    for (final d in decades)
-                      PopupMenuItem(value: d, child: Text('${d}s')),
-                  ],
-                  onSelected: (v) => setState(() => _decadeFilter = v),
-                ),
-                FilterDropdown<_CatalogSort>(
-                  label: switch (_sort) {
-                    _CatalogSort.yearNewest => 'Newest',
-                    _CatalogSort.yearOldest => 'Oldest',
-                  },
-                  icon: Icons.sort_rounded,
-                  items: const [
-                    PopupMenuItem(value: _CatalogSort.yearNewest, child: Text('Newest')),
-                    PopupMenuItem(value: _CatalogSort.yearOldest, child: Text('Oldest')),
-                  ],
-                  onSelected: (v) => setState(() => _sort = v!),
-                ),
-              ],
-            ),
           ],
+          if (decades.isNotEmpty)
+            FilterDropdown<int?>(
+              label: _decadeFilter == null
+                  ? 'All decades'
+                  : '${_decadeFilter}s',
+              icon: Icons.calendar_today_rounded,
+              items: [
+                const PopupMenuItem(value: null, child: Text('All decades')),
+                for (final d in decades)
+                  PopupMenuItem(value: d, child: Text('${d}s')),
+              ],
+              onSelected: (v) => setState(() => _decadeFilter = v),
+            ),
+          FilterDropdown<_CatalogSort>(
+            label: switch (_sort) {
+              _CatalogSort.yearNewest => 'Newest',
+              _CatalogSort.yearOldest => 'Oldest',
+            },
+            icon: Icons.sort_rounded,
+            items: const [
+              PopupMenuItem(
+                value: _CatalogSort.yearNewest,
+                child: Text('Newest'),
+              ),
+              PopupMenuItem(
+                value: _CatalogSort.yearOldest,
+                child: Text('Oldest'),
+              ),
+            ],
+            onSelected: (v) => setState(() => _sort = v!),
+          ),
+          const PageSearchButton(),
         ],
       ),
     );
@@ -313,55 +309,73 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
     final heroImage = (movie.background != null && movie.background!.isNotEmpty)
         ? movie.background
         : movie.poster;
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        if (heroImage != null && heroImage.isNotEmpty)
-          Image.network(heroImage, fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => const ColoredBox(color: Color(0xFF12151F))),
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [Color(0xEE080A0F), Color(0x66080A0F), Color(0x00080A0F)],
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => Navigator.push(
+        context,
+        LiquidRevealRoute(page: DetailsPage(movie: movie), tapPosition: null),
+      ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (heroImage != null && heroImage.isNotEmpty)
+            Image.network(
+              heroImage,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) =>
+                  const ColoredBox(color: Color(0xFF12151F)),
+            ),
+          const DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+                colors: [
+                  Color(0xEE080A0F),
+                  Color(0x66080A0F),
+                  Color(0x00080A0F),
+                ],
+              ),
             ),
           ),
-        ),
-        Align(
-          alignment: Alignment.bottomLeft,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 34),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: Text(
-                    movie.name,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
+          Align(
+            alignment: Alignment.bottomLeft,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 34),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Text(
+                      movie.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 26,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
                     ),
                   ),
-                ),
-                if ((movie.year ?? '').isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Text(
-                    movie.year!,
-                    style: const TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
+                  if ((movie.year ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Text(
+                      movie.year!,
+                      style: const TextStyle(
+                        color: Colors.white70,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -370,10 +384,10 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
     final crossAxisCount = width < 600
         ? 3
         : width < 900
-            ? 4
-            : width < 1200
-                ? 5
-                : 6;
+        ? 4
+        : width < 1200
+        ? 5
+        : 6;
     final visible = _visibleItems;
 
     return CustomScrollView(
@@ -387,8 +401,8 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                 _items.isEmpty
                     ? 'No content found. Install more addons in Settings.'
                     : _genreFilter != null
-                        ? 'No titles found for $_genreFilter.'
-                        : 'No titles in the ${_decadeFilter}s.',
+                    ? 'No titles found for $_genreFilter.'
+                    : 'No titles in the ${_decadeFilter}s.',
                 style: const TextStyle(color: Colors.white54, fontSize: 16),
               ),
             ),

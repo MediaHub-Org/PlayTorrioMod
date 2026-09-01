@@ -41,29 +41,51 @@ class TopBar extends StatelessWidget {
         ],
       ),
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-      child: Stack(
-        alignment: Alignment.center,
+      // Three equal-flex sections, not Stack+Center: a bare Center ignores
+      // the logo/settings button's own width and centers on the *full* bar,
+      // so on a narrower window the truly-centered hub tabs could grow into
+      // either one. Equal-width side sections keep the center Expanded's
+      // available space symmetric regardless of how wide the logo or the
+      // settings button actually are.
+      child: Row(
         children: [
-          const Align(alignment: Alignment.centerLeft, child: SidebarLogo()),
-          Center(
-            child: ListenableBuilder(
-              listenable: HubController.instance,
-              builder: (context, _) {
-                final current = HubController.instance.currentHub;
-                return Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    for (final hub in _hubOrder) _hubTab(context, hub, current),
-                  ],
-                );
-              },
+          const Expanded(
+            child: Align(alignment: Alignment.centerLeft, child: SidebarLogo()),
+          ),
+          Expanded(
+            child: Center(
+              // The equal-width side sections leave the narrowest tablet
+              // width (700px, this bar's own minimum tier) less room than
+              // three hub tabs need at their natural size -- FittedBox
+              // scales them down together rather than overflowing, since
+              // dropping a label or truncating just one tab would read as
+              // broken rather than compact.
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: ListenableBuilder(
+                  listenable: HubController.instance,
+                  builder: (context, _) {
+                    final current = HubController.instance.currentHub;
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        for (final hub in _hubOrder)
+                          _hubTab(context, hub, current),
+                      ],
+                    );
+                  },
+                ),
+              ),
             ),
           ),
-          if (onSettingsTap != null)
-            Align(
+          Expanded(
+            child: Align(
               alignment: Alignment.centerRight,
-              child: _settingsButton(onTap: onSettingsTap!),
+              child: onSettingsTap != null
+                  ? _settingsButton(onTap: onSettingsTap!)
+                  : const SizedBox.shrink(),
             ),
+          ),
         ],
       ),
     );
@@ -83,11 +105,7 @@ class TopBar extends StatelessWidget {
 
   /// A top-level "you are here" tab: label + icon with an animated underline,
   /// no fill or border — sits visually above the section chip bar beneath it.
-  Widget _hubTab(
-    BuildContext context,
-    AppHub hub,
-    AppHub current,
-  ) {
+  Widget _hubTab(BuildContext context, AppHub hub, AppHub current) {
     final selected = current == hub;
     final color = selected ? Colors.white : Colors.white54;
     return Padding(

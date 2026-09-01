@@ -3,11 +3,11 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../models/music/downloaded_music_track.dart';
 import '../../models/music/music_track.dart';
+import '../../utils/download/download_path_helper.dart';
 import 'music_player_controller.dart';
 import 'music_service.dart';
 import 'qobuz_music_service.dart';
@@ -64,7 +64,8 @@ class MusicDownloadService extends ChangeNotifier {
   Directory? _tracksDir;
   Directory? _coversDir;
 
-  List<DownloadedMusicTrack> get downloadedTracks => List.unmodifiable(_downloadedTracks);
+  List<DownloadedMusicTrack> get downloadedTracks =>
+      List.unmodifiable(_downloadedTracks);
   List<MusicDownloadTask> get queue => List.unmodifiable(_queue);
   bool get isProcessing => _isProcessing;
 
@@ -76,13 +77,18 @@ class MusicDownloadService extends ChangeNotifier {
     _initialized = true;
 
     try {
-      final appDocDir = await getApplicationDocumentsDirectory();
-      _musicDir = Directory(p.join(appDocDir.path, 'PlayTorrio', 'Music'));
+      // The same user-visible, user-configurable Downloads location video
+      // and audiobook downloads already use -- was app-internal storage
+      // before, invisible in a file manager on Android and gone on uninstall.
+      final downloadsDir = await DownloadPathHelper.getDownloadsDirectoryPath();
+      _musicDir = Directory(p.join(downloadsDir, 'Music'));
       _tracksDir = Directory(p.join(_musicDir!.path, 'Tracks'));
       _coversDir = Directory(p.join(_musicDir!.path, 'Covers'));
 
-      if (!await _tracksDir!.exists()) await _tracksDir!.create(recursive: true);
-      if (!await _coversDir!.exists()) await _coversDir!.create(recursive: true);
+      if (!await _tracksDir!.exists())
+        await _tracksDir!.create(recursive: true);
+      if (!await _coversDir!.exists())
+        await _coversDir!.create(recursive: true);
 
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_storageKey);
@@ -133,11 +139,13 @@ class MusicDownloadService extends ChangeNotifier {
   }
 
   bool isQueued(String trackId) {
-    return _queue.any((task) =>
-        task.track.id == trackId &&
-        (task.status == MusicDownloadStatus.queued ||
-            task.status == MusicDownloadStatus.extracting ||
-            task.status == MusicDownloadStatus.downloading));
+    return _queue.any(
+      (task) =>
+          task.track.id == trackId &&
+          (task.status == MusicDownloadStatus.queued ||
+              task.status == MusicDownloadStatus.extracting ||
+              task.status == MusicDownloadStatus.downloading),
+    );
   }
 
   MusicDownloadTask? getTask(String trackId) {
@@ -170,12 +178,14 @@ class MusicDownloadService extends ChangeNotifier {
     bool added = false;
     for (final track in tracks) {
       if (isDownloaded(track.id) || isQueued(track.id)) continue;
-      _queue.add(MusicDownloadTask(
-        id: '${track.id}_${DateTime.now().millisecondsSinceEpoch}',
-        track: track,
-        collectionName: collectionName,
-        status: MusicDownloadStatus.queued,
-      ));
+      _queue.add(
+        MusicDownloadTask(
+          id: '${track.id}_${DateTime.now().millisecondsSinceEpoch}',
+          track: track,
+          collectionName: collectionName,
+          status: MusicDownloadStatus.queued,
+        ),
+      );
       added = true;
     }
 
@@ -222,10 +232,12 @@ class MusicDownloadService extends ChangeNotifier {
 
   /// Clears completed or failed tasks from the active queue
   void clearCompletedTasks() {
-    _queue.removeWhere((t) =>
-        t.status == MusicDownloadStatus.completed ||
-        t.status == MusicDownloadStatus.failed ||
-        t.status == MusicDownloadStatus.cancelled);
+    _queue.removeWhere(
+      (t) =>
+          t.status == MusicDownloadStatus.completed ||
+          t.status == MusicDownloadStatus.failed ||
+          t.status == MusicDownloadStatus.cancelled,
+    );
     notifyListeners();
   }
 
@@ -276,7 +288,9 @@ class MusicDownloadService extends ChangeNotifier {
     try {
       if (preferredSource == MusicAudioSource.flac) {
         try {
-          final flac = await QobuzMusicService.instance.resolveLosslessUrl(track);
+          final flac = await QobuzMusicService.instance.resolveLosslessUrl(
+            track,
+          );
           if (flac != null && flac.url.isNotEmpty) {
             streamUrl = flac.url;
             format = flac.format;
@@ -286,7 +300,9 @@ class MusicDownloadService extends ChangeNotifier {
             }
           }
         } catch (e) {
-          debugPrint('[MusicDownloadService] Qobuz FLAC failed for ${track.title}, falling back to YouTube: $e');
+          debugPrint(
+            '[MusicDownloadService] Qobuz FLAC failed for ${track.title}, falling back to YouTube: $e',
+          );
         }
       }
 
@@ -304,7 +320,9 @@ class MusicDownloadService extends ChangeNotifier {
         }
       }
     } catch (e) {
-      debugPrint('[MusicDownloadService] Stream resolution failed for ${track.title}: $e');
+      debugPrint(
+        '[MusicDownloadService] Stream resolution failed for ${track.title}: $e',
+      );
     }
 
     if (streamUrl == null || streamUrl.isEmpty) {
@@ -427,7 +445,9 @@ class MusicDownloadService extends ChangeNotifier {
       task.progress = 1.0;
       notifyListeners();
     } catch (e) {
-      debugPrint('[MusicDownloadService] Download failed for ${track.title}: $e');
+      debugPrint(
+        '[MusicDownloadService] Download failed for ${track.title}: $e',
+      );
       if (await tempFile.exists()) {
         try {
           await tempFile.delete();

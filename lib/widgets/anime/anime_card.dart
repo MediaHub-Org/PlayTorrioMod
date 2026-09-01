@@ -54,10 +54,7 @@ class _AnimeCardState extends State<AnimeCard> {
               children: [
                 // Poster Frame
                 Expanded(
-                  child: _AnimePosterFrame(
-                    anime: anime,
-                    hovered: _hovered,
-                  ),
+                  child: _AnimePosterFrame(anime: anime, hovered: _hovered),
                 ),
 
                 // Title
@@ -129,10 +126,7 @@ class _AnimePosterFrame extends StatelessWidget {
   final AnimeMedia anime;
   final bool hovered;
 
-  const _AnimePosterFrame({
-    required this.anime,
-    required this.hovered,
-  });
+  const _AnimePosterFrame({required this.anime, required this.hovered});
 
   @override
   Widget build(BuildContext context) {
@@ -152,7 +146,8 @@ class _AnimePosterFrame extends StatelessWidget {
           ),
           if (hovered)
             BoxShadow(
-              color: AppThemeService.currentPalette.value.primaryColor.withValues(alpha: 0.28),
+              color: AppThemeService.currentPalette.value.primaryColor
+                  .withValues(alpha: 0.28),
               blurRadius: 34,
               spreadRadius: 1,
               offset: const Offset(0, 8),
@@ -201,7 +196,10 @@ class _AnimePosterFrame extends StatelessWidget {
                 top: 9,
                 left: 9,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3.5,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.72),
                     borderRadius: BorderRadius.circular(8),
@@ -237,9 +235,13 @@ class _AnimePosterFrame extends StatelessWidget {
               top: 9,
               right: 9,
               child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 7,
+                  vertical: 3.5,
+                ),
                 decoration: BoxDecoration(
-                  color: AppThemeService.currentPalette.value.primaryColor.withValues(alpha: 0.90),
+                  color: AppThemeService.currentPalette.value.primaryColor
+                      .withValues(alpha: 0.90),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -260,7 +262,10 @@ class _AnimePosterFrame extends StatelessWidget {
                 bottom: 9,
                 left: 9,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 7,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.72),
                     borderRadius: BorderRadius.circular(7),
@@ -272,25 +277,6 @@ class _AnimePosterFrame extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       color: Colors.white70,
                     ),
-                  ),
-                ),
-              ),
-
-            // Hover Play Glow Icon
-            if (hovered)
-              Positioned(
-                bottom: 9,
-                right: 9,
-                child: Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF7C5CFF),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.play_arrow_rounded,
-                    color: Colors.white,
-                    size: 16,
                   ),
                 ),
               ),
