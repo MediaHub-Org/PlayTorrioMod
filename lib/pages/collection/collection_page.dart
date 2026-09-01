@@ -17,10 +17,7 @@ import '../details/details_page.dart';
 class CollectionPage extends StatefulWidget {
   final int initialTabIndex;
 
-  const CollectionPage({
-    super.key,
-    this.initialTabIndex = 0,
-  });
+  const CollectionPage({super.key, this.initialTabIndex = 0});
 
   @override
   State<CollectionPage> createState() => _CollectionPageState();
@@ -39,12 +36,13 @@ class _CollectionPageState extends State<CollectionPage> {
   /// grid, its filter bar and its empty state one tab over.
   bool _watchlistOnly = false;
 
-  /// Narrows Saved to items already marked Watched -- the "Liked" half of
-  /// Saved's Liked/Watchlist split (2026-09-02). Composes with the type
-  /// chips the same way [_watchlistOnly] does; mutually exclusive with it
-  /// specifically, since a title is Watchlist or Watched, never both (see
-  /// `MyListService.setWatchlist`/`setWatched`).
-  bool _watchedOnly = false;
+  /// Narrows Saved to items marked Liked -- a real, independent `isLiked`
+  /// field (2026-09-02+). Was mistakenly reading `isWatched` at first (this
+  /// chip's original 2026-09-02 pass), which meant "Liked" here actually
+  /// filtered on completed-watching status. Composes with the type chips the
+  /// same way [_watchlistOnly] does; unlike Watchlist, not mutually
+  /// exclusive with anything -- a title can be Watched and Liked at once.
+  bool _likedOnly = false;
 
   @override
   void initState() {
@@ -61,9 +59,12 @@ class _CollectionPageState extends State<CollectionPage> {
   List<MyListItem> _getFilteredAndSortedItems(List<MyListItem> allItems) {
     var filtered = allItems.where((item) {
       if (_watchlistOnly && !item.isWatchlist) return false;
-      if (_watchedOnly && !item.isWatched) return false;
+      if (_likedOnly && !item.isLiked) return false;
       if (_filterType == 'movie' && item.type != 'movie') return false;
-      if (_filterType == 'series' && item.type != 'series' && item.type != 'anime') return false;
+      if (_filterType == 'series' &&
+          item.type != 'series' &&
+          item.type != 'anime')
+        return false;
       if (_filterType == 'anime' && item.type != 'anime') return false;
 
       if (_searchQuery.trim().isNotEmpty) {
@@ -79,7 +80,9 @@ class _CollectionPageState extends State<CollectionPage> {
         filtered.sort((a, b) => b.addedAt.compareTo(a.addedAt));
         break;
       case 'title':
-        filtered.sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+        filtered.sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        );
         break;
       case 'year':
         filtered.sort((a, b) => (b.year ?? 0).compareTo(a.year ?? 0));
@@ -97,7 +100,8 @@ class _CollectionPageState extends State<CollectionPage> {
   }
 
   void _navigateToDetail(MyListItem item) {
-    final effectiveId = item.imdbId ??
+    final effectiveId =
+        item.imdbId ??
         (item.tmdbId != null ? 'tmdb:${item.tmdbId}' : null) ??
         item.traktId?.toString() ??
         '';
@@ -113,10 +117,7 @@ class _CollectionPageState extends State<CollectionPage> {
 
     Navigator.push(
       context,
-      LiquidRevealRoute(
-        page: DetailsPage(movie: movie),
-        tapPosition: null,
-      ),
+      LiquidRevealRoute(page: DetailsPage(movie: movie), tapPosition: null),
     );
   }
 
@@ -126,8 +127,10 @@ class _CollectionPageState extends State<CollectionPage> {
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF151822),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Remove from Library?',
-            style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white)),
+        title: const Text(
+          'Remove from Library?',
+          style: TextStyle(fontWeight: FontWeight.w800, color: Colors.white),
+        ),
         content: Text(
           'Remove "${item.title}" from your library?',
           style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
@@ -135,16 +138,26 @@ class _CollectionPageState extends State<CollectionPage> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text('Cancel',
-                style: TextStyle(color: Colors.white.withValues(alpha: 0.6))),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.6)),
+            ),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFE50914),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
             ),
-            child: const Text('Remove', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: const Text(
+              'Remove',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -190,23 +203,23 @@ class _CollectionPageState extends State<CollectionPage> {
                   ? LibraryEmptyState(
                       icon: _watchlistOnly
                           ? Icons.bookmark_border_rounded
-                          : (_watchedOnly
-                              ? Icons.check_circle_outline_rounded
-                              : Icons.video_library_rounded),
+                          : (_likedOnly
+                                ? Icons.favorite_border_rounded
+                                : Icons.video_library_rounded),
                       title: allItems.isEmpty
                           ? 'Nothing saved yet'
                           : (_watchlistOnly
-                              ? 'Nothing on your watchlist'
-                              : (_watchedOnly
-                                  ? 'Nothing marked Watched'
-                                  : 'No matching items')),
+                                ? 'Nothing on your watchlist'
+                                : (_likedOnly
+                                      ? 'Nothing liked yet'
+                                      : 'No matching items')),
                       subtitle: allItems.isEmpty
                           ? 'Add movies, series or anime to access them quickly.'
                           : (_watchlistOnly
-                              ? 'Bookmark something to watch later and it lands here.'
-                              : (_watchedOnly
-                                  ? 'Mark something Watched and it lands here.'
-                                  : 'Try adjusting your search or filters.')),
+                                ? 'Bookmark something to watch later and it lands here.'
+                                : (_likedOnly
+                                      ? 'Like something and it lands here.'
+                                      : 'Try adjusting your search or filters.')),
                     )
                   : _buildGrid(items),
             ),
@@ -264,16 +277,20 @@ class _CollectionPageState extends State<CollectionPage> {
                           width: 50,
                           height: 75,
                           color: Colors.white10,
-                          child: const Icon(Icons.movie_rounded,
-                              color: Colors.white30),
+                          child: const Icon(
+                            Icons.movie_rounded,
+                            color: Colors.white30,
+                          ),
                         ),
                       )
                     : Container(
                         width: 50,
                         height: 75,
                         color: Colors.white10,
-                        child: const Icon(Icons.movie_rounded,
-                            color: Colors.white30),
+                        child: const Icon(
+                          Icons.movie_rounded,
+                          color: Colors.white30,
+                        ),
                       ),
               ),
               const SizedBox(width: 14),
@@ -284,7 +301,9 @@ class _CollectionPageState extends State<CollectionPage> {
                     Text(
                       item.title,
                       style: const TextStyle(
-                          fontWeight: FontWeight.w700, fontSize: 15),
+                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -293,7 +312,9 @@ class _CollectionPageState extends State<CollectionPage> {
                       Text(
                         'S${item.season ?? 1} E${item.episode ?? 1} \u2022 ${item.episodeTitle!}',
                         style: const TextStyle(
-                            color: Colors.white54, fontSize: 12),
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -303,14 +324,17 @@ class _CollectionPageState extends State<CollectionPage> {
                       value: item.progressPercent,
                       backgroundColor: Colors.white10,
                       valueColor: const AlwaysStoppedAnimation<Color>(
-                          Color(0xFF7C5CFF)),
+                        Color(0xFF7C5CFF),
+                      ),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       '$progressPercent% completed',
                       style: const TextStyle(
-                          color: Colors.white38, fontSize: 11),
+                        color: Colors.white38,
+                        fontSize: 11,
+                      ),
                     ),
                   ],
                 ),
@@ -322,19 +346,22 @@ class _CollectionPageState extends State<CollectionPage> {
     );
   }
 
-
   Widget _buildDownloadsTab() {
     return ValueListenableBuilder<List<DownloadTask>>(
       valueListenable: DownloadService.instance.tasksNotifier,
       builder: (context, allDownloads, _) {
         final downloads = allDownloads
-            .where((t) => t.type == 'movie' || t.type == 'series' || t.type == 'anime')
+            .where(
+              (t) =>
+                  t.type == 'movie' || t.type == 'series' || t.type == 'anime',
+            )
             .toList();
         if (downloads.isEmpty) {
           return const LibraryEmptyState(
             icon: Icons.download_done_rounded,
             title: 'No Downloads',
-            subtitle: 'Downloaded movies and episodes will appear here for offline viewing.',
+            subtitle:
+                'Downloaded movies and episodes will appear here for offline viewing.',
           );
         }
 
@@ -344,7 +371,9 @@ class _CollectionPageState extends State<CollectionPage> {
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final item = downloads[index];
-            final progress = item.totalBytes > 0 ? item.receivedBytes / item.totalBytes : 0.0;
+            final progress = item.totalBytes > 0
+                ? item.receivedBytes / item.totalBytes
+                : 0.0;
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -366,14 +395,20 @@ class _CollectionPageState extends State<CollectionPage> {
                               width: 50,
                               height: 75,
                               color: Colors.white10,
-                              child: const Icon(Icons.movie_rounded, color: Colors.white30),
+                              child: const Icon(
+                                Icons.movie_rounded,
+                                color: Colors.white30,
+                              ),
                             ),
                           )
                         : Container(
                             width: 50,
                             height: 75,
                             color: Colors.white10,
-                            child: const Icon(Icons.movie_rounded, color: Colors.white30),
+                            child: const Icon(
+                              Icons.movie_rounded,
+                              color: Colors.white30,
+                            ),
                           ),
                   ),
                   const SizedBox(width: 14),
@@ -383,7 +418,10 @@ class _CollectionPageState extends State<CollectionPage> {
                       children: [
                         Text(
                           item.title,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -391,7 +429,10 @@ class _CollectionPageState extends State<CollectionPage> {
                           const SizedBox(height: 2),
                           Text(
                             item.episodeTitle!,
-                            style: const TextStyle(color: Colors.white54, fontSize: 12),
+                            style: const TextStyle(
+                              color: Colors.white54,
+                              fontSize: 12,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -400,20 +441,29 @@ class _CollectionPageState extends State<CollectionPage> {
                         LinearProgressIndicator(
                           value: progress > 0 ? progress : null,
                           backgroundColor: Colors.white10,
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF7C5CFF),
+                          ),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           '${item.status.name.toUpperCase()} • ${(progress * 100).toStringAsFixed(0)}%',
-                          style: const TextStyle(color: Colors.white38, fontSize: 11),
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                    onPressed: () => DownloadService.instance.deleteDownload(item.id),
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: Colors.redAccent,
+                    ),
+                    onPressed: () =>
+                        DownloadService.instance.deleteDownload(item.id),
                   ),
                 ],
               ),
@@ -437,21 +487,34 @@ class _CollectionPageState extends State<CollectionPage> {
                   decoration: BoxDecoration(
                     color: const Color(0xFF141824),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   child: Row(
                     children: [
-                      const Icon(Icons.search_rounded, size: 18, color: Colors.white54),
+                      const Icon(
+                        Icons.search_rounded,
+                        size: 18,
+                        color: Colors.white54,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          onChanged: (val) => setState(() => _searchQuery = val),
-                          style: const TextStyle(fontSize: 13, color: Colors.white),
+                          onChanged: (val) =>
+                              setState(() => _searchQuery = val),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: Colors.white,
+                          ),
                           decoration: const InputDecoration(
                             hintText: 'Search library...',
-                            hintStyle: TextStyle(color: Colors.white38, fontSize: 13),
+                            hintStyle: TextStyle(
+                              color: Colors.white38,
+                              fontSize: 13,
+                            ),
                             border: InputBorder.none,
                             isDense: true,
                           ),
@@ -463,7 +526,11 @@ class _CollectionPageState extends State<CollectionPage> {
                             _searchController.clear();
                             setState(() => _searchQuery = '');
                           },
-                          child: const Icon(Icons.close_rounded, size: 16, color: Colors.white54),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            size: 16,
+                            color: Colors.white54,
+                          ),
                         ),
                     ],
                   ),
@@ -484,13 +551,16 @@ class _CollectionPageState extends State<CollectionPage> {
               const SizedBox(width: 12),
               _StatusChip(
                 label: 'Liked',
-                icon: Icons.check_circle_rounded,
-                outlineIcon: Icons.check_circle_outline_rounded,
-                selected: _watchedOnly,
-                onTap: () => setState(() {
-                  _watchedOnly = !_watchedOnly;
-                  if (_watchedOnly) _watchlistOnly = false;
-                }),
+                // Same icon both states, unlike the Watchlist chip below --
+                // the filled/outline heart pair is LikeButton's own signal
+                // for a per-item like toggle; this is a list filter, whose
+                // selected state already reads from the chip's own fill.
+                icon: Icons.favorite_rounded,
+                outlineIcon: Icons.favorite_rounded,
+                selected: _likedOnly,
+                // Not mutually exclusive with Watchlist -- isLiked is
+                // independent of isWatchlist/isWatched (see MyListItem).
+                onTap: () => setState(() => _likedOnly = !_likedOnly),
               ),
               const SizedBox(width: 6),
               _StatusChip(
@@ -498,10 +568,7 @@ class _CollectionPageState extends State<CollectionPage> {
                 icon: Icons.bookmark_rounded,
                 outlineIcon: Icons.bookmark_border_rounded,
                 selected: _watchlistOnly,
-                onTap: () => setState(() {
-                  _watchlistOnly = !_watchlistOnly;
-                  if (_watchlistOnly) _watchedOnly = false;
-                }),
+                onTap: () => setState(() => _watchlistOnly = !_watchlistOnly),
               ),
               const Spacer(),
               PopupMenuButton<String>(
@@ -510,28 +577,50 @@ class _CollectionPageState extends State<CollectionPage> {
                 onSelected: (val) => setState(() => _sortBy = val),
                 color: const Color(0xFF151822),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: const Color(0xFF141824),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.08),
+                    ),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      const Icon(Icons.sort_rounded, size: 14, color: Colors.white70),
+                      const Icon(
+                        Icons.sort_rounded,
+                        size: 14,
+                        color: Colors.white70,
+                      ),
                       const SizedBox(width: 4),
                       Text(
                         _sortBy.toUpperCase(),
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white70),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white70,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 itemBuilder: (context) => [
-                  const PopupMenuItem(value: 'recent', child: Text('Recently Added')),
-                  const PopupMenuItem(value: 'title', child: Text('Title (A-Z)')),
-                  const PopupMenuItem(value: 'year', child: Text('Release Year')),
+                  const PopupMenuItem(
+                    value: 'recent',
+                    child: Text('Recently Added'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'title',
+                    child: Text('Title (A-Z)'),
+                  ),
+                  const PopupMenuItem(
+                    value: 'year',
+                    child: Text('Release Year'),
+                  ),
                 ],
               ),
             ],
@@ -587,16 +676,23 @@ class _CollectionPageState extends State<CollectionPage> {
                   CachedNetworkImage(
                     imageUrl: item.poster!,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(color: const Color(0xFF141824)),
+                    placeholder: (_, __) =>
+                        Container(color: const Color(0xFF141824)),
                     errorWidget: (_, __, ___) => Container(
                       color: const Color(0xFF141824),
-                      child: const Icon(Icons.movie_rounded, color: Colors.white24),
+                      child: const Icon(
+                        Icons.movie_rounded,
+                        color: Colors.white24,
+                      ),
                     ),
                   )
                 else
                   Container(
                     color: const Color(0xFF141824),
-                    child: const Icon(Icons.movie_rounded, color: Colors.white24),
+                    child: const Icon(
+                      Icons.movie_rounded,
+                      color: Colors.white24,
+                    ),
                   ),
                 Positioned(
                   bottom: 0,
@@ -630,7 +726,6 @@ class _CollectionPageState extends State<CollectionPage> {
       },
     );
   }
-
 }
 
 /// A Liked/Watchlist status toggle beside the type chips (Saved's

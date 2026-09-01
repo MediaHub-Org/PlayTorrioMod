@@ -9,7 +9,8 @@ abstract final class MyListService {
   static const _storageKey = 'my_list_v1';
   static const int maxItems = 500;
 
-  static final ValueNotifier<List<MyListItem>> items = ValueNotifier<List<MyListItem>>([]);
+  static final ValueNotifier<List<MyListItem>> items =
+      ValueNotifier<List<MyListItem>>([]);
   static final ValueNotifier<bool> isSyncing = ValueNotifier<bool>(false);
 
   static Future<void> initialize() async {
@@ -32,10 +33,7 @@ abstract final class MyListService {
     if (isSyncing.value) return;
     isSyncing.value = true;
     try {
-      await Future.wait([
-        syncWithTrakt(),
-        syncWithSimkl(),
-      ]);
+      await Future.wait([syncWithTrakt(), syncWithSimkl()]);
     } finally {
       isSyncing.value = false;
     }
@@ -44,8 +42,14 @@ abstract final class MyListService {
   static Future<void> syncWithTrakt() async {
     try {
       if (!await TraktService.instance.isAuthenticated()) return;
-      final movieItems = await TraktService.instance.fetchList('watchlist', 'movies');
-      final showItems = await TraktService.instance.fetchList('watchlist', 'shows');
+      final movieItems = await TraktService.instance.fetchList(
+        'watchlist',
+        'movies',
+      );
+      final showItems = await TraktService.instance.fetchList(
+        'watchlist',
+        'shows',
+      );
 
       final combined = [...movieItems, ...showItems];
       if (combined.isEmpty) return;
@@ -54,7 +58,9 @@ abstract final class MyListService {
       for (final raw in combined) {
         if (raw is! Map<String, dynamic>) continue;
         final item = MyListItem.fromTraktJson(raw);
-        final idx = current.indexWhere((i) => i.uniqueKey == item.uniqueKey || i.matches(item));
+        final idx = current.indexWhere(
+          (i) => i.uniqueKey == item.uniqueKey || i.matches(item),
+        );
         if (idx == -1) {
           current.insert(0, item);
         } else {
@@ -83,8 +89,10 @@ abstract final class MyListService {
           if (raw is! Map<String, dynamic>) continue;
           final status = raw['status'];
           if (status == 'plantowatch' || status == 'watching') {
-            final item = MyListItem.fromSimklJson(raw);
-            final idx = current.indexWhere((i) => i.uniqueKey == item.uniqueKey || i.matches(item));
+            final item = MyListItem.fromSimklJson(raw, bucketType: bucket);
+            final idx = current.indexWhere(
+              (i) => i.uniqueKey == item.uniqueKey || i.matches(item),
+            );
             if (idx == -1) {
               current.insert(0, item);
             } else {
@@ -108,7 +116,9 @@ abstract final class MyListService {
   }
 
   static bool isInList(MyListItem item) {
-    return items.value.any((i) => i.uniqueKey == item.uniqueKey || i.matches(item));
+    return items.value.any(
+      (i) => i.uniqueKey == item.uniqueKey || i.matches(item),
+    );
   }
 
   static void add(MyListItem item) {
@@ -162,7 +172,9 @@ abstract final class MyListService {
   }
 
   static void remove(MyListItem item) {
-    items.value = items.value.where((i) => i.uniqueKey != item.uniqueKey && !i.matches(item)).toList();
+    items.value = items.value
+        .where((i) => i.uniqueKey != item.uniqueKey && !i.matches(item))
+        .toList();
     _persist();
 
     _syncCloudRemove(item);
@@ -219,39 +231,67 @@ abstract final class MyListService {
   static void _setLocal(MyListItem item) {
     final newList = <MyListItem>[
       item,
-      ...items.value.where((i) => i.uniqueKey != item.uniqueKey && !i.matches(item)),
+      ...items.value.where(
+        (i) => i.uniqueKey != item.uniqueKey && !i.matches(item),
+      ),
     ];
     newList.sort((a, b) => b.addedAt.compareTo(a.addedAt));
-    if (newList.length > maxItems) newList.removeRange(maxItems, newList.length);
+    if (newList.length > maxItems)
+      newList.removeRange(maxItems, newList.length);
     items.value = newList;
     _persist();
   }
 
-  /// Marks [item] Watchlist ("want to watch"), clearing Watched if it was
-  /// set -- the two are mutually exclusive. Tapping the already-active
-  /// state removes the item from the list entirely. Syncs to Trakt/Simkl
-  /// the same way [add] already did, since a local Watchlist entry is
-  /// exactly what those services call a watchlist entry.
-  static void setWatchlist(MyListItem item) {
-    final existing = _find(item);
-    if (existing != null && existing.isWatchlist) {
-      remove(item);
-      return;
+  /// Applies [updated] to the list, or removes the entry entirely if
+  /// Watchlist, Watched and Liked would all end up false -- there's nothing
+  /// left to justify keeping a purely-local entry around. Also used by
+  /// [setWatchlist]/[setWatched] un-toggling, so unmarking one no longer
+  /// wipes out the other two the way a blanket [remove] call used to.
+  static void _applyOrRemove(MyListItem original, MyListItem updated) {
+    if (!updated.isWatchlist && !updated.isWatched && !updated.isLiked) {
+      remove(original);
+    } else {
+      _setLocal(updated);
     }
-    _setLocal((existing ?? item).copyWith(isWatchlist: true, isWatched: false));
-    if (existing == null) _syncCloudAdd(item);
   }
 
-  /// Marks [item] Watched, clearing Watchlist if it was set. Local-only --
-  /// no Trakt/Simkl "mark as watched" call is wired (that's a different
-  /// endpoint from the watchlist add/remove above; wire cloud sync here if
-  /// that becomes a real ask).
-  static void setWatched(MyListItem item) {
+  /// Marks [item] Watchlist ("want to watch"), clearing Watched if it was
+  /// set -- the two are mutually exclusive. Liked is untouched, since it's
+  /// independent of both. Syncs to Trakt/Simkl the same way [add] already
+  /// did, since a local Watchlist entry is exactly what those services call
+  /// a watchlist entry.
+  static void setWatchlist(MyListItem item) {
     final existing = _find(item);
-    if (existing != null && existing.isWatched) {
-      remove(item);
+    final wasNew = existing == null;
+    final base = existing ?? item;
+    if (base.isWatchlist) {
+      _applyOrRemove(base, base.copyWith(isWatchlist: false));
       return;
     }
-    _setLocal((existing ?? item).copyWith(isWatched: true, isWatchlist: false));
+    _applyOrRemove(base, base.copyWith(isWatchlist: true, isWatched: false));
+    if (wasNew) _syncCloudAdd(item);
+  }
+
+  /// Marks [item] Watched, clearing Watchlist if it was set. Liked is
+  /// untouched. Local-only -- no Trakt/Simkl "mark as watched" call is
+  /// wired (that's a different endpoint from the watchlist add/remove
+  /// above; wire cloud sync here if that becomes a real ask).
+  static void setWatched(MyListItem item) {
+    final existing = _find(item);
+    final base = existing ?? item;
+    if (base.isWatched) {
+      _applyOrRemove(base, base.copyWith(isWatched: false));
+      return;
+    }
+    _applyOrRemove(base, base.copyWith(isWatched: true, isWatchlist: false));
+  }
+
+  /// Toggles Liked, independent of Watchlist/Watched -- something can be
+  /// Watched and Liked at once, unlike Watchlist/Watched which are mutually
+  /// exclusive. Local-only: neither Trakt nor Simkl has a "liked" concept.
+  static void toggleLiked(MyListItem item) {
+    final existing = _find(item);
+    final base = existing ?? item;
+    _applyOrRemove(base, base.copyWith(isLiked: !base.isLiked));
   }
 }
