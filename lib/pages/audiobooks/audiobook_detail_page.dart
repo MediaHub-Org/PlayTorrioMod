@@ -7,6 +7,7 @@ import '../../services/audiobook/audiobook_library_service.dart';
 import '../../services/audiobook/audiobook_player_controller.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/audiobook/audiobook_scraper_service.dart';
+import '../../services/app_breakpoints.dart';
 import '../../utils/fullscreen_navigator.dart';
 import 'audiobook_player_screen.dart';
 import 'audiobook_route_transitions.dart';
@@ -117,8 +118,7 @@ class _AudiobookDetailPageState extends State<AudiobookDetailPage> {
     final hasCover = book.coverImage.isNotEmpty;
     final topInset = MediaQuery.paddingOf(context).top;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
-    final screenW = MediaQuery.sizeOf(context).width;
-    final isMobile = screenW < 700;
+    final isMobile = AppBreakpoints.of(context) == ScreenTier.mobile;
     final palette = AppThemeService.currentPalette.value;
 
     return Scaffold(
@@ -175,8 +175,8 @@ class _AudiobookDetailPageState extends State<AudiobookDetailPage> {
                       const SizedBox(width: 16),
                       // Cover Image
                       Container(
-                        width: 130,
-                        height: 190,
+                        width: isMobile ? 96 : 130,
+                        height: isMobile ? 140 : 190,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
@@ -317,33 +317,6 @@ class _AudiobookDetailPageState extends State<AudiobookDetailPage> {
                 ),
               ),
 
-              // Hero Cover & Info Section
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isMobile ? 16 : 32,
-                    vertical: 16,
-                  ),
-                  child: isMobile
-                      ? Column(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            _buildCoverImage(book, 180, 260),
-                            const SizedBox(height: 20),
-                            _buildDetails(book, isMobile, palette),
-                          ],
-                        )
-                      : Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildCoverImage(book, 200, 290),
-                            const SizedBox(width: 32),
-                            Expanded(child: _buildDetails(book, isMobile, palette)),
-                          ],
-                        ),
-                ),
-              ),
-
               // Section Title
               SliverToBoxAdapter(
                 child: Padding(
@@ -422,88 +395,6 @@ class _AudiobookDetailPageState extends State<AudiobookDetailPage> {
     );
   }
 
-  Widget _buildCoverImage(Audiobook book, double width, double height) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black54,
-            blurRadius: 20,
-            offset: Offset(0, 8),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(20),
-        child: book.coverImage.isNotEmpty
-            ? CachedNetworkImage(
-                imageUrl: book.coverImage,
-                fit: BoxFit.cover,
-                placeholder: (_, __) => Container(color: const Color(0xFF161A26)),
-                errorWidget: (_, __, ___) => Container(
-                  color: const Color(0xFF161A26),
-                  child: const Icon(Icons.headphones_rounded, size: 64, color: Colors.white38),
-                ),
-              )
-            : Container(
-                color: const Color(0xFF161A26),
-                child: const Icon(Icons.headphones_rounded, size: 64, color: Colors.white38),
-              ),
-      ),
-    );
-  }
-
-  Widget _buildDetails(Audiobook book, bool isMobile, AppThemePalette palette) {
-    final isTorrent = book.source.toLowerCase().contains('audiobookbay');
-
-    return Column(
-      crossAxisAlignment: isMobile ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: isTorrent
-                ? const Color(0xFFFF9800).withValues(alpha: 0.25)
-                : palette.primaryColor.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(6),
-            border: isTorrent
-                ? Border.all(color: const Color(0xFFFF9800).withValues(alpha: 0.4), width: 0.8)
-                : null,
-          ),
-          child: Text(
-            isTorrent ? 'AUDIOBOOKBAY (TORRENT)' : book.source.toUpperCase(),
-            style: TextStyle(
-              color: isTorrent ? const Color(0xFFFFB74D) : palette.primaryColor,
-              fontSize: 10,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          book.title,
-          textAlign: isMobile ? TextAlign.center : TextAlign.start,
-          maxLines: 3,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: isMobile ? 18 : 24,
-            fontWeight: FontWeight.bold,
-            height: 1.2,
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (_chapters != null && _chapters!.isNotEmpty)
-          _PlayFirstChapterButton(
-            palette: palette,
-            onPressed: () => _playChapter(_chapters!.first),
-          ),
-      ],
-    );
-  }
 }
 
 class _PlayFirstChapterButton extends StatefulWidget {

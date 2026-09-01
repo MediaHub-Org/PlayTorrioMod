@@ -4,6 +4,24 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Details pages no longer block hub pill/bottom bar navigation (ROADMAP #26) — 2026-09-02
+- Root cause: each hub's `NestedNavigator` stays mounted across hub switches (`IndexedStack`), so a pushed Details page kept covering the screen even after tapping a different hub or section pill correctly changed `HubController`'s state underneath it — the switch was real but invisible.
+- `NestedNavigator` now accepts an external `GlobalKey<NavigatorState>`. `HubPage` keeps one per hub and pops all three back to root whenever the active hub or section actually changes, so pill/bottom-bar taps are always visible regardless of how deep a Details push went.
+- The existing but dead `HubNavigator.goHome()` was left as-is — this fix generalizes the same shape (pop the nested Navigator) rather than routing everything through that one callback.
+
+### Audiobook details page: fixed duplicated content, responsive breakpoint (ROADMAP #25) — 2026-09-02
+- The page rendered its cover image, title, source badge and Play button twice — once in the header row, again in a second "Hero Cover & Info Section" block immediately below. Deleted the duplicate block and its now-orphaned `_buildCoverImage`/`_buildDetails` helpers.
+- Swapped the ad-hoc `screenW < 700` check for `AppBreakpoints.of(context)`, and made the header's cover image size responsive (96×140 mobile, 130×190 otherwise) while the file was already open for this.
+
+### Library: Saved split into Liked/Watchlist, History dropped, New Playlist moved out of Library (ROADMAP #22/#23/#24) — 2026-09-02
+- **#23 — chose Continue over History.** Removed `LibrarySection.history`; `LibrarySection` is now `saved` / `inProgress` / `downloads`, three tabs everywhere it's used. Continue is the more actionable of the two — an item still disappears from Library once finished, same lossy tradeoff the roadmap entry already called out, accepted rather than making Continue stop purging finished items.
+- **#22 — Watch's Saved tab gained a second status chip.** Generalized the private `_WatchlistChip` into `_StatusChip` and added "Liked" (`isWatched`, check-circle icon) alongside the existing "Watchlist" (`isWatchlist`, bookmark icon) — mutually exclusive, each clears the other on tap. Listen's Saved tab already had this shape (Songs/Podcasts liked tabs plus a Playlists tab under `SectionSubTabs`) — no change needed there.
+- **#24 — chose "creation only" over "browsing too".** "New Playlist" moved out of Listen's Library-only trailing slot into the persistent 44px toolbar `Row` next to Search, so it's reachable from every Listen sub-tab, not just Library. Playlist *browsing* stays under Saved per #22 — only creation needed to move.
+
+### Section naming, Anime language dropdown (ROADMAP #18/#19) — 2026-09-01
+- "Movies/Series" → "Movies & Series", "Comics/Manga" → "Comics & Manga" — `HubController.currentSections`, the About page's hub list, and the two tests asserting on those labels.
+- Anime's binary globe `IconButton` toggling Arabic on/off became a `FilterDropdown` listing English 🇬🇧 / Arabic 🇸🇦 by flag and name, matching the genre filter dropdown already next to it.
+
 ### Watchlist/Watched status picker on Movies/Series (ROADMAP #13, half) — 2026-09-01
 - Replaced the single "Add to Library" button with a status picker matching Anime's own `PopupMenuButton` pattern — same shape, same current-status-as-label styling, so the two content types present this control identically now.
 - **Watchlist was dead code.** `MyListItem.isWatchlist` and a "Watchlist only" filter chip already existed on Collection page, but nothing ever set the field true — "Add to Library" always created items with it `false`. This wires it.

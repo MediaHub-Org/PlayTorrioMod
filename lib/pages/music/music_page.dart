@@ -855,15 +855,34 @@ class _MusicPageState extends State<MusicPage> {
                           alignment: Alignment.centerRight,
                           child: Padding(
                             padding: const EdgeInsets.only(right: 8),
-                            child: IconButton(
-                              tooltip: 'Search',
-                              icon: Icon(
-                                Icons.search_rounded,
-                                color: Colors.white.withValues(alpha: 0.75),
-                                size: 20,
-                              ),
-                              onPressed: () =>
-                                  HubController.instance.setMusicTab('Search'),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // Playlist creation lives here -- on the
+                                // persistent toolbar shown across every
+                                // Listen sub-tab -- rather than inside the
+                                // Library tab's own header, so it's reachable
+                                // without opening Library first.
+                                IconButton(
+                                  tooltip: 'New Playlist',
+                                  icon: Icon(
+                                    Icons.playlist_add_rounded,
+                                    color: Colors.white.withValues(alpha: 0.75),
+                                    size: 22,
+                                  ),
+                                  onPressed: () => _showCreatePlaylistDialog(),
+                                ),
+                                IconButton(
+                                  tooltip: 'Search',
+                                  icon: Icon(
+                                    Icons.search_rounded,
+                                    color: Colors.white.withValues(alpha: 0.75),
+                                    size: 20,
+                                  ),
+                                  onPressed: () =>
+                                      HubController.instance.setMusicTab('Search'),
+                                ),
+                              ],
                             ),
                           ),
                         ),
@@ -1636,23 +1655,6 @@ class _MusicPageState extends State<MusicPage> {
     return LibraryTabs(
       title: 'Library',
       titleIcon: Icons.library_music_rounded,
-      trailing: _MusicHoverable(
-        scaleFactor: 1.05,
-        child: ElevatedButton.icon(
-          style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF7C5CFF),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          onPressed: () => _showCreatePlaylistDialog(),
-          icon: const Icon(Icons.add_rounded, color: Colors.white, size: 18),
-          label: const Text(
-            'New Playlist',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-          ),
-        ),
-      ),
       tabs: [
         for (final section in LibrarySection.values)
           LibraryTab(

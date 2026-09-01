@@ -33,10 +33,16 @@ class _HubPageState extends State<HubPage> {
   // Each hub is lazily wrapped in its own nested Navigator the first time it's
   // shown, so offstage hubs are not laid out at startup (which can crash pages
   // that assume a non-zero width, and stalls first paint with eager network).
-  static const List<Widget Function()> _hubBuilders = [
-    _buildMediaHub,
-    _buildBooksHub,
-    _buildMusicHub,
+  //
+  // Each also gets its own GlobalKey so a pushed detail page can be popped
+  // back to root from outside -- see _onHubControllerChanged below.
+  final _mediaNavKey = GlobalKey<NavigatorState>();
+  final _booksNavKey = GlobalKey<NavigatorState>();
+  final _musicNavKey = GlobalKey<NavigatorState>();
+  late final List<Widget Function()> _hubBuilders = [
+    () => NestedNavigator(navigatorKey: _mediaNavKey, child: const MediaHub()),
+    () => NestedNavigator(navigatorKey: _booksNavKey, child: const BooksHub()),
+    () => NestedNavigator(navigatorKey: _musicNavKey, child: const MusicHub()),
   ];
   final List<Widget?> _built = List<Widget?>.filled(3, null);
 
@@ -45,12 +51,29 @@ class _HubPageState extends State<HubPage> {
   // settings list, never resumes on whatever sub-page was showing before.
   int _settingsRebuildKey = 0;
 
-  static Widget _buildMediaHub() => const NestedNavigator(child: MediaHub());
-  static Widget _buildBooksHub() => const NestedNavigator(child: BooksHub());
-  static Widget _buildMusicHub() => const NestedNavigator(child: MusicHub());
+  AppHub? _lastHub;
+  String? _lastSectionId;
 
   void _setHub(AppHub hub) {
     HubController.instance.setHub(hub);
+  }
+
+  // A pushed detail page (movie/album/book/etc.) lives inside its hub's own
+  // NestedNavigator, on top of the section content. Tapping a different hub
+  // or section pill already updates HubController fine, but without this the
+  // pushed page just keeps covering the screen since nothing pops it -- pills
+  // and the bottom bar would look like they'd stopped working. Pop every hub
+  // back to its root route whenever the active hub or section actually
+  // changes, so the pill/bar tap is always visible.
+  void _onHubControllerChanged() {
+    final hub = HubController.instance.currentHub;
+    final sectionId = HubController.instance.currentSectionId;
+    if (hub == _lastHub && sectionId == _lastSectionId) return;
+    _lastHub = hub;
+    _lastSectionId = sectionId;
+    for (final key in [_mediaNavKey, _booksNavKey, _musicNavKey]) {
+      key.currentState?.popUntil((route) => route.isFirst);
+    }
   }
 
   void _closeSettings() {
@@ -68,6 +91,9 @@ class _HubPageState extends State<HubPage> {
   @override
   void initState() {
     super.initState();
+    _lastHub = HubController.instance.currentHub;
+    _lastSectionId = HubController.instance.currentSectionId;
+    HubController.instance.addListener(_onHubControllerChanged);
 
     // Allow child hub pages to navigate back to the primary media hub.
     HubNavigator.registerGoHome(() => _setHub(AppHub.media));
@@ -75,6 +101,7 @@ class _HubPageState extends State<HubPage> {
 
   @override
   void dispose() {
+    HubController.instance.removeListener(_onHubControllerChanged);
     _focusNode.dispose();
     super.dispose();
   }

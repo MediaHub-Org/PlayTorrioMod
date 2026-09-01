@@ -39,6 +39,13 @@ class _CollectionPageState extends State<CollectionPage> {
   /// grid, its filter bar and its empty state one tab over.
   bool _watchlistOnly = false;
 
+  /// Narrows Saved to items already marked Watched -- the "Liked" half of
+  /// Saved's Liked/Watchlist split (2026-09-02). Composes with the type
+  /// chips the same way [_watchlistOnly] does; mutually exclusive with it
+  /// specifically, since a title is Watchlist or Watched, never both (see
+  /// `MyListService.setWatchlist`/`setWatched`).
+  bool _watchedOnly = false;
+
   @override
   void initState() {
     super.initState();
@@ -54,6 +61,7 @@ class _CollectionPageState extends State<CollectionPage> {
   List<MyListItem> _getFilteredAndSortedItems(List<MyListItem> allItems) {
     var filtered = allItems.where((item) {
       if (_watchlistOnly && !item.isWatchlist) return false;
+      if (_watchedOnly && !item.isWatched) return false;
       if (_filterType == 'movie' && item.type != 'movie') return false;
       if (_filterType == 'series' && item.type != 'series' && item.type != 'anime') return false;
       if (_filterType == 'anime' && item.type != 'anime') return false;
@@ -182,17 +190,23 @@ class _CollectionPageState extends State<CollectionPage> {
                   ? LibraryEmptyState(
                       icon: _watchlistOnly
                           ? Icons.bookmark_border_rounded
-                          : Icons.video_library_rounded,
+                          : (_watchedOnly
+                              ? Icons.check_circle_outline_rounded
+                              : Icons.video_library_rounded),
                       title: allItems.isEmpty
                           ? 'Nothing saved yet'
                           : (_watchlistOnly
                               ? 'Nothing on your watchlist'
-                              : 'No matching items'),
+                              : (_watchedOnly
+                                  ? 'Nothing marked Watched'
+                                  : 'No matching items')),
                       subtitle: allItems.isEmpty
                           ? 'Add movies, series or anime to access them quickly.'
                           : (_watchlistOnly
                               ? 'Bookmark something to watch later and it lands here.'
-                              : 'Try adjusting your search or filters.'),
+                              : (_watchedOnly
+                                  ? 'Mark something Watched and it lands here.'
+                                  : 'Try adjusting your search or filters.')),
                     )
                   : _buildGrid(items),
             ),
@@ -468,9 +482,26 @@ class _CollectionPageState extends State<CollectionPage> {
               const SizedBox(width: 6),
               _buildChoiceChip('Anime', 'anime'),
               const SizedBox(width: 12),
-              _WatchlistChip(
+              _StatusChip(
+                label: 'Liked',
+                icon: Icons.check_circle_rounded,
+                outlineIcon: Icons.check_circle_outline_rounded,
+                selected: _watchedOnly,
+                onTap: () => setState(() {
+                  _watchedOnly = !_watchedOnly;
+                  if (_watchedOnly) _watchlistOnly = false;
+                }),
+              ),
+              const SizedBox(width: 6),
+              _StatusChip(
+                label: 'Watchlist',
+                icon: Icons.bookmark_rounded,
+                outlineIcon: Icons.bookmark_border_rounded,
                 selected: _watchlistOnly,
-                onTap: () => setState(() => _watchlistOnly = !_watchlistOnly),
+                onTap: () => setState(() {
+                  _watchlistOnly = !_watchlistOnly;
+                  if (_watchlistOnly) _watchedOnly = false;
+                }),
               ),
               const Spacer(),
               PopupMenuButton<String>(
@@ -602,21 +633,33 @@ class _CollectionPageState extends State<CollectionPage> {
 
 }
 
-/// The "watch later" toggle beside the type chips.
+/// A Liked/Watchlist status toggle beside the type chips (Saved's
+/// Liked/Watchlist split, 2026-09-02).
 ///
 /// Distinct from the type chips because it composes with them -- "Series I
-/// bookmarked" is a real filter, and it would not be expressible if watchlist
-/// were just a fifth mutually-exclusive chip.
-class _WatchlistChip extends StatelessWidget {
+/// bookmarked" is a real filter, and it would not be expressible if status
+/// were just a fifth mutually-exclusive chip. The two `_StatusChip`s
+/// themselves are mutually exclusive with each other, though: a title is
+/// Watchlist or Watched, never both.
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final IconData outlineIcon;
   final bool selected;
   final VoidCallback onTap;
 
-  const _WatchlistChip({required this.selected, required this.onTap});
+  const _StatusChip({
+    required this.label,
+    required this.icon,
+    required this.outlineIcon,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Tooltip(
-      message: selected ? 'Showing watchlist only' : 'Watchlist only',
+      message: selected ? 'Showing $label only' : '$label only',
       child: GestureDetector(
         onTap: onTap,
         child: Container(
@@ -634,15 +677,13 @@ class _WatchlistChip extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                selected
-                    ? Icons.bookmark_rounded
-                    : Icons.bookmark_border_rounded,
+                selected ? icon : outlineIcon,
                 size: 14,
                 color: selected ? Colors.white : Colors.white60,
               ),
               const SizedBox(width: 4),
               Text(
-                'Watchlist',
+                label,
                 style: TextStyle(
                   fontSize: 11.5,
                   fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
