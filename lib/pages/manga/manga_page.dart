@@ -29,30 +29,35 @@ class _MangaPageState extends State<MangaPage> {
   static List<Map<String, dynamic>>? _cachedReadingHistory;
   static int _cachedCurrentPage = 1;
   static String _cachedSearchQuery = '';
+  static String _cachedSelectedGenre = 'All';
   static double _cachedScrollOffset = 0.0;
 
   final MangaService _mangaService = MangaService();
   late final ScrollController _scrollController;
   final TextEditingController _searchController = TextEditingController();
-  
+
   List<Manga> _mangaList = [];
   List<Map<String, dynamic>> _readingHistory = [];
-  
+
   bool _isLoading = false;
   bool _isLoadingMore = false;
   String? _errorMessage;
   int _currentPage = 1;
   String _searchQuery = '';
-  
+  String _selectedGenre = 'All';
+
   // Track grid layout dimensions
   late double _screenWidth;
 
   @override
   void initState() {
     super.initState();
-    _scrollController = ScrollController(initialScrollOffset: _cachedScrollOffset);
+    _scrollController = ScrollController(
+      initialScrollOffset: _cachedScrollOffset,
+    );
     _searchController.text = _cachedSearchQuery;
-    
+    _selectedGenre = _cachedSelectedGenre;
+
     MangaSettings.changeNotifier.addListener(_onSettingsChanged);
     AppThemeService.currentPalette.addListener(_onSettingsChanged);
 
@@ -61,6 +66,7 @@ class _MangaPageState extends State<MangaPage> {
       _readingHistory = _cachedReadingHistory!;
       _currentPage = _cachedCurrentPage;
       _searchQuery = _cachedSearchQuery;
+      _selectedGenre = _cachedSelectedGenre;
       // Refresh reading history in background silently
       _mangaService.getReadingHistory().then((history) {
         if (mounted) {
@@ -74,7 +80,7 @@ class _MangaPageState extends State<MangaPage> {
       _isLoading = true;
       _loadInitialData();
     }
-    
+
     MangaService.readingHistoryRevision.addListener(_loadHistory);
     _scrollController.addListener(_onScroll);
   }
@@ -99,9 +105,10 @@ class _MangaPageState extends State<MangaPage> {
       _cachedScrollOffset = _scrollController.offset;
     }
     if (_isLoading || _isLoadingMore) return;
-    
+
     // If we're within 800 pixels of the bottom, load more
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 800) {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 800) {
       _loadMore();
     }
   }
@@ -126,7 +133,10 @@ class _MangaPageState extends State<MangaPage> {
     try {
       final results = await Future.wait([
         _searchQuery.isEmpty
-            ? _mangaService.getManga(page: _currentPage)
+            ? _mangaService.getManga(
+                page: _currentPage,
+                tag: _selectedGenre == 'All' ? null : _selectedGenre,
+              )
             : _mangaService.searchManga(_searchQuery, page: _currentPage),
         _mangaService.getReadingHistory(),
       ]);
@@ -141,6 +151,7 @@ class _MangaPageState extends State<MangaPage> {
           _cachedReadingHistory = _readingHistory;
           _cachedCurrentPage = _currentPage;
           _cachedSearchQuery = _searchQuery;
+          _cachedSelectedGenre = _selectedGenre;
         });
       }
     } catch (e) {
@@ -159,7 +170,10 @@ class _MangaPageState extends State<MangaPage> {
     _currentPage++;
     try {
       final newManga = _searchQuery.isEmpty
-          ? await _mangaService.getManga(page: _currentPage)
+          ? await _mangaService.getManga(
+              page: _currentPage,
+              tag: _selectedGenre == 'All' ? null : _selectedGenre,
+            )
           : await _mangaService.searchManga(_searchQuery, page: _currentPage);
 
       if (mounted) {
@@ -179,21 +193,36 @@ class _MangaPageState extends State<MangaPage> {
     }
   }
 
+  void _onGenreSelected(String genre) {
+    if (_selectedGenre == genre && _searchQuery.isEmpty) return;
+    setState(() {
+      _selectedGenre = genre;
+      _cachedSelectedGenre = genre;
+      _searchQuery = '';
+      _searchController.clear();
+      _cachedSearchQuery = '';
+    });
+    _loadInitialData();
+  }
+
   void _resumeReading(Map<String, dynamic> historyEntry) {
     final mangaJson = historyEntry['manga'];
     final manga = Manga.fromJson(mangaJson);
     final chapterIndex = historyEntry['chapterIndex'] as int;
     final pageIndex = historyEntry['pageIndex'] as int;
-    final chaptersList = (historyEntry['chapters'] as List).map((c) => MangaChapter.fromJson(c)).toList();
+    final chaptersList = (historyEntry['chapters'] as List)
+        .map((c) => MangaChapter.fromJson(c))
+        .toList();
 
     Navigator.of(context).push(
       PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => MangaReaderPage(
-          manga: manga,
-          chapters: chaptersList,
-          currentChapterIndex: chapterIndex,
-          resumePageIndex: pageIndex,
-        ),
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            MangaReaderPage(
+              manga: manga,
+              chapters: chaptersList,
+              currentChapterIndex: chapterIndex,
+              resumePageIndex: pageIndex,
+            ),
         transitionsBuilder: (context, animation, secondaryAnimation, child) {
           return FadeTransition(opacity: animation, child: child);
         },
@@ -223,7 +252,11 @@ class _MangaPageState extends State<MangaPage> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.tune_rounded, color: palette.primaryColor, size: 20),
+                      Icon(
+                        Icons.tune_rounded,
+                        color: palette.primaryColor,
+                        size: 20,
+                      ),
                       const SizedBox(width: 10),
                       const Text(
                         'Customize Manga Section',
@@ -235,7 +268,11 @@ class _MangaPageState extends State<MangaPage> {
                       ),
                       const Spacer(),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white54,
+                          size: 20,
+                        ),
                         onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -246,7 +283,11 @@ class _MangaPageState extends State<MangaPage> {
 
                   const Text(
                     'Poster Card Density',
-                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   ValueListenableBuilder<MangaCardDensity>(
@@ -260,11 +301,17 @@ class _MangaPageState extends State<MangaPage> {
                           return ChoiceChip(
                             label: Text(d.label),
                             selected: isSelected,
-                            selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                            selectedColor: palette.primaryColor.withValues(
+                              alpha: 0.25,
+                            ),
                             backgroundColor: const Color(0xFF0D1017),
                             labelStyle: TextStyle(
-                              color: isSelected ? palette.primaryColor : Colors.white70,
-                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                              color: isSelected
+                                  ? palette.primaryColor
+                                  : Colors.white70,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w500,
                               fontSize: 12,
                             ),
                             side: BorderSide(
@@ -288,10 +335,14 @@ class _MangaPageState extends State<MangaPage> {
                     builder: (context, enabled, _) {
                       return SwitchListTile.adaptive(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Moving Ambient Background Glow', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        title: const Text(
+                          'Moving Ambient Background Glow',
+                          style: TextStyle(color: Colors.white, fontSize: 13.5),
+                        ),
                         value: enabled,
                         activeColor: palette.primaryColor,
-                        onChanged: (val) => MangaSettings.setEnableAmbientLights(val),
+                        onChanged: (val) =>
+                            MangaSettings.setEnableAmbientLights(val),
                       );
                     },
                   ),
@@ -301,10 +352,14 @@ class _MangaPageState extends State<MangaPage> {
                     builder: (context, show, _) {
                       return SwitchListTile.adaptive(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Show "Continue Reading" Slider', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        title: const Text(
+                          'Show "Continue Reading" Slider',
+                          style: TextStyle(color: Colors.white, fontSize: 13.5),
+                        ),
                         value: show,
                         activeColor: palette.primaryColor,
-                        onChanged: (val) => MangaSettings.setShowContinueReading(val),
+                        onChanged: (val) =>
+                            MangaSettings.setShowContinueReading(val),
                       );
                     },
                   ),
@@ -314,10 +369,14 @@ class _MangaPageState extends State<MangaPage> {
                     builder: (context, show, _) {
                       return SwitchListTile.adaptive(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Show Content Type Badge on Posters', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        title: const Text(
+                          'Show Content Type Badge on Posters',
+                          style: TextStyle(color: Colors.white, fontSize: 13.5),
+                        ),
                         value: show,
                         activeColor: palette.primaryColor,
-                        onChanged: (val) => MangaSettings.setShowContentTypeBadge(val),
+                        onChanged: (val) =>
+                            MangaSettings.setShowContentTypeBadge(val),
                       );
                     },
                   ),
@@ -330,19 +389,33 @@ class _MangaPageState extends State<MangaPage> {
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: palette.primaryColor.withValues(alpha: 0.15),
+                        backgroundColor: palette.primaryColor.withValues(
+                          alpha: 0.15,
+                        ),
                         foregroundColor: palette.primaryColor,
-                        side: BorderSide(color: palette.primaryColor.withValues(alpha: 0.4)),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        side: BorderSide(
+                          color: palette.primaryColor.withValues(alpha: 0.4),
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       icon: const Icon(Icons.settings_rounded, size: 18),
-                      label: const Text('More Appearance & Reader Settings', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                      label: const Text(
+                        'More Appearance & Reader Settings',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
                       onPressed: () {
                         Navigator.pop(ctx);
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const MangaSettingsPage()),
+                          MaterialPageRoute(
+                            builder: (_) => const MangaSettingsPage(),
+                          ),
                         );
                       },
                     ),
@@ -387,6 +460,7 @@ class _MangaPageState extends State<MangaPage> {
     // Guard against being laid out offstage with a zero width (e.g. inside an
     // IndexedStack before it is shown). A SliverGrid asserts
     // `crossAxisExtent > 0`, so showing the empty state avoids a crash.
+    final palette = AppThemeService.currentPalette.value;
     final density = MangaSettings.cardDensity.value;
     final sizing = _screenWidth > 0
         ? MangaCardSizing.fromWidth(_screenWidth, density: density)
@@ -401,9 +475,11 @@ class _MangaPageState extends State<MangaPage> {
         const SliverToBoxAdapter(
           child: SizedBox(height: 100), // Spacer for top bar
         ),
-        
+
         // ── Continue Reading ──
-        if (showContinue && _readingHistory.isNotEmpty && _searchQuery.isEmpty) ...[
+        if (showContinue &&
+            _readingHistory.isNotEmpty &&
+            _searchQuery.isEmpty) ...[
           SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.symmetric(
@@ -429,9 +505,7 @@ class _MangaPageState extends State<MangaPage> {
               isMobile: isMobile,
             ),
           ),
-          SliverToBoxAdapter(
-            child: SizedBox(height: isMobile ? 24 : 40),
-          ),
+          SliverToBoxAdapter(child: SizedBox(height: isMobile ? 24 : 40)),
         ],
 
         // ── Discovery / Search Results ──
@@ -445,7 +519,11 @@ class _MangaPageState extends State<MangaPage> {
               children: [
                 Expanded(
                   child: Text(
-                    _searchQuery.isNotEmpty ? 'Search Results' : 'Discover Manga',
+                    _searchQuery.isNotEmpty
+                        ? 'Search Results'
+                        : (_selectedGenre == 'All'
+                              ? 'Discover Manga'
+                              : '$_selectedGenre Manga'),
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: isMobile ? 22 : 28,
@@ -464,7 +542,81 @@ class _MangaPageState extends State<MangaPage> {
             ),
           ),
         ),
-        
+
+        // ── Genre Filter Bar (Horizontal scrollable pills) ──
+        if (_searchQuery.isEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: isMobile ? 16.0 : 32.0,
+                right: isMobile ? 16.0 : 32.0,
+                bottom: 16.0,
+              ),
+              child: SizedBox(
+                height: 38,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: MangaService.popularGenres.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final genre = MangaService.popularGenres[index];
+                    final isSelected = genre == _selectedGenre;
+                    return InkWell(
+                      onTap: () => _onGenreSelected(genre),
+                      borderRadius: BorderRadius.circular(20),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? palette.primaryColor.withValues(alpha: 0.22)
+                              : Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isSelected
+                                ? palette.primaryColor.withValues(alpha: 0.7)
+                                : Colors.white.withValues(alpha: 0.08),
+                            width: isSelected ? 1.5 : 1.0,
+                          ),
+                          boxShadow: isSelected
+                              ? [
+                                  BoxShadow(
+                                    color: palette.primaryColor.withValues(
+                                      alpha: 0.25,
+                                    ),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
+                        ),
+                        child: Center(
+                          child: Text(
+                            genre,
+                            style: TextStyle(
+                              color: isSelected
+                                  ? Colors.white
+                                  : Colors.white.withValues(alpha: 0.7),
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w500,
+                              fontSize: 13,
+                              letterSpacing: -0.1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+
         if (_isLoading && _mangaList.isEmpty)
           const SliverFillRemaining(
             hasScrollBody: false,
@@ -493,7 +645,10 @@ class _MangaPageState extends State<MangaPage> {
           )
         else
           SliverPadding(
-            padding: EdgeInsets.symmetric(horizontal: sizing.sidePadding, vertical: 8.0),
+            padding: EdgeInsets.symmetric(
+              horizontal: sizing.sidePadding,
+              vertical: 8.0,
+            ),
             sliver: SliverGrid(
               gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                 maxCrossAxisExtent: sizing.cardWidth + sizing.spacing * 2,
@@ -501,30 +656,28 @@ class _MangaPageState extends State<MangaPage> {
                 crossAxisSpacing: sizing.spacing,
                 mainAxisExtent: sizing.totalHeight,
               ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  return MangaCard(manga: _mangaList[index]);
-                },
-                childCount: _mangaList.length,
-              ),
+              delegate: SliverChildBuilderDelegate((context, index) {
+                return MangaCard(manga: _mangaList[index]);
+              }, childCount: _mangaList.length),
             ),
           ),
-          
+
         if (_isLoadingMore)
           const SliverToBoxAdapter(
             child: Padding(
               padding: EdgeInsets.all(32.0),
-              child: Center(child: CircularProgressIndicator(color: Colors.white)),
+              child: Center(
+                child: CircularProgressIndicator(color: Colors.white),
+              ),
             ),
           ),
-        
+
         const SliverToBoxAdapter(
           child: SizedBox(height: 100), // Bottom padding
         ),
       ],
     );
   }
-
 }
 
 class _ContinueReadingSlider extends StatefulWidget {
@@ -570,7 +723,8 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
   void _updateScrollButtons() {
     if (!_scrollController.hasClients) return;
     final canLeft = _scrollController.position.pixels > 10;
-    final canRight = _scrollController.position.pixels <
+    final canRight =
+        _scrollController.position.pixels <
         _scrollController.position.maxScrollExtent - 10;
     if (canLeft != _canScrollLeft || canRight != _canScrollRight) {
       setState(() {
@@ -663,11 +817,14 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
     final palette = AppThemeService.currentPalette.value;
     final mangaJson = entry['manga'];
     final title = mangaJson['title'] ?? 'Unknown';
-    final coverUrl = mangaJson['cover_normal'] ?? mangaJson['cover_small'] ?? '';
+    final coverUrl =
+        mangaJson['cover_normal'] ?? mangaJson['cover_small'] ?? '';
     final chapterIndex = entry['chapterIndex'] as int;
     final chaptersList = entry['chapters'] as List;
-    final chapterTitle = chaptersList.isNotEmpty && chapterIndex < chaptersList.length
-        ? chaptersList[chapterIndex]['name'] ?? 'Chapter ${chaptersList[chapterIndex]['number']}'
+    final chapterTitle =
+        chaptersList.isNotEmpty && chapterIndex < chaptersList.length
+        ? chaptersList[chapterIndex]['name'] ??
+              'Chapter ${chaptersList[chapterIndex]['number']}'
         : 'Resume';
 
     return GestureDetector(
@@ -675,7 +832,9 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
         child: Container(
-          width: widget.isMobile ? math.min(320.0, widget.screenWidth * 0.82) : 380,
+          width: widget.isMobile
+              ? math.min(320.0, widget.screenWidth * 0.82)
+              : 380,
           margin: const EdgeInsets.symmetric(horizontal: 8.0),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(24),
@@ -705,10 +864,7 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
                     gradient: LinearGradient(
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.transparent,
-                        Color(0xCC000000),
-                      ],
+                      colors: [Colors.transparent, Color(0xCC000000)],
                     ),
                   ),
                 ),
@@ -725,7 +881,9 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
                         padding: const EdgeInsets.all(12.0),
                         decoration: BoxDecoration(
                           color: Colors.white.withValues(alpha: 0.1),
-                          border: Border.all(color: Colors.white.withValues(alpha: 0.2)),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.2),
+                          ),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Column(
@@ -745,7 +903,11 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
                             const SizedBox(height: 4),
                             Row(
                               children: [
-                                Icon(Icons.menu_book_rounded, color: palette.primaryColor, size: 16),
+                                Icon(
+                                  Icons.menu_book_rounded,
+                                  color: palette.primaryColor,
+                                  size: 16,
+                                ),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -753,7 +915,9 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
                                     style: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.8),
+                                      color: Colors.white.withValues(
+                                        alpha: 0.8,
+                                      ),
                                       fontSize: 14,
                                     ),
                                   ),
@@ -782,7 +946,11 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
                         ),
                       ],
                     ),
-                    child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 24),
+                    child: const Icon(
+                      Icons.play_arrow_rounded,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
                 ),
               ],

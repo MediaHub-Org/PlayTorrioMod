@@ -11,6 +11,7 @@ import '../../services/trakt/trakt_service.dart';
 import '../../services/simkl/simkl_service.dart';
 
 import 'appearance_settings_page.dart';
+import 'video_settings_page.dart';
 import 'debrid_settings_page.dart';
 import 'addons_settings_page.dart';
 import 'general_settings_page.dart';
@@ -18,6 +19,7 @@ import 'trakt_settings_page.dart';
 import 'simkl_settings_page.dart';
 import 'updates_settings_page.dart';
 import 'about_settings_page.dart';
+import '../../services/player/player_settings.dart';
 import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
 import '../../services/discord/discord_rpc_service.dart';
@@ -445,6 +447,29 @@ class _SettingsPageState extends State<SettingsPage> {
                 },
               ),
 
+              const SizedBox(height: 12),
+
+              // 2. Video & Anime4K Upscaling
+              ValueListenableBuilder<Anime4KPreset>(
+                valueListenable: PlayerSettings.anime4kPreset,
+                builder: (context, anime4kPreset, _) {
+                  return _SettingsCategoryTile(
+                    icon: Icons.auto_awesome_rounded,
+                    iconColor: const Color(0xFF7C5CFF),
+                    title: 'Video & Upscaling',
+                    subtitle: 'Anime4K neural GLSL shader presets and GPU pipeline',
+                    badgeText: anime4kPreset == Anime4KPreset.off
+                        ? 'Off'
+                        : anime4kPreset.label.split('(').first.trim(),
+                    badgeColor: anime4kPreset == Anime4KPreset.off
+                        ? Colors.white38
+                        : const Color(0xFF7C5CFF),
+                    onTap: () => _navigateTo(const VideoSettingsPage()),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12),
 
               // 3. Debrid & Cloud Streaming
               _SettingsCategoryTile(

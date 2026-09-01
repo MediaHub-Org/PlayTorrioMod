@@ -83,6 +83,34 @@ class MangaService {
     }
   }
 
+  /// Curated source genres supported by WeebCentral
+  static const List<String> popularGenres = [
+    'All',
+    'Action',
+    'Adventure',
+    'Comedy',
+    'Drama',
+    'Ecchi',
+    'Fantasy',
+    'Harem',
+    'Historical',
+    'Horror',
+    'Isekai',
+    'Martial Arts',
+    'Mature',
+    'Mystery',
+    'Psychological',
+    'Romance',
+    'School Life',
+    'Sci-fi',
+    'Seinen',
+    'Shounen',
+    'Slice of Life',
+    'Sports',
+    'Supernatural',
+    'Tragedy',
+  ];
+
   List<Manga> _parseSearchResults(String html) {
     final doc = html_parser.parse(html);
     final articles = doc.querySelectorAll('article');
@@ -133,12 +161,60 @@ class MangaService {
         }
       }
 
+      // 4. Parse actual metadata (tags/genres, year, status, author) from article
+      String year = '';
+      String status = '';
+      String author = '';
+      List<String> tags = [];
+
+      for (final div in article.querySelectorAll('div, li')) {
+        final strong = div.querySelector('strong, b, span.font-bold, span.font-semibold');
+        if (strong == null) continue;
+        final label = strong.text.trim().toLowerCase();
+
+        if (label.contains('tag') || label.contains('genre')) {
+          final spans = div.querySelectorAll('span');
+          final extracted = <String>[];
+          for (final sp in spans) {
+            final text = sp.text.replaceAll(',', '').trim();
+            if (text.isNotEmpty && !text.toLowerCase().contains('tag') && !text.toLowerCase().contains('genre')) {
+              extracted.add(text);
+            }
+          }
+          if (extracted.isNotEmpty) {
+            tags = extracted;
+          }
+        } else if (label.contains('year') || label.contains('date')) {
+          final span = div.querySelector('span');
+          if (span != null) {
+            year = span.text.trim();
+          }
+        } else if (label.contains('status')) {
+          final span = div.querySelector('span');
+          if (span != null) {
+            status = span.text.trim();
+          }
+        } else if (label.contains('author')) {
+          final links = div.querySelectorAll('a');
+          if (links.isNotEmpty) {
+            author = links.map((a) => a.text.trim()).where((t) => t.isNotEmpty).join(', ');
+          } else {
+            final span = div.querySelector('span');
+            if (span != null) author = span.text.trim();
+          }
+        }
+      }
+
       results.add(Manga(
         id: seriesId,
         title: title,
         coverSmall: '$_coverCdn/small/$seriesId.webp',
         coverNormal: '$_coverCdn/normal/$seriesId.webp',
         type: type,
+        status: status,
+        year: year,
+        author: author,
+        tags: tags,
         url: href,
       ));
     }
@@ -236,6 +312,17 @@ class MangaService {
       }
     }
 
+    List<String> tags = [];
+    for (final entry in details.entries) {
+      final k = entry.key.toLowerCase();
+      if (k.contains('tag') || k.contains('genre')) {
+        tags.addAll(entry.value);
+      }
+    }
+    if (tags.isEmpty) {
+      tags = details['Tag'] ?? details['Tags'] ?? details['Genres'] ?? [];
+    }
+
     return Manga(
       id: seriesId,
       title: title,
@@ -245,7 +332,7 @@ class MangaService {
       status: (details['Status']?.isNotEmpty ?? false) ? details['Status']!.first : '',
       year: year,
       author: (details['Author'] ?? details['Author(s)'] ?? []).join(', '),
-      tags: details['Tag'] ?? details['Tags'] ?? details['Genres'] ?? [],
+      tags: tags,
       synopsis: synopsis,
       url: '/series/$seriesId',
     );

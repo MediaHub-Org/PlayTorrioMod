@@ -9,11 +9,26 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Available decoder preset types tailored for each platform.
 enum DecoderPreset {
-  hardwareAuto('Hardware Accelerated (Auto)', 'Fastest performance, GPU hardware decoded with automatic software fallback.'),
-  hardwareSafe('Hardware Safe Copy', 'GPU decoded with surface copy to fix frame tearing/glitches on certain chipsets.'),
-  softwareSafe('Software Safe (Perfect A/V Sync)', 'CPU decoded via FFmpeg/dav1d. Recommended on slow internet & Android to eliminate buffer desync.'),
-  nvidiaCuda('NVIDIA CUDA / NVDEC', 'Dedicated NVIDIA hardware acceleration for Windows & Linux.'),
-  custom('Custom Decoder Chain', 'User-defined prioritized decoder fallback list.');
+  hardwareAuto(
+    'Hardware Accelerated (Auto)',
+    'Fastest performance, GPU hardware decoded with automatic software fallback.',
+  ),
+  hardwareSafe(
+    'Hardware Safe Copy',
+    'GPU decoded with surface copy to fix frame tearing/glitches on certain chipsets.',
+  ),
+  softwareSafe(
+    'Software Safe (Perfect A/V Sync)',
+    'CPU decoded via FFmpeg/dav1d. Recommended on slow internet & Android to eliminate buffer desync.',
+  ),
+  nvidiaCuda(
+    'NVIDIA CUDA / NVDEC',
+    'Dedicated NVIDIA hardware acceleration for Windows & Linux.',
+  ),
+  custom(
+    'Custom Decoder Chain',
+    'User-defined prioritized decoder fallback list.',
+  );
 
   final String title;
   final String description;
@@ -22,11 +37,46 @@ enum DecoderPreset {
 
 /// Buffer resilience cushion preset for network streams.
 enum BufferResiliencePreset {
-  minimal('Minimal (50MB / 5s)', 'Fast start, for high-speed local streams.', 1000, 50, 52428800, 5),
-  standard('Standard (150MB / 15s)', 'Balanced buffering for general streaming.', 3000, 150, 157286400, 15),
-  highResilience('High Resilience (300MB / 30s)', 'Recommended for Android & Wi-Fi. Pre-buffers cushion to prevent rebuffer stalls & A/V drift.', 6000, 300, 314572800, 30),
-  maximum('Maximum (600MB / 60s)', 'Extra large buffer for torrent streaming & congested connections.', 12000, 600, 629145600, 60),
-  custom('Custom Buffer', 'Custom duration and byte capacity.', 6000, 300, 314572800, 30);
+  minimal(
+    'Minimal (50MB / 5s)',
+    'Fast start, for high-speed local streams.',
+    1000,
+    50,
+    52428800,
+    5,
+  ),
+  standard(
+    'Standard (150MB / 15s)',
+    'Balanced buffering for general streaming.',
+    3000,
+    150,
+    157286400,
+    15,
+  ),
+  highResilience(
+    'High Resilience (300MB / 30s)',
+    'Recommended for Android & Wi-Fi. Pre-buffers cushion to prevent rebuffer stalls & A/V drift.',
+    6000,
+    300,
+    314572800,
+    30,
+  ),
+  maximum(
+    'Maximum (600MB / 60s)',
+    'Extra large buffer for torrent streaming & congested connections.',
+    12000,
+    600,
+    629145600,
+    60,
+  ),
+  custom(
+    'Custom Buffer',
+    'Custom duration and byte capacity.',
+    6000,
+    300,
+    314572800,
+    30,
+  );
 
   final String label;
   final String subtitle;
@@ -34,19 +84,114 @@ enum BufferResiliencePreset {
   final int packetCount;
   final int maxBytes;
   final int cacheSecs;
-  const BufferResiliencePreset(this.label, this.subtitle, this.durationMs, this.packetCount, this.maxBytes, this.cacheSecs);
+  const BufferResiliencePreset(
+    this.label,
+    this.subtitle,
+    this.durationMs,
+    this.packetCount,
+    this.maxBytes,
+    this.cacheSecs,
+  );
 }
 
 /// Subtitle styling preset for rapid 1-tap appearance selection.
 enum SubtitleStylePreset {
-  classicWhite('Classic White', 'Crisp white text with black outline', '#FFFFFFFF', '#00000000', '#FF000000', 2.0, 0.0, '#00000000', false, false),
-  cinemaYellow('Cinema Yellow', 'Warm yellow text with subtle shadow and border', '#FFFFEB3B', '#00000000', '#FF000000', 2.5, 1.5, '#80000000', false, false),
-  streamingBox('Streaming Box', 'White text inside a 50% translucent black box', '#FFFFFFFF', '#80000000', '#00000000', 0.0, 0.0, '#00000000', false, false),
-  highContrast('High Contrast', 'Bold yellow text with solid opaque black box', '#FFFFD600', '#FF000000', '#FF000000', 0.0, 0.0, '#00000000', true, false),
-  animeClean('Anime Clean', 'Bold white text with deep outline & shadow', '#FFFFFFFF', '#00000000', '#FF000000', 3.5, 2.0, '#BF000000', true, false),
-  cyberpunkCyan('Cyberpunk Cyan', 'Vibrant cyan text with dark border', '#00E5FF', '#00000000', '#FF0D111A', 2.5, 1.0, '#6600E5FF', false, false),
-  nightModeSoft('Night Mode Warm', 'Soft cream text with 40% translucent background', '#FFF8E1', '#66000000', '#00000000', 0.0, 0.0, '#00000000', false, false),
-  custom('Custom', 'User configured custom subtitle styles', '#FFFFFFFF', '#00000000', '#FF000000', 2.0, 0.0, '#00000000', false, false);
+  classicWhite(
+    'Classic White',
+    'Crisp white text with black outline',
+    '#FFFFFFFF',
+    '#00000000',
+    '#FF000000',
+    2.0,
+    0.0,
+    '#00000000',
+    false,
+    false,
+  ),
+  cinemaYellow(
+    'Cinema Yellow',
+    'Warm yellow text with subtle shadow and border',
+    '#FFFFEB3B',
+    '#00000000',
+    '#FF000000',
+    2.5,
+    1.5,
+    '#80000000',
+    false,
+    false,
+  ),
+  streamingBox(
+    'Streaming Box',
+    'White text inside a 50% translucent black box',
+    '#FFFFFFFF',
+    '#80000000',
+    '#00000000',
+    0.0,
+    0.0,
+    '#00000000',
+    false,
+    false,
+  ),
+  highContrast(
+    'High Contrast',
+    'Bold yellow text with solid opaque black box',
+    '#FFFFD600',
+    '#FF000000',
+    '#FF000000',
+    0.0,
+    0.0,
+    '#00000000',
+    true,
+    false,
+  ),
+  animeClean(
+    'Anime Clean',
+    'Bold white text with deep outline & shadow',
+    '#FFFFFFFF',
+    '#00000000',
+    '#FF000000',
+    3.5,
+    2.0,
+    '#BF000000',
+    true,
+    false,
+  ),
+  cyberpunkCyan(
+    'Cyberpunk Cyan',
+    'Vibrant cyan text with dark border',
+    '#00E5FF',
+    '#00000000',
+    '#FF0D111A',
+    2.5,
+    1.0,
+    '#6600E5FF',
+    false,
+    false,
+  ),
+  nightModeSoft(
+    'Night Mode Warm',
+    'Soft cream text with 40% translucent background',
+    '#FFF8E1',
+    '#66000000',
+    '#00000000',
+    0.0,
+    0.0,
+    '#00000000',
+    false,
+    false,
+  ),
+  custom(
+    'Custom',
+    'User configured custom subtitle styles',
+    '#FFFFFFFF',
+    '#00000000',
+    '#FF000000',
+    2.0,
+    0.0,
+    '#00000000',
+    false,
+    false,
+  );
 
   final String label;
   final String description;
@@ -73,8 +218,67 @@ enum SubtitleStylePreset {
   );
 }
 
+/// Anime4K GLSL shader upscaling presets for libmpv / media_kit.
+enum Anime4KPreset {
+  off('Off', 'Standard video playback without neural upscaling shaders', []),
+  modeAFast(
+    'Mode A (Fast / Balanced)',
+    'Restores line art and upscales cleanly. Balanced GPU load, ideal for 1080p anime and mobile/integrated GPUs.',
+    [
+      'Anime4K_Clamp_Highlights.glsl',
+      'Anime4K_Restore_CNN_M.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+      'Anime4K_AutoDownscalePre_x2.glsl',
+      'Anime4K_AutoDownscalePre_x4.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+    ],
+  ),
+  modeAHQ(
+    'Mode A (High Quality / HQ)',
+    'Ultra-crisp perceptual line reconstruction and upscale using Very Large CNNs. Best for discrete desktop GPUs.',
+    [
+      'Anime4K_Clamp_Highlights.glsl',
+      'Anime4K_Restore_CNN_VL.glsl',
+      'Anime4K_Upscale_CNN_x2_VL.glsl',
+      'Anime4K_AutoDownscalePre_x2.glsl',
+      'Anime4K_AutoDownscalePre_x4.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+    ],
+  ),
+  modeB(
+    'Mode B (Soft / Denoise)',
+    'Soft line reconstruction and artifact reduction. Best for blurry, compressed, or older anime.',
+    [
+      'Anime4K_Clamp_Highlights.glsl',
+      'Anime4K_Restore_CNN_Soft_M.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+      'Anime4K_AutoDownscalePre_x2.glsl',
+      'Anime4K_AutoDownscalePre_x4.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+    ],
+  ),
+  modeC(
+    'Mode C (Deblur / Upscale)',
+    'Aggressive deblurring and scaling. Best for 720p / 480p low-resolution anime streams.',
+    [
+      'Anime4K_Clamp_Highlights.glsl',
+      'Anime4K_Upscale_Denoise_CNN_x2_M.glsl',
+      'Anime4K_AutoDownscalePre_x2.glsl',
+      'Anime4K_AutoDownscalePre_x4.glsl',
+      'Anime4K_Upscale_CNN_x2_M.glsl',
+    ],
+  );
+
+  final String label;
+  final String description;
+  final List<String> shaderFiles;
+
+  const Anime4KPreset(this.label, this.description, this.shaderFiles);
+}
+
 /// Central service managing video engine properties, decoder fallback chains,
-/// buffer resilience, anti-desync options, and libass subtitle customization using media_kit / libmpv.
+/// buffer resilience, anti-desync options, Anime4K GLSL upscaling, and libass
+/// subtitle customization using media_kit / libmpv.
 abstract final class PlayerSettings {
   static const _keyDecoderPreset = 'player_decoder_preset';
   static const _keyForceSoftwareDecoding = 'player_force_software_decoding';
@@ -93,6 +297,9 @@ abstract final class PlayerSettings {
   static const _keyHardwareAudioClock = 'player_hardware_audio_clock';
   static const _keyAudioDelayDefault = 'player_audio_delay_default';
   static const _keyAutoNextEnabled = 'player_auto_next_enabled';
+
+  // Anime4K Upscaling Key
+  static const _keyAnime4kPreset = 'player_anime4k_preset';
 
   // Subtitle Customization Keys
   static const _keySubStylePreset = 'player_sub_style_preset';
@@ -115,28 +322,45 @@ abstract final class PlayerSettings {
   // ValueNotifiers for reactive UI binding
   static final ValueNotifier<DecoderPreset> decoderPreset =
       ValueNotifier<DecoderPreset>(DecoderPreset.hardwareAuto);
-  static final ValueNotifier<bool> forceSoftwareDecoding =
-      ValueNotifier<bool>(false);
+  static final ValueNotifier<bool> forceSoftwareDecoding = ValueNotifier<bool>(
+    false,
+  );
   static final ValueNotifier<List<String>> customDecoders =
       ValueNotifier<List<String>>(<String>[]);
-  static final ValueNotifier<BufferResiliencePreset> bufferPreset =
-      ValueNotifier<BufferResiliencePreset>(
-        // On Android default to high resilience to combat Wi-Fi drops & sync loss
-        Platform.isAndroid ? BufferResiliencePreset.highResilience : BufferResiliencePreset.standard,
-      );
+  static final ValueNotifier<BufferResiliencePreset>
+  bufferPreset = ValueNotifier<BufferResiliencePreset>(
+    // On Android default to high resilience to combat Wi-Fi drops & sync loss
+    Platform.isAndroid
+        ? BufferResiliencePreset.highResilience
+        : BufferResiliencePreset.standard,
+  );
   static final ValueNotifier<int> customBufferMs = ValueNotifier<int>(6000);
   static final ValueNotifier<int> customBufferCount = ValueNotifier<int>(300);
   static final ValueNotifier<bool> enableFastDecode = ValueNotifier<bool>(true);
-  static final ValueNotifier<String> skipLoopFilter = ValueNotifier<String>('nonkey');
+  static final ValueNotifier<String> skipLoopFilter = ValueNotifier<String>(
+    'nonkey',
+  );
   static final ValueNotifier<int> lavcThreads = ValueNotifier<int>(4);
   static final ValueNotifier<bool> enableDiskCache = ValueNotifier<bool>(true);
-  static final ValueNotifier<bool> enableNetworkReconnect = ValueNotifier<bool>(false);
+  static final ValueNotifier<bool> enableNetworkReconnect = ValueNotifier<bool>(
+    false,
+  );
   static final ValueNotifier<int> reconnectDelayMax = ValueNotifier<int>(5);
-  static final ValueNotifier<bool> autoResyncOnStall = ValueNotifier<bool>(true);
+  static final ValueNotifier<bool> autoResyncOnStall = ValueNotifier<bool>(
+    true,
+  );
   static final ValueNotifier<bool> lowLatency = ValueNotifier<bool>(false);
-  static final ValueNotifier<bool> hardwareAudioClock = ValueNotifier<bool>(true);
-  static final ValueNotifier<double> audioDelayDefault = ValueNotifier<double>(0.0);
+  static final ValueNotifier<bool> hardwareAudioClock = ValueNotifier<bool>(
+    true,
+  );
+  static final ValueNotifier<double> audioDelayDefault = ValueNotifier<double>(
+    0.0,
+  );
   static final ValueNotifier<bool> autoNextEnabled = ValueNotifier<bool>(true);
+
+  // Anime4K Video Upscaling ValueNotifier
+  static final ValueNotifier<Anime4KPreset> anime4kPreset =
+      ValueNotifier<Anime4KPreset>(Anime4KPreset.off);
 
   // Subtitle Customization ValueNotifiers
   static final ValueNotifier<SubtitleStylePreset> subStylePreset =
@@ -144,21 +368,39 @@ abstract final class PlayerSettings {
   static final ValueNotifier<String> subFont = ValueNotifier<String>('subfont');
   static final ValueNotifier<int> subFontSize = ValueNotifier<int>(32);
   static final ValueNotifier<double> subScale = ValueNotifier<double>(1.0);
-  static final ValueNotifier<String> subColor = ValueNotifier<String>('#FFFFFFFF');
-  static final ValueNotifier<String> subBackColor = ValueNotifier<String>('#00000000');
-  static final ValueNotifier<String> subBorderColor = ValueNotifier<String>('#FF000000');
+  static final ValueNotifier<String> subColor = ValueNotifier<String>(
+    '#FFFFFFFF',
+  );
+  static final ValueNotifier<String> subBackColor = ValueNotifier<String>(
+    '#00000000',
+  );
+  static final ValueNotifier<String> subBorderColor = ValueNotifier<String>(
+    '#FF000000',
+  );
   static final ValueNotifier<double> subBorderSize = ValueNotifier<double>(2.0);
-  static final ValueNotifier<double> subShadowOffset = ValueNotifier<double>(0.0);
-  static final ValueNotifier<String> subShadowColor = ValueNotifier<String>('#80000000');
+  static final ValueNotifier<double> subShadowOffset = ValueNotifier<double>(
+    0.0,
+  );
+  static final ValueNotifier<String> subShadowColor = ValueNotifier<String>(
+    '#80000000',
+  );
   static final ValueNotifier<bool> subBold = ValueNotifier<bool>(false);
   static final ValueNotifier<bool> subItalic = ValueNotifier<bool>(false);
   static final ValueNotifier<double> subMarginY = ValueNotifier<double>(30.0);
   static final ValueNotifier<double> subPos = ValueNotifier<double>(100.0);
-  static final ValueNotifier<String> subAlignX = ValueNotifier<String>('center');
-  static final ValueNotifier<String> subAssOverride = ValueNotifier<String>('no');
+  static final ValueNotifier<String> subAlignX = ValueNotifier<String>(
+    'center',
+  );
+  static final ValueNotifier<String> subAssOverride = ValueNotifier<String>(
+    'no',
+  );
   static const String _keyUseLibass = 'player_use_libass';
   static final ValueNotifier<bool> useLibass = ValueNotifier<bool>(false);
   static final ValueNotifier<int> changeNotifier = ValueNotifier<int>(0);
+
+  // Extracted shader paths for Anime4K GLSL engine
+  static String? _extractedAnime4kDir;
+  static String? get extractedAnime4kDir => _extractedAnime4kDir;
 
   // Extracted font paths for libass font fallback
   static String? _extractedFontDir;
@@ -226,15 +468,38 @@ abstract final class PlayerSettings {
       // _getDefaultDecodersForPreset.
       return ['mediacodec-copy', 'auto-safe', 'auto-copy', 'no'];
     } else if (Platform.isWindows) {
-      return ['d3d11va', 'd3d11va-copy', 'nvdec', 'nvdec-copy', 'auto-safe', 'auto-copy', 'no'];
+      return [
+        'd3d11va',
+        'd3d11va-copy',
+        'nvdec',
+        'nvdec-copy',
+        'auto-safe',
+        'auto-copy',
+        'no',
+      ];
     } else if (Platform.isMacOS || Platform.isIOS) {
-      return ['videotoolbox', 'videotoolbox-copy', 'auto-safe', 'auto-copy', 'no'];
+      return [
+        'videotoolbox',
+        'videotoolbox-copy',
+        'auto-safe',
+        'auto-copy',
+        'no',
+      ];
     } else {
-      return ['vaapi', 'vaapi-copy', 'nvdec', 'nvdec-copy', 'auto-safe', 'auto-copy', 'no'];
+      return [
+        'vaapi',
+        'vaapi-copy',
+        'nvdec',
+        'nvdec-copy',
+        'auto-safe',
+        'auto-copy',
+        'no',
+      ];
     }
   }
 
-  /// Initializes preferences from disk and extracts the bundled font for libass.
+  /// Initializes decoder/buffer/engine, Anime4K and subtitle preferences from
+  /// disk, and extracts bundled assets (Anime4K shaders, libass font).
   static Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
 
@@ -248,7 +513,8 @@ abstract final class PlayerSettings {
       decoderPreset.value = DecoderPreset.hardwareAuto;
     }
 
-    forceSoftwareDecoding.value = prefs.getBool(_keyForceSoftwareDecoding) ?? false;
+    forceSoftwareDecoding.value =
+        prefs.getBool(_keyForceSoftwareDecoding) ?? false;
 
     final savedCustom = prefs.getStringList(_keyCustomDecoders);
     if (savedCustom != null && savedCustom.isNotEmpty) {
@@ -273,13 +539,23 @@ abstract final class PlayerSettings {
     skipLoopFilter.value = prefs.getString(_keySkipLoopFilter) ?? 'nonkey';
     lavcThreads.value = prefs.getInt(_keyLavcThreads) ?? 4;
     enableDiskCache.value = prefs.getBool(_keyEnableDiskCache) ?? true;
-    enableNetworkReconnect.value = prefs.getBool(_keyEnableNetworkReconnect) ?? false;
+    enableNetworkReconnect.value =
+        prefs.getBool(_keyEnableNetworkReconnect) ?? false;
     reconnectDelayMax.value = prefs.getInt(_keyReconnectDelayMax) ?? 5;
     autoResyncOnStall.value = prefs.getBool(_keyAutoResyncOnStall) ?? true;
     lowLatency.value = prefs.getBool(_keyLowLatency) ?? false;
     hardwareAudioClock.value = prefs.getBool(_keyHardwareAudioClock) ?? true;
     audioDelayDefault.value = prefs.getDouble(_keyAudioDelayDefault) ?? 0.0;
     autoNextEnabled.value = prefs.getBool(_keyAutoNextEnabled) ?? true;
+
+    // Load Anime4K Upscaling Preference
+    final anime4kPresetStr = prefs.getString(_keyAnime4kPreset);
+    if (anime4kPresetStr != null) {
+      anime4kPreset.value = Anime4KPreset.values.firstWhere(
+        (p) => p.name == anime4kPresetStr,
+        orElse: () => Anime4KPreset.off,
+      );
+    }
 
     // Load Subtitle Customization Preferences
     final subPresetStr = prefs.getString(_keySubStylePreset);
@@ -308,6 +584,94 @@ abstract final class PlayerSettings {
 
     // Extract bundled font for libass fallback
     await _extractLibassFontFallback();
+
+    // Extract bundled Anime4K GLSL shaders for libmpv upscaling pipeline
+    await _extractAnime4kShaders();
+  }
+
+  /// Extracts bundled Anime4K GLSL shaders from assets to persistent disk storage for libmpv glsl-shaders property.
+  static Future<void> _extractAnime4kShaders() async {
+    try {
+      Directory? targetDir;
+      try {
+        targetDir = await getApplicationSupportDirectory();
+      } catch (_) {
+        targetDir = await getTemporaryDirectory();
+      }
+
+      final shadersDir = Directory(
+        p.join(targetDir.path, 'shaders', 'anime4k'),
+      );
+      if (!await shadersDir.exists()) {
+        await shadersDir.create(recursive: true);
+      }
+
+      final shaderFiles = [
+        'Anime4K_AutoDownscalePre_x2.glsl',
+        'Anime4K_AutoDownscalePre_x4.glsl',
+        'Anime4K_Clamp_Highlights.glsl',
+        'Anime4K_Darken_Fast.glsl',
+        'Anime4K_Darken_HQ.glsl',
+        'Anime4K_Darken_VeryFast.glsl',
+        'Anime4K_Deblur_DoG.glsl',
+        'Anime4K_Deblur_Original.glsl',
+        'Anime4K_Denoise_Bilateral_Mean.glsl',
+        'Anime4K_Denoise_Bilateral_Median.glsl',
+        'Anime4K_Denoise_Bilateral_Mode.glsl',
+        'Anime4K_Restore_CNN_L.glsl',
+        'Anime4K_Restore_CNN_M.glsl',
+        'Anime4K_Restore_CNN_S.glsl',
+        'Anime4K_Restore_CNN_Soft_L.glsl',
+        'Anime4K_Restore_CNN_Soft_M.glsl',
+        'Anime4K_Restore_CNN_Soft_S.glsl',
+        'Anime4K_Restore_CNN_Soft_UL.glsl',
+        'Anime4K_Restore_CNN_Soft_VL.glsl',
+        'Anime4K_Restore_CNN_UL.glsl',
+        'Anime4K_Restore_CNN_VL.glsl',
+        'Anime4K_Thin_Fast.glsl',
+        'Anime4K_Thin_HQ.glsl',
+        'Anime4K_Thin_VeryFast.glsl',
+        'Anime4K_Upscale_CNN_x2_L.glsl',
+        'Anime4K_Upscale_CNN_x2_M.glsl',
+        'Anime4K_Upscale_CNN_x2_S.glsl',
+        'Anime4K_Upscale_CNN_x2_UL.glsl',
+        'Anime4K_Upscale_CNN_x2_VL.glsl',
+        'Anime4K_Upscale_Deblur_DoG_x2.glsl',
+        'Anime4K_Upscale_Deblur_Original_x2.glsl',
+        'Anime4K_Upscale_Denoise_CNN_x2_L.glsl',
+        'Anime4K_Upscale_Denoise_CNN_x2_M.glsl',
+        'Anime4K_Upscale_Denoise_CNN_x2_S.glsl',
+        'Anime4K_Upscale_Denoise_CNN_x2_UL.glsl',
+        'Anime4K_Upscale_Denoise_CNN_x2_VL.glsl',
+        'Anime4K_Upscale_DoG_x2.glsl',
+        'Anime4K_Upscale_DTD_x2.glsl',
+        'Anime4K_Upscale_Original_x2.glsl',
+      ];
+
+      for (final filename in shaderFiles) {
+        final shaderFile = File(p.join(shadersDir.path, filename));
+        if (!await shaderFile.exists() || (await shaderFile.length()) == 0) {
+          try {
+            final data = await rootBundle.load(
+              'assets/shaders/anime4k/$filename',
+            );
+            if (data.lengthInBytes > 0) {
+              await shaderFile.writeAsBytes(
+                data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+                flush: true,
+              );
+            }
+          } catch (_) {}
+        }
+      }
+
+      _extractedAnime4kDir = shadersDir.path;
+      debugPrint(
+        '[PlayerSettings] Anime4K shaders extracted to: $_extractedAnime4kDir',
+      );
+    } catch (e) {
+      debugPrint('[PlayerSettings] Error extracting Anime4K shaders: $e');
+    }
   }
 
   /// Extracts assets/fonts/Poppins-Medium.ttf or subfont.ttf to persistent disk storage for libass font provider
@@ -352,7 +716,9 @@ abstract final class PlayerSettings {
       if (await fontFile.exists() && (await fontFile.length()) > 0) {
         _extractedFontDir = fontsDir.path;
         _extractedFontPath = fontFile.path;
-        debugPrint('[PlayerSettings] libass font extracted successfully to: $_extractedFontPath');
+        debugPrint(
+          '[PlayerSettings] libass font extracted successfully to: $_extractedFontPath',
+        );
       }
     } catch (e) {
       debugPrint('[PlayerSettings] Error extracting libass font fallback: $e');
@@ -386,7 +752,8 @@ abstract final class PlayerSettings {
       return ['no'];
     }
 
-    if (decoderPreset.value == DecoderPreset.custom && customDecoders.value.isNotEmpty) {
+    if (decoderPreset.value == DecoderPreset.custom &&
+        customDecoders.value.isNotEmpty) {
       return List<String>.from(customDecoders.value);
     }
     return _getDefaultDecodersForPreset(decoderPreset.value);
@@ -415,10 +782,14 @@ abstract final class PlayerSettings {
         return ['no'];
 
       case DecoderPreset.hardwareSafe:
-        return Platform.isAndroid ? ['mediacodec-copy', 'no'] : ['auto-copy', 'no'];
+        return Platform.isAndroid
+            ? ['mediacodec-copy', 'no']
+            : ['auto-copy', 'no'];
 
       case DecoderPreset.nvidiaCuda:
-        return Platform.isWindows ? ['nvdec', 'd3d11va', 'no'] : ['nvdec', 'vaapi', 'no'];
+        return Platform.isWindows
+            ? ['nvdec', 'd3d11va', 'no']
+            : ['nvdec', 'vaapi', 'no'];
 
       case DecoderPreset.hardwareAuto:
       case DecoderPreset.custom:
@@ -445,7 +816,9 @@ abstract final class PlayerSettings {
     if (forceSoftwareDecoding.value) return 'no';
     switch (decoderPreset.value) {
       case DecoderPreset.hardwareAuto:
-        return Platform.isAndroid ? 'mediacodec-copy' : (Platform.isWindows ? 'd3d11va' : 'auto-safe');
+        return Platform.isAndroid
+            ? 'mediacodec-copy'
+            : (Platform.isWindows ? 'd3d11va' : 'auto-safe');
       case DecoderPreset.hardwareSafe:
         return Platform.isAndroid ? 'mediacodec-copy' : 'auto-copy';
       case DecoderPreset.softwareSafe:
@@ -471,7 +844,8 @@ abstract final class PlayerSettings {
   }
 
   /// Returns a configured [VideoControllerConfiguration] for media_kit_video.
-  static VideoControllerConfiguration getMediaKitVideoControllerConfiguration() {
+  static VideoControllerConfiguration
+  getMediaKitVideoControllerConfiguration() {
     return const VideoControllerConfiguration(
       enableAndroidSurfaceProducer: false,
     );
@@ -489,7 +863,10 @@ abstract final class PlayerSettings {
   }
 
   /// Configures network stream continuity with strict separation between Live IPTV and VOD.
-  static Future<void> applyStreamContinuity(Player player, {bool isLive = false}) async {
+  static Future<void> applyStreamContinuity(
+    Player player, {
+    bool isLive = false,
+  }) async {
     try {
       final dynamic platform = player.platform;
       if (platform == null) return;
@@ -516,7 +893,11 @@ abstract final class PlayerSettings {
 
   /// Pre-Open Properties: Demuxer, hardware decoder, cache buffer, disk cache dir,
   /// and FFmpeg fast-decode flags that MUST be configured before opening media.
-  static Future<void> applyPreOpenProperties(Player player, {bool isLive = false, bool isTorrent = false}) async {
+  static Future<void> applyPreOpenProperties(
+    Player player, {
+    bool isLive = false,
+    bool isTorrent = false,
+  }) async {
     try {
       final dynamic platform = player.platform;
       if (platform == null) return;
@@ -553,13 +934,36 @@ abstract final class PlayerSettings {
 
       // 4. Default Audio Delay
       if (audioDelayDefault.value != 0.0) {
-        await platform.setProperty('audio-delay', audioDelayDefault.value.toString());
+        await platform.setProperty(
+          'audio-delay',
+          audioDelayDefault.value.toString(),
+        );
       }
 
       // 5. A/V sync master timeline. This setting was stored and read back but
       // never applied to a player, so turning it off did nothing.
       if (hardwareAudioClock.value) {
         await platform.setProperty('video-sync', 'audio');
+      }
+
+      // 5. Anime4K GLSL Shader Upscaling Pipeline (Applied statically before playback)
+      if (anime4kPreset.value != Anime4KPreset.off &&
+          _extractedAnime4kDir != null) {
+        final files = anime4kPreset.value.shaderFiles;
+        if (files.isNotEmpty) {
+          final separator = Platform.isWindows ? ';' : ':';
+          final shaderChain = files
+              .map((f) => p.join(_extractedAnime4kDir!, f))
+              .join(separator);
+          await platform.setProperty('glsl-shaders', shaderChain);
+          debugPrint(
+            '[PlayerSettings] Applied Anime4K pre-open shader chain: ${anime4kPreset.value.label}',
+          );
+        } else {
+          await platform.setProperty('glsl-shaders', '');
+        }
+      } else {
+        await platform.setProperty('glsl-shaders', '');
       }
 
       // ──────────────────────────────────────────────────────────────────────
@@ -575,10 +979,19 @@ abstract final class PlayerSettings {
       // ──────────────────────────────────────────────────────────────────────
       if (isTorrent) {
         await platform.setProperty('cache', 'yes');
-        await platform.setProperty('demuxer-max-bytes', '${getEffectiveMaxBytes()}');
-        await platform.setProperty('demuxer-max-back-bytes', '${getEffectiveMaxBackBytes()}');
+        await platform.setProperty(
+          'demuxer-max-bytes',
+          '${getEffectiveMaxBytes()}',
+        );
+        await platform.setProperty(
+          'demuxer-max-back-bytes',
+          '${getEffectiveMaxBackBytes()}',
+        );
         await platform.setProperty('cache-secs', '${getEffectiveCacheSecs()}');
-        await platform.setProperty('demuxer-readahead-secs', '${getEffectiveCacheSecs()}');
+        await platform.setProperty(
+          'demuxer-readahead-secs',
+          '${getEffectiveCacheSecs()}',
+        );
         await platform.setProperty('network-timeout', '60');
         await platform.setProperty(
           'stream-lavf-o',
@@ -589,8 +1002,14 @@ abstract final class PlayerSettings {
       }
 
       // 6. Video Decoder Optimizations (AnymeX)
-      await platform.setProperty('vd-lavc-fast', enableFastDecode.value ? 'yes' : 'no');
-      await platform.setProperty('vd-lavc-skiploopfilter', skipLoopFilter.value);
+      await platform.setProperty(
+        'vd-lavc-fast',
+        enableFastDecode.value ? 'yes' : 'no',
+      );
+      await platform.setProperty(
+        'vd-lavc-skiploopfilter',
+        skipLoopFilter.value,
+      );
       if (lavcThreads.value > 0) {
         await platform.setProperty('vd-lavc-threads', '${lavcThreads.value}');
       } else {
@@ -599,10 +1018,19 @@ abstract final class PlayerSettings {
 
       // 7. Buffer & Demuxer Cache Configuration (HTTP VOD only)
       await platform.setProperty('cache', 'yes');
-      await platform.setProperty('demuxer-max-bytes', '${getEffectiveMaxBytes()}');
-      await platform.setProperty('demuxer-max-back-bytes', '${getEffectiveMaxBackBytes()}');
+      await platform.setProperty(
+        'demuxer-max-bytes',
+        '${getEffectiveMaxBytes()}',
+      );
+      await platform.setProperty(
+        'demuxer-max-back-bytes',
+        '${getEffectiveMaxBackBytes()}',
+      );
       await platform.setProperty('cache-secs', '${getEffectiveCacheSecs()}');
-      await platform.setProperty('demuxer-readahead-secs', '${getEffectiveCacheSecs()}');
+      await platform.setProperty(
+        'demuxer-readahead-secs',
+        '${getEffectiveCacheSecs()}',
+      );
       await platform.setProperty('network-timeout', '30');
 
       // 8. Network Stream Continuity (Live IPTV vs VOD separation)
@@ -629,7 +1057,10 @@ abstract final class PlayerSettings {
   }
 
   /// Automatically resolves all required Referer, Origin, and User-Agent headers for known streaming CDNs.
-  static Map<String, String> resolveStreamHeaders(String url, [Map<String, String>? initialHeaders]) {
+  static Map<String, String> resolveStreamHeaders(
+    String url, [
+    Map<String, String>? initialHeaders,
+  ]) {
     final h = <String, String>{
       'Connection': 'keep-alive',
       'Accept': '*/*',
@@ -660,16 +1091,20 @@ abstract final class PlayerSettings {
     } else if (lower.contains('chillflix.lol')) {
       h['Referer'] = 'https://www.chillflix.lol/';
       h['Origin'] = 'https://www.chillflix.lol';
-    } else if (lower.contains('hclod.qzz.io') || lower.contains('watchplay.shop')) {
+    } else if (lower.contains('hclod.qzz.io') ||
+        lower.contains('watchplay.shop')) {
       h['Referer'] = 'https://v1.watchplay.shop/';
       h['Origin'] = 'https://v1.watchplay.shop';
-    } else if (lower.contains('valhallastream') || lower.contains('1shows.app') || lower.contains('rivestream')) {
+    } else if (lower.contains('valhallastream') ||
+        lower.contains('1shows.app') ||
+        lower.contains('rivestream')) {
       h['Referer'] = 'https://www.rivestream.app/';
       h['Origin'] = 'https://www.rivestream.app';
     } else if (lower.contains('videasy') || lower.contains('speedracelight')) {
       h['Referer'] = 'https://player.videasy.to/';
       h['Origin'] = 'https://player.videasy.to';
-    } else if (lower.contains('streamraiwind.stream') || lower.contains('vuflix.co')) {
+    } else if (lower.contains('streamraiwind.stream') ||
+        lower.contains('vuflix.co')) {
       h['Referer'] = 'https://vuflix.co/';
       h['Origin'] = 'https://vuflix.co';
     } else if (lower.contains('net77.cc') || lower.contains('nm-cdn4.top')) {
@@ -686,14 +1121,17 @@ abstract final class PlayerSettings {
         lower.contains('cloudvideo.lat') ||
         lower.contains('megaplay.buzz') ||
         lower.contains('vidwish.live') ||
-        (initialHeaders != null && initialHeaders['Referer']?.contains('megaplay.buzz') == true) ||
-        (initialHeaders != null && initialHeaders['Referer']?.contains('vidwish') == true)) {
+        (initialHeaders != null &&
+            initialHeaders['Referer']?.contains('megaplay.buzz') == true) ||
+        (initialHeaders != null &&
+            initialHeaders['Referer']?.contains('vidwish') == true)) {
       h['Referer'] = 'https://megaplay.buzz/';
       h['Origin'] = 'https://megaplay.buzz';
       h['Cookie'] = 'SITE_TOTAL_ID=ce655f0eea754f2888ea98ded373e3b5';
     } else if (lower.contains('anidb.app') ||
         lower.contains('hls.anidb.app') ||
-        (initialHeaders != null && initialHeaders['Referer']?.contains('anidb.app') == true)) {
+        (initialHeaders != null &&
+            initialHeaders['Referer']?.contains('anidb.app') == true)) {
       h['Referer'] = 'https://anidb.app/';
       h['Origin'] = 'https://anidb.app';
     }
@@ -701,7 +1139,10 @@ abstract final class PlayerSettings {
   }
 
   /// Convenience method that applies both pre-open and post-open properties to a media_kit [Player].
-  static Future<void> applyToPlayer(Player player, {bool isLive = false}) async {
+  static Future<void> applyToPlayer(
+    Player player, {
+    bool isLive = false,
+  }) async {
     await applyPreOpenProperties(player, isLive: isLive);
     await applyPostOpenProperties(player);
   }
@@ -725,32 +1166,66 @@ abstract final class PlayerSettings {
           }
 
           // Font family
-          final font = (subFont.value.trim().isEmpty || subFont.value == 'subfont')
+          final font =
+              (subFont.value.trim().isEmpty || subFont.value == 'subfont')
               ? 'Poppins'
               : subFont.value.trim();
           await platform.setProperty('sub-font', font);
 
           // Typography
-          await platform.setProperty('sub-font-size', subFontSize.value.toString());
-          await platform.setProperty('sub-scale', subScale.value.toStringAsFixed(2));
+          await platform.setProperty(
+            'sub-font-size',
+            subFontSize.value.toString(),
+          );
+          await platform.setProperty(
+            'sub-scale',
+            subScale.value.toStringAsFixed(2),
+          );
           await platform.setProperty('sub-bold', subBold.value ? 'yes' : 'no');
-          await platform.setProperty('sub-italic', subItalic.value ? 'yes' : 'no');
+          await platform.setProperty(
+            'sub-italic',
+            subItalic.value ? 'yes' : 'no',
+          );
 
           // Colors
-          await platform.setProperty('sub-color', _formatMpvColor(subColor.value));
-          await platform.setProperty('sub-back-color', _formatMpvColor(subBackColor.value));
+          await platform.setProperty(
+            'sub-color',
+            _formatMpvColor(subColor.value),
+          );
+          await platform.setProperty(
+            'sub-back-color',
+            _formatMpvColor(subBackColor.value),
+          );
 
           // Borders & Outlines
-          await platform.setProperty('sub-border-color', _formatMpvColor(subBorderColor.value));
-          await platform.setProperty('sub-border-size', subBorderSize.value.toStringAsFixed(1));
+          await platform.setProperty(
+            'sub-border-color',
+            _formatMpvColor(subBorderColor.value),
+          );
+          await platform.setProperty(
+            'sub-border-size',
+            subBorderSize.value.toStringAsFixed(1),
+          );
 
           // Shadows
-          await platform.setProperty('sub-shadow-offset', subShadowOffset.value.toStringAsFixed(1));
-          await platform.setProperty('sub-shadow-color', _formatMpvColor(subShadowColor.value));
+          await platform.setProperty(
+            'sub-shadow-offset',
+            subShadowOffset.value.toStringAsFixed(1),
+          );
+          await platform.setProperty(
+            'sub-shadow-color',
+            _formatMpvColor(subShadowColor.value),
+          );
 
           // Positioning & Layout
-          await platform.setProperty('sub-margin-y', subMarginY.value.round().toString());
-          await platform.setProperty('sub-pos', subPos.value.round().toString());
+          await platform.setProperty(
+            'sub-margin-y',
+            subMarginY.value.round().toString(),
+          );
+          await platform.setProperty(
+            'sub-pos',
+            subPos.value.round().toString(),
+          );
           await platform.setProperty('sub-align-x', subAlignX.value);
 
           // ASS/SSA Script Preservation vs Override
@@ -778,9 +1253,7 @@ abstract final class PlayerSettings {
   /// Builds a reactive [SubtitleViewConfiguration] for Flutter's subtitle overlay widget.
   static SubtitleViewConfiguration getSubtitleViewConfiguration() {
     if (useLibass.value) {
-      return const SubtitleViewConfiguration(
-        visible: false,
-      );
+      return const SubtitleViewConfiguration(visible: false);
     }
 
     Color parseColor(String hex, {Color fallback = Colors.white}) {
@@ -794,11 +1267,22 @@ abstract final class PlayerSettings {
     }
 
     final textColor = parseColor(subColor.value);
-    final boxColor = parseColor(subBackColor.value, fallback: Colors.transparent);
-    final borderColor = parseColor(subBorderColor.value, fallback: Colors.black);
-    final shadowColor = parseColor(subShadowColor.value, fallback: Colors.black54);
+    final boxColor = parseColor(
+      subBackColor.value,
+      fallback: Colors.transparent,
+    );
+    final borderColor = parseColor(
+      subBorderColor.value,
+      fallback: Colors.black,
+    );
+    final shadowColor = parseColor(
+      subShadowColor.value,
+      fallback: Colors.black54,
+    );
 
-    final font = (subFont.value.isEmpty || subFont.value == 'subfont') ? 'Poppins' : subFont.value;
+    final font = (subFont.value.isEmpty || subFont.value == 'subfont')
+        ? 'Poppins'
+        : subFont.value;
     final align = subAlignX.value == 'left'
         ? TextAlign.left
         : (subAlignX.value == 'right' ? TextAlign.right : TextAlign.center);
@@ -863,11 +1347,15 @@ abstract final class PlayerSettings {
 
   static String _buildAssForceStyleString(String font) {
     try {
-      final isBoxed = subBackColor.value != '#00000000' && !subBackColor.value.startsWith('#00');
+      final isBoxed =
+          subBackColor.value != '#00000000' &&
+          !subBackColor.value.startsWith('#00');
       final borderStyle = isBoxed ? 3 : 1;
       final primaryColour = _toAssColor(subColor.value);
       final outlineColour = _toAssColor(subBorderColor.value);
-      final backColour = _toAssColor(isBoxed ? subBackColor.value : subShadowColor.value);
+      final backColour = _toAssColor(
+        isBoxed ? subBackColor.value : subShadowColor.value,
+      );
 
       final size = (subFontSize.value * subScale.value).round();
       final bold = subBold.value ? 1 : 0;
@@ -896,7 +1384,10 @@ abstract final class PlayerSettings {
     final b = str.substring(6, 8);
 
     // Invert alpha for ASS (00 = opaque, FF = transparent)
-    final assAlpha = (255 - alpha).toRadixString(16).padLeft(2, '0').toUpperCase();
+    final assAlpha = (255 - alpha)
+        .toRadixString(16)
+        .padLeft(2, '0')
+        .toUpperCase();
 
     return '&H$assAlpha$b$g$r';
   }
@@ -998,7 +1489,10 @@ abstract final class PlayerSettings {
 
   // ── Subtitle Customization Setters ──
 
-  static Future<void> setSubStylePreset(SubtitleStylePreset preset, {Player? player}) async {
+  static Future<void> setSubStylePreset(
+    SubtitleStylePreset preset, {
+    Player? player,
+  }) async {
     subStylePreset.value = preset;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keySubStylePreset, preset.name);
@@ -1044,7 +1538,11 @@ abstract final class PlayerSettings {
     _notify();
   }
 
-  static Future<void> setSubColor(String hex, {bool notify = true, Player? player}) async {
+  static Future<void> setSubColor(
+    String hex, {
+    bool notify = true,
+    Player? player,
+  }) async {
     subColor.value = hex;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keySubColor, hex);
@@ -1052,7 +1550,11 @@ abstract final class PlayerSettings {
     if (notify) _notify();
   }
 
-  static Future<void> setSubBackColor(String hex, {bool notify = true, Player? player}) async {
+  static Future<void> setSubBackColor(
+    String hex, {
+    bool notify = true,
+    Player? player,
+  }) async {
     subBackColor.value = hex;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keySubBackColor, hex);
@@ -1060,7 +1562,11 @@ abstract final class PlayerSettings {
     if (notify) _notify();
   }
 
-  static Future<void> setSubBorderColor(String hex, {bool notify = true, Player? player}) async {
+  static Future<void> setSubBorderColor(
+    String hex, {
+    bool notify = true,
+    Player? player,
+  }) async {
     subBorderColor.value = hex;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keySubBorderColor, hex);
@@ -1068,7 +1574,11 @@ abstract final class PlayerSettings {
     if (notify) _notify();
   }
 
-  static Future<void> setSubBorderSize(double size, {bool notify = true, Player? player}) async {
+  static Future<void> setSubBorderSize(
+    double size, {
+    bool notify = true,
+    Player? player,
+  }) async {
     subBorderSize.value = size.clamp(0.0, 8.0);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keySubBorderSize, subBorderSize.value);
@@ -1076,7 +1586,11 @@ abstract final class PlayerSettings {
     if (notify) _notify();
   }
 
-  static Future<void> setSubShadowOffset(double offset, {bool notify = true, Player? player}) async {
+  static Future<void> setSubShadowOffset(
+    double offset, {
+    bool notify = true,
+    Player? player,
+  }) async {
     subShadowOffset.value = offset.clamp(0.0, 8.0);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_keySubShadowOffset, subShadowOffset.value);
@@ -1084,7 +1598,11 @@ abstract final class PlayerSettings {
     if (notify) _notify();
   }
 
-  static Future<void> setSubShadowColor(String hex, {bool notify = true, Player? player}) async {
+  static Future<void> setSubShadowColor(
+    String hex, {
+    bool notify = true,
+    Player? player,
+  }) async {
     subShadowColor.value = hex;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keySubShadowColor, hex);
@@ -1092,7 +1610,11 @@ abstract final class PlayerSettings {
     if (notify) _notify();
   }
 
-  static Future<void> setSubBold(bool val, {bool notify = true, Player? player}) async {
+  static Future<void> setSubBold(
+    bool val, {
+    bool notify = true,
+    Player? player,
+  }) async {
     subBold.value = val;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keySubBold, val);
@@ -1100,7 +1622,11 @@ abstract final class PlayerSettings {
     if (notify) _notify();
   }
 
-  static Future<void> setSubItalic(bool val, {bool notify = true, Player? player}) async {
+  static Future<void> setSubItalic(
+    bool val, {
+    bool notify = true,
+    Player? player,
+  }) async {
     subItalic.value = val;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keySubItalic, val);
@@ -1145,6 +1671,17 @@ abstract final class PlayerSettings {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyUseLibass, val);
     if (player != null) applySubtitleStyling(player);
+    _notify();
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Video & Anime4K Upscaling Setters
+  // ───────────────────────────────────────────────────────────────────────────
+
+  static Future<void> setAnime4kPreset(Anime4KPreset preset) async {
+    anime4kPreset.value = preset;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAnime4kPreset, preset.name);
     _notify();
   }
 
@@ -1256,7 +1793,12 @@ abstract final class PlayerSettings {
     hardwareAudioClock.value = true;
     audioDelayDefault.value = 0.0;
     autoNextEnabled.value = true;
-    customDecoders.value = _getDefaultDecodersForPreset(DecoderPreset.hardwareAuto);
+    customDecoders.value = _getDefaultDecodersForPreset(
+      DecoderPreset.hardwareAuto,
+    );
+
+    await prefs.remove(_keyAnime4kPreset);
+    anime4kPreset.value = Anime4KPreset.off;
 
     await resetSubtitleDefaults();
     _notify();

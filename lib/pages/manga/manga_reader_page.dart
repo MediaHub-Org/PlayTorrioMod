@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:ui';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +6,7 @@ import 'package:flutter/services.dart';
 
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
+import '../../services/app_breakpoints.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../services/manga/manga_settings.dart';
@@ -46,7 +48,8 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
   PageController? _pageController;
   final ScrollController _verticalScrollController = ScrollController();
   final ScrollController _deckScrollController = ScrollController();
-  final TransformationController _transformationController = TransformationController();
+  final TransformationController _transformationController =
+      TransformationController();
 
   double _currentZoom = 1.0;
 
@@ -109,7 +112,10 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
         _currentZoom = 1.0;
         _transformationController.value = Matrix4.identity();
       } else {
-        _transformationController.value = _buildCenterScaleMatrix(_currentZoom, size);
+        _transformationController.value = _buildCenterScaleMatrix(
+          _currentZoom,
+          size,
+        );
       }
     });
   }
@@ -122,7 +128,10 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
         _currentZoom = 1.0;
         _transformationController.value = Matrix4.identity();
       } else {
-        _transformationController.value = _buildCenterScaleMatrix(_currentZoom, size);
+        _transformationController.value = _buildCenterScaleMatrix(
+          _currentZoom,
+          size,
+        );
       }
     });
   }
@@ -141,8 +150,12 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
     final chapter = widget.chapters[_currentChapterIndex];
     DiscordRpcService.instance.setReadingManga(
       title: widget.manga.title,
-      chapter: chapter.name.isNotEmpty ? chapter.name : 'Chapter ${chapter.number}',
-      coverUrl: widget.manga.coverNormal.isNotEmpty ? widget.manga.coverNormal : widget.manga.coverSmall,
+      chapter: chapter.name.isNotEmpty
+          ? chapter.name
+          : 'Chapter ${chapter.number}',
+      coverUrl: widget.manga.coverNormal.isNotEmpty
+          ? widget.manga.coverNormal
+          : widget.manga.coverSmall,
     );
     final urls = await _mangaService.getChapterImages(chapter.id);
 
@@ -181,7 +194,10 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
   }
 
   void _scrollToCurrentPageInDeck() {
-    if (!_showDeckDrawer || !_deckScrollController.hasClients || _pageUrls.isEmpty) return;
+    if (!_showDeckDrawer ||
+        !_deckScrollController.hasClients ||
+        _pageUrls.isEmpty)
+      return;
     final screenW = MediaQuery.sizeOf(context).width;
     final isMobile = screenW < 600;
     final isVerySmall = screenW < 420;
@@ -198,7 +214,10 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
     if (_readingMode != MangaReadingMode.webtoon || _pageUrls.isEmpty) return;
 
     final offset = _verticalScrollController.offset;
-    final estimatedIndex = (offset / 900).floor().clamp(0, _pageUrls.length - 1);
+    final estimatedIndex = (offset / 900).floor().clamp(
+      0,
+      _pageUrls.length - 1,
+    );
 
     if (estimatedIndex != _currentPageIndex) {
       setState(() => _currentPageIndex = estimatedIndex);
@@ -221,7 +240,10 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
       if (_verticalScrollController.hasClients) {
         final targetOffset = pageIndex * 900.0;
         _verticalScrollController.animateTo(
-          targetOffset.clamp(0.0, _verticalScrollController.position.maxScrollExtent),
+          targetOffset.clamp(
+            0.0,
+            _verticalScrollController.position.maxScrollExtent,
+          ),
           duration: const Duration(milliseconds: 350),
           curve: Curves.easeInOut,
         );
@@ -285,13 +307,19 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
       if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
           event.logicalKey == LogicalKeyboardKey.space) {
         if (_currentPageIndex < _pageUrls.length - 1) {
-          _pageController?.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
+          _pageController?.nextPage(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+          );
         } else {
           _nextChapter();
         }
       } else if (event.logicalKey == LogicalKeyboardKey.arrowLeft) {
         if (_currentPageIndex > 0) {
-          _pageController?.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
+          _pageController?.previousPage(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+          );
         } else {
           _prevChapter();
         }
@@ -300,13 +328,19 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
       if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
           event.logicalKey == LogicalKeyboardKey.space) {
         if (_currentPageIndex < _pageUrls.length - 1) {
-          _pageController?.nextPage(duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
+          _pageController?.nextPage(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+          );
         } else {
           _nextChapter();
         }
       } else if (event.logicalKey == LogicalKeyboardKey.arrowRight) {
         if (_currentPageIndex > 0) {
-          _pageController?.previousPage(duration: const Duration(milliseconds: 250), curve: Curves.easeInOut);
+          _pageController?.previousPage(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+          );
         } else {
           _prevChapter();
         }
@@ -336,7 +370,11 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.tune_rounded, color: palette.primaryColor, size: 20),
+                      Icon(
+                        Icons.tune_rounded,
+                        color: palette.primaryColor,
+                        size: 20,
+                      ),
                       const SizedBox(width: 10),
                       const Text(
                         'Reader Settings & Layout',
@@ -348,7 +386,11 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                       ),
                       const Spacer(),
                       IconButton(
-                        icon: const Icon(Icons.close_rounded, color: Colors.white54, size: 20),
+                        icon: const Icon(
+                          Icons.close_rounded,
+                          color: Colors.white54,
+                          size: 20,
+                        ),
                         onPressed: () => Navigator.pop(ctx),
                       ),
                     ],
@@ -357,7 +399,14 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                   Divider(color: Colors.white.withValues(alpha: 0.08)),
                   const SizedBox(height: 12),
 
-                  const Text('Reading Orientation Mode', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'Reading Orientation Mode',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 8,
@@ -367,15 +416,23 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                       return ChoiceChip(
                         label: Text(m.label),
                         selected: isSelected,
-                        selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                        selectedColor: palette.primaryColor.withValues(
+                          alpha: 0.25,
+                        ),
                         backgroundColor: const Color(0xFF0D1017),
                         labelStyle: TextStyle(
-                          color: isSelected ? palette.primaryColor : Colors.white70,
-                          fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                          color: isSelected
+                              ? palette.primaryColor
+                              : Colors.white70,
+                          fontWeight: isSelected
+                              ? FontWeight.w800
+                              : FontWeight.w500,
                           fontSize: 12,
                         ),
                         side: BorderSide(
-                          color: isSelected ? palette.primaryColor.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.08),
+                          color: isSelected
+                              ? palette.primaryColor.withValues(alpha: 0.6)
+                              : Colors.white.withValues(alpha: 0.08),
                         ),
                         onSelected: (selected) {
                           if (selected) {
@@ -390,7 +447,14 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
 
                   const SizedBox(height: 14),
 
-                  const Text('Page Reading Width Constraint', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'Page Reading Width Constraint',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   ValueListenableBuilder<MangaReaderMaxWidth>(
                     valueListenable: MangaSettings.readerMaxWidth,
@@ -403,15 +467,23 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                           return ChoiceChip(
                             label: Text(w.label),
                             selected: isSelected,
-                            selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                            selectedColor: palette.primaryColor.withValues(
+                              alpha: 0.25,
+                            ),
                             backgroundColor: const Color(0xFF0D1017),
                             labelStyle: TextStyle(
-                              color: isSelected ? palette.primaryColor : Colors.white70,
-                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                              color: isSelected
+                                  ? palette.primaryColor
+                                  : Colors.white70,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w500,
                               fontSize: 12,
                             ),
                             side: BorderSide(
-                              color: isSelected ? palette.primaryColor.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.08),
+                              color: isSelected
+                                  ? palette.primaryColor.withValues(alpha: 0.6)
+                                  : Colors.white.withValues(alpha: 0.08),
                             ),
                             onSelected: (selected) {
                               if (selected) MangaSettings.setReaderMaxWidth(w);
@@ -424,7 +496,14 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
 
                   const SizedBox(height: 14),
 
-                  const Text('Reader Background Atmosphere', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700)),
+                  const Text(
+                    'Reader Background Atmosphere',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
                   const SizedBox(height: 8),
                   ValueListenableBuilder<MangaReaderBackground>(
                     valueListenable: MangaSettings.readerBackground,
@@ -446,18 +525,27 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                             ),
                             label: Text(b.label),
                             selected: isSelected,
-                            selectedColor: palette.primaryColor.withValues(alpha: 0.25),
+                            selectedColor: palette.primaryColor.withValues(
+                              alpha: 0.25,
+                            ),
                             backgroundColor: const Color(0xFF0D1017),
                             labelStyle: TextStyle(
-                              color: isSelected ? palette.primaryColor : Colors.white70,
-                              fontWeight: isSelected ? FontWeight.w800 : FontWeight.w500,
+                              color: isSelected
+                                  ? palette.primaryColor
+                                  : Colors.white70,
+                              fontWeight: isSelected
+                                  ? FontWeight.w800
+                                  : FontWeight.w500,
                               fontSize: 12,
                             ),
                             side: BorderSide(
-                              color: isSelected ? palette.primaryColor.withValues(alpha: 0.6) : Colors.white.withValues(alpha: 0.08),
+                              color: isSelected
+                                  ? palette.primaryColor.withValues(alpha: 0.6)
+                                  : Colors.white.withValues(alpha: 0.08),
                             ),
                             onSelected: (selected) {
-                              if (selected) MangaSettings.setReaderBackground(b);
+                              if (selected)
+                                MangaSettings.setReaderBackground(b);
                             },
                           );
                         }).toList(),
@@ -472,7 +560,10 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                     builder: (context, showDeck, _) {
                       return SwitchListTile.adaptive(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Show Page Deck Previews Drawer', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        title: const Text(
+                          'Show Page Deck Previews Drawer',
+                          style: TextStyle(color: Colors.white, fontSize: 13.5),
+                        ),
                         value: showDeck,
                         activeColor: palette.primaryColor,
                         onChanged: (val) => MangaSettings.setShowPageDeck(val),
@@ -485,10 +576,14 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                     builder: (context, showNext, _) {
                       return SwitchListTile.adaptive(
                         contentPadding: EdgeInsets.zero,
-                        title: const Text('Show Next Chapter Deck Card', style: TextStyle(color: Colors.white, fontSize: 13.5)),
+                        title: const Text(
+                          'Show Next Chapter Deck Card',
+                          style: TextStyle(color: Colors.white, fontSize: 13.5),
+                        ),
                         value: showNext,
                         activeColor: palette.primaryColor,
-                        onChanged: (val) => MangaSettings.setEnableNextChapterDeck(val),
+                        onChanged: (val) =>
+                            MangaSettings.setEnableNextChapterDeck(val),
                       );
                     },
                   ),
@@ -522,36 +617,44 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
               onTap: _toggleOverlay,
               child: _isLoading
                   ? Center(
-                      child: CircularProgressIndicator(color: palette.primaryColor),
+                      child: CircularProgressIndicator(
+                        color: palette.primaryColor,
+                      ),
                     )
                   : _pageUrls.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'No pages found for this chapter.',
-                            style: TextStyle(color: Colors.white70, fontSize: 16),
-                          ),
-                        )
-                      : InteractiveViewer(
-                          transformationController: _transformationController,
-                          minScale: 0.25,
-                          maxScale: 5.0,
-                          panEnabled: true,
-                          scaleEnabled: true,
-                          clipBehavior: Clip.none,
-                          onInteractionUpdate: (_) {
-                            final s = _transformationController.value.getMaxScaleOnAxis();
-                            if ((s - _currentZoom).abs() > 0.05) {
-                              setState(() => _currentZoom = s);
-                            }
-                          },
-                          child: _readingMode == MangaReadingMode.webtoon
-                              ? _buildVerticalWebtoonReader()
-                              : _buildHorizontalPageView(),
-                        ),
+                  ? const Center(
+                      child: Text(
+                        'No pages found for this chapter.',
+                        style: TextStyle(color: Colors.white70, fontSize: 16),
+                      ),
+                    )
+                  : InteractiveViewer(
+                      transformationController: _transformationController,
+                      minScale: 0.25,
+                      maxScale: 5.0,
+                      panEnabled: true,
+                      scaleEnabled: true,
+                      clipBehavior: Clip.none,
+                      onInteractionUpdate: (_) {
+                        final s = _transformationController.value
+                            .getMaxScaleOnAxis();
+                        if ((s - _currentZoom).abs() > 0.05) {
+                          setState(() => _currentZoom = s);
+                        }
+                      },
+                      child: _readingMode == MangaReadingMode.webtoon
+                          ? _buildVerticalWebtoonReader()
+                          : _buildHorizontalPageView(),
+                    ),
             ),
 
-            // Custom Vertical Scroller for Webtoon Mode
-            if (_readingMode == MangaReadingMode.webtoon && !_isLoading && _pageUrls.isNotEmpty && MangaSettings.showScrollTrack.value)
+            // Custom Vertical Scroller for Webtoon Mode (Desktop only, removed for mobile)
+            if (_readingMode == MangaReadingMode.webtoon &&
+                !_isLoading &&
+                _pageUrls.isNotEmpty &&
+                MangaSettings.showScrollTrack.value &&
+                !(Platform.isAndroid || Platform.isIOS) &&
+                AppBreakpoints.of(context) != ScreenTier.mobile)
               Positioned(
                 right: 20,
                 top: 100,
@@ -612,7 +715,11 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                 child: CircularProgressIndicator(color: Colors.white24),
               ),
               errorWidget: (context, url, error) => const Center(
-                child: Icon(Icons.broken_image_rounded, color: Colors.white38, size: 48),
+                child: Icon(
+                  Icons.broken_image_rounded,
+                  color: Colors.white38,
+                  size: 48,
+                ),
               ),
             ),
           ),
@@ -660,7 +767,11 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                 errorWidget: (context, url, error) => const SizedBox(
                   height: 200,
                   child: Center(
-                    child: Icon(Icons.broken_image_rounded, color: Colors.white38, size: 48),
+                    child: Icon(
+                      Icons.broken_image_rounded,
+                      color: Colors.white38,
+                      size: 48,
+                    ),
                   ),
                 ),
               ),
@@ -675,9 +786,13 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
   Widget _buildNextChapterDeckCard() {
     final palette = AppThemeService.currentPalette.value;
     final hasNext = _currentChapterIndex > 0;
-    final nextChapter = hasNext ? widget.chapters[_currentChapterIndex - 1] : null;
+    final nextChapter = hasNext
+        ? widget.chapters[_currentChapterIndex - 1]
+        : null;
     final nextTitle = nextChapter != null
-        ? (nextChapter.name.isNotEmpty ? nextChapter.name : 'Chapter ${nextChapter.number}')
+        ? (nextChapter.name.isNotEmpty
+              ? nextChapter.name
+              : 'Chapter ${nextChapter.number}')
         : 'You are all caught up!';
 
     return Container(
@@ -706,7 +821,11 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
             ),
             child: Text(
               hasNext ? 'UP NEXT' : 'CHAPTER FINISHED',
-              style: TextStyle(color: palette.primaryColor, fontSize: 11, fontWeight: FontWeight.w900),
+              style: TextStyle(
+                color: palette.primaryColor,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
           const SizedBox(height: 12),
@@ -730,26 +849,50 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
           if (hasNext)
             ElevatedButton.icon(
               onPressed: _nextChapter,
-              icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 20),
+              icon: const Icon(
+                Icons.skip_next_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
               label: const Text(
                 'Read Next Chapter',
-                style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: palette.primaryColor,
-                padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 14,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
               ),
             )
           else
             OutlinedButton.icon(
               onPressed: () => Navigator.of(context).pop(),
-              icon: const Icon(Icons.check_circle_outline_rounded, color: Colors.greenAccent),
-              label: const Text('Back to Manga Details', style: TextStyle(color: Colors.white)),
+              icon: const Icon(
+                Icons.check_circle_outline_rounded,
+                color: Colors.greenAccent,
+              ),
+              label: const Text(
+                'Back to Manga Details',
+                style: TextStyle(color: Colors.white),
+              ),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: Colors.white24),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
               ),
             ),
         ],
@@ -758,16 +901,17 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
   }
 
   // 4. Page Deck Preview Section (Placed DIRECTLY ABOVE the slider)
-  Widget _buildPageDeckSection(bool isMobile, bool isVerySmall, AppThemePalette palette) {
+  Widget _buildPageDeckSection(
+    bool isMobile,
+    bool isVerySmall,
+    AppThemePalette palette,
+  ) {
     final cardWidth = isVerySmall ? 54.0 : (isMobile ? 62.0 : 74.0);
     final cardHeight = isVerySmall ? 78.0 : (isMobile ? 88.0 : 104.0);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: EdgeInsets.symmetric(
-        horizontal: isMobile ? 8 : 14,
-        vertical: 8,
-      ),
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 8 : 14, vertical: 8),
       decoration: BoxDecoration(
         color: const Color(0xFF0C0F17).withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(16),
@@ -785,24 +929,42 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.view_carousel_rounded, color: palette.primaryColor, size: 14),
+                    Icon(
+                      Icons.view_carousel_rounded,
+                      color: palette.primaryColor,
+                      size: 14,
+                    ),
                     const SizedBox(width: 6),
                     const Text(
                       'Page Deck Preview',
-                      style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: 0.5,
+                      ),
                     ),
                   ],
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
                   decoration: BoxDecoration(
                     color: palette.primaryColor.withValues(alpha: 0.18),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: palette.primaryColor.withValues(alpha: 0.4)),
+                    border: Border.all(
+                      color: palette.primaryColor.withValues(alpha: 0.4),
+                    ),
                   ),
                   child: Text(
                     'Page ${_currentPageIndex + 1} of ${_pageUrls.length}',
-                    style: TextStyle(color: palette.primaryColor, fontSize: 10.5, fontWeight: FontWeight.bold),
+                    style: TextStyle(
+                      color: palette.primaryColor,
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ],
@@ -828,13 +990,17 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                       color: const Color(0xFF131722),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(
-                        color: isCurrent ? palette.primaryColor : Colors.white.withValues(alpha: 0.12),
+                        color: isCurrent
+                            ? palette.primaryColor
+                            : Colors.white.withValues(alpha: 0.12),
                         width: isCurrent ? 2.2 : 1.0,
                       ),
                       boxShadow: isCurrent
                           ? [
                               BoxShadow(
-                                color: palette.primaryColor.withValues(alpha: 0.45),
+                                color: palette.primaryColor.withValues(
+                                  alpha: 0.45,
+                                ),
                                 blurRadius: 10,
                                 offset: const Offset(0, 2),
                               ),
@@ -850,9 +1016,14 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                             imageUrl: _pageUrls[index],
                             fit: BoxFit.cover,
                             memCacheWidth: 140,
-                            placeholder: (_, __) => Container(color: const Color(0xFF161A24)),
+                            placeholder: (_, __) =>
+                                Container(color: const Color(0xFF161A24)),
                             errorWidget: (_, __, ___) => const Center(
-                              child: Icon(Icons.broken_image_rounded, color: Colors.white24, size: 18),
+                              child: Icon(
+                                Icons.broken_image_rounded,
+                                color: Colors.white24,
+                                size: 18,
+                              ),
                             ),
                           ),
                           // Bottom gradient overlay
@@ -881,9 +1052,14 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                             right: 0,
                             child: Center(
                               child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
                                 decoration: BoxDecoration(
-                                  color: isCurrent ? palette.primaryColor : Colors.black.withValues(alpha: 0.7),
+                                  color: isCurrent
+                                      ? palette.primaryColor
+                                      : Colors.black.withValues(alpha: 0.7),
                                   borderRadius: BorderRadius.circular(4),
                                 ),
                                 child: Text(
@@ -919,10 +1095,17 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 16.0, sigmaY: 16.0),
         child: Container(
-          padding: EdgeInsets.only(top: 12 + topInset, bottom: 12, left: 16, right: 16),
+          padding: EdgeInsets.only(
+            top: 12 + topInset,
+            bottom: 12,
+            left: 16,
+            right: 16,
+          ),
           decoration: BoxDecoration(
             color: Colors.black.withValues(alpha: 0.65),
-            border: Border(bottom: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
+            border: Border(
+              bottom: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+            ),
           ),
           child: Row(
             children: [
@@ -957,7 +1140,11 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
               ),
               IconButton(
                 tooltip: 'Reader Customization',
-                icon: Icon(Icons.tune_rounded, color: palette.primaryColor, size: 22),
+                icon: Icon(
+                  Icons.tune_rounded,
+                  color: palette.primaryColor,
+                  size: 22,
+                ),
                 onPressed: () => _showReaderCustomizer(context),
               ),
             ],
@@ -989,7 +1176,9 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
           ),
           decoration: BoxDecoration(
             color: const Color(0xFF090B10).withValues(alpha: 0.90),
-            border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
+            border: Border(
+              top: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+            ),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withValues(alpha: 0.7),
@@ -1016,13 +1205,20 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                       thumbColor: palette.primaryColor,
                       overlayColor: palette.primaryColor.withValues(alpha: 0.2),
                       trackHeight: 3.5,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6.5),
+                      thumbShape: const RoundSliderThumbShape(
+                        enabledThumbRadius: 6.5,
+                      ),
                     ),
                     child: Slider(
-                      value: _currentPageIndex.toDouble().clamp(0.0, (_pageUrls.length - 1).toDouble()),
+                      value: _currentPageIndex.toDouble().clamp(
+                        0.0,
+                        (_pageUrls.length - 1).toDouble(),
+                      ),
                       min: 0.0,
                       max: (_pageUrls.length - 1).toDouble(),
-                      divisions: _pageUrls.length > 1 ? _pageUrls.length - 1 : 1,
+                      divisions: _pageUrls.length > 1
+                          ? _pageUrls.length - 1
+                          : 1,
                       onChanged: (val) {
                         _jumpToPage(val.round());
                       },
@@ -1036,8 +1232,13 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                 children: [
                   // Prev Chapter Button
                   IconButton(
-                    icon: const Icon(Icons.skip_previous_rounded, color: Colors.white),
-                    onPressed: _currentChapterIndex < widget.chapters.length - 1 ? _prevChapter : null,
+                    icon: const Icon(
+                      Icons.skip_previous_rounded,
+                      color: Colors.white,
+                    ),
+                    onPressed: _currentChapterIndex < widget.chapters.length - 1
+                        ? _prevChapter
+                        : null,
                     tooltip: 'Previous Chapter',
                     splashRadius: 20,
                   ),
@@ -1053,15 +1254,26 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                             decoration: BoxDecoration(
                               color: Colors.white.withValues(alpha: 0.08),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+                              border: Border.all(
+                                color: Colors.white.withValues(alpha: 0.12),
+                              ),
                             ),
-                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 4,
+                              vertical: 2,
+                            ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 IconButton(
-                                  icon: const Icon(Icons.zoom_out_rounded, color: Colors.white, size: 18),
-                                  onPressed: _currentZoom > 0.26 ? _zoomOut : null,
+                                  icon: const Icon(
+                                    Icons.zoom_out_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  onPressed: _currentZoom > 0.26
+                                      ? _zoomOut
+                                      : null,
                                   tooltip: 'Zoom Out (-)',
                                   padding: const EdgeInsets.all(5),
                                   constraints: const BoxConstraints(),
@@ -1070,11 +1282,16 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                                   onTap: _resetZoom,
                                   borderRadius: BorderRadius.circular(8),
                                   child: Padding(
-                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 3,
+                                    ),
                                     child: Text(
                                       '${(_currentZoom * 100).round()}%',
                                       style: TextStyle(
-                                        color: (_currentZoom - 1.0).abs() > 0.03 ? palette.primaryColor : Colors.white70,
+                                        color: (_currentZoom - 1.0).abs() > 0.03
+                                            ? palette.primaryColor
+                                            : Colors.white70,
                                         fontSize: 11.5,
                                         fontWeight: FontWeight.bold,
                                       ),
@@ -1082,8 +1299,14 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.zoom_in_rounded, color: Colors.white, size: 18),
-                                  onPressed: _currentZoom < 4.9 ? _zoomIn : null,
+                                  icon: const Icon(
+                                    Icons.zoom_in_rounded,
+                                    color: Colors.white,
+                                    size: 18,
+                                  ),
+                                  onPressed: _currentZoom < 4.9
+                                      ? _zoomIn
+                                      : null,
                                   tooltip: 'Zoom In (+)',
                                   padding: const EdgeInsets.all(5),
                                   constraints: const BoxConstraints(),
@@ -1126,7 +1349,9 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                           tooltip: 'Toggle Page Deck',
                           icon: Icon(
                             Icons.view_carousel_rounded,
-                            color: _showDeckDrawer ? palette.primaryColor : Colors.white70,
+                            color: _showDeckDrawer
+                                ? palette.primaryColor
+                                : Colors.white70,
                             size: 20,
                           ),
                           onPressed: _toggleDeckDrawer,
@@ -1134,8 +1359,13 @@ class _MangaReaderPageState extends State<MangaReaderPage> {
                         ),
 
                       IconButton(
-                        icon: const Icon(Icons.skip_next_rounded, color: Colors.white),
-                        onPressed: _currentChapterIndex > 0 ? _nextChapter : null,
+                        icon: const Icon(
+                          Icons.skip_next_rounded,
+                          color: Colors.white,
+                        ),
+                        onPressed: _currentChapterIndex > 0
+                            ? _nextChapter
+                            : null,
                         tooltip: 'Next Chapter',
                         splashRadius: 20,
                       ),
