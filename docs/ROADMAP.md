@@ -3,9 +3,8 @@
 What is **outstanding**. Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md);
 this file stays about what is left.
 
-Last reconciled against the tree: **2026-09-02** (v1.1.4, one commit behind
-upstream @ `ad81c7b`, up from `41a11f4` / v1.0.9 — see "Staying level with
-upstream" below).
+Last reconciled against the tree: **2026-09-02** (v1.1.4, level with
+upstream @ `ad81c7b`).
 
 ## Sibling app: PlayTorrioMov
 
@@ -85,6 +84,7 @@ checking on hardware when possible.
 | #  | Bug                                                       | Notes                                                                                                                                                                                                                                                                          |
 |----|-----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 12 | **"Unknown hard error" on Windows after closing the app** | Reported 2026-08-31. Not yet reproduced/triaged — need a stack trace or exact repro steps (does it happen on every close, or only after specific actions like an active torrent/stream? does it show a dialog or just appear in Event Viewer?) before this can be root-caused. |
+| 17 | **`VideoPlayerSettingsPage` is unreachable** | Found 2026-09-02 while verifying the upstream merge, pre-existing and unrelated to it. This fork's own decoder/buffer/performance settings page (`video_player_settings_page.dart` — the one `FORK_DIFFERENCES.md` says was deliberately kept when upstream deleted the equivalent) has zero navigation call sites anywhere in `lib/` — nothing pushes it. The settings themselves still work (`PlayerSettings` reads/writes them independent of any UI), but a user has no way to reach the screen that changes them. Needs either a Settings-menu entry restored (alongside the new `VideoSettingsPage` Anime4K entry that landed in the same merge) or confirmation it was deliberately retired and the page should be deleted instead. |
 
 ## Requested UI work
 
@@ -98,16 +98,24 @@ checking on hardware when possible.
 
 ## Staying level with upstream
 
-The fork tracks `ayman708-UX/PlayTorrioV3`. **One commit behind as of
-2026-09-02** (`upstream/main` @ `ad81c7b`, up from `41a11f4`/v1.0.9) — not yet
-merged.
+The fork tracks `ayman708-UX/PlayTorrioV3`. As of 2026-09-02 it is **zero
+commits behind** (`upstream/main` @ `ad81c7b`, "anime4k upscaling and manga
+fixes/improvements").
 
-**New commit to merge: `ad81c7b`, "anime4k upscaling and manga fixes/improvements" (2026-09-01).** Scope, from `git show ad81c7b --stat`:
-- **Anime4K GPU upscaling**: ~35 new `.glsl` shader assets under `assets/shaders/anime4k/` (~18k lines, all additive, no conflict risk), a new `lib/pages/settings/video_settings_page.dart` (378 lines), `settings_page.dart` (+25, wiring the new page in), and a heavy rewrite of `lib/services/player/player_settings.dart` (+205/-ish) to carry the new shader-selection state — this last one is the real merge-conflict risk, since this fork has its own player-settings history from the media_kit/libmpv engine swap (2026-08-28) and the `mediacodec-copy` Android fix (2026-08-29) layered on top of it.
-- **Manga fixes**: `manga_page.dart` (+91/-ish), `manga_service.dart` (+89/-ish), `manga_reader_page.dart`, `manga_card.dart` — unreviewed in detail yet; this fork has its own Manga divergences (`MangaSettings.cardDensity`, the customizer sheet, the infinite-scroll grid noted in the Declined section below) worth checking survive the merge, same as every prior sync.
-- `pubspec.yaml`: one new dependency, not yet identified which.
+**Merged 2026-09-02.** Anime4K GPU upscaling (new `Anime4KPreset` enum,
+`video_settings_page.dart`, a Settings entry) landed additively alongside
+this fork's own decoder/buffer/engine settings in `player_settings.dart`
+(not replacing them — see `FORK_DIFFERENCES.md`'s "advanced player settings
+stay" divergence, still true). Manga gained richer scraping (genre/year/
+status/author) and a genre filter; this fork's own try/catch error handling
+and manga customizer sheet both survived the merge. One real bug found by
+the test suite, not by review: `manga_reader_page.dart` (a file upstream
+touched) used a raw `MediaQuery.sizeOf(context).width >= 700` instead of
+`AppBreakpoints.of(context)` — fixed in the same commit. `pubspec.yaml`'s
+only change was registering the new shader asset directory, not a new
+dependency.
 
-Merging upstream is not a `git merge` and a green analyzer — the last two syncs
+Merging upstream is not a `git merge` and a green analyzer — past syncs
 both had real breakage in regions git's 3-way diff never flagged, because only
 one side had touched them. The routine that catches it:
 

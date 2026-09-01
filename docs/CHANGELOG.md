@@ -4,6 +4,11 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased]
 
+### Sync upstream to ad81c7b (Anime4K upscaling, manga fixes) — 2026-09-02
+- Merged `ayman708-UX/PlayTorrioV3` @ `ad81c7b`. Anime4K GLSL shader upscaling (new `Anime4KPreset` enum, `video_settings_page.dart`, a Settings entry, ~35 bundled shader assets) landed additively alongside this fork's own decoder/buffer/engine settings in `player_settings.dart` — not replacing them, per `FORK_DIFFERENCES.md`'s existing "advanced player settings stay" divergence (that's where the `mediacodec-copy` Android black-screen fix lives). Manga gained richer scraping (genre/year/status/author) and a genre filter; this fork's own try/catch error handling and manga customizer sheet both survived.
+- Found and fixed while verifying the merge — the test suite caught it, not review: `manga_reader_page.dart` used a raw `MediaQuery.sizeOf(context).width >= 700` instead of `AppBreakpoints.of(context)` for a nav-tier decision, the same drift pattern an existing guard test exists to catch.
+- Found, not fixed here (pre-existing, unrelated to this merge — tracked as ROADMAP #17): `VideoPlayerSettingsPage`, this fork's own decoder/buffer/performance settings screen, has zero navigation call sites anywhere in the app.
+
 ### Watchlist/Watched/Liked as three independent buttons; a real isLiked field; Anime type preserved in Simkl sync (ROADMAP #18/#25) — 2026-09-02
 - `MyListItem` gains `isLiked`, independent of `isWatchlist`/`isWatched` — those two stay mutually exclusive, Liked can be true alongside either (a title can be Watched and Liked at once). `MyListService.toggleLiked` added; `mergeWith` now OR-combines all three status flags instead of dropping them on a Trakt/Simkl re-sync merge.
 - **Fixed a mislabeling bug from this session's own item 22**: the Saved tab's "Liked" filter chip was reading `isWatched`, not a real Liked field — there wasn't one yet. Now reads `isLiked`, and dropped the cross-clearing with Watchlist that made sense for Watched but not for the now-independent Liked.
