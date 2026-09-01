@@ -276,7 +276,6 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
             builder: (_) => switch (section) {
               LibrarySection.saved => _buildSavedTab(),
               LibrarySection.inProgress => _buildInProgressTab(),
-              LibrarySection.history => _buildHistoryTab(),
               LibrarySection.downloads => _buildDownloadsTab(),
             },
           ),
@@ -487,17 +486,6 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
       );
     }
     return _entryList(entries);
-  }
-
-  Widget _buildHistoryTab() {
-    if (_historyEntries.isEmpty) {
-      return const LibraryEmptyState(
-        icon: Icons.history_rounded,
-        title: 'No reading history',
-        subtitle: 'Everything you open is logged here, finished or not.',
-      );
-    }
-    return _entryList(_historyEntries);
   }
 
   Widget _entryList(List<_HistoryEntry> entries) {

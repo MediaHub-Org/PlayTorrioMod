@@ -27,7 +27,7 @@ void main() {
       await tester.pumpWidget(wrap(const SectionTopBar()));
       await tester.pumpAndSettle();
 
-      expect(find.text('Movies/Series'), findsNothing);
+      expect(find.text('Movies & Series'), findsNothing);
       expect(find.text('Anime'), findsNothing);
       expect(find.text('Library'), findsNothing);
     });
@@ -37,7 +37,7 @@ void main() {
       await tester.pumpWidget(wrap(const SectionTopBar()));
       await tester.pumpAndSettle();
 
-      expect(find.text('Movies/Series'), findsOneWidget);
+      expect(find.text('Movies & Series'), findsOneWidget);
       expect(find.text('Anime'), findsOneWidget);
       expect(find.text('Live TV'), findsOneWidget);
       expect(find.text('Library'), findsOneWidget);
@@ -64,7 +64,7 @@ void main() {
 
       expect(find.text('Music'), findsOneWidget);
       expect(find.text('Podcasts'), findsOneWidget);
-      expect(find.text('Movies/Series'), findsNothing);
+      expect(find.text('Movies & Series'), findsNothing);
     });
   });
 

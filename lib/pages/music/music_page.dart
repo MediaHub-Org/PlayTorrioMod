@@ -1632,7 +1632,6 @@ class _MusicPageState extends State<MusicPage> {
   Widget _buildLibraryView() {
     final liked = _libraryService.likedTracks;
     final playlists = _libraryService.userPlaylists;
-    final recent = _libraryService.recentTracks;
 
     return LibraryTabs(
       title: 'Library',
@@ -1662,7 +1661,6 @@ class _MusicPageState extends State<MusicPage> {
             builder: (_) => switch (section) {
               LibrarySection.saved => _buildSavedTab(liked, playlists),
               LibrarySection.inProgress => _buildQueueTab(),
-              LibrarySection.history => _buildRecentTab(recent),
               LibrarySection.downloads => _MusicDownloadedTracksModal(
                   embedded: true,
                   onClose: () {},
@@ -1887,31 +1885,6 @@ class _MusicPageState extends State<MusicPage> {
     );
   }
 
-  Widget _buildRecentTab(List<MusicTrack> recent) {
-    if (recent.isEmpty) {
-      return const LibraryEmptyState(
-        icon: Icons.history_rounded,
-        title: 'No recently played',
-        subtitle: 'Songs you play will appear here.',
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      itemCount: recent.length.clamp(0, 50),
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final track = recent[index];
-        return _MusicTrackRow(
-          track: track,
-          isPlaying: _playerController.currentTrack?.id == track.id &&
-              _playerController.isPlaying,
-          isCurrent: _playerController.currentTrack?.id == track.id,
-          onTap: () => _playerController.playTrack(track, playlistQueue: recent),
-          onMoreTap: () => _showAddToPlaylistMenu(track),
-        );
-      },
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

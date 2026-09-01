@@ -576,19 +576,34 @@ class _AnimePageState extends State<AnimePage> {
               onSelected: _selectGenre,
             ),
             const SizedBox(width: 10),
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: _isArabicMode
-                    ? const Color(0xFF7C5CFF).withValues(alpha: 0.35)
-                    : Colors.black.withValues(alpha: 0.35),
-                shape: BoxShape.circle,
-              ),
-              child: IconButton(
-                tooltip: _isArabicMode ? 'Arabic anime (on)' : 'Arabic anime (off)',
-                icon: const Icon(Icons.language_rounded),
-                color: Colors.white.withValues(alpha: 0.75),
-                onPressed: () => _onModeChanged(!_isArabicMode),
-              ),
+            FilterDropdown<bool>(
+              label: _isArabicMode ? '🇸🇦 Arabic' : '🇬🇧 English',
+              icon: Icons.language_rounded,
+              items: const [
+                PopupMenuItem(
+                  value: false,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('🇬🇧', style: TextStyle(fontSize: 16)),
+                      SizedBox(width: 10),
+                      Text('English'),
+                    ],
+                  ),
+                ),
+                PopupMenuItem(
+                  value: true,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text('🇸🇦', style: TextStyle(fontSize: 16)),
+                      SizedBox(width: 10),
+                      Text('Arabic'),
+                    ],
+                  ),
+                ),
+              ],
+              onSelected: (arabic) => _onModeChanged(arabic ?? false),
             ),
             const SizedBox(width: 10),
             DecoratedBox(

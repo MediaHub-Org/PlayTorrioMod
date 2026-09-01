@@ -263,11 +263,11 @@ class _HubList extends StatelessWidget {
 
   static const _hubs = [
     (Icons.play_circle_outline_rounded, 'Watch',
-        'Movies/Series · Anime · Live TV · Library'),
+        'Movies & Series · Anime · Live TV · Library'),
     (Icons.headphones_rounded, 'Listen',
         'Music · Podcasts · Radio · Library'),
     (Icons.menu_book_rounded, 'Read',
-        'Audiobooks · Books · Comics/Manga · Library'),
+        'Audiobooks · Books · Comics & Manga · Library'),
   ];
 
   @override

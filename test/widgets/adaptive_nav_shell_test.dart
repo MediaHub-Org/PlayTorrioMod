@@ -31,7 +31,7 @@ void main() {
       expect(find.byType(TopBar), findsNothing);
 
       // Watch's four sections.
-      expect(find.text('Movies/Series'), findsOneWidget);
+      expect(find.text('Movies & Series'), findsOneWidget);
       expect(find.text('Anime'), findsOneWidget);
       expect(find.text('Live TV'), findsOneWidget);
       expect(find.text('Library'), findsOneWidget);
@@ -55,7 +55,7 @@ void main() {
       expect(HubController.instance.currentHub, AppHub.music);
       expect(find.text('Music'), findsOneWidget);
       expect(find.text('Podcasts'), findsOneWidget);
-      expect(find.text('Movies/Series'), findsNothing);
+      expect(find.text('Movies & Series'), findsNothing);
     });
 
     testWidgets('mobile bottom bar tap switches section', (tester) async {
