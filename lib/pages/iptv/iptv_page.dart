@@ -155,7 +155,6 @@ class _IptvPageState extends State<IptvPage> {
 
   @override
   Widget build(BuildContext context) {
-    final topPadding = MediaQuery.of(context).padding.top;
     final palette = AppThemeService.currentPalette.value;
     final spotlightEnabled = IptvSettings.enableSpotlight.value;
     final visibleCategories = IptvSettings.visibleCategories.value;
@@ -229,7 +228,7 @@ class _IptvPageState extends State<IptvPage> {
               onSourcesTap: _openChannel,
             )
           else
-            SizedBox(height: topPadding + 76),
+            const SizedBox(height: 76),
 
           const SizedBox(height: 20),
 
@@ -260,7 +259,6 @@ class _IptvPageState extends State<IptvPage> {
         left: 0,
         right: 0,
         child: _IptvGlassAppBar(
-          topPadding: topPadding,
           onSearchTap: _navigateToSearch,
           onSourcesTap: () => IptvPortalsModal.show(context),
           onMultiViewTap: _navigateToMultiView,
@@ -310,13 +308,11 @@ class _IptvPageState extends State<IptvPage> {
 }
 
 class _IptvGlassAppBar extends StatelessWidget {
-  final double topPadding;
   final Function(Offset? tapPosition) onSearchTap;
   final VoidCallback onSourcesTap;
   final VoidCallback onMultiViewTap;
 
   const _IptvGlassAppBar({
-    required this.topPadding,
     required this.onSearchTap,
     required this.onSourcesTap,
     required this.onMultiViewTap,
@@ -325,7 +321,11 @@ class _IptvGlassAppBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.fromLTRB(28, topPadding + 14, 28, 14),
+      // Top padding matches Movies & Series' header (TypeCatalogPage) --
+      // AdaptiveNavShell already clears the device safe-area inset above
+      // every hub's content, so adding MediaQuery's padding.top here again
+      // double-counted it and pushed this header lower than the rest.
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 14),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
