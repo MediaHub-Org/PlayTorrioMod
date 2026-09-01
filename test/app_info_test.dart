@@ -28,8 +28,9 @@ void main() {
       expect(AppInfo.fallbackBuildNumber, pubspec.build);
     });
 
-    test('versionLabel appends the channel marker', () {
-      expect(AppInfo.versionLabel('9.9.9'), '9.9.9 (${AppInfo.channel})');
+    test('versionLabel appends the channel marker when there is one', () {
+      final expected = AppInfo.channel.isEmpty ? '9.9.9' : '9.9.9 (${AppInfo.channel})';
+      expect(AppInfo.versionLabel('9.9.9'), expected);
     });
 
     test('versionLabel falls back when package info is missing', () {

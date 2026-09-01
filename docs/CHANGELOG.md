@@ -2,7 +2,12 @@
 
 All notable changes to PlayTorrio V3 will be documented in this file.
 
-## [unreleased] — 2026-08-22
+## [unreleased]
+
+## [1.1.4] — 2026-09-02
+
+### Dropped the (dev) channel marker
+- `AppInfo.channel` cleared after a full multi-platform CI build (Windows/Android/Linux/macOS/iOS) passed. This is a product call made ahead of the device-testing checklist in `ROADMAP.md`'s "Blocked on a device" section, which stays open — the marker no longer gates on it.
 
 ### Radio plays real stations; Movies & Series and Anime hero carousels fixed (ROADMAP #13/#14) — 2026-09-02
 - **Radio was never radio.** `_buildRadioView()`'s 8 tiles ran a genre-flavoured song search (`_onGenreTap(query, isRadio: true)`) — no station data source existed at all. Added `RadioBrowserService` (radio-browser.info, free/keyless, three mirrors tried in order) and a real `RadioStation` model; the tab now fetches and plays actual station streams.

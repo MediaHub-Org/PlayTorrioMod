@@ -58,8 +58,10 @@ passing `flutter analyze` + the test suite; none has been run on hardware.
 | 3 | **Resume across sources**              | `ContinueWatchingService` absorbed `PlaybackHistoryService`. Resume across movie / series / anime / torrent paths is unconfirmed on a device.                                                                                                                                                             |
 | 4 | **QA on all five platforms**           | Mobile, tablet, desktop, TV. TV needs its own D-pad/remote-input pass. Most work to date has only been exercised on Windows desktop and in CI.                                                                                                                                                            |
 
-Once a build has actually been through this, clear `AppInfo.channel` and the
-`(dev)` marker disappears from the app and from release titles.
+**`AppInfo.channel` was cleared 2026-09-02** ahead of this checklist, by
+product decision after a full multi-platform CI build passed — the `(dev)`
+marker no longer gates on these items, but they stay open and worth actually
+checking on hardware when possible.
 
 ## Code and consistency
 

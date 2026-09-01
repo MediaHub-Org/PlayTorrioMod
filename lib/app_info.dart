@@ -28,11 +28,13 @@ abstract final class AppInfo {
 
   /// Build channel, appended in parentheses wherever the version is shown.
   ///
-  /// The releases are ordinary semver versions -- `1.1.3`, not
-  /// `1.1.3-alpha.1` -- but nothing here has been through device testing yet,
-  /// so every build says so. Set this to an empty string when a release has
-  /// actually been verified on hardware and the marker should disappear.
-  static const String channel = 'dev';
+  /// The releases are ordinary semver versions -- `1.1.4`, not
+  /// `1.1.4-alpha.1`. Cleared 2026-09-02: a full multi-platform CI build
+  /// (Windows/Android/Linux/macOS/iOS) passed and this was called stable by
+  /// product decision, ahead of the device-testing checklist in
+  /// `docs/ROADMAP.md`'s "Blocked on a device" section, which stays open for
+  /// tracking regardless.
+  static const String channel = '';
 
   /// Whether this build carries a channel marker. Handy for showing a badge
   /// without string-comparing [channel] at each call site.
@@ -43,10 +45,10 @@ abstract final class AppInfo {
   ///
   /// Kept in step with `pubspec.yaml` by a test, so it can never drift into
   /// reporting a version the app has not been at for several releases.
-  static const String fallbackVersion = '1.1.3';
+  static const String fallbackVersion = '1.1.4';
 
   /// Build-number counterpart to [fallbackVersion].
-  static const String fallbackBuildNumber = '11';
+  static const String fallbackBuildNumber = '12';
 
   /// Renders a version for display: `1.1.3` on a stable build, `1.1.3 (dev)`
   /// on a channel build. Every user-visible version string goes through here
