@@ -9,7 +9,7 @@ import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/page_search_button.dart';
 import '../../widgets/movie/movie_card.dart';
 
-enum _CatalogSort { titleAsc, titleDesc, yearNewest, yearOldest }
+enum _CatalogSort { yearNewest, yearOldest }
 
 /// A simple catalog page that shows all content of a given type
 /// (e.g. "movie" or "series") aggregated from the installed addons.
@@ -39,7 +39,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
   List<Movie> _items = [];
   bool _loading = true;
   String? _error;
-  _CatalogSort _sort = _CatalogSort.titleAsc;
+  _CatalogSort _sort = _CatalogSort.yearNewest;
   int? _decadeFilter;
 
   List<String> _availableGenres = [];
@@ -60,10 +60,6 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
         : base.where((m) => _decadeOf(m) == _decadeFilter).toList();
     items = List.of(items);
     switch (_sort) {
-      case _CatalogSort.titleAsc:
-        items.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
-      case _CatalogSort.titleDesc:
-        items.sort((a, b) => b.name.toLowerCase().compareTo(a.name.toLowerCase()));
       case _CatalogSort.yearNewest:
         items.sort((a, b) => (_decadeOf(b) ?? -1).compareTo(_decadeOf(a) ?? -1));
       case _CatalogSort.yearOldest:
@@ -293,15 +289,11 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                 ),
                 FilterDropdown<_CatalogSort>(
                   label: switch (_sort) {
-                    _CatalogSort.titleAsc => 'Title A–Z',
-                    _CatalogSort.titleDesc => 'Title Z–A',
                     _CatalogSort.yearNewest => 'Newest',
                     _CatalogSort.yearOldest => 'Oldest',
                   },
                   icon: Icons.sort_rounded,
                   items: const [
-                    PopupMenuItem(value: _CatalogSort.titleAsc, child: Text('Title A–Z')),
-                    PopupMenuItem(value: _CatalogSort.titleDesc, child: Text('Title Z–A')),
                     PopupMenuItem(value: _CatalogSort.yearNewest, child: Text('Newest')),
                     PopupMenuItem(value: _CatalogSort.yearOldest, child: Text('Oldest')),
                   ],
