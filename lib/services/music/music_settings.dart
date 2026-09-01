@@ -1,13 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-
 enum MusicFullscreenPreset {
-  vinylStudio('Vinyl Turntable Studio', 'Rotating 33rpm vinyl disc with tonearm and warm studio atmosphere'),
-  cyberWaveform('Cyberpunk Wave Visualizer', 'Real-time animated audio visualizer canvas with neon glow'),
-  liquidGlassNeo('Liquid Glass Sanctuary', 'Deep optical refraction glass sheets powered by liquid_glass_easy'),
-  cinematicArtwork('Cinematic Poster Focus', 'Massive edge-to-edge immersive album art with blurred atmosphere'),
-  customStudio('Custom Drag & Drop Full Player', 'Your fully customized, arranged and styled fullscreen player');
+  vinylStudio(
+    'Vinyl Turntable Studio',
+    'Rotating 33rpm vinyl disc with tonearm and warm studio atmosphere',
+  ),
+  cyberWaveform(
+    'Cyberpunk Wave Visualizer',
+    'Real-time animated audio visualizer canvas with neon glow',
+  ),
+  liquidGlassNeo(
+    'Liquid Glass Sanctuary',
+    'Deep optical refraction glass sheets powered by liquid_glass_easy',
+  ),
+  cinematicArtwork(
+    'Cinematic Poster Focus',
+    'Massive edge-to-edge immersive album art with blurred atmosphere',
+  ),
+  customStudio(
+    'Custom Drag & Drop Full Player',
+    'Your fully customized, arranged and styled fullscreen player',
+  );
 
   final String label;
   final String description;
@@ -15,11 +29,26 @@ enum MusicFullscreenPreset {
 }
 
 enum MusicSeekbarStyle {
-  waveformEqualizer('Dynamic Audio Waveform Canvas', 'Procedural animated waveform bars with live equalizer scrubbing'),
-  neonGradient('Neon Gradient Progress Bar', 'Multi-color vibrant linear gradient scrubber with glowing tip'),
-  liquidGlassSlider('Liquid Glass Track Slider', 'Refractive frosted glass slider track with smooth thumb'),
-  standardSlider('Precision Tactile Slider', 'Tactile interactive glass track with timecode readouts'),
-  radialDial('Radial Circular Ring Dial', 'Radial circular dial scrubber for compact modern interfaces');
+  waveformEqualizer(
+    'Dynamic Audio Waveform Canvas',
+    'Procedural animated waveform bars with live equalizer scrubbing',
+  ),
+  neonGradient(
+    'Neon Gradient Progress Bar',
+    'Multi-color vibrant linear gradient scrubber with glowing tip',
+  ),
+  liquidGlassSlider(
+    'Liquid Glass Track Slider',
+    'Refractive frosted glass slider track with smooth thumb',
+  ),
+  standardSlider(
+    'Precision Tactile Slider',
+    'Tactile interactive glass track with timecode readouts',
+  ),
+  radialDial(
+    'Radial Circular Ring Dial',
+    'Radial circular dial scrubber for compact modern interfaces',
+  );
 
   final String label;
   final String description;
@@ -76,12 +105,14 @@ abstract final class MusicSettings {
   // Mini Player Keys
 
   // Fullscreen Player Keys
-  static const _keySelectedFullscreenPreset = 'music_selected_fullscreen_preset';
+  static const _keySelectedFullscreenPreset =
+      'music_selected_fullscreen_preset';
   static const _keyCustomSeekbarStyle = 'music_custom_seekbar_style';
   static const _keyCustomPlayButtonStyle = 'music_custom_play_button_style';
   static const _keyCustomHoverEffect = 'music_custom_hover_effect';
   static const _keyCustomArtworkStyle = 'music_custom_artwork_style';
-  static const _keyComponentOrderFullscreen = 'music_component_order_fullscreen';
+  static const _keyComponentOrderFullscreen =
+      'music_component_order_fullscreen';
 
   // Atmosphere Notifiers
 
@@ -94,34 +125,35 @@ abstract final class MusicSettings {
   // Fullscreen Player Notifiers
   static final ValueNotifier<MusicFullscreenPreset> selectedFullscreenPreset =
       ValueNotifier<MusicFullscreenPreset>(MusicFullscreenPreset.vinylStudio);
+  // Standard slider, not the animated waveform -- simpler read as more
+  // reliable in practice, and it's the one style backed by a real Slider
+  // widget instead of a custom-painted GestureDetector.
   static final ValueNotifier<MusicSeekbarStyle> customSeekbarStyle =
-      ValueNotifier<MusicSeekbarStyle>(MusicSeekbarStyle.waveformEqualizer);
+      ValueNotifier<MusicSeekbarStyle>(MusicSeekbarStyle.standardSlider);
   static final ValueNotifier<MusicPlayButtonStyle> customPlayButtonStyle =
       ValueNotifier<MusicPlayButtonStyle>(MusicPlayButtonStyle.liquidGlassNeo);
   static final ValueNotifier<MusicHoverEffect> customHoverEffect =
       ValueNotifier<MusicHoverEffect>(MusicHoverEffect.glassRipple);
   static final ValueNotifier<MusicArtworkStyle> customArtworkStyle =
       ValueNotifier<MusicArtworkStyle>(MusicArtworkStyle.vinylSpinningDisc);
-  static final ValueNotifier<List<String>> componentOrderFullscreen = ValueNotifier<List<String>>([
-    'artwork',
-    'title',
-    'qualityBadge',
-    'seekbar',
-    'mainControls',
-    'secondaryControls',
-    'extraActions',
-  ]);
+  static final ValueNotifier<List<String>> componentOrderFullscreen =
+      ValueNotifier<List<String>>([
+        'artwork',
+        'title',
+        'qualityBadge',
+        'seekbar',
+        'mainControls',
+        'secondaryControls',
+        'extraActions',
+      ]);
 
   static final ValueNotifier<int> changeNotifier = ValueNotifier<int>(0);
 
   static Future<void> initialize() async {
     final prefs = await SharedPreferences.getInstance();
 
-
     enableSpotlight.value = prefs.getBool(_keyEnableSpotlight) ?? true;
     cardHoverGlow.value = prefs.getBool(_keyCardHoverGlow) ?? true;
-
-
 
     final fullPresetStr = prefs.getString(_keySelectedFullscreenPreset);
     selectedFullscreenPreset.value = MusicFullscreenPreset.values.firstWhere(
@@ -132,7 +164,7 @@ abstract final class MusicSettings {
     final seekbarStr = prefs.getString(_keyCustomSeekbarStyle);
     customSeekbarStyle.value = MusicSeekbarStyle.values.firstWhere(
       (s) => s.name == seekbarStr,
-      orElse: () => MusicSeekbarStyle.waveformEqualizer,
+      orElse: () => MusicSeekbarStyle.standardSlider,
     );
 
     final playBtnStr = prefs.getString(_keyCustomPlayButtonStyle);
@@ -153,7 +185,6 @@ abstract final class MusicSettings {
       orElse: () => MusicArtworkStyle.vinylSpinningDisc,
     );
 
-
     final fullOrderList = prefs.getStringList(_keyComponentOrderFullscreen);
     if (fullOrderList != null && fullOrderList.isNotEmpty) {
       componentOrderFullscreen.value = fullOrderList;
@@ -162,17 +193,12 @@ abstract final class MusicSettings {
 
   // ── Setters ──
 
-
-
-
   static Future<void> setEnableSpotlight(bool value) async {
     enableSpotlight.value = value;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyEnableSpotlight, value);
     _notify();
   }
-
-
 
   static Future<void> setCardHoverGlow(bool value) async {
     cardHoverGlow.value = value;
@@ -181,8 +207,9 @@ abstract final class MusicSettings {
     _notify();
   }
 
-
-  static Future<void> setSelectedFullscreenPreset(MusicFullscreenPreset preset) async {
+  static Future<void> setSelectedFullscreenPreset(
+    MusicFullscreenPreset preset,
+  ) async {
     selectedFullscreenPreset.value = preset;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keySelectedFullscreenPreset, preset.name);
@@ -196,7 +223,9 @@ abstract final class MusicSettings {
     _notify();
   }
 
-  static Future<void> setCustomPlayButtonStyle(MusicPlayButtonStyle style) async {
+  static Future<void> setCustomPlayButtonStyle(
+    MusicPlayButtonStyle style,
+  ) async {
     customPlayButtonStyle.value = style;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyCustomPlayButtonStyle, style.name);
@@ -217,9 +246,10 @@ abstract final class MusicSettings {
     _notify();
   }
 
-
-
-  static Future<void> reorderFullscreenComponents(int oldIndex, int newIndex) async {
+  static Future<void> reorderFullscreenComponents(
+    int oldIndex,
+    int newIndex,
+  ) async {
     var index = newIndex;
     if (oldIndex < index) {
       index -= 1;
@@ -248,7 +278,7 @@ abstract final class MusicSettings {
     enableSpotlight.value = true;
     cardHoverGlow.value = true;
     selectedFullscreenPreset.value = MusicFullscreenPreset.vinylStudio;
-    customSeekbarStyle.value = MusicSeekbarStyle.waveformEqualizer;
+    customSeekbarStyle.value = MusicSeekbarStyle.standardSlider;
     customPlayButtonStyle.value = MusicPlayButtonStyle.liquidGlassNeo;
     customHoverEffect.value = MusicHoverEffect.glassRipple;
     customArtworkStyle.value = MusicArtworkStyle.vinylSpinningDisc;

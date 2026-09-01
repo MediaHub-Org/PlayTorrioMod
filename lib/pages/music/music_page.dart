@@ -4365,11 +4365,34 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer>
     if (widget.playerController.isPlaying) {
       _discAnimController.repeat();
     }
+    // This screen is a separate pushed route, not a child of MusicPage's own
+    // widget tree -- MusicPage listening to playerController doesn't rebuild
+    // it. Without this, the play/pause icon (and isLoading spinner) stayed
+    // frozen at whatever it was on first build, only catching up whenever
+    // something else happened to trigger didUpdateWidget.
+    widget.playerController.addListener(_onPlayerStateChanged);
+  }
+
+  void _onPlayerStateChanged() {
+    if (!mounted) return;
+    setState(() {
+      if (widget.playerController.isPlaying &&
+          !_discAnimController.isAnimating) {
+        _discAnimController.repeat();
+      } else if (!widget.playerController.isPlaying &&
+          _discAnimController.isAnimating) {
+        _discAnimController.stop();
+      }
+    });
   }
 
   @override
   void didUpdateWidget(covariant _MusicExpandedPlayer oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.playerController != widget.playerController) {
+      oldWidget.playerController.removeListener(_onPlayerStateChanged);
+      widget.playerController.addListener(_onPlayerStateChanged);
+    }
     if (widget.playerController.isPlaying && !_discAnimController.isAnimating) {
       _discAnimController.repeat();
     } else if (!widget.playerController.isPlaying &&
@@ -4380,6 +4403,7 @@ class _MusicExpandedPlayerState extends State<_MusicExpandedPlayer>
 
   @override
   void dispose() {
+    widget.playerController.removeListener(_onPlayerStateChanged);
     _discAnimController.dispose();
     super.dispose();
   }

@@ -273,17 +273,57 @@ abstract final class MyListService {
   }
 
   /// Marks [item] Watched, clearing Watchlist if it was set. Liked is
-  /// untouched. Local-only -- no Trakt/Simkl "mark as watched" call is
-  /// wired (that's a different endpoint from the watchlist add/remove
-  /// above; wire cloud sync here if that becomes a real ask).
+  /// untouched. Syncs to Trakt's `/sync/history` and Simkl's own history
+  /// endpoint -- each provider's real "mark as watched" call, distinct from
+  /// the watchlist add/remove `setWatchlist` uses.
   static void setWatched(MyListItem item) {
     final existing = _find(item);
     final base = existing ?? item;
     if (base.isWatched) {
       _applyOrRemove(base, base.copyWith(isWatched: false));
+      _syncCloudUnmarkWatched(base);
       return;
     }
     _applyOrRemove(base, base.copyWith(isWatched: true, isWatchlist: false));
+    _syncCloudMarkWatched(base);
+  }
+
+  static void _syncCloudMarkWatched(MyListItem item) async {
+    final imdb = item.imdbId;
+    if (imdb == null || imdb.isEmpty) return;
+    try {
+      if (await TraktService.instance.isAuthenticated()) {
+        TraktService.instance.addToHistory(imdb, item.type);
+      }
+    } catch (e) {
+      debugPrint('MyListService: Trakt history sync error: $e');
+    }
+    try {
+      if (await SimklService.instance.isAuthenticated()) {
+        SimklService.instance.markWatched(imdb, item.type);
+      }
+    } catch (e) {
+      debugPrint('MyListService: Simkl history sync error: $e');
+    }
+  }
+
+  static void _syncCloudUnmarkWatched(MyListItem item) async {
+    final imdb = item.imdbId;
+    if (imdb == null || imdb.isEmpty) return;
+    try {
+      if (await TraktService.instance.isAuthenticated()) {
+        TraktService.instance.removeFromHistory(imdb, item.type);
+      }
+    } catch (e) {
+      debugPrint('MyListService: Trakt history sync error: $e');
+    }
+    try {
+      if (await SimklService.instance.isAuthenticated()) {
+        SimklService.instance.markUnwatched(imdb, item.type);
+      }
+    } catch (e) {
+      debugPrint('MyListService: Simkl history sync error: $e');
+    }
   }
 
   /// Toggles Liked, independent of Watchlist/Watched -- something can be
