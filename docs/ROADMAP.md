@@ -17,15 +17,14 @@ was collapsed from three hubs to one and no longer matches this repo's
 structure 1:1. See `PlayTorrioMov`'s own `docs/superpowers/specs/` for the
 fork's design rationale.
 
-**Open decision carried over from the fork, not yet resolved either here or
-there:** PlayTorrioMov's fork work found that removing the Music/Books
-hubs also deleted `MediaSessionService` — which turned out to be generic
-(mirrors `PlaybackCoordinator` for any source, not Music-specific), so
-video playback on Android/iOS lost its lock-screen/notification/Bluetooth
-media controls in that fork. This repo (PlayTorrioMod) is unaffected — it
-kept the service. Worth deciding whether PlayTorrioMov should get it back
-(re-adds the `audio_service` dependency and a background-audio permission)
-or stay without it as a documented trade-off.
+**Resolved 2026-09-01:** PlayTorrioMov's fork work had found that removing
+the Music/Books hubs also deleted `MediaSessionService` — generic
+infrastructure (mirrors `PlaybackCoordinator` for any source, not
+Music-specific) whose loss cost video its Android/iOS lock-screen,
+notification and Bluetooth controls for no reason tied to the actual fork
+goal. Restored it there — `audio_service` dependency, the service file,
+the Android manifest entries, iOS's `audio` background mode. This repo
+was never affected (kept the service throughout).
 
 ## Navigation principle
 
@@ -112,7 +111,7 @@ one side had touched them. The routine that catches it:
 
 ## Signing and releases
 
-- **Android release signing needs two repository secrets** — `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD`. Until they exist, every build is signed with a throwaway debug key, which means each new APK refuses to install over the last one and the in-app updater cannot work. See [release signing](configuration.md#release-signing). The keystore must be generated locally: it is a long-lived credential and should not pass through a chat transcript or CI logs.
+- **Android release signing secrets are set** — `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` both confirmed present on the GitHub repo 2026-09-01 (`gh secret list`, names only — values aren't retrievable, nor were they needed to be). Release builds should now sign with the real key instead of the throwaway debug one, so APKs should install over the previous version and the in-app updater should work. Not yet verified end-to-end with an actual release build — that needs a real CI run, not just confirming the secrets exist. See [release signing](configuration.md#release-signing).
 - **No other platform needs signing for updates**, because none of them self-install. See the table in `configuration.md`.
 
 ## Declined, so they do not get re-litigated
