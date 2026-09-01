@@ -4,6 +4,30 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Watchlist/Watched status picker on Movies/Series (ROADMAP #13, half) — 2026-09-01
+- Replaced the single "Add to Library" button with a status picker matching Anime's own `PopupMenuButton` pattern — same shape, same current-status-as-label styling, so the two content types present this control identically now.
+- **Watchlist was dead code.** `MyListItem.isWatchlist` and a "Watchlist only" filter chip already existed on Collection page, but nothing ever set the field true — "Add to Library" always created items with it `false`. This wires it.
+- **Watched is new**: `MyListItem.isWatched`, same JSON/`copyWith` treatment, mutually exclusive with Watchlist. Local-only for now — no Trakt/Simkl "mark watched" call is wired (a different endpoint from the watchlist add/remove already used).
+- Fixed a latent bug found while touching `MyListItem`: `copyWith()` never carried `isWatchlist` through at all, silently resetting it on every merge.
+- Deferred on purpose: a "Watched only" filter chip on Collection page (matching the existing Watchlist one), and icon-button consistency beyond this one control.
+
+### Settings coexists with persistent nav chrome (ROADMAP #16/#17) — 2026-09-01
+- Opening Settings no longer hides the hub switcher or section row, on any breakpoint. It used to cover both — a full-screen `Navigator.push`.
+- **Root cause was a breakpoint asymmetry, not just routing.** Mobile already kept both nav layers in `AdaptiveNavShell`, outside the swappable content area. Desktop/tablet's section row lived *inside* each hub's own scaffold instead — moved it up so both breakpoints agree `AdaptiveNavShell` owns every layer of persistent chrome.
+- `HubController` gained a `settingsOpen` flag; every hub/section setter also clears it, so tapping nav chrome while Settings is open both switches and implicitly closes Settings — even re-tapping the already-active hub/section, which needed its own no-op guard fix.
+- `SettingsPage` no longer routes — it swaps into the same content slot hubs use (wrapped in its own nested Navigator) and takes an `onClose` callback instead of popping. Its 8 sub-pages needed no changes: they already push/pop on ambient context, which now resolves one level higher. Still works routed too (the one other call site, a "no streams found" Settings shortcut, wires `onClose` to a route pop).
+- Settings icon needed no repositioning — already top-right, always visible on both breakpoints.
+
+### Live TV header no longer sits lower than Movies & Series' (ROADMAP #15) — 2026-09-01
+- `AdaptiveNavShell` already reserves the device's top safe-area inset above every hub's content. `IptvPage`'s own floating header read `MediaQuery.padding.top` again and added it a second time, double-counting the same inset and sitting visibly lower than Movies & Series' header, which never read it at all.
+
+### Remove title A-Z/Z-A sort from Movies/Series (ROADMAP #14) — 2026-09-01
+- Catalog sort keeps Newest/Oldest only. Default sort moved from Title A-Z to Newest.
+
+### Sync upstream to v1.0.9 (AI Taste Matcher Quiz, IPTV overflow fixes, stream filters) — 2026-09-01
+- Merged `ayman708-UX/PlayTorrioV3` @ `41a11f4`. Identity files (version, `build.yml`, `setup.iss`, `Runner.rc`) resolved to ours per the established routine. Kept this fork's replacements for pages upstream still has that were deliberately not carried over (no `HomePage`/`LiquidDock`, no upstream Audiobook/Music settings pages — superseded by this fork's own `*_player_studio_page.dart`).
+- Found and fixed two real bugs the merge surfaced: `wewatch_quiz_page.dart` (new from upstream) used a raw `size.width < 700` instead of `AppBreakpoints`; and `breakpoint_consistency_test.dart`'s exemption list for full-screen player pages silently never matched on Windows (`Directory.listSync` yields backslash paths, the exemption set was forward-slash-only), which is what let those new upstream width comparisons slip through undetected.
+
 ### Move the artifact actions onto Node 24 — 2026-08-31
 - **I got this wrong twice before getting it right.** First I wrote that the release job ran a step on "the deprecated Node 20" — an assumption. Then I checked the actions' own `action.yml`, found `upload-artifact@v5` and `download-artifact@v5`/`v6` all declaring `using: node20`, and concluded there was nothing to fix, since bumping within those majors changed nothing.
 - **The v1.1.3 release run settled it**: `##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/upload-artifact@v5`. The runner is already overriding them, and GitHub says that override is temporary. That is exactly the "revisit only if a release run actually warns" condition the roadmap entry named.
