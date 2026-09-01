@@ -18,7 +18,11 @@ import 'package:flutter/material.dart';
 /// the more actionable of the two (resume something, not just audit a log).
 enum LibrarySection {
   /// Everything the user deliberately kept: liked, favourited, bookmarked.
-  saved('Saved', Icons.favorite_rounded),
+  ///
+  /// A heart overclaims here -- it implies "liked" specifically, but this
+  /// bucket also holds Watchlist/Playlist. `inventory_2` reads as generic
+  /// storage instead; the heart lives on the Liked chip inside this tab.
+  saved('Saved', Icons.inventory_2_rounded),
 
   /// Partway through and resumable.
   inProgress('Continue', Icons.play_circle_outline_rounded),
