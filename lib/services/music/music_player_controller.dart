@@ -197,11 +197,11 @@ class MusicPlayerController extends ChangeNotifier {
     _activeLyricIndex = -1;
     notifyListeners();
 
-    // Add to recent history
-    MusicLibraryService.instance.addToRecent(track);
-
-    // Fetch lyrics asynchronously
-    _fetchLyricsForTrack(track);
+    // A radio station isn't a track to revisit or caption -- skip both.
+    if (track.directStreamUrl == null) {
+      MusicLibraryService.instance.addToRecent(track);
+      _fetchLyricsForTrack(track);
+    }
 
     // Dispose previous controller
     for (final s in _subscriptions) {
@@ -224,7 +224,11 @@ class MusicPlayerController extends ChangeNotifier {
       final player = Player();
       final Media media;
 
-      if (isOffline && downloadedTrack != null) {
+      if (track.directStreamUrl != null && track.directStreamUrl!.isNotEmpty) {
+        _currentQualityLabel = 'Live Radio';
+        _isCurrentTrackLossless = false;
+        media = Media(track.directStreamUrl!);
+      } else if (isOffline && downloadedTrack != null) {
         _currentQualityLabel = downloadedTrack.quality.contains('FLAC')
             ? 'FLAC Lossless (Offline)'
             : 'HQ Audio (Offline)';

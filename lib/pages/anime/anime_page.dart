@@ -699,15 +699,15 @@ class _AnimeHeroCarouselState extends State<_AnimeHeroCarousel>
   }
 
   double _heroHeight(double screenWidth, double screenHeight) {
+    // Sized to match Live TV's hero carousel (iptv_hero_carousel.dart's
+    // Immersive style) -- previously ran up to 920px on desktop, nearly
+    // double any other hero in the app.
     if (screenWidth < 600) {
-      return (screenHeight * 0.68).clamp(460.0, 640.0);
+      return (screenHeight * 0.42).clamp(340.0, 420.0);
     } else if (screenWidth < 1100) {
-      return (screenHeight * 0.70).clamp(520.0, 740.0);
+      return (screenHeight * 0.48).clamp(360.0, 480.0);
     } else {
-      // Maximized / Widescreen Desktop: give generous height (up to 85% of viewport)
-      // so 16:9 backdrops don't get aggressively cropped or squished into narrow strips.
-      final targetHeight = screenHeight * 0.85;
-      return targetHeight.clamp(680.0, 920.0);
+      return (screenHeight * 0.52).clamp(380.0, 560.0);
     }
   }
 

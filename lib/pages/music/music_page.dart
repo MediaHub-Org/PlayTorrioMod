@@ -27,6 +27,7 @@ import '../podcast/podcasts_page.dart';
 import '../../services/podcast/podcast_library_service.dart';
 import '../../services/music/music_player_controller.dart';
 import '../../services/music/music_service.dart';
+import '../../services/music/radio_browser_service.dart';
 import '../../services/music/music_settings.dart';
 import '../../widgets/music/music_interactive_physics_button.dart';
 import '../../widgets/music/music_waveform_seekbar.dart';
@@ -51,10 +52,6 @@ class _MusicPageState extends State<MusicPage> {
 
   String _activeTab = 'Music'; // 'Music', 'Search', 'Radio', 'Podcasts', 'Library'
   String _savedType = 'songs'; // Library > Saved sub-tab
-  // True only when the current search was reached by tapping a Radio
-  // station card, so the resulting tracks play with isRadio: true (see
-  // MusicPlayerController.playTrack) instead of a deliberate track pick.
-  bool _searchIsFromRadio = false;
 
   Map<String, List<MusicTrack>> _sections = {};
   String? _errorMessage;
@@ -67,6 +64,12 @@ class _MusicPageState extends State<MusicPage> {
   List<MusicArtist> _genreArtists = [];
   bool _loadingGenreArtists = false;
   MusicTrack? _heroTrack;
+
+  // Radio tab: real stations from RadioBrowserService, not song search.
+  String _radioTag = 'top';
+  List<RadioStation> _radioStations = [];
+  bool _loadingRadioStations = false;
+  bool _radioLoadFailed = false;
 
   MusicSearchData _searchData = MusicSearchData.empty;
 
@@ -107,6 +110,7 @@ class _MusicPageState extends State<MusicPage> {
       if (artistId.isNotEmpty) _openArtistModal(artistId);
     });
     _loadMusicData();
+    if (_activeTab == 'Radio') _loadRadioStations(_radioTag);
   }
 
   @override
@@ -141,6 +145,41 @@ class _MusicPageState extends State<MusicPage> {
       _activeQuery = '';
       _searchController.clear();
     });
+    if (tab == 'Radio' && _radioStations.isEmpty && !_loadingRadioStations) {
+      _loadRadioStations(_radioTag);
+    }
+  }
+
+  Future<void> _loadRadioStations(String tag) async {
+    setState(() {
+      _radioTag = tag;
+      _loadingRadioStations = true;
+      _radioLoadFailed = false;
+    });
+    final stations = tag == 'top'
+        ? await RadioBrowserService.topStations()
+        : await RadioBrowserService.byGenre(tag);
+    if (!mounted) return;
+    setState(() {
+      _radioStations = stations;
+      _loadingRadioStations = false;
+      _radioLoadFailed = stations.isEmpty;
+    });
+  }
+
+  void _playRadioStation(RadioStation station) {
+    _playerController.playTrack(
+      MusicTrack(
+        id: 'radio:${station.id}',
+        title: station.name,
+        artist: station.country.isNotEmpty ? station.country : 'Live Radio',
+        album: 'Radio',
+        coverUrl: station.favicon,
+        durationSeconds: 0,
+        directStreamUrl: station.streamUrl,
+      ),
+      isRadio: true,
+    );
   }
 
   void _onStateChanged() {
@@ -242,8 +281,7 @@ class _MusicPageState extends State<MusicPage> {
     });
   }
 
-  void _onGenreTap(String query, {bool isRadio = false}) {
-    _searchIsFromRadio = isRadio;
+  void _onGenreTap(String query) {
     _searchController.text = query;
     _onSearchChanged(query);
   }
@@ -1093,10 +1131,7 @@ class _MusicPageState extends State<MusicPage> {
           controller: _searchController,
           autofocus: true,
           style: const TextStyle(color: Colors.white),
-          onChanged: (value) {
-            _searchIsFromRadio = false;
-            _onSearchChanged(value);
-          },
+          onChanged: _onSearchChanged,
           decoration: InputDecoration(
             hintText: 'Search music...',
             hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35)),
@@ -1189,10 +1224,8 @@ class _MusicPageState extends State<MusicPage> {
                   onTap: () => _playerController.playTrack(
                     track,
                     playlistQueue: _searchData.tracks,
-                    isRadio: _searchIsFromRadio,
                   ),
                   onMoreTap: () => _showAddToPlaylistMenu(track),
-                  showDownload: !_searchIsFromRadio,
                 );
               },
             ),
@@ -1567,15 +1600,16 @@ class _MusicPageState extends State<MusicPage> {
   }
 
   Widget _buildRadioView() {
-    final radioGenres = [
-      {'name': 'Pop Radio', 'color': const Color(0xFF7C5CFF), 'query': 'Pop Radio Hits'},
-      {'name': 'Rap & Hip-Hop', 'color': const Color(0xFF7850FF), 'query': 'Hip Hop Radio'},
-      {'name': 'Rock Mix', 'color': const Color(0xFFF99C00), 'query': 'Rock Radio'},
-      {'name': 'Dance & Electro', 'color': const Color(0xFF00D294), 'query': 'Electro Radio'},
-      {'name': 'R&B Station', 'color': const Color(0xFFE12AFB), 'query': 'R&B Radio'},
-      {'name': 'Lofi & Ambient', 'color': const Color(0xFF00D2EF), 'query': 'Lofi Radio'},
-      {'name': 'Heavy Metal Station', 'color': const Color(0xFFFB2C36), 'query': 'Metal Radio'},
-      {'name': 'Jazz Club', 'color': const Color(0xFF625FFF), 'query': 'Jazz Radio'},
+    // Real station tags from radio-browser.info, not a fake song-search query.
+    const radioTags = [
+      ('Top', 'top', Color(0xFF7C5CFF)),
+      ('Pop', 'pop', Color(0xFF7850FF)),
+      ('Hip Hop', 'hip hop', Color(0xFFF99C00)),
+      ('Rock', 'rock', Color(0xFF00D294)),
+      ('Electronic', 'electronic', Color(0xFFE12AFB)),
+      ('R&B', 'rnb', Color(0xFF00D2EF)),
+      ('Lofi', 'lofi', Color(0xFFFB2C36)),
+      ('Jazz', 'jazz', Color(0xFF625FFF)),
     ];
 
     return ListView(
@@ -1593,57 +1627,131 @@ class _MusicPageState extends State<MusicPage> {
         ),
         const SizedBox(height: 6),
         const Text(
-          'Continuous music channels tuned to your mood.',
+          'Real, continuously-playing stations from around the world.',
           style: TextStyle(color: Color(0xFF9E9EA8), fontSize: 14),
         ),
         const SizedBox(height: 20),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-            maxCrossAxisExtent: 220,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 1.5,
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              for (final (label, tag, color) in radioTags) ...[
+                _RadioTagChip(
+                  label: label,
+                  color: color,
+                  selected: _radioTag == tag,
+                  onTap: () => _loadRadioStations(tag),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ],
           ),
-          itemCount: radioGenres.length,
-          itemBuilder: (context, index) {
-            final station = radioGenres[index];
-            final color = station['color'] as Color;
-            return _MusicHoverable(
-              scaleFactor: 1.04,
-              child: GestureDetector(
-                onTap: () => _onGenreTap(station['query'] as String, isRadio: true),
-                child: PerformanceLiquidLens(
-                  style: PerformanceGlassStyles.menu,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(18),
-                      color: color.withValues(alpha: 0.20),
-                      border: Border.all(color: color.withValues(alpha: 0.5)),
-                    ),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Icon(Icons.radio_rounded, color: color, size: 28),
-                        Text(
-                          station['name'] as String,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
+        ),
+        const SizedBox(height: 20),
+        if (_loadingRadioStations)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 48.0),
+            child: Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF))),
+          )
+        else if (_radioLoadFailed)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 48.0),
+            child: Center(
+              child: Column(
+                children: [
+                  const Icon(Icons.wifi_off_rounded, color: Colors.white38, size: 48),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Could not reach the radio directory',
+                    style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 8),
+                  TextButton(
+                    onPressed: () => _loadRadioStations(_radioTag),
+                    child: const Text('Retry'),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+              maxCrossAxisExtent: 220,
+              mainAxisSpacing: 16,
+              crossAxisSpacing: 16,
+              childAspectRatio: 1.15,
+            ),
+            itemCount: _radioStations.length,
+            itemBuilder: (context, index) {
+              final station = _radioStations[index];
+              final isCurrent = _playerController.currentTrack?.id == 'radio:${station.id}';
+              return _MusicHoverable(
+                scaleFactor: 1.04,
+                child: GestureDetector(
+                  onTap: () => _playRadioStation(station),
+                  child: PerformanceLiquidLens(
+                    style: PerformanceGlassStyles.menu,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(18),
+                        color: isCurrent
+                            ? const Color(0xFF7C5CFF).withValues(alpha: 0.28)
+                            : Colors.white.withValues(alpha: 0.06),
+                        border: Border.all(
+                          color: isCurrent
+                              ? const Color(0xFF7C5CFF).withValues(alpha: 0.7)
+                              : Colors.white.withValues(alpha: 0.12),
                         ),
-                      ],
+                      ),
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: station.favicon.isNotEmpty
+                                ? CachedNetworkImage(
+                                    imageUrl: station.favicon,
+                                    width: 32,
+                                    height: 32,
+                                    fit: BoxFit.cover,
+                                    errorWidget: (_, __, ___) =>
+                                        const Icon(Icons.radio_rounded, color: Colors.white70, size: 28),
+                                  )
+                                : (isCurrent && _playerController.isPlaying
+                                    ? const Icon(Icons.graphic_eq_rounded, color: Color(0xFF7C5CFF), size: 28)
+                                    : const Icon(Icons.radio_rounded, color: Colors.white70, size: 28)),
+                          ),
+                          Text(
+                            station.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (station.country.isNotEmpty)
+                            Text(
+                              station.country,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(color: Color(0xFF9E9EA8), fontSize: 11),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
-        ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -1887,6 +1995,44 @@ class _MusicPageState extends State<MusicPage> {
     );
   }
 
+}
+
+class _RadioTagChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RadioTagChip({
+    required this.label,
+    required this.color,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: selected ? color.withValues(alpha: 0.28) : Colors.white.withValues(alpha: 0.06),
+          border: Border.all(color: selected ? color.withValues(alpha: 0.8) : Colors.white.withValues(alpha: 0.12)),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : Colors.white70,
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2583,7 +2729,6 @@ class _MusicTrackRow extends StatelessWidget {
   final bool isCurrent;
   final VoidCallback onTap;
   final VoidCallback onMoreTap;
-  final bool showDownload;
 
   const _MusicTrackRow({
     required this.track,
@@ -2591,7 +2736,6 @@ class _MusicTrackRow extends StatelessWidget {
     required this.isCurrent,
     required this.onTap,
     required this.onMoreTap,
-    this.showDownload = true,
   });
 
   @override
@@ -2651,10 +2795,8 @@ class _MusicTrackRow extends StatelessWidget {
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (showDownload) ...[
-              MusicTrackDownloadButton(track: track),
-              const SizedBox(width: 4),
-            ],
+            MusicTrackDownloadButton(track: track),
+            const SizedBox(width: 4),
             Text(
               track.formattedDuration,
               style: const TextStyle(color: Colors.white38, fontSize: 12),

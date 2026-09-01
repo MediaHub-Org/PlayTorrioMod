@@ -11,6 +11,12 @@ class MusicTrack {
   final String? previewUrl;
   final int? trackNumber;
 
+  /// Set only for a live radio station (see `RadioBrowserService`). When
+  /// present, `MusicPlayerController` plays this URL directly instead of
+  /// resolving the track through YouTube/FLAC search -- a station's stream
+  /// URL is already playable audio, not something to search for.
+  final String? directStreamUrl;
+
   const MusicTrack({
     required this.id,
     required this.title,
@@ -23,6 +29,7 @@ class MusicTrack {
     this.explicit = false,
     this.previewUrl,
     this.trackNumber,
+    this.directStreamUrl,
   });
 
   factory MusicTrack.fromJson(Map<String, dynamic> json) {

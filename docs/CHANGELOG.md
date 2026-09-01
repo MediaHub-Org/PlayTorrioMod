@@ -4,6 +4,14 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased] — 2026-08-22
 
+### Radio plays real stations; Movies & Series and Anime hero carousels fixed (ROADMAP #13/#14) — 2026-09-02
+- **Radio was never radio.** `_buildRadioView()`'s 8 tiles ran a genre-flavoured song search (`_onGenreTap(query, isRadio: true)`) — no station data source existed at all. Added `RadioBrowserService` (radio-browser.info, free/keyless, three mirrors tried in order) and a real `RadioStation` model; the tab now fetches and plays actual station streams.
+- **New direct-playback path.** `MusicTrack` gained `directStreamUrl`; when set, `MusicPlayerController._loadAndPlayTrack` plays that URL straight through `media_kit`, skipping the YouTube/FLAC search-and-resolve pipeline entirely (a live station stream is already playable audio, not something to search for) and skipping recent-history/lyrics fetches, which don't apply to a station.
+- Removed the now-fully-dead `_searchIsFromRadio` flag and the `isRadio` param on `_onGenreTap` — both existed only to thread the fake radio-via-search path through, which no longer exists.
+- **Movies & Series' hero** (`type_catalog_page.dart`) was force-cropping a portrait `movie.poster` into the landscape hero slot. Turns out the addon catalog JSON already carries a `background` field — `MovieDetail` (the per-item detail page) already read it, `Movie` (the catalog/hero model) just never parsed it. Added the field; hero now prefers it, falling back to the poster only when an addon omits it. No new data source needed.
+- **Anime's hero was legitimately oversized** next to its siblings: up to 920px tall on desktop (85% of viewport) versus Live TV's 560px cap and Movies & Series' flat 420px. Brought its per-tier ratios/clamps down to Live TV's range.
+- **Not done**: Live TV's hero needs eyes-on-device inspection (its code already looks correct); Books/Podcast/Music's layout parity with Anime's `BrowseScaffold` is a real redesign against a deliberate past divergence, left open pending confirmation it's actually wanted; Books stays blocked on having no cover URL source at all.
+
 ### Details pages no longer block hub pill/bottom bar navigation (ROADMAP #26) — 2026-09-02
 - Root cause: each hub's `NestedNavigator` stays mounted across hub switches (`IndexedStack`), so a pushed Details page kept covering the screen even after tapping a different hub or section pill correctly changed `HubController`'s state underneath it — the switch was real but invisible.
 - `NestedNavigator` now accepts an external `GlobalKey<NavigatorState>`. `HubPage` keeps one per hub and pops all three back to root whenever the active hub or section actually changes, so pill/bottom-bar taps are always visible regardless of how deep a Details push went.
