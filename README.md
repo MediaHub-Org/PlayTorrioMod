@@ -26,11 +26,11 @@
 Navigation is organised by what you want to do, not by file format. Every hub
 shares the same search, filters, favourites and playback surface.
 
-| Hub | Sections |
-|:--|:--|
-| **Watch** | Movies · Series · Anime · Live TV · Library |
-| **Listen** | Music · Radio · Podcasts · Library |
-| **Read** | Audiobooks · Books · Comics · Manga · Library |
+| Hub        | Sections                                      |
+|:-----------|:----------------------------------------------|
+| **Watch**  | Movies · Series · Anime · Live TV · Library   |
+| **Listen** | Music · Radio · Podcasts · Library            |
+| **Read**   | Audiobooks · Books · Comics · Manga · Library |
 
 On phones the section switcher collapses to a dropdown; tablets and desktops
 get the full chip bar. See [UI & Design](docs/ui-design.md).
@@ -47,13 +47,13 @@ flutter pub get
 flutter run
 ```
 
-| Target | Command |
-|:--|:--|
+| Target  | Command                  |
+|:--------|:-------------------------|
 | Android | `flutter run -d android` |
-| iOS | `flutter run -d ios` |
+| iOS     | `flutter run -d ios`     |
 | Windows | `flutter run -d windows` |
-| macOS | `flutter run -d macos` |
-| Linux | `flutter run -d linux` |
+| macOS   | `flutter run -d macos`   |
+| Linux   | `flutter run -d linux`   |
 
 On first launch the app installs the default Cinemeta addon and starts the
 torrent engine. Nothing else needs configuring to start browsing.
@@ -67,20 +67,20 @@ build as the universal APK at a third of the size.
 
 Everything beyond this page lives in [`docs/`](docs/).
 
-| Document | What's in it |
-|:--|:--|
-| [Architecture](docs/architecture.md) | Layer diagram, project structure, the patterns the codebase leans on |
-| [Streaming](docs/streaming.md) | Discovery pipeline, VOD scrapers, torrent engine, Stremio addons, subtitles |
-| [Content sources](docs/content-sources.md) | Manga reader, audiobook aggregation, music streaming |
-| [UI & design](docs/ui-design.md) | Design tokens, glassmorphism, responsive tiers |
-| [Platforms & configuration](docs/configuration.md) | Platform support matrix and runtime settings |
-| [Player](docs/player.md) | Playback engine, decoders, subtitle rendering |
-| [Changelog](docs/CHANGELOG.md) | What shipped, when |
-| [Roadmap](docs/ROADMAP.md) | What is still outstanding |
-| [Fork differences](docs/FORK_DIFFERENCES.md) | How this fork diverges from upstream |
-| [Audit](docs/AUDIT.md) | Findings log and their resolutions |
-| [Contributing](docs/CONTRIBUTING.md) | How to propose a change |
-| [Branching](docs/branching.md) | Branch model, contributing upstream, pulling upstream changes in |
+| Document                                           | What's in it                                                                |
+|:---------------------------------------------------|:----------------------------------------------------------------------------|
+| [Architecture](docs/architecture.md)               | Layer diagram, project structure, the patterns the codebase leans on        |
+| [Streaming](docs/streaming.md)                     | Discovery pipeline, VOD scrapers, torrent engine, Stremio addons, subtitles |
+| [Content sources](docs/content-sources.md)         | Manga reader, audiobook aggregation, music streaming                        |
+| [UI & design](docs/ui-design.md)                   | Design tokens, glassmorphism, responsive tiers                              |
+| [Platforms & configuration](docs/configuration.md) | Platform support matrix and runtime settings                                |
+| [Player](docs/player.md)                           | Playback engine, decoders, subtitle rendering                               |
+| [Changelog](docs/CHANGELOG.md)                     | What shipped, when                                                          |
+| [Roadmap](docs/ROADMAP.md)                         | What is still outstanding                                                   |
+| [Fork differences](docs/FORK_DIFFERENCES.md)       | How this fork diverges from upstream                                        |
+| [Audit](docs/AUDIT.md)                             | Findings log and their resolutions                                          |
+| [Contributing](docs/CONTRIBUTING.md)               | How to propose a change                                                     |
+| [Branching](docs/branching.md)                     | Branch model, contributing upstream, pulling upstream changes in            |
 
 ## Building and releases
 
