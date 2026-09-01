@@ -4,7 +4,28 @@ What is **outstanding**. Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md);
 this file stays about what is left.
 
 Last reconciled against the tree: **2026-08-31** (v1.1.3+11, dev channel,
-level with upstream @ `cd10d6c` / v1.0.8).
+level with upstream @ `41a11f4` / v1.0.9).
+
+## Sibling app: PlayTorrioMov
+
+`MediaHub-Org/PlayTorrioMov` is a Media-only fork of this repo (Movies &
+Series, Anime, Live TV, Library — no Music, no Books) for users who already
+have dedicated apps for music and reading. This repo (PlayTorrioMod) stays
+the primary development target and keeps tracking upstream as above;
+PlayTorrioMov gets Media-domain changes ported over manually, since its nav
+was collapsed from three hubs to one and no longer matches this repo's
+structure 1:1. See `PlayTorrioMov`'s own `docs/superpowers/specs/` for the
+fork's design rationale.
+
+**Open decision carried over from the fork, not yet resolved either here or
+there:** PlayTorrioMov's fork work found that removing the Music/Books
+hubs also deleted `MediaSessionService` — which turned out to be generic
+(mirrors `PlaybackCoordinator` for any source, not Music-specific), so
+video playback on Android/iOS lost its lock-screen/notification/Bluetooth
+media controls in that fork. This repo (PlayTorrioMod) is unaffected — it
+kept the service. Worth deciding whether PlayTorrioMov should get it back
+(re-adds the `audio_service` dependency and a background-audio permission)
+or stay without it as a documented trade-off.
 
 ## Navigation principle
 
@@ -50,6 +71,20 @@ Once a build has actually been through this, clear `AppInfo.channel` and the
 | 7 | **`music_page.dart` is 5,220 lines**                                                              | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | 8 | **Kotlin Gradle Plugin will break future Flutter builds**                                         | Every Android build warns: the app and six plugins (`package_info_plus`, `shared_preferences_android`, `torrserver_flutter`, `url_launcher_android`, `video_player_android`, `wakelock_plus`) apply KGP, and *"future versions of Flutter will fail to build if your app uses plugins that apply KGP"*. The app's own `build.gradle.kts` can migrate to Built-in Kotlin; the plugins cannot be fixed here — each needs a version that supports it, or an upstream issue. Not urgent, but it is a dated fuse rather than a style nit.                                                                                                                                                                         |
 
+## Known bugs
+
+| #  | Bug                                             | Notes                                                                                                                                                                                                                    |
+|----|--------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 12 | **"Unknown hard error" on Windows after closing the app** | Reported 2026-08-31. Not yet reproduced/triaged — need a stack trace or exact repro steps (does it happen on every close, or only after specific actions like an active torrent/stream? does it show a dialog or just appear in Event Viewer?) before this can be root-caused. |
+
+## Requested UI work
+
+| #  | Task                                                              | Notes                                                                                                                                                                                                                                                                    |
+|----|--------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| 13 | **Icon-button consistency, plus a Watchlist/Watched pair** | Requested 2026-08-31. The heart/like icon (`LikeButton`, `lib/widgets/common/like_button.dart`) is already unified across Music/Manga/Podcasts/Books (see its own doc comment). What's being asked now is broader: audit every content-action icon button (like, add-to-library/bookmark, watchlist, watched) for one consistent visual language, and add a distinct Watchlist ("plan to watch") vs. Watched (completed) pair for Movies/Series — today Movies/Series only has the single "Add to Library" bookmark toggle (deliberately not the heart, per `LikeButton`'s own doc comment), while Anime already has a four-state picker (Watching/Plan to Watch/Completed/Dropped). Needs a short design pass before implementation: is Watchlist/Watched a third state bolted onto the existing Library bookmark, or a separate concept end-to-end (its own storage, its own icon row)? |
+| 14 | **Remove A-Z title sort on Movies/Series**  | Requested 2026-08-31. Find the sort control on `TypeCatalogPage`/`FilterDropdown` (movie/series catalogs) and drop the alphabetical option, keeping whatever the remaining sort choices are (e.g. popularity, release date, added date). |
+| 15 | **Header space consistency between "Live TV" and "Movies & Series"** | Requested 2026-08-31. The two sections apparently don't share identical header/app-bar spacing or layout today. Needs a side-by-side comparison of both pages' header widgets before deciding whether to extract a shared header component or just align paddings/sizes independently. |
+
 ## Content sources
 
 | #  | Task                           | State                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -61,7 +96,7 @@ Once a build has actually been through this, clear `AppInfo.channel` and the
 ## Staying level with upstream
 
 The fork tracks `ayman708-UX/PlayTorrioV3`. As of 2026-08-31 it is **zero
-commits behind** (`upstream/main` @ `cd10d6c`, v1.0.8).
+commits behind** (`upstream/main` @ `41a11f4`, v1.0.9).
 
 Merging upstream is not a `git merge` and a green analyzer — the last two syncs
 both had real breakage in regions git's 3-way diff never flagged, because only
