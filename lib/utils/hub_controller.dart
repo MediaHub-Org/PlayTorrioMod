@@ -33,12 +33,30 @@ class HubController extends ChangeNotifier {
   String _watchType = 'movie';    // 'movie' | 'series'
   String _readableType = 'manga'; // 'manga' | 'comics'
 
+  // Whether Settings is showing in place of the current hub's content.
+  // Nav chrome (hub switcher, section row) stays visible and clickable the
+  // whole time -- switching hub or section below implicitly leaves Settings.
+  bool _settingsOpen = false;
+
   AppHub get currentHub => _currentHub;
   String get mediaSection => _mediaSection;
   String get booksSection => _booksSection;
   String get musicTab => _musicTab;
   String get watchType => _watchType;
   String get readableType => _readableType;
+  bool get settingsOpen => _settingsOpen;
+
+  void openSettings() {
+    if (_settingsOpen) return;
+    _settingsOpen = true;
+    notifyListeners();
+  }
+
+  void closeSettings() {
+    if (!_settingsOpen) return;
+    _settingsOpen = false;
+    notifyListeners();
+  }
 
   void setWatchType(String type) {
     if (_watchType == type) return;
@@ -53,26 +71,32 @@ class HubController extends ChangeNotifier {
   }
 
   void setHub(AppHub hub) {
-    if (_currentHub == hub) return;
+    // Falls through even when the hub itself is unchanged, so re-tapping the
+    // already-active hub pill while Settings is open still closes it.
+    if (_currentHub == hub && !_settingsOpen) return;
     _currentHub = hub;
+    _settingsOpen = false;
     notifyListeners();
   }
 
   void setMediaSection(String id) {
-    if (_mediaSection == id) return;
+    if (_mediaSection == id && !_settingsOpen) return;
     _mediaSection = id;
+    _settingsOpen = false;
     notifyListeners();
   }
 
   void setBooksSection(String id) {
-    if (_booksSection == id) return;
+    if (_booksSection == id && !_settingsOpen) return;
     _booksSection = id;
+    _settingsOpen = false;
     notifyListeners();
   }
 
   void setMusicTab(String tab) {
-    if (_musicTab == tab) return;
+    if (_musicTab == tab && !_settingsOpen) return;
     _musicTab = tab;
+    _settingsOpen = false;
     notifyListeners();
   }
 

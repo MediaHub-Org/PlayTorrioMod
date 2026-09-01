@@ -2280,7 +2280,10 @@ class _EmptySourcesStateWidgetState extends State<_EmptySourcesStateWidget>
               onTap: () {
                 Navigator.push(
                   context,
-                  LiquidRevealRoute(page: const SettingsPage(), tapPosition: null),
+                  LiquidRevealRoute(
+                    page: SettingsPage(onClose: () => Navigator.pop(context)),
+                    tapPosition: null,
+                  ),
                 );
               },
               child: AnimatedContainer(

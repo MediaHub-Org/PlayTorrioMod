@@ -4,13 +4,19 @@ import '../../services/app_breakpoints.dart';
 import '../../services/app_spacing.dart';
 import '../../utils/app_hub.dart';
 import '../../utils/hub_controller.dart';
+import 'section_top_bar.dart';
 import 'sidebar_logo.dart';
 import 'top_bar.dart';
 
 /// Tier-aware nav chrome wrapping a hub's content area.
 ///
-/// Desktop/tablet keep the existing [TopBar]: hub switcher centred, sections
-/// as a chip row beneath it.
+/// Owns *every* layer of persistent nav on every tier -- the hub switcher and
+/// the section row both live here, not inside whatever is currently showing
+/// in [child] -- so nothing (including Settings, which swaps [child] for its
+/// own content rather than routing away) can cover them.
+///
+/// Desktop/tablet: [TopBar] (hub switcher) with [SectionTopBar] (section
+/// chips) beneath it.
 ///
 /// Mobile mirrors that hierarchy rather than inverting it. The bottom bar --
 /// the easiest thing to reach on a phone -- carries the four sections of the
@@ -61,6 +67,7 @@ class AdaptiveNavShell extends StatelessWidget {
       children: [
         SizedBox(height: topPadding),
         TopBar(onSettingsTap: onSettingsTap),
+        const SectionTopBar(),
         Expanded(child: child),
       ],
     );

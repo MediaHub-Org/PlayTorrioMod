@@ -6,7 +6,6 @@ import '../../widgets/common/nested_navigator.dart';
 import '../../widgets/common/universal_play_bar.dart';
 import '../../utils/hub_controller.dart';
 import '../../utils/hub_navigator.dart';
-import '../../utils/navigation/route_transitions.dart';
 import '../../services/app_breakpoints.dart';
 import '../../services/app_spacing.dart';
 import '../../widgets/common/adaptive_nav_shell.dart';
@@ -16,8 +15,11 @@ import 'books_hub.dart';
 import 'music_hub.dart';
 
 /// HubPage: the top-level container hosting all primary app hubs
-/// (Media, Books, Music) in an IndexedStack. Each hub owns its own sidebar
-/// (hub switcher, sections, search, settings) — there's no shared header.
+/// (Media, Books, Music) in an IndexedStack, wrapped in the persistent
+/// [AdaptiveNavShell] chrome (hub switcher + section row, both nav layers,
+/// on every tier). Settings swaps into the same content slot the hubs use
+/// rather than routing away, so that chrome stays visible while it's open
+/// too -- see [HubController.settingsOpen].
 class HubPage extends StatefulWidget {
   const HubPage({super.key});
 
@@ -38,12 +40,29 @@ class _HubPageState extends State<HubPage> {
   ];
   final List<Widget?> _built = List<Widget?>.filled(3, null);
 
+  // Bumped each time Settings closes, so its NestedNavigator gets a fresh
+  // key next time it opens -- re-opening Settings always lands back on the
+  // settings list, never resumes on whatever sub-page was showing before.
+  int _settingsRebuildKey = 0;
+
   static Widget _buildMediaHub() => const NestedNavigator(child: MediaHub());
   static Widget _buildBooksHub() => const NestedNavigator(child: BooksHub());
   static Widget _buildMusicHub() => const NestedNavigator(child: MusicHub());
 
   void _setHub(AppHub hub) {
     HubController.instance.setHub(hub);
+  }
+
+  void _closeSettings() {
+    HubController.instance.closeSettings();
+    // Addons may have changed in Settings — drop the cached hubs so each
+    // rebuilds and refetches on next show.
+    if (mounted) {
+      setState(() {
+        _built.fillRange(0, _built.length, null);
+        _settingsRebuildKey++;
+      });
+    }
   }
 
   @override
@@ -87,20 +106,7 @@ class _HubPageState extends State<HubPage> {
             // top bar + bottom tab bar on mobile. See AdaptiveNavShell.
             Positioned.fill(
               child: AdaptiveNavShell(
-                onSettingsTap: () async {
-                  await Navigator.push(
-                    context,
-                    LiquidRevealRoute(
-                      page: const SettingsPage(),
-                      tapPosition: null,
-                    ),
-                  );
-                  // Addons may have changed in Settings — drop the cached
-                  // hubs so each rebuilds and refetches on next show.
-                  if (mounted) {
-                    setState(() => _built.fillRange(0, _built.length, null));
-                  }
-                },
+                onSettingsTap: () => HubController.instance.openSettings(),
                 child: ClipRRect(
                   borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(AppRadii.lg),
@@ -108,6 +114,12 @@ class _HubPageState extends State<HubPage> {
                   child: ListenableBuilder(
                     listenable: HubController.instance,
                     builder: (context, _) {
+                      if (HubController.instance.settingsOpen) {
+                        return NestedNavigator(
+                          key: ValueKey('settings-$_settingsRebuildKey'),
+                          child: SettingsPage(onClose: _closeSettings),
+                        );
+                      }
                       final index = HubController.instance.currentHub.index;
                       // Lazily materialize the active hub on first show.
                       if (_built[index] == null) {

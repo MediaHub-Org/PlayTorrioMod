@@ -26,8 +26,14 @@ import '../../services/backup/backup_restore_service.dart';
 import '../../widgets/common/animated_ambient_background.dart';
 import '../../app_info.dart';
 
+/// Embedded in the hub content area (see `HubPage`), not routed to -- so
+/// nav chrome (hub switcher, section row) stays visible/clickable the whole
+/// time Settings is showing. [onClose] leaves Settings and returns to
+/// whatever hub/section was active before it opened.
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  final VoidCallback onClose;
+
+  const SettingsPage({super.key, required this.onClose});
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -310,22 +316,34 @@ class _SettingsPageState extends State<SettingsPage> {
     final addonCount = AddonManager.instance.addons.length;
     final bottomInset = MediaQuery.paddingOf(context).bottom;
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0D1017).withValues(alpha: 0.85),
-        surfaceTintColor: Colors.transparent,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Settings',
-          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
-        ),
-      ),
-      body: AnimatedAmbientBackground(
-        child: Center(
+    // No own Scaffold/AppBar: this renders inside the hub content area (see
+    // HubPage), already below AdaptiveNavShell's persistent nav chrome and
+    // its own top safe-area spacer, so this header needs neither an AppBar
+    // nor its own MediaQuery.padding.top handling.
+    return ColoredBox(
+      color: Colors.transparent,
+      child: Column(
+        children: [
+          Container(
+            height: kToolbarHeight,
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            color: const Color(0xFF0D1017).withValues(alpha: 0.85),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
+                  onPressed: widget.onClose,
+                ),
+                const Text(
+                  'Settings',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 20),
+                ),
+              ],
+            ),
+          ),
+          Expanded(
+            child: AnimatedAmbientBackground(
+              child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 800),
           child: ListView(
@@ -584,7 +602,10 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
         ),
-      ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

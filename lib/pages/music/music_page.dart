@@ -18,7 +18,6 @@ import '../../widgets/common/library_tabs.dart';
 import '../../widgets/common/section_sub_tabs.dart';
 import '../../widgets/common/performance_liquid_lens.dart';
 import '../../widgets/common/slider_arrow.dart';
-import '../../widgets/common/section_top_bar.dart';
 import '../../utils/fullscreen_navigator.dart';
 import '../../utils/hub_controller.dart';
 import '../../utils/search_scope.dart';
@@ -841,17 +840,21 @@ class _MusicPageState extends State<MusicPage> {
                 Expanded(
                   child: Column(
                     children: [
-                      Stack(
-                        children: [
-                          const SectionTopBar(),
-                          // Search lives inline as its own tab (a real text
-                          // field, not a separate pushed page like other
-                          // hubs use PageSearchButton for), so it's reached
-                          // via this icon rather than a section chip.
-                          Positioned(
-                            right: 8,
-                            top: 0,
-                            bottom: 0,
+                      // The section row itself now lives in AdaptiveNavShell,
+                      // shared across every hub, so it's not drawn here
+                      // anymore. This bar exists only to hold the search
+                      // icon at the same height/position it always had.
+                      //
+                      // Search lives inline as its own tab (a real text
+                      // field, not a separate pushed page like other hubs
+                      // use PageSearchButton for), so it's reached via this
+                      // icon rather than a section chip.
+                      SizedBox(
+                        height: 44,
+                        child: Align(
+                          alignment: Alignment.centerRight,
+                          child: Padding(
+                            padding: const EdgeInsets.only(right: 8),
                             child: IconButton(
                               tooltip: 'Search',
                               icon: Icon(
@@ -863,7 +866,7 @@ class _MusicPageState extends State<MusicPage> {
                                   HubController.instance.setMusicTab('Search'),
                             ),
                           ),
-                        ],
+                        ),
                       ),
                       Expanded(
                         child: Stack(
