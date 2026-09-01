@@ -4,6 +4,13 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased]
 
+### Video player: tap-to-play/pause, volume-scroll no longer fights open menus; Library: tap opens Details, Saved posters match everywhere else's size — 2026-09-02
+- **Tapping the video now toggles play/pause** (`player_screen.dart`, `iptv_player_page.dart`) — it used to only show/hide the controls, leaving the dedicated icon as the only way to actually play or pause.
+- **Volume-scroll no longer double-fires under an open menu.** `Listener.onPointerSignal` isn't gesture-arena arbitrated like taps — it reaches every `Listener` along the hit-test chain, so scrolling over the subtitle picker (or IPTV's sources/aspect menu) both scrolled that menu's own list *and* changed the volume underneath it. Both players' volume listeners now bail while a menu/overlay is open, matching the guard other player interactions already had.
+- **Library (Watch hub): Continue and Downloads rows had no tap handler at all** — clicking one did nothing. Both now open Details, same as Saved already did.
+- **Saved's posters matched every other page's size.** Saved hand-rolled its own grid (a percentage-of-screen column count, `childAspectRatio: 0.65`) instead of the fixed-pixel `MovieCardSizing` every browse page uses, so its cards ran noticeably bigger. Now renders `MovieCard` itself with the same column/aspect-ratio scheme as Movies & Series' filtered grid — same size, same hover/rating-badge styling, everywhere.
+- **Checked, no change wanted**: subtitle "Appearance" opening a separate full-screen modal instead of extending the subtitle popover — confirmed with the user that the modal's content (5 tabs, live preview) is genuinely too large for a small popover, so the modal stays as-is.
+
 ### Sync upstream to ad81c7b (Anime4K upscaling, manga fixes) — 2026-09-02
 - Merged `ayman708-UX/PlayTorrioV3` @ `ad81c7b`. Anime4K GLSL shader upscaling (new `Anime4KPreset` enum, `video_settings_page.dart`, a Settings entry, ~35 bundled shader assets) landed additively alongside this fork's own decoder/buffer/engine settings in `player_settings.dart` — not replacing them, per `FORK_DIFFERENCES.md`'s existing "advanced player settings stay" divergence (that's where the `mediacodec-copy` Android black-screen fix lives). Manga gained richer scraping (genre/year/status/author) and a genre filter; this fork's own try/catch error handling and manga customizer sheet both survived.
 - Found and fixed while verifying the merge — the test suite caught it, not review: `manga_reader_page.dart` used a raw `MediaQuery.sizeOf(context).width >= 700` instead of `AppBreakpoints.of(context)` for a nav-tier decision, the same drift pattern an existing guard test exists to catch.

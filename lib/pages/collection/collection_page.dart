@@ -12,6 +12,7 @@ import '../../services/my_list/my_list_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/library_sections.dart';
 import '../../widgets/common/library_tabs.dart';
+import '../../widgets/movie/movie_card.dart';
 import '../details/details_page.dart';
 
 class CollectionPage extends StatefulWidget {
@@ -91,22 +92,14 @@ class _CollectionPageState extends State<CollectionPage> {
     return filtered;
   }
 
-  int _getCrossAxisCount(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    if (width < 600) return 2;
-    if (width < 900) return 3;
-    if (width < 1200) return 4;
-    return 5;
-  }
-
-  void _navigateToDetail(MyListItem item) {
+  Movie _toMovie(MyListItem item) {
     final effectiveId =
         item.imdbId ??
         (item.tmdbId != null ? 'tmdb:${item.tmdbId}' : null) ??
         item.traktId?.toString() ??
         '';
 
-    final movie = Movie(
+    return Movie(
       id: effectiveId,
       name: item.title,
       poster: item.poster,
@@ -114,10 +107,15 @@ class _CollectionPageState extends State<CollectionPage> {
       type: item.type,
       addonBaseUrl: 'https://v3-cinemeta.strem.io',
     );
+  }
 
+  void _navigateToDetail(MyListItem item) {
     Navigator.push(
       context,
-      LiquidRevealRoute(page: DetailsPage(movie: movie), tapPosition: null),
+      LiquidRevealRoute(
+        page: DetailsPage(movie: _toMovie(item)),
+        tapPosition: null,
+      ),
     );
   }
 
@@ -256,24 +254,53 @@ class _CollectionPageState extends State<CollectionPage> {
         final item = items[index];
         final progressPercent = (item.progressPercent * 100).toInt();
 
-        return Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF12151E),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+        return InkWell(
+          borderRadius: BorderRadius.circular(14),
+          // Rows had no tap handler at all -- clicking one did nothing.
+          onTap: () => Navigator.push(
+            context,
+            LiquidRevealRoute(
+              page: DetailsPage(
+                movie: Movie(
+                  id: item.id,
+                  name: item.title,
+                  poster: item.posterUrl,
+                  year: item.year,
+                  type: item.type,
+                  addonBaseUrl: 'https://v3-cinemeta.strem.io',
+                ),
+              ),
+              tapPosition: null,
+            ),
           ),
-          child: Row(
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                child: item.posterUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: item.posterUrl!,
-                        width: 50,
-                        height: 75,
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => Container(
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFF12151E),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: item.posterUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: item.posterUrl!,
+                          width: 50,
+                          height: 75,
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Container(
+                            width: 50,
+                            height: 75,
+                            color: Colors.white10,
+                            child: const Icon(
+                              Icons.movie_rounded,
+                              color: Colors.white30,
+                            ),
+                          ),
+                        )
+                      : Container(
                           width: 50,
                           height: 75,
                           color: Colors.white10,
@@ -282,64 +309,55 @@ class _CollectionPageState extends State<CollectionPage> {
                             color: Colors.white30,
                           ),
                         ),
-                      )
-                    : Container(
-                        width: 50,
-                        height: 75,
-                        color: Colors.white10,
-                        child: const Icon(
-                          Icons.movie_rounded,
-                          color: Colors.white30,
-                        ),
-                      ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      item.title,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 15,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (item.episodeTitle != null) ...[
-                      const SizedBox(height: 2),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Text(
-                        'S${item.season ?? 1} E${item.episode ?? 1} \u2022 ${item.episodeTitle!}',
+                        item.title,
                         style: const TextStyle(
-                          color: Colors.white54,
-                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
+                      if (item.episodeTitle != null) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          'S${item.season ?? 1} E${item.episode ?? 1} \u2022 ${item.episodeTitle!}',
+                          style: const TextStyle(
+                            color: Colors.white54,
+                            fontSize: 12,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 8),
+                      LinearProgressIndicator(
+                        value: item.progressPercent,
+                        backgroundColor: Colors.white10,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          Color(0xFF7C5CFF),
+                        ),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$progressPercent% completed',
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 11,
+                        ),
+                      ),
                     ],
-                    const SizedBox(height: 8),
-                    LinearProgressIndicator(
-                      value: item.progressPercent,
-                      backgroundColor: Colors.white10,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                        Color(0xFF7C5CFF),
-                      ),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '$progressPercent% completed',
-                      style: const TextStyle(
-                        color: Colors.white38,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },
@@ -374,24 +392,55 @@ class _CollectionPageState extends State<CollectionPage> {
             final progress = item.totalBytes > 0
                 ? item.receivedBytes / item.totalBytes
                 : 0.0;
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF12151E),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            return InkWell(
+              borderRadius: BorderRadius.circular(14),
+              // Rows had no tap handler at all -- clicking one did nothing.
+              onTap: () => Navigator.push(
+                context,
+                LiquidRevealRoute(
+                  page: DetailsPage(
+                    movie: Movie(
+                      id: item.mediaId,
+                      name: item.title,
+                      poster: item.posterUrl,
+                      year: item.year,
+                      type: item.type,
+                      addonBaseUrl: 'https://v3-cinemeta.strem.io',
+                    ),
+                  ),
+                  tapPosition: null,
+                ),
               ),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: item.posterUrl != null
-                        ? CachedNetworkImage(
-                            imageUrl: item.posterUrl!,
-                            width: 50,
-                            height: 75,
-                            fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) => Container(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF12151E),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: item.posterUrl != null
+                          ? CachedNetworkImage(
+                              imageUrl: item.posterUrl!,
+                              width: 50,
+                              height: 75,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => Container(
+                                width: 50,
+                                height: 75,
+                                color: Colors.white10,
+                                child: const Icon(
+                                  Icons.movie_rounded,
+                                  color: Colors.white30,
+                                ),
+                              ),
+                            )
+                          : Container(
                               width: 50,
                               height: 75,
                               color: Colors.white10,
@@ -400,72 +449,63 @@ class _CollectionPageState extends State<CollectionPage> {
                                 color: Colors.white30,
                               ),
                             ),
-                          )
-                        : Container(
-                            width: 50,
-                            height: 75,
-                            color: Colors.white10,
-                            child: const Icon(
-                              Icons.movie_rounded,
-                              color: Colors.white30,
-                            ),
-                          ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        if (item.episodeTitle != null) ...[
-                          const SizedBox(height: 2),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                           Text(
-                            item.episodeTitle!,
+                            item.title,
                             style: const TextStyle(
-                              color: Colors.white54,
-                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
+                          if (item.episodeTitle != null) ...[
+                            const SizedBox(height: 2),
+                            Text(
+                              item.episodeTitle!,
+                              style: const TextStyle(
+                                color: Colors.white54,
+                                fontSize: 12,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          LinearProgressIndicator(
+                            value: progress > 0 ? progress : null,
+                            backgroundColor: Colors.white10,
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Color(0xFF7C5CFF),
+                            ),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${item.status.name.toUpperCase()} • ${(progress * 100).toStringAsFixed(0)}%',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
+                          ),
                         ],
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: progress > 0 ? progress : null,
-                          backgroundColor: Colors.white10,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF7C5CFF),
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${item.status.name.toUpperCase()} • ${(progress * 100).toStringAsFixed(0)}%',
-                          style: const TextStyle(
-                            color: Colors.white38,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      color: Colors.redAccent,
+                    IconButton(
+                      icon: const Icon(
+                        Icons.delete_outline_rounded,
+                        color: Colors.redAccent,
+                      ),
+                      onPressed: () =>
+                          DownloadService.instance.deleteDownload(item.id),
                     ),
-                    onPressed: () =>
-                        DownloadService.instance.deleteDownload(item.id),
-                  ),
-                ],
+                  ],
+                ),
               ),
             );
           },
@@ -652,75 +692,36 @@ class _CollectionPageState extends State<CollectionPage> {
     );
   }
 
+  // Same crossAxisCount/childAspectRatio scheme as Movies & Series' own
+  // filtered grid (type_catalog_page.dart) and MovieCard itself -- Saved
+  // used to hand-roll its own bigger cards via a percentage-of-screen
+  // column count instead of MovieCardSizing's fixed pixel widths, so
+  // posters here were visibly larger than everywhere else in the app.
   Widget _buildGrid(List<MyListItem> items) {
+    final width = MediaQuery.sizeOf(context).width;
+    final crossAxisCount = width < 600
+        ? 3
+        : width < 900
+        ? 4
+        : width < 1200
+        ? 5
+        : 6;
     return GridView.builder(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 100),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: _getCrossAxisCount(context),
-        childAspectRatio: 0.65,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        crossAxisCount: crossAxisCount,
+        childAspectRatio: 0.62,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 20,
       ),
       itemCount: items.length,
       itemBuilder: (context, index) {
         final item = items[index];
         return GestureDetector(
-          onTap: () => _navigateToDetail(item),
           onLongPress: () => _confirmRemove(item),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (item.poster != null && item.poster!.isNotEmpty)
-                  CachedNetworkImage(
-                    imageUrl: item.poster!,
-                    fit: BoxFit.cover,
-                    placeholder: (_, __) =>
-                        Container(color: const Color(0xFF141824)),
-                    errorWidget: (_, __, ___) => Container(
-                      color: const Color(0xFF141824),
-                      child: const Icon(
-                        Icons.movie_rounded,
-                        color: Colors.white24,
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    color: const Color(0xFF141824),
-                    child: const Icon(
-                      Icons.movie_rounded,
-                      color: Colors.white24,
-                    ),
-                  ),
-                Positioned(
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: const BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.bottomCenter,
-                        end: Alignment.topCenter,
-                        colors: [Colors.black87, Colors.transparent],
-                      ),
-                    ),
-                    child: Text(
-                      item.title,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          child: MovieCard(
+            movie: _toMovie(item),
+            onTap: () => _navigateToDetail(item),
           ),
         );
       },
