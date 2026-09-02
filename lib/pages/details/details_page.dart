@@ -1228,9 +1228,9 @@ class _DetailsPageState extends State<DetailsPage>
             mainAxisSize: MainAxisSize.min,
             children: [
               watchlistBtn,
-              const SizedBox(width: 6),
+              const SizedBox(width: 10),
               watchedBtn,
-              const SizedBox(width: 6),
+              const SizedBox(width: 10),
               likedBtn,
             ],
           );
@@ -1238,9 +1238,9 @@ class _DetailsPageState extends State<DetailsPage>
         return Row(
           children: [
             Expanded(child: watchlistBtn),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             Expanded(child: watchedBtn),
-            const SizedBox(width: 8),
+            const SizedBox(width: 10),
             likedBtn,
           ],
         );

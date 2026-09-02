@@ -134,7 +134,7 @@ class _LikeButtonState extends State<LikeButton> {
 
   Widget _buildIcon() {
     return Padding(
-      padding: const EdgeInsets.all(8),
+      padding: const EdgeInsets.all(10),
       child: Icon(
         widget.isLiked ? Icons.favorite_rounded : Icons.favorite_border_rounded,
         // Red, not white: there is no fill to sit against.
