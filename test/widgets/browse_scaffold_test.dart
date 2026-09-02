@@ -19,6 +19,7 @@ BrowseScaffold<String> build({
   String? error,
   Widget? emptyState,
   Widget? belowHero,
+  Widget? afterRows,
 }) {
   return BrowseScaffold<String>(
     heroItems: hero,
@@ -27,6 +28,7 @@ BrowseScaffold<String> build({
     error: error,
     emptyState: emptyState,
     belowHero: belowHero,
+    afterRows: afterRows,
     // Auto-rotation would leave a pending timer at the end of every test.
     heroInterval: null,
     heroBuilder: (_, item) => ColoredBox(
@@ -201,6 +203,22 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('hero:a'), findsOneWidget);
       expect(find.text('CW row'), findsOneWidget);
+    });
+
+    testWidgets('afterRows renders after every row', (tester) async {
+      setSurfaceWidth(tester, 1400);
+      await tester.pumpWidget(
+        wrap(
+          build(
+            rows: [BrowseRow(title: 'Trending', items: items(2))],
+            afterRows: const Text('footer row'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Trending'), findsOneWidget);
+      expect(find.text('footer row'), findsOneWidget);
     });
   });
 }

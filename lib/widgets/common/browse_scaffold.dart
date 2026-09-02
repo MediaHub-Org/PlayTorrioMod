@@ -63,6 +63,11 @@ class BrowseScaffold<T> extends StatefulWidget {
   /// hero itself uses, so a loading/empty page doesn't reserve space for it.
   final Widget? belowHero;
 
+  /// Shown after every row, e.g. a Calendar row that only sometimes has
+  /// content. Rendered unconditionally (the widget itself decides whether
+  /// to show anything) — unlike [belowHero], not gated on [heroItems].
+  final Widget? afterRows;
+
   final bool isLoading;
 
   /// Non-null renders [ErrorView] in place of the content.
@@ -85,6 +90,7 @@ class BrowseScaffold<T> extends StatefulWidget {
     required this.itemBuilder,
     this.header,
     this.belowHero,
+    this.afterRows,
     this.isLoading = false,
     this.error,
     this.onRetry,
@@ -188,6 +194,8 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
                   itemBuilder: widget.itemBuilder,
                 ),
               ),
+          if (widget.afterRows != null)
+            SliverToBoxAdapter(child: widget.afterRows!),
         ],
         const SliverToBoxAdapter(child: SizedBox(height: 96)),
       ],
