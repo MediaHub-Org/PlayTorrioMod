@@ -40,6 +40,33 @@ class RadioStation {
       bitrateKbps: int.tryParse(json['bitrate']?.toString() ?? '') ?? 0,
     );
   }
+
+  /// Local persistence roundtrip (RadioLibraryService's liked list) -- this
+  /// class's own field names, distinct from [fromJson]'s radio-browser.info
+  /// API shape.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'name': name,
+    'streamUrl': streamUrl,
+    'favicon': favicon,
+    'country': country,
+    'tags': tags,
+    'codec': codec,
+    'bitrateKbps': bitrateKbps,
+  };
+
+  factory RadioStation.fromLocalJson(Map<String, dynamic> json) {
+    return RadioStation(
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Unknown Station',
+      streamUrl: json['streamUrl']?.toString() ?? '',
+      favicon: json['favicon']?.toString() ?? '',
+      country: json['country']?.toString() ?? '',
+      tags: json['tags']?.toString() ?? '',
+      codec: json['codec']?.toString() ?? '',
+      bitrateKbps: int.tryParse(json['bitrateKbps']?.toString() ?? '') ?? 0,
+    );
+  }
 }
 
 /// Fetches real stations from the Radio Browser API. No API key; a handful
@@ -89,6 +116,15 @@ class RadioBrowserService {
     final encoded = Uri.encodeComponent(genre);
     return _get(
       '/json/stations/search?tag=$encoded&limit=$limit&hidebroken=true&order=clickcount&reverse=true',
+    );
+  }
+
+  /// Stations whose name matches [query] (a real text search, unlike
+  /// [byGenre]'s exact-tag match).
+  static Future<List<RadioStation>> search(String query, {int limit = 30}) {
+    final encoded = Uri.encodeComponent(query);
+    return _get(
+      '/json/stations/search?name=$encoded&limit=$limit&hidebroken=true&order=clickcount&reverse=true',
     );
   }
 }

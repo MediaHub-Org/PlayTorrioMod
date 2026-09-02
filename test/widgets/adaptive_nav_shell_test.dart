@@ -54,7 +54,7 @@ void main() {
 
       expect(HubController.instance.currentHub, AppHub.music);
       expect(find.text('Music'), findsOneWidget);
-      expect(find.text('Podcasts'), findsOneWidget);
+      expect(find.text('Podcasts & Audiobooks'), findsOneWidget);
       expect(find.text('Movies & Series'), findsNothing);
     });
 

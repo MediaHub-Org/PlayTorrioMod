@@ -160,7 +160,7 @@ class HubController extends ChangeNotifier {
           // Movies/Series sharing Watch's own equivalent section.
           HubSection(
             id: 'Podcasts',
-            label: 'Podcasts',
+            label: 'Podcasts & Audiobooks',
             icon: Icons.podcasts_rounded,
           ),
           HubSection(id: 'Radio', label: 'Radio', icon: Icons.radio_rounded),

@@ -65,7 +65,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Music'), findsOneWidget);
-      expect(find.text('Podcasts'), findsOneWidget);
+      expect(find.text('Podcasts & Audiobooks'), findsOneWidget);
       expect(find.text('Movies & Series'), findsNothing);
     });
   });

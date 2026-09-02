@@ -26,6 +26,7 @@ import '../podcast/podcast_details_page.dart';
 import '../podcast/podcasts_page.dart';
 import '../../services/podcast/podcast_library_service.dart';
 import '../audiobooks/audiobooks_page.dart';
+import '../search/simple_search_page.dart';
 import '../audiobooks/audiobook_detail_page.dart';
 import '../audiobooks/audiobook_route_transitions.dart';
 import '../../models/audiobook/audiobook_model.dart';
@@ -37,6 +38,7 @@ import '../../services/download/download_service.dart' show DownloadService;
 import '../../services/music/music_player_controller.dart';
 import '../../services/music/music_service.dart';
 import '../../services/music/radio_browser_service.dart';
+import '../../services/music/radio_library_service.dart';
 import '../../services/music/music_settings.dart';
 import '../../widgets/music/music_interactive_physics_button.dart';
 import '../../widgets/music/music_waveform_seekbar.dart';
@@ -108,6 +110,7 @@ class _MusicPageState extends State<MusicPage> {
     _libraryService.addListener(_onStateChanged);
     PodcastLibraryService.instance.addListener(_onStateChanged);
     AudiobookLibraryService.instance.addListener(_onStateChanged);
+    RadioLibraryService.instance.addListener(_onStateChanged);
     HubController.instance.addListener(_onHubChanged);
     MusicDownloadService.instance.addListener(_onStateChanged);
     MusicSettings.changeNotifier.addListener(_onStateChanged);
@@ -115,6 +118,7 @@ class _MusicPageState extends State<MusicPage> {
     _libraryService.init();
     PodcastLibraryService.instance.init();
     AudiobookLibraryService.instance.init();
+    RadioLibraryService.instance.init();
     MusicDownloadService.instance.init();
     // Sync the initial tab from the controller (in case a chip is already active).
     _activeTab = HubController.instance.musicTab;
@@ -137,6 +141,7 @@ class _MusicPageState extends State<MusicPage> {
     _libraryService.removeListener(_onStateChanged);
     PodcastLibraryService.instance.removeListener(_onStateChanged);
     AudiobookLibraryService.instance.removeListener(_onStateChanged);
+    RadioLibraryService.instance.removeListener(_onStateChanged);
     HubController.instance.removeListener(_onHubChanged);
     MusicDownloadService.instance.removeListener(_onStateChanged);
     MusicSettings.changeNotifier.removeListener(_onStateChanged);
@@ -922,22 +927,41 @@ class _MusicPageState extends State<MusicPage> {
                     children: [
                       // The section row itself now lives in AdaptiveNavShell,
                       // shared across every hub, so it's not drawn here
-                      // anymore. This bar exists only to hold the search
-                      // icon at the same height/position it always had.
+                      // anymore. This bar exists only to hold the Music
+                      // title + search icon at the same height/position
+                      // they've always had.
+                      //
+                      // Music-only: Radio, Podcasts & Audiobooks and
+                      // Library each own their own header + search entry
+                      // point now (SimpleSearchPage-based for Radio/
+                      // Podcasts/Audiobooks; Library intentionally has
+                      // none). This bar used to render unconditionally,
+                      // which put Music's own inline-Search-tab shortcut
+                      // on every one of those pages too -- wrong
+                      // destination on Radio/Podcasts, and a visible
+                      // second search icon stacked on Podcasts &
+                      // Audiobooks' own.
                       //
                       // Search lives inline as its own tab (a real text
                       // field, not a separate pushed page like other hubs
                       // use PageSearchButton for), so it's reached via this
                       // icon rather than a section chip.
-                      SizedBox(
-                        height: 44,
-                        child: Align(
-                          alignment: Alignment.centerRight,
+                      if (_activeTab == 'Music')
+                        SizedBox(
+                          height: 44,
                           child: Padding(
-                            padding: const EdgeInsets.only(right: 8),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
                             child: Row(
-                              mainAxisSize: MainAxisSize.min,
                               children: [
+                                const Text(
+                                  'Music',
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                                const Spacer(),
                                 // Playlist creation is reachable from
                                 // Saved > Playlists itself, and from the "..."
                                 // track menu's own "New Playlist" action --
@@ -958,7 +982,6 @@ class _MusicPageState extends State<MusicPage> {
                             ),
                           ),
                         ),
-                      ),
                       Expanded(
                         child: Stack(
                           children: [
@@ -1692,14 +1715,28 @@ class _MusicPageState extends State<MusicPage> {
       controller: _scrollController,
       padding: const EdgeInsets.only(top: 80, left: 24, right: 24, bottom: 150),
       children: [
-        const Text(
-          'Radio Stations & Live Streams',
-          style: TextStyle(
-            color: Colors.white,
-            fontSize: 26,
-            fontWeight: FontWeight.w900,
-            letterSpacing: -0.6,
-          ),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Radio Stations & Live Streams',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: -0.6,
+                ),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Search',
+              icon: Icon(
+                Icons.search_rounded,
+                color: Colors.white.withValues(alpha: 0.75),
+              ),
+              onPressed: _openRadioSearch,
+            ),
+          ],
         ),
         const SizedBox(height: 6),
         const Text(
@@ -1774,86 +1811,42 @@ class _MusicPageState extends State<MusicPage> {
             itemCount: _radioStations.length,
             itemBuilder: (context, index) {
               final station = _radioStations[index];
-              final isCurrent =
-                  _playerController.currentTrack?.id == 'radio:${station.id}';
-              return _MusicHoverable(
-                scaleFactor: 1.04,
-                child: GestureDetector(
-                  onTap: () => _playRadioStation(station),
-                  child: PerformanceLiquidLens(
-                    style: PerformanceGlassStyles.menu,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(18),
-                        color: isCurrent
-                            ? const Color(0xFF7C5CFF).withValues(alpha: 0.28)
-                            : Colors.white.withValues(alpha: 0.06),
-                        border: Border.all(
-                          color: isCurrent
-                              ? const Color(0xFF7C5CFF).withValues(alpha: 0.7)
-                              : Colors.white.withValues(alpha: 0.12),
-                        ),
-                      ),
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(10),
-                            child: station.favicon.isNotEmpty
-                                ? CachedNetworkImage(
-                                    imageUrl: station.favicon,
-                                    width: 32,
-                                    height: 32,
-                                    fit: BoxFit.cover,
-                                    errorWidget: (_, __, ___) => const Icon(
-                                      Icons.radio_rounded,
-                                      color: Colors.white70,
-                                      size: 28,
-                                    ),
-                                  )
-                                : (isCurrent && _playerController.isPlaying
-                                      ? const Icon(
-                                          Icons.graphic_eq_rounded,
-                                          color: Color(0xFF7C5CFF),
-                                          size: 28,
-                                        )
-                                      : const Icon(
-                                          Icons.radio_rounded,
-                                          color: Colors.white70,
-                                          size: 28,
-                                        )),
-                          ),
-                          Text(
-                            station.name,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          if (station.country.isNotEmpty)
-                            Text(
-                              station.country,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: Color(0xFF9E9EA8),
-                                fontSize: 11,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
+              return _RadioStationCard(
+                station: station,
+                isCurrent:
+                    _playerController.currentTrack?.id == 'radio:${station.id}',
+                isPlaying: _playerController.isPlaying,
+                onTap: () => _playRadioStation(station),
               );
             },
           ),
       ],
+    );
+  }
+
+  void _openRadioSearch() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SimpleSearchPage<RadioStation>(
+          hintText: 'Search radio stations...',
+          onSearch: RadioBrowserService.search,
+          emptyIcon: Icons.radio_rounded,
+          emptyMessage: 'Search for a radio station to get started',
+          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+            maxCrossAxisExtent: 220,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 1.15,
+          ),
+          itemBuilder: (context, station) => _RadioStationCard(
+            station: station,
+            isCurrent: _playerController.currentTrack?.id == 'radio:${station.id}',
+            isPlaying: _playerController.isPlaying,
+            onTap: () => _playRadioStation(station),
+          ),
+        ),
+      ),
     );
   }
 
@@ -1931,6 +1924,14 @@ class _MusicPageState extends State<MusicPage> {
           fallbackIcon: Icons.headphones_rounded,
           onTap: () => _openAudiobook(a),
         ),
+      for (final s in RadioLibraryService.instance.liked)
+        _LikedEntry(
+          type: 'radio',
+          title: s.name,
+          coverUrl: s.favicon,
+          fallbackIcon: Icons.radio_rounded,
+          onTap: () => _playRadioStation(s),
+        ),
     ];
   }
 
@@ -1964,6 +1965,8 @@ class _MusicPageState extends State<MusicPage> {
               _likedTypeChip('Podcasts', 'podcasts'),
               const SizedBox(width: 6),
               _likedTypeChip('Audiobooks', 'audiobooks'),
+              const SizedBox(width: 6),
+              _likedTypeChip('Radio', 'radio'),
             ],
           ),
         ),
@@ -2576,6 +2579,120 @@ class _LikedEntryCard extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Radio station card -- shared by the Radio grid and its search results
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RadioStationCard extends StatelessWidget {
+  final RadioStation station;
+  final bool isCurrent;
+  final bool isPlaying;
+  final VoidCallback onTap;
+
+  const _RadioStationCard({
+    required this.station,
+    required this.isCurrent,
+    required this.isPlaying,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _MusicHoverable(
+      scaleFactor: 1.04,
+      child: GestureDetector(
+        onTap: onTap,
+        child: PerformanceLiquidLens(
+          style: PerformanceGlassStyles.menu,
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              color: isCurrent
+                  ? const Color(0xFF7C5CFF).withValues(alpha: 0.28)
+                  : Colors.white.withValues(alpha: 0.06),
+              border: Border.all(
+                color: isCurrent
+                    ? const Color(0xFF7C5CFF).withValues(alpha: 0.7)
+                    : Colors.white.withValues(alpha: 0.12),
+              ),
+            ),
+            padding: const EdgeInsets.all(14),
+            child: Stack(
+              children: [
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(10),
+                      child: station.favicon.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: station.favicon,
+                              width: 32,
+                              height: 32,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => const Icon(
+                                Icons.radio_rounded,
+                                color: Colors.white70,
+                                size: 28,
+                              ),
+                            )
+                          : (isCurrent && isPlaying
+                                ? const Icon(
+                                    Icons.graphic_eq_rounded,
+                                    color: Color(0xFF7C5CFF),
+                                    size: 28,
+                                  )
+                                : const Icon(
+                                    Icons.radio_rounded,
+                                    color: Colors.white70,
+                                    size: 28,
+                                  )),
+                    ),
+                    Text(
+                      station.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    if (station.country.isNotEmpty)
+                      Text(
+                        station.country,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          color: Color(0xFF9E9EA8),
+                          fontSize: 11,
+                        ),
+                      ),
+                  ],
+                ),
+                Positioned(
+                  top: -4,
+                  right: -4,
+                  child: ListenableBuilder(
+                    listenable: RadioLibraryService.instance,
+                    builder: (context, _) => LikeButton(
+                      isLiked: RadioLibraryService.instance.isLiked(station.id),
+                      onTap: () => RadioLibraryService.instance.toggleLike(station),
+                      style: LikeButtonStyle.icon,
+                      size: 18,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // FPS-Friendly Hover Container
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -3160,6 +3277,170 @@ class _MusicTrackCard extends StatelessWidget {
   }
 }
 
+/// A cover-art tile shared by albums and playlists: tapping the cover opens
+/// the detail page (never plays), a dedicated play/pause button fades in on
+/// hover (matching the currently-playing state when known) and is the only
+/// thing that starts playback. Self-contained -- talks to
+/// [MusicPlayerController.instance]/[MusicService.instance] directly rather
+/// than threading a play callback down through every row/grid that builds
+/// one of these, since both are already app-wide singletons.
+class _MusicCoverCard extends StatefulWidget {
+  final String coverUrl;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  /// Fetches the full track list and returns the one to start on (first
+  /// track), or null if it couldn't be resolved. Called only when the play
+  /// button itself is tapped.
+  final Future<List<MusicTrack>?> Function() loadTracks;
+
+  /// True while a track from this album/playlist is the one actually
+  /// playing -- lets the button show pause and stay visible without hover.
+  /// Null when that can't be determined (e.g. a curated playlist, which
+  /// carries no reverse link back from a track), in which case the button
+  /// stays a plain always-play icon.
+  final bool Function()? isCurrent;
+
+  const _MusicCoverCard({
+    required this.coverUrl,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    required this.loadTracks,
+    this.isCurrent,
+  });
+
+  @override
+  State<_MusicCoverCard> createState() => _MusicCoverCardState();
+}
+
+class _MusicCoverCardState extends State<_MusicCoverCard> {
+  bool _isHovered = false;
+  bool _isLoadingPlay = false;
+
+  Future<void> _handlePlay() async {
+    if (_isLoadingPlay) return;
+    setState(() => _isLoadingPlay = true);
+    try {
+      final tracks = await widget.loadTracks();
+      if (tracks == null || tracks.isEmpty || !mounted) return;
+      MusicPlayerController.instance.playTrack(
+        tracks.first,
+        playlistQueue: tracks,
+      );
+    } finally {
+      if (mounted) setState(() => _isLoadingPlay = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _MusicHoverable(
+      scaleFactor: 1.05,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: SizedBox(
+            width: 145,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: SizedBox(
+                    width: 145,
+                    height: 145,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CachedNetworkImage(
+                          imageUrl: widget.coverUrl,
+                          fit: BoxFit.cover,
+                        ),
+                        AnimatedBuilder(
+                          animation: MusicPlayerController.instance,
+                          builder: (context, _) {
+                            final isCurrent = widget.isCurrent?.call() ?? false;
+                            final isPlaying =
+                                isCurrent && MusicPlayerController.instance.isPlaying;
+                            final visible = _isHovered || isCurrent;
+                            return AnimatedOpacity(
+                              opacity: visible ? 1.0 : 0.0,
+                              duration: const Duration(milliseconds: 150),
+                              child: IgnorePointer(
+                                ignoring: !visible,
+                                child: Container(
+                                  color: Colors.black.withValues(alpha: 0.35),
+                                  child: Center(
+                                    child: GestureDetector(
+                                      onTap: _handlePlay,
+                                      child: Container(
+                                        width: 44,
+                                        height: 44,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          color: Color(0xFF7C5CFF),
+                                        ),
+                                        child: Center(
+                                          child: _isLoadingPlay
+                                              ? const SizedBox(
+                                                  width: 18,
+                                                  height: 18,
+                                                  child: CircularProgressIndicator(
+                                                    strokeWidth: 2,
+                                                    color: Colors.white,
+                                                  ),
+                                                )
+                                              : Icon(
+                                                  isPlaying
+                                                      ? Icons.pause_rounded
+                                                      : Icons.play_arrow_rounded,
+                                                  color: Colors.white,
+                                                  size: 26,
+                                                ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  widget.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.subtitle,
+                  style: const TextStyle(color: Colors.white54, fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _MusicAlbumCard extends StatelessWidget {
   final MusicAlbum album;
   final VoidCallback onTap;
@@ -3168,46 +3449,17 @@ class _MusicAlbumCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _MusicHoverable(
-      scaleFactor: 1.05,
-      child: GestureDetector(
-        onTap: onTap,
-        child: SizedBox(
-          width: 145,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: CachedNetworkImage(
-                  imageUrl: album.coverUrl,
-                  width: 145,
-                  height: 145,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                album.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                album.artistName,
-                style: const TextStyle(color: Colors.white54, fontSize: 11),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
+    return _MusicCoverCard(
+      coverUrl: album.coverUrl,
+      title: album.title,
+      subtitle: album.artistName,
+      onTap: onTap,
+      loadTracks: () async {
+        final details = await MusicService.instance.fetchAlbumDetails(album.id);
+        return details?.tracks;
+      },
+      isCurrent: () =>
+          MusicPlayerController.instance.currentTrack?.albumId == album.id,
     );
   }
 }
@@ -3220,46 +3472,18 @@ class _MusicPlaylistCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _MusicHoverable(
-      scaleFactor: 1.05,
-      child: GestureDetector(
-        onTap: onTap,
-        child: SizedBox(
-          width: 145,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: CachedNetworkImage(
-                  imageUrl: playlist.coverUrl,
-                  width: 145,
-                  height: 145,
-                  fit: BoxFit.cover,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                playlist.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '${playlist.trackCount} tracks',
-                style: const TextStyle(color: Colors.white54, fontSize: 11),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
+    return _MusicCoverCard(
+      coverUrl: playlist.coverUrl,
+      title: playlist.title,
+      subtitle: '${playlist.trackCount} tracks',
+      onTap: onTap,
+      loadTracks: () async {
+        final details = await MusicService.instance.fetchPlaylistDetails(playlist.id);
+        return details?.tracks;
+      },
+      // No reverse link from a MusicTrack back to the curated playlist it
+      // came from, unlike albumId -- stays a plain play icon rather than
+      // guessing at a playing/paused state that might be wrong.
     );
   }
 }
