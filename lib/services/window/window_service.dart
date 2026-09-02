@@ -130,7 +130,14 @@ class WindowService with WindowListener {
 
   Future<void> _shutdownAndClose() async {
     try {
-      PlaybackCoordinator.stopActive();
+      // Unconditional dispose, not the pause-safe stopActive() -- see
+      // PlaybackCoordinator.activate's onShutdownDispose doc. A native
+      // window close never runs the widget tree's own dispose() methods,
+      // so any live media_kit Player (video, IPTV; music/audiobooks are
+      // already covered via their own onFullStop) needs disposing here or
+      // its native decoder threads/GPU surface outlive the window that
+      // was hosting them -- ROADMAP #12's "Unknown hard error" on close.
+      PlaybackCoordinator.disposeForShutdown();
       await TorrentStreamService().stop();
     } catch (e) {
       debugPrint('[WindowService] shutdown cleanup error: $e');
