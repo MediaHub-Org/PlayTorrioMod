@@ -18,6 +18,7 @@ BrowseScaffold<String> build({
   bool isLoading = false,
   String? error,
   Widget? emptyState,
+  Widget? belowHero,
 }) {
   return BrowseScaffold<String>(
     heroItems: hero,
@@ -25,6 +26,7 @@ BrowseScaffold<String> build({
     isLoading: isLoading,
     error: error,
     emptyState: emptyState,
+    belowHero: belowHero,
     // Auto-rotation would leave a pending timer at the end of every test.
     heroInterval: null,
     heroBuilder: (_, item) => ColoredBox(
@@ -35,21 +37,26 @@ BrowseScaffold<String> build({
   );
 }
 
-List<String> items(int n, [String prefix = 'item']) =>
-    [for (var i = 0; i < n; i++) '$prefix$i'];
+List<String> items(int n, [String prefix = 'item']) => [
+  for (var i = 0; i < n; i++) '$prefix$i',
+];
 
 void main() {
   group('BrowseScaffold', () {
     testWidgets('renders the hero and every non-empty row', (tester) async {
       setSurfaceWidth(tester, 1400);
-      await tester.pumpWidget(wrap(build(
-        hero: ['a'],
-        rows: [
-          BrowseRow(title: 'Trending', items: items(4)),
-          const BrowseRow(title: 'Empty', items: []),
-          BrowseRow(title: 'Latest', items: items(4, 'late')),
-        ],
-      )));
+      await tester.pumpWidget(
+        wrap(
+          build(
+            hero: ['a'],
+            rows: [
+              BrowseRow(title: 'Trending', items: items(4)),
+              const BrowseRow(title: 'Empty', items: []),
+              BrowseRow(title: 'Latest', items: items(4, 'late')),
+            ],
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('hero:a'), findsOneWidget);
@@ -62,41 +69,54 @@ void main() {
 
     testWidgets('renders a row subtitle when one is given', (tester) async {
       setSurfaceWidth(tester, 1400);
-      await tester.pumpWidget(wrap(build(
-        rows: [
-          BrowseRow(
-            title: 'Trending',
-            subtitle: 'Top popular series',
-            items: items(4),
+      await tester.pumpWidget(
+        wrap(
+          build(
+            rows: [
+              BrowseRow(
+                title: 'Trending',
+                subtitle: 'Top popular series',
+                items: items(4),
+              ),
+            ],
           ),
-        ],
-      )));
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Top popular series'), findsOneWidget);
     });
 
-    testWidgets('arrows stay off-screen until the row is hovered',
-        (tester) async {
+    testWidgets('arrows stay off-screen until the row is hovered', (
+      tester,
+    ) async {
       // Arrows are gated on hover alone, not on width or platform: a touch
       // device never fires onEnter, so it never reveals one. That means they
       // are *built* at every size, and what matters is that they sit outside
       // the viewport until a pointer arrives — asserting they are absent
       // would have been asserting the old width check, not the behaviour.
       setSurfaceWidth(tester, 400);
-      await tester.pumpWidget(wrap(build(
-        hero: ['a', 'b', 'c'],
-        rows: [BrowseRow(title: 'Trending', items: items(30))],
-      )));
+      await tester.pumpWidget(
+        wrap(
+          build(
+            hero: ['a', 'b', 'c'],
+            rows: [BrowseRow(title: 'Trending', items: items(30))],
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      final width = tester.view.physicalSize.width / tester.view.devicePixelRatio;
-      for (final arrow in tester.widgetList<SliderArrow>(find.byType(SliderArrow))) {
+      final width =
+          tester.view.physicalSize.width / tester.view.devicePixelRatio;
+      for (final arrow in tester.widgetList<SliderArrow>(
+        find.byType(SliderArrow),
+      )) {
         final rect = tester.getRect(find.byWidget(arrow));
         expect(
           rect.right <= 0 || rect.left >= width,
           isTrue,
-          reason: 'an un-hovered arrow must be off-screen, not overlapping '
+          reason:
+              'an un-hovered arrow must be off-screen, not overlapping '
               'the artwork it sits on (was at $rect on a ${width}px surface)',
         );
       }
@@ -105,10 +125,14 @@ void main() {
     testWidgets('a hero with several slides and a scrollable row both get '
         'a back and forward arrow', (tester) async {
       setSurfaceWidth(tester, 1400);
-      await tester.pumpWidget(wrap(build(
-        hero: ['a', 'b', 'c'],
-        rows: [BrowseRow(title: 'Trending', items: items(30))],
-      )));
+      await tester.pumpWidget(
+        wrap(
+          build(
+            hero: ['a', 'b', 'c'],
+            rows: [BrowseRow(title: 'Trending', items: items(30))],
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
       // Two per carousel: back and forward, for the hero and for the row.
@@ -126,30 +150,57 @@ void main() {
 
     testWidgets('error replaces the content', (tester) async {
       setSurfaceWidth(tester, 1400);
-      await tester.pumpWidget(wrap(build(
-        hero: ['a'],
-        rows: [BrowseRow(title: 'Trending', items: items(4))],
-        error: 'no network',
-      )));
+      await tester.pumpWidget(
+        wrap(
+          build(
+            hero: ['a'],
+            rows: [BrowseRow(title: 'Trending', items: items(4))],
+            error: 'no network',
+          ),
+        ),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('hero:a'), findsNothing);
       expect(find.text('Trending'), findsNothing);
     });
 
-    testWidgets('empty state shows only once loading has finished',
-        (tester) async {
+    testWidgets('empty state shows only once loading has finished', (
+      tester,
+    ) async {
       setSurfaceWidth(tester, 1400);
       const empty = Text('nothing here');
 
       await tester.pumpWidget(wrap(build(isLoading: true, emptyState: empty)));
       await tester.pump();
-      expect(find.text('nothing here'), findsNothing,
-          reason: 'an empty state while still loading reads as a failure');
+      expect(
+        find.text('nothing here'),
+        findsNothing,
+        reason: 'an empty state while still loading reads as a failure',
+      );
 
       await tester.pumpWidget(wrap(build(isLoading: false, emptyState: empty)));
       await tester.pumpAndSettle();
       expect(find.text('nothing here'), findsOneWidget);
+    });
+
+    testWidgets('belowHero renders under the hero, only when there is one', (
+      tester,
+    ) async {
+      setSurfaceWidth(tester, 1400);
+
+      // No hero items -> belowHero must not render either.
+      await tester.pumpWidget(wrap(build(belowHero: const Text('CW row'))));
+      await tester.pumpAndSettle();
+      expect(find.text('CW row'), findsNothing);
+
+      // A hero -> belowHero renders alongside it.
+      await tester.pumpWidget(
+        wrap(build(hero: ['a'], belowHero: const Text('CW row'))),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('hero:a'), findsOneWidget);
+      expect(find.text('CW row'), findsOneWidget);
     });
   });
 }

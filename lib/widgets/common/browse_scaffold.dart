@@ -58,6 +58,11 @@ class BrowseScaffold<T> extends StatefulWidget {
   /// Shown above the hero — a search button, filters, a sub-tab bar.
   final Widget? header;
 
+  /// Shown between the hero and the first row — e.g. a Continue Watching
+  /// slider. Only rendered when [heroItems] is non-empty, same guard the
+  /// hero itself uses, so a loading/empty page doesn't reserve space for it.
+  final Widget? belowHero;
+
   final bool isLoading;
 
   /// Non-null renders [ErrorView] in place of the content.
@@ -79,6 +84,7 @@ class BrowseScaffold<T> extends StatefulWidget {
     required this.heroBuilder,
     required this.itemBuilder,
     this.header,
+    this.belowHero,
     this.isLoading = false,
     this.error,
     this.onRetry,
@@ -166,8 +172,11 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
         if (widget.isLoading)
           SliverToBoxAdapter(child: _buildLoading(sizing, width))
         else ...[
-          if (widget.heroItems.isNotEmpty)
+          if (widget.heroItems.isNotEmpty) ...[
             SliverToBoxAdapter(child: _buildHero(width)),
+            if (widget.belowHero != null)
+              SliverToBoxAdapter(child: widget.belowHero!),
+          ],
           for (final row in widget.rows)
             if (row.items.isNotEmpty)
               SliverToBoxAdapter(
