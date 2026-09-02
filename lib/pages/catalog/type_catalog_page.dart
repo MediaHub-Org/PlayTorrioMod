@@ -11,6 +11,7 @@ import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/page_search_button.dart';
 import '../../widgets/movie/movie_card.dart';
 import '../details/details_page.dart';
+import 'latest_releases.dart';
 
 enum _CatalogSort { yearNewest, yearOldest }
 
@@ -214,6 +215,11 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                 title: section.title,
                 items: _sorted(section.movies),
               ),
+          if (_items.isNotEmpty)
+            BrowseRow<Movie>(
+              title: 'Latest Releases',
+              items: latestReleases(_items),
+            ),
         ],
         heroBuilder: _buildHeroSlide,
         itemBuilder: (context, movie) => MovieCard(movie: movie),
