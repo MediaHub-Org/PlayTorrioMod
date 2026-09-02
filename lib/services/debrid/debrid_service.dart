@@ -85,6 +85,7 @@ class DebridService {
     String? filename,
     int? season,
     int? episode,
+    String? episodeTitle,
   }) async {
     final activeService = service ?? await getSelectedService();
     if (activeService == 'None' || activeService.isEmpty) {
@@ -99,6 +100,7 @@ class DebridService {
           filename: filename,
           season: season,
           episode: episode,
+          episodeTitle: episodeTitle,
         );
       case 'TorBox':
         return await torBox.resolveMagnet(
@@ -107,6 +109,7 @@ class DebridService {
           filename: filename,
           season: season,
           episode: episode,
+          episodeTitle: episodeTitle,
         );
       case 'AllDebrid':
         return await allDebrid.resolveMagnet(
@@ -115,6 +118,7 @@ class DebridService {
           filename: filename,
           season: season,
           episode: episode,
+          episodeTitle: episodeTitle,
         );
       case 'Premiumize':
         return await premiumize.resolveMagnet(
@@ -123,6 +127,7 @@ class DebridService {
           filename: filename,
           season: season,
           episode: episode,
+          episodeTitle: episodeTitle,
         );
       case 'Debrid-Link':
         return await debridLink.resolveMagnet(
@@ -131,6 +136,7 @@ class DebridService {
           filename: filename,
           season: season,
           episode: episode,
+          episodeTitle: episodeTitle,
         );
       default:
         throw Exception('Unknown Debrid provider: $activeService');

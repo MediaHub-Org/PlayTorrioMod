@@ -39,7 +39,7 @@ dependencies:
   cached_network_image: ^3.4.1
   shared_preferences: ^2.3.3
   url_launcher: ^6.3.2
-  torrserver_flutter: ^0.0.5
+  torrserver_flutter: ^0.0.6
   media_kit:
     git:
       url: https://github.com/Predidit/media-kit.git
