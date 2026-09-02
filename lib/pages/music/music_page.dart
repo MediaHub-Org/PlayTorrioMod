@@ -65,6 +65,7 @@ class _MusicPageState extends State<MusicPage> {
 
   String _activeTab =
       'Music'; // 'Music', 'Search', 'Radio', 'Podcasts', 'Library'
+  String _lastSpokenAudioType = HubController.instance.spokenAudioType;
   String _savedType = 'liked'; // Library > Saved sub-tab
   String _likedTypeFilter = 'all'; // Library > Saved > Liked type chip
   String _inProgressType = 'queue'; // Library > In Progress sub-tab
@@ -159,9 +160,17 @@ class _MusicPageState extends State<MusicPage> {
   void _onHubChanged() {
     if (!mounted) return;
     final tab = HubController.instance.musicTab;
-    if (tab == _activeTab) return;
+    final spokenType = HubController.instance.spokenAudioType;
+    // Podcasts vs Audiobooks is read fresh from HubController in build(),
+    // not cached locally -- so a bare early-return here when only
+    // spokenAudioType changed (tab itself unchanged) meant tapping the
+    // Audiobooks/Podcasts pill never rebuilt this page. It looked like the
+    // switch silently did nothing until something else forced a rebuild,
+    // e.g. leaving Listen and coming back.
+    if (tab == _activeTab && spokenType == _lastSpokenAudioType) return;
     setState(() {
       _activeTab = tab;
+      _lastSpokenAudioType = spokenType;
       _hasSearched = false;
       _isSearching = false;
       _searchData = MusicSearchData.empty;
@@ -339,8 +348,11 @@ class _MusicPageState extends State<MusicPage> {
           builder: (_) => _MusicAlbumDetailPage(
             details: details,
             playerController: _playerController,
-            onPlayTrack: (t, queue) =>
-                _playerController.playTrack(t, playlistQueue: queue),
+            onPlayTrack: (t, queue) => _playerController.playTrack(
+              t,
+              playlistQueue: queue,
+              queueSourceId: 'album:$albumId',
+            ),
             onAddToPlaylist: _showAddToPlaylistMenu,
           ),
         ),
@@ -358,8 +370,11 @@ class _MusicPageState extends State<MusicPage> {
           builder: (_) => _MusicCuratedPlaylistDetailPage(
             details: details,
             playerController: _playerController,
-            onPlayTrack: (t, queue) =>
-                _playerController.playTrack(t, playlistQueue: queue),
+            onPlayTrack: (t, queue) => _playerController.playTrack(
+              t,
+              playlistQueue: queue,
+              queueSourceId: 'playlist:$playlistId',
+            ),
             onAddToPlaylist: _showAddToPlaylistMenu,
           ),
         ),
@@ -951,7 +966,13 @@ class _MusicPageState extends State<MusicPage> {
                         SizedBox(
                           height: 44,
                           child: Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            // 24px, matching Radio's and Podcasts &
+                            // Audiobooks' own left/right margin -- this bar
+                            // sits in the same column position as those
+                            // pages' content when switching tabs.
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 24,
+                            ),
                             child: Row(
                               children: [
                                 const Text(
@@ -3312,12 +3333,12 @@ class _MusicCoverCard extends StatefulWidget {
   /// button itself is tapped.
   final Future<List<MusicTrack>?> Function() loadTracks;
 
-  /// True while a track from this album/playlist is the one actually
-  /// playing -- lets the button show pause and stay visible without hover.
-  /// Null when that can't be determined (e.g. a curated playlist, which
-  /// carries no reverse link back from a track), in which case the button
-  /// stays a plain always-play icon.
-  final bool Function()? isCurrent;
+  /// Identifies this album/playlist to [MusicPlayerController], so
+  /// [MusicPlayerController.currentQueueSourceId] can say whether a track
+  /// from *this* card is the one playing -- same mechanism for both album
+  /// and playlist cards, unlike the old albumId-only check that left
+  /// playlists unable to ever show a playing/paused state.
+  final String sourceId;
 
   const _MusicCoverCard({
     required this.coverUrl,
@@ -3325,7 +3346,7 @@ class _MusicCoverCard extends StatefulWidget {
     required this.subtitle,
     required this.onTap,
     required this.loadTracks,
-    this.isCurrent,
+    required this.sourceId,
   });
 
   @override
@@ -3345,6 +3366,7 @@ class _MusicCoverCardState extends State<_MusicCoverCard> {
       MusicPlayerController.instance.playTrack(
         tracks.first,
         playlistQueue: tracks,
+        queueSourceId: widget.sourceId,
       );
     } finally {
       if (mounted) setState(() => _isLoadingPlay = false);
@@ -3380,45 +3402,55 @@ class _MusicCoverCardState extends State<_MusicCoverCard> {
                         AnimatedBuilder(
                           animation: MusicPlayerController.instance,
                           builder: (context, _) {
-                            final isCurrent = widget.isCurrent?.call() ?? false;
+                            final isCurrent = MusicPlayerController
+                                    .instance.currentQueueSourceId ==
+                                widget.sourceId;
                             final isPlaying =
                                 isCurrent && MusicPlayerController.instance.isPlaying;
-                            final visible = _isHovered || isCurrent;
-                            return AnimatedOpacity(
-                              opacity: visible ? 1.0 : 0.0,
-                              duration: const Duration(milliseconds: 150),
-                              child: IgnorePointer(
-                                ignoring: !visible,
-                                child: Container(
-                                  color: Colors.black.withValues(alpha: 0.35),
-                                  child: Center(
-                                    child: GestureDetector(
-                                      onTap: _handlePlay,
-                                      child: Container(
-                                        width: 44,
-                                        height: 44,
-                                        decoration: const BoxDecoration(
-                                          shape: BoxShape.circle,
-                                          color: Color(0xFF7C5CFF),
-                                        ),
-                                        child: Center(
-                                          child: _isLoadingPlay
-                                              ? const SizedBox(
-                                                  width: 18,
-                                                  height: 18,
-                                                  child: CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                    color: Colors.white,
-                                                  ),
-                                                )
-                                              : Icon(
-                                                  isPlaying
-                                                      ? Icons.pause_rounded
-                                                      : Icons.play_arrow_rounded,
+                            // Hover-only, even while this card is the one
+                            // playing -- a persistent icon read as "always
+                            // shown", not "hover reveals it".
+                            final visible = _isHovered;
+                            return Positioned(
+                              right: 6,
+                              bottom: 6,
+                              child: AnimatedOpacity(
+                                opacity: visible ? 1.0 : 0.0,
+                                duration: const Duration(milliseconds: 150),
+                                child: IgnorePointer(
+                                  ignoring: !visible,
+                                  child: GestureDetector(
+                                    onTap: _handlePlay,
+                                    child: Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        shape: BoxShape.circle,
+                                        color: const Color(0xFF7C5CFF),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black.withValues(alpha: 0.4),
+                                            blurRadius: 8,
+                                          ),
+                                        ],
+                                      ),
+                                      child: Center(
+                                        child: _isLoadingPlay
+                                            ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child: CircularProgressIndicator(
+                                                  strokeWidth: 2,
                                                   color: Colors.white,
-                                                  size: 26,
                                                 ),
-                                        ),
+                                              )
+                                            : Icon(
+                                                isPlaying
+                                                    ? Icons.pause_rounded
+                                                    : Icons.play_arrow_rounded,
+                                                color: Colors.white,
+                                                size: 20,
+                                              ),
                                       ),
                                     ),
                                   ),
@@ -3475,8 +3507,7 @@ class _MusicAlbumCard extends StatelessWidget {
         final details = await MusicService.instance.fetchAlbumDetails(album.id);
         return details?.tracks;
       },
-      isCurrent: () =>
-          MusicPlayerController.instance.currentTrack?.albumId == album.id,
+      sourceId: 'album:${album.id}',
     );
   }
 }
@@ -3498,9 +3529,7 @@ class _MusicPlaylistCard extends StatelessWidget {
         final details = await MusicService.instance.fetchPlaylistDetails(playlist.id);
         return details?.tracks;
       },
-      // No reverse link from a MusicTrack back to the curated playlist it
-      // came from, unlike albumId -- stays a plain play icon rather than
-      // guessing at a playing/paused state that might be wrong.
+      sourceId: 'playlist:${playlist.id}',
     );
   }
 }

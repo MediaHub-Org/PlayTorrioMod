@@ -48,6 +48,10 @@ class MusicPlayerController extends ChangeNotifier {
   // doesn't match the feature's own framing, so the download button hides
   // for it specifically.
   bool _isCurrentTrackFromRadio = false;
+  // The album/playlist id the current queue was started from, if any -- lets
+  // a cover card (album or playlist alike) know it's the one playing without
+  // relying on MusicTrack.albumId, which only albums have.
+  String? _currentQueueSourceId;
   List<MusicTrack> _playlist = [];
   List<MusicTrack> _originalPlaylist = [];
   int _currentIndex = 0;
@@ -73,6 +77,7 @@ class MusicPlayerController extends ChangeNotifier {
   // Getters
   MusicTrack? get currentTrack => _currentTrack;
   bool get isCurrentTrackFromRadio => _isCurrentTrackFromRadio;
+  String? get currentQueueSourceId => _currentQueueSourceId;
   List<MusicTrack> get playlist => _playlist;
   int get currentIndex => _currentIndex;
   bool get isLoading => _isLoading;
@@ -133,8 +138,10 @@ class MusicPlayerController extends ChangeNotifier {
     MusicTrack track, {
     List<MusicTrack>? playlistQueue,
     bool isRadio = false,
+    String? queueSourceId,
   }) async {
     _isCurrentTrackFromRadio = isRadio;
+    _currentQueueSourceId = queueSourceId;
     // Ensure only one source plays app-wide: stop any other active source.
     PlaybackCoordinator.activate(
       'music:${track.id}',
