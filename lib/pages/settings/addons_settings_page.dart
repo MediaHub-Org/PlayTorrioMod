@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../../models/addon/addon.dart';
 import '../../services/addon/addon_manager.dart';
@@ -12,6 +13,14 @@ class AddonsSettingsPage extends StatefulWidget {
 class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
   final _manager = AddonManager.instance;
   bool _isAdding = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _manager.initialize().then((_) {
+      if (mounted) setState(() {});
+    });
+  }
 
   Future<void> _addAddon() async {
     final url = await _showAddDialog();
@@ -146,6 +155,12 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
   }
 
   void _confirmRemove(InstalledAddon addon) {
+    if (addon.baseUrl.startsWith('builtin:') ||
+        addon.manifest.id == 'builtin.playtorrio' ||
+        addon.manifest.id == 'builtin.playtorriohttp') {
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) {
@@ -218,7 +233,7 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
               Padding(
                 padding: const EdgeInsets.only(bottom: 20),
                 child: Text(
-                  'Addons provide movie, series, and anime metadata catalogs for your home page and search.',
+                  'Addons provide metadata, catalogs, and streaming sources. Hold and drag to reorder priority. Providers higher up load and appear first in watch sources.',
                   style: TextStyle(
                     fontSize: 13.5,
                     color: Colors.white.withValues(alpha: 0.5),
@@ -235,7 +250,7 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
               Row(
                 children: [
                   Text(
-                    'INSTALLED ADDONS',
+                    'INSTALLED PROVIDERS & ADDONS',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
@@ -290,33 +305,59 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
                   ),
                 )
               else
-                ...addons.map(
-                  (addon) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _AddonCard(
-                      addon: addon,
-                      onToggle: (enabled) async {
-                        await _manager.toggleAddon(addon.manifest.id, enabled);
-                        setState(() {});
-                      },
-                      onUpdateFeature: ({
-                        enableCatalogs,
-                        enableSearch,
-                        enableSubtitles,
-                        enableStreams,
-                      }) async {
-                        await _manager.updateAddonFeature(
-                          addonId: addon.manifest.id,
-                          enableCatalogs: enableCatalogs,
-                          enableSearch: enableSearch,
-                          enableSubtitles: enableSubtitles,
-                          enableStreams: enableStreams,
-                        );
-                        setState(() {});
-                      },
-                      onRemove: () => _confirmRemove(addon),
-                    ),
-                  ),
+                ReorderableListView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  buildDefaultDragHandles: false,
+                  itemCount: addons.length,
+                  onReorder: (oldIdx, newIdx) async {
+                    await _manager.reorderAddons(oldIdx, newIdx);
+                    setState(() {});
+                  },
+                  itemBuilder: (context, index) {
+                    final addon = addons[index];
+                    return Padding(
+                      key: ValueKey(addon.manifest.id),
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: _AddonCard(
+                        index: index,
+                        totalCount: addons.length,
+                        addon: addon,
+                        onMoveUp: index > 0
+                            ? () async {
+                                await _manager.moveAddonUp(index);
+                                setState(() {});
+                              }
+                            : null,
+                        onMoveDown: index < addons.length - 1
+                            ? () async {
+                                await _manager.moveAddonDown(index);
+                                setState(() {});
+                              }
+                            : null,
+                        onToggle: (enabled) async {
+                          await _manager.toggleAddon(addon.manifest.id, enabled);
+                          setState(() {});
+                        },
+                        onUpdateFeature: ({
+                          enableCatalogs,
+                          enableSearch,
+                          enableSubtitles,
+                          enableStreams,
+                        }) async {
+                          await _manager.updateAddonFeature(
+                            addonId: addon.manifest.id,
+                            enableCatalogs: enableCatalogs,
+                            enableSearch: enableSearch,
+                            enableSubtitles: enableSubtitles,
+                            enableStreams: enableStreams,
+                          );
+                          setState(() {});
+                        },
+                        onRemove: () => _confirmRemove(addon),
+                      ),
+                    );
+                  },
                 ),
             ],
           ),
@@ -331,7 +372,11 @@ class _AddonsSettingsPageState extends State<AddonsSettingsPage> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _AddonCard extends StatelessWidget {
+  final int index;
+  final int totalCount;
   final InstalledAddon addon;
+  final VoidCallback? onMoveUp;
+  final VoidCallback? onMoveDown;
   final ValueChanged<bool> onToggle;
   final void Function({
     bool? enableCatalogs,
@@ -342,7 +387,11 @@ class _AddonCard extends StatelessWidget {
   final VoidCallback onRemove;
 
   const _AddonCard({
+    required this.index,
+    required this.totalCount,
     required this.addon,
+    this.onMoveUp,
+    this.onMoveDown,
     required this.onToggle,
     required this.onUpdateFeature,
     required this.onRemove,
@@ -351,12 +400,19 @@ class _AddonCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final m = addon.manifest;
+    final isP2p = addon.manifest.id == 'builtin.playtorrio' || addon.baseUrl == 'builtin:playtorrio';
+    final isHttp = addon.manifest.id == 'builtin.playtorriohttp' || addon.baseUrl == 'builtin:playtorriohttp';
+    final isBuiltIn = isP2p || isHttp || addon.baseUrl.startsWith('builtin:');
 
     final hasCatalogs = m.supportsCatalog || m.catalogs.isNotEmpty;
     final hasSearch = m.catalogs.any((c) => c.supportsSearch) || m.supportsCatalog;
     final hasStreams = m.supportsStream;
     final hasSubtitles = m.supportsSubtitles;
     final hasAnyFeature = hasCatalogs || hasSearch || hasStreams || hasSubtitles;
+
+    final providerColor = isP2p
+        ? const Color(0xFF7C5CFF)
+        : (isHttp ? const Color(0xFF10B981) : const Color(0xFF7C5CFF));
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -366,7 +422,7 @@ class _AddonCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: addon.enabled
-              ? const Color(0xFF7C5CFF).withValues(alpha: 0.3)
+              ? providerColor.withValues(alpha: 0.3)
               : Colors.white.withValues(alpha: 0.06),
         ),
       ),
@@ -376,37 +432,139 @@ class _AddonCard extends StatelessWidget {
           // Header row
           Row(
             children: [
-              Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  color: const Color(0xFF7C5CFF).withValues(alpha: 0.14),
-                ),
-                child: const Icon(
-                  Icons.extension_rounded,
-                  color: Color(0xFF7C5CFF),
-                  size: 22,
+              // Reorder Drag Handle
+              ReorderableDragStartListener(
+                index: index,
+                child: MouseRegion(
+                  cursor: SystemMouseCursors.grab,
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    margin: const EdgeInsets.only(right: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.04),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.drag_indicator_rounded,
+                      color: Colors.white38,
+                      size: 20,
+                    ),
+                  ),
                 ),
               ),
+
+              // Priority Badge
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                margin: const EdgeInsets.only(right: 10),
+                decoration: BoxDecoration(
+                  color: providerColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: providerColor.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Text(
+                  '#${index + 1}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: providerColor,
+                  ),
+                ),
+              ),
+
+              // Addon Icon
+              Container(
+                width: 38,
+                height: 38,
+                padding: const EdgeInsets.all(4),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: providerColor.withValues(alpha: 0.14),
+                ),
+                child: isBuiltIn
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: Image.asset(
+                          'assets/icon.png',
+                          width: 28,
+                          height: 28,
+                          fit: BoxFit.contain,
+                        ),
+                      )
+                    : (m.logo != null && m.logo!.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: CachedNetworkImage(
+                              imageUrl: m.logo!,
+                              width: 28,
+                              height: 28,
+                              fit: BoxFit.contain,
+                              errorWidget: (_, __, ___) => Icon(
+                                Icons.extension_rounded,
+                                color: providerColor,
+                                size: 20,
+                              ),
+                            ),
+                          )
+                        : Icon(
+                            Icons.extension_rounded,
+                            color: providerColor,
+                            size: 20,
+                          )),
+              ),
               const SizedBox(width: 12),
+
+              // Addon Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      m.name,
-                      style: const TextStyle(
-                        fontSize: 15.5,
-                        fontWeight: FontWeight.w700,
-                        color: Colors.white,
-                      ),
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            m.name,
+                            style: const TextStyle(
+                              fontSize: 15.5,
+                              fontWeight: FontWeight.w700,
+                              color: Colors.white,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (isBuiltIn) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: providerColor.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(5),
+                            ),
+                            child: Text(
+                              isP2p ? 'BUILT-IN TORRENT' : 'BUILT-IN HTTP',
+                              style: TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: FontWeight.w800,
+                                color: providerColor,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      m.supportsSubtitles && m.catalogs.isEmpty
-                          ? 'v${m.version}  ·  Subtitles Provider'
-                          : 'v${m.version}  ·  ${m.catalogs.length} catalog${m.catalogs.length == 1 ? '' : 's'}${m.supportsSubtitles ? '  ·  Subtitles' : ''}',
+                      isP2p
+                          ? 'Built-in TorrServer P2P streaming engine'
+                          : (isHttp
+                              ? 'Built-in multi-source fast HTTP scrapers'
+                              : (m.supportsSubtitles && m.catalogs.isEmpty
+                                  ? 'v${m.version}  ·  Subtitles Provider'
+                                  : 'v${m.version}  ·  ${m.catalogs.length} catalog${m.catalogs.length == 1 ? '' : 's'}${m.supportsSubtitles ? '  ·  Subtitles' : ''}')),
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.white.withValues(alpha: 0.4),
@@ -416,10 +574,36 @@ class _AddonCard extends StatelessWidget {
                   ],
                 ),
               ),
+
+              // Up/Down Quick Move Buttons
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_up_rounded, size: 22),
+                    color: onMoveUp != null ? Colors.white70 : Colors.white24,
+                    onPressed: onMoveUp,
+                    tooltip: 'Move up in priority',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 22),
+                    color: onMoveDown != null ? Colors.white70 : Colors.white24,
+                    onPressed: onMoveDown,
+                    tooltip: 'Move down in priority',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  ),
+                ],
+              ),
+              const SizedBox(width: 4),
+
+              // Master Enable/Disable Switch
               Switch.adaptive(
                 value: addon.enabled,
                 onChanged: onToggle,
-                activeColor: const Color(0xFF7C5CFF),
+                activeColor: providerColor,
               ),
             ],
           ),
@@ -554,15 +738,17 @@ class _AddonCard extends StatelessWidget {
                   ).toList(),
                 ),
               ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                color: Colors.red.withValues(alpha: 0.6),
-                onPressed: onRemove,
-                tooltip: 'Remove addon',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              ),
+              if (!isBuiltIn) ...[
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                  color: Colors.red.withValues(alpha: 0.6),
+                  onPressed: onRemove,
+                  tooltip: 'Remove addon',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                ),
+              ],
             ],
           ),
         ],

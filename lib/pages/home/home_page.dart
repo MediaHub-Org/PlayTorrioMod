@@ -23,6 +23,7 @@ import '../../widgets/home/continue_watching_slider.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../search/search_page.dart';
 import '../ai/wewatch_quiz_page.dart';
+import '../calendar/tv_calendar_page.dart';
 import '../settings/settings_page.dart';
 import '../../services/theme/dock_settings.dart';
 import '../../widgets/common/app_liquid_dock.dart';
@@ -361,7 +362,17 @@ class _HomePageState extends State<HomePage> {
                   if (index == _sections.length + 2) {
                     return SizedBox(height: 110.0 + MediaQuery.paddingOf(context).bottom);
                   }
-                  return MovieSliderSection(section: _sections[index - 2]);
+                  final sectionIdx = index - 2;
+                  final isLastTwo = sectionIdx >= (_sections.length - 2);
+                  return ValueListenableBuilder<bool>(
+                    valueListenable: HomePageSettings.enableCalendar,
+                    builder: (context, calEnabled, _) {
+                      return MovieSliderSection(
+                        section: _sections[sectionIdx],
+                        showCalendarButton: calEnabled && isLastTwo,
+                      );
+                    },
+                  );
                 },
               ),
             ),
@@ -562,8 +573,10 @@ class _GlassAppBar extends StatelessWidget {
             ),
             const Spacer(),
             // AI Taste Profile Quiz
-            Builder(
-              builder: (context) {
+            ValueListenableBuilder<bool>(
+              valueListenable: HomePageSettings.enableAiQuiz,
+              builder: (context, aiQuizEnabled, _) {
+                if (!aiQuizEnabled) return const SizedBox.shrink();
                 final palette = AppThemeService.currentPalette.value;
                 return IconButton(
                   icon: Icon(
@@ -576,6 +589,27 @@ class _GlassAppBar extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (_) => const WeWatchQuizPage()),
+                    );
+                  },
+                );
+              },
+            ),
+            // TV Shows Airing Calendar
+            ValueListenableBuilder<bool>(
+              valueListenable: HomePageSettings.enableCalendar,
+              builder: (context, calEnabled, _) {
+                if (!calEnabled) return const SizedBox.shrink();
+                return IconButton(
+                  icon: Icon(
+                    Icons.calendar_month_rounded,
+                    color: Colors.white.withValues(alpha: 0.75),
+                    size: 22,
+                  ),
+                  tooltip: 'TV Airing Calendar',
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const TvCalendarPage()),
                     );
                   },
                 );

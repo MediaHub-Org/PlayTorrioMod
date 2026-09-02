@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../models/movie/movie_section.dart';
 import '../../models/stream/stream_model.dart';
 import '../../services/addon/addon_manager.dart';
+import '../../services/home/home_page_settings.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../widgets/movie/movie_slider_section.dart';
 import '../../widgets/search/magnet_files_view.dart';
@@ -349,18 +350,24 @@ class _SearchPageState extends State<SearchPage> {
                                     },
                                   )
                                 else ...[
-                                  IconButton(
-                                    icon: Icon(
-                                      Icons.auto_awesome_rounded,
-                                      size: 17,
-                                      color: AppThemeService.currentPalette.value.primaryColor,
-                                    ),
-                                    tooltip: 'AI Taste Quiz',
-                                    splashRadius: 18,
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(builder: (_) => const WeWatchQuizPage()),
+                                  ValueListenableBuilder<bool>(
+                                    valueListenable: HomePageSettings.enableAiQuiz,
+                                    builder: (context, aiQuizEnabled, _) {
+                                      if (!aiQuizEnabled) return const SizedBox.shrink();
+                                      return IconButton(
+                                        icon: Icon(
+                                          Icons.auto_awesome_rounded,
+                                          size: 17,
+                                          color: AppThemeService.currentPalette.value.primaryColor,
+                                        ),
+                                        tooltip: 'AI Taste Quiz',
+                                        splashRadius: 18,
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(builder: (_) => const WeWatchQuizPage()),
+                                          );
+                                        },
                                       );
                                     },
                                   ),

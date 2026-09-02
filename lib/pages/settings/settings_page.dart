@@ -23,6 +23,7 @@ import '../../services/p2p/p2p_settings_service.dart';
 import '../../widgets/p2p/p2p_warning_dialog.dart';
 import '../../services/discord/discord_rpc_service.dart';
 import '../../services/backup/backup_restore_service.dart';
+import '../../services/home/home_page_settings.dart';
 
 import '../../widgets/common/animated_ambient_background.dart';
 
@@ -281,8 +282,8 @@ class _SettingsPageState extends State<SettingsPage> {
     final pkg = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
           appName: 'PlayTorrio',
           packageName: 'com.playtorrio',
-          version: '1.0.9',
-          buildNumber: '10',
+          version: '1.1.0',
+          buildNumber: '11',
         ));
 
     if (mounted) {
@@ -501,6 +502,52 @@ class _SettingsPageState extends State<SettingsPage> {
                         context: context,
                         builder: (context) => const P2pWarningDialog(),
                       );
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12),
+
+              // 5. TV Airing Calendar Toggle
+              ValueListenableBuilder<bool>(
+                valueListenable: HomePageSettings.enableCalendar,
+                builder: (context, isCalEnabled, _) {
+                  return _SettingsSwitchTile(
+                    icon: Icons.calendar_month_rounded,
+                    iconColor: isCalEnabled ? const Color(0xFF38BDF8) : Colors.white54,
+                    title: 'TV Airing Calendar',
+                    subtitle: isCalEnabled
+                        ? 'Calendar buttons active on Home top bar and section headers'
+                        : 'Calendar disabled and hidden across all pages',
+                    badgeText: isCalEnabled ? 'Enabled' : 'Disabled',
+                    badgeColor: isCalEnabled ? const Color(0xFF38BDF8) : Colors.white38,
+                    value: isCalEnabled,
+                    onChanged: (val) async {
+                      await HomePageSettings.setEnableCalendar(val);
+                    },
+                  );
+                },
+              ),
+
+              const SizedBox(height: 12),
+
+              // 6. AI Recommendation Quiz Toggle
+              ValueListenableBuilder<bool>(
+                valueListenable: HomePageSettings.enableAiQuiz,
+                builder: (context, isAiEnabled, _) {
+                  return _SettingsSwitchTile(
+                    icon: Icons.auto_awesome_rounded,
+                    iconColor: isAiEnabled ? const Color(0xFFF472B6) : Colors.white54,
+                    title: 'AI Recommendation Quiz',
+                    subtitle: isAiEnabled
+                        ? 'AI Taste Profile Quiz active on Home and Search bars'
+                        : 'AI quiz disabled and hidden across all pages',
+                    badgeText: isAiEnabled ? 'Enabled' : 'Disabled',
+                    badgeColor: isAiEnabled ? const Color(0xFFF472B6) : Colors.white38,
+                    value: isAiEnabled,
+                    onChanged: (val) async {
+                      await HomePageSettings.setEnableAiQuiz(val);
                     },
                   );
                 },

@@ -29,6 +29,7 @@ class ContinueWatchingItem {
   final String? rawUrl;
   final String? streamName;
   final String? streamTitle;
+  final String? streamDescription;
   final String? quality;
   final Map<String, String>? headers;
 
@@ -54,6 +55,7 @@ class ContinueWatchingItem {
     this.rawUrl,
     this.streamName,
     this.streamTitle,
+    this.streamDescription,
     this.quality,
     this.headers,
   });
@@ -116,6 +118,7 @@ class ContinueWatchingItem {
       'rawUrl': rawUrl,
       'streamName': streamName,
       'streamTitle': streamTitle,
+      'streamDescription': streamDescription,
       'quality': quality,
       'headers': headers,
     };
@@ -144,6 +147,7 @@ class ContinueWatchingItem {
       rawUrl: json['rawUrl']?.toString(),
       streamName: json['streamName']?.toString(),
       streamTitle: json['streamTitle']?.toString(),
+      streamDescription: json['streamDescription']?.toString(),
       quality: json['quality']?.toString(),
       headers: json['headers'] is Map ? Map<String, String>.from(json['headers']) : null,
     );
@@ -156,6 +160,7 @@ class ContinueWatchingItem {
     String? magnetUrl,
     String? rawUrl,
     int? fileIdx,
+    String? streamDescription,
   }) {
     return ContinueWatchingItem(
       id: id,
@@ -179,6 +184,7 @@ class ContinueWatchingItem {
       rawUrl: rawUrl ?? this.rawUrl,
       streamName: streamName,
       streamTitle: streamTitle,
+      streamDescription: streamDescription ?? this.streamDescription,
       quality: quality,
       headers: headers,
     );

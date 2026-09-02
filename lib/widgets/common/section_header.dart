@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../services/theme/app_theme_service.dart';
 
-/// Clean section header — title on left, optional "See All" on right.
+/// Clean section header — title on left, optional trailing widget / "See All" on right.
 class SectionHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
   final VoidCallback? onSeeAll;
+  final Widget? trailing;
 
   const SectionHeader({
     super.key,
     required this.title,
     this.subtitle,
     this.onSeeAll,
+    this.trailing,
   });
 
   @override
@@ -21,7 +23,7 @@ class SectionHeader extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 8, 16, 0),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Column(
@@ -50,9 +52,13 @@ class SectionHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (trailing != null) ...[
+            trailing!,
+            if (onSeeAll != null) const SizedBox(width: 8),
+          ],
           if (onSeeAll != null)
             Padding(
-              padding: const EdgeInsets.only(top: 3),
+              padding: const EdgeInsets.only(top: 2),
               child: TextButton(
                 onPressed: onSeeAll,
                 style: TextButton.styleFrom(

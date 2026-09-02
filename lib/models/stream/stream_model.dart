@@ -142,6 +142,27 @@ class StreamSource {
     return null;
   }
 
+  /// Extracted seeders count from title, name, or description.
+  int? get seeders {
+    final text = '${title ?? ''} ${name ?? ''} ${description ?? ''}';
+    final patterns = [
+      RegExp(r'[👤👥🌱⚡]\s*(\d+)', caseSensitive: false),
+      RegExp(r'(?:seeds?|seeders?|peers?|s)\s*[:=]\s*(\d+)', caseSensitive: false),
+      RegExp(r'(\d+)\s*(?:seeds?|seeders?)', caseSensitive: false),
+      RegExp(r'\[\s*(\d+)\s*(?:s|seeds?)', caseSensitive: false),
+      RegExp(r'/\s*(\d+)\s*peers?', caseSensitive: false),
+      RegExp(r'(\d+)\s*/\s*\d+\s*(?:peers?|seeds?)?', caseSensitive: false),
+    ];
+    for (final pattern in patterns) {
+      final match = pattern.firstMatch(text);
+      if (match != null) {
+        final val = int.tryParse(match.group(1) ?? '');
+        if (val != null) return val;
+      }
+    }
+    return null;
+  }
+
   /// Numeric quality rank for sorting (higher is better).
   int get qualityRank {
     switch (quality) {

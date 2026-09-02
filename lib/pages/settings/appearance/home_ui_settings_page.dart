@@ -203,6 +203,21 @@ class _HomeUiSettingsPageState extends State<HomeUiSettingsPage> {
               const SizedBox(height: 12),
               _buildCardDensityCard(),
 
+              const SizedBox(height: 28),
+
+              // ── 6. Feature Shortcuts & Buttons ──
+              Text(
+                'HEADER SHORTCUTS & BUTTONS',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.35),
+                  letterSpacing: 1.1,
+                ),
+              ),
+              const SizedBox(height: 12),
+              _buildFeatureTogglesCard(),
+
               const SizedBox(height: 32),
             ],
           ),
@@ -1259,6 +1274,131 @@ class _HomeUiSettingsPageState extends State<HomeUiSettingsPage> {
                       divisions: 15,
                       onChanged: (val) => HomePageSettings.setCardHoverZoom(val),
                     ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureTogglesCard() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12151E),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // TV Shows Airing Calendar
+          ValueListenableBuilder<bool>(
+            valueListenable: HomePageSettings.enableCalendar,
+            builder: (context, enabled, _) {
+              return Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF38BDF8).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.calendar_month_rounded,
+                      color: Color(0xFF38BDF8),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'TV Airing Calendar',
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Show TV Calendar buttons on Home bar & sliders',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: enabled,
+                    onChanged: (val) => HomePageSettings.setEnableCalendar(val),
+                    activeColor: const Color(0xFF38BDF8),
+                  ),
+                ],
+              );
+            },
+          ),
+
+          const SizedBox(height: 12),
+          Divider(color: Colors.white.withValues(alpha: 0.06), height: 1),
+          const SizedBox(height: 12),
+
+          // AI Recommendation Quiz
+          ValueListenableBuilder<bool>(
+            valueListenable: HomePageSettings.enableAiQuiz,
+            builder: (context, enabled, _) {
+              return Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF472B6).withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.auto_awesome_rounded,
+                      color: Color(0xFFF472B6),
+                      size: 20,
+                    ),
+                  ),
+                  const SizedBox(width: 14),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'AI Recommendation Quiz',
+                          style: TextStyle(
+                            fontSize: 14.5,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Show AI Quiz button on Home & Search bars',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white54,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch.adaptive(
+                    value: enabled,
+                    onChanged: (val) => HomePageSettings.setEnableAiQuiz(val),
+                    activeColor: const Color(0xFFF472B6),
                   ),
                 ],
               );

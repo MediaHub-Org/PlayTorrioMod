@@ -72,12 +72,16 @@ abstract final class HomePageSettings {
   static const _keyAmbientPattern = 'home_ambient_pattern';
   static const _keyAmbientIntensity = 'home_ambient_intensity';
   static const _keyAmbientSpeed = 'home_ambient_speed';
+  static const _keyEnableCalendar = 'app_enable_calendar';
+  static const _keyEnableAiQuiz = 'app_enable_ai_quiz';
 
   static final ValueNotifier<bool> enableSpotlight = ValueNotifier<bool>(true);
   static final ValueNotifier<bool> enableSimilar = ValueNotifier<bool>(true);
   static final ValueNotifier<bool> enableWatchingSimilar = ValueNotifier<bool>(true);
   static final ValueNotifier<bool> enableTraktRecommendations = ValueNotifier<bool>(true);
   static final ValueNotifier<bool> enableSimklRecommendations = ValueNotifier<bool>(true);
+  static final ValueNotifier<bool> enableCalendar = ValueNotifier<bool>(true);
+  static final ValueNotifier<bool> enableAiQuiz = ValueNotifier<bool>(true);
   static final ValueNotifier<SimilarSectionPosition> similarPosition =
       ValueNotifier<SimilarSectionPosition>(SimilarSectionPosition.top);
   static final ValueNotifier<HeroStyle> heroStyle =
@@ -113,6 +117,8 @@ abstract final class HomePageSettings {
     enableWatchingSimilar.value = prefs.getBool(_keyEnableWatchingSimilar) ?? true;
     enableTraktRecommendations.value = prefs.getBool(_keyEnableTraktRec) ?? true;
     enableSimklRecommendations.value = prefs.getBool(_keyEnableSimklRec) ?? true;
+    enableCalendar.value = prefs.getBool(_keyEnableCalendar) ?? true;
+    enableAiQuiz.value = prefs.getBool(_keyEnableAiQuiz) ?? true;
 
     final posStr = prefs.getString(_keySimilarPosition);
     similarPosition.value = SimilarSectionPosition.values.firstWhere(
@@ -209,6 +215,20 @@ abstract final class HomePageSettings {
     enableSimklRecommendations.value = val;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_keyEnableSimklRec, val);
+    changeNotifier.value++;
+  }
+
+  static Future<void> setEnableCalendar(bool val) async {
+    enableCalendar.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyEnableCalendar, val);
+    changeNotifier.value++;
+  }
+
+  static Future<void> setEnableAiQuiz(bool val) async {
+    enableAiQuiz.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyEnableAiQuiz, val);
     changeNotifier.value++;
   }
 

@@ -72,28 +72,36 @@ class StreamService {
     final controller = StreamController<StreamSource>();
 
     final addons = AddonManager.instance.activeStreamAddons;
+    final isHttpActive = AddonManager.instance.isPlayTorrioHttpActive;
+
+    if (addons.isEmpty && !isHttpActive) {
+      controller.close();
+      return controller.stream;
+    }
 
     _registerBuiltInScrapers();
 
-    int pending = addons.length + 1; // addons + local scrapers
+    int pending = addons.length + (isHttpActive ? 1 : 0);
 
-    // Local scrapers
-    final isImdb = id.startsWith('tt');
-    final cleanImdbId = isImdb ? id.split(':')[0] : null;
+    // Local PlayTorrioHTTP scrapers (if active)
+    if (isHttpActive) {
+      final isImdb = id.startsWith('tt');
+      final cleanImdbId = isImdb ? id.split(':')[0] : null;
 
-    ScraperManager.instance.scrapeAll(
-      type: type,
-      title: title,
-      year: year,
-      season: season,
-      episode: episode,
-      imdbId: cleanImdbId,
-    ).listen((source) {
-      if (!controller.isClosed) controller.add(source);
-    }, onDone: () {
-      pending--;
-      if (pending == 0 && !controller.isClosed) controller.close();
-    });
+      ScraperManager.instance.scrapeAll(
+        type: type,
+        title: title,
+        year: year,
+        season: season,
+        episode: episode,
+        imdbId: cleanImdbId,
+      ).listen((source) {
+        if (!controller.isClosed) controller.add(source);
+      }, onDone: () {
+        pending--;
+        if (pending <= 0 && !controller.isClosed) controller.close();
+      });
+    }
 
     for (final addon in addons) {
       _fetchFromAddon(addon, type, id).then((sources) {
@@ -104,7 +112,7 @@ class StreamService {
         }
       }).catchError((_) {}).whenComplete(() {
         pending--;
-        if (pending == 0 && !controller.isClosed) {
+        if (pending <= 0 && !controller.isClosed) {
           controller.close();
         }
       });
@@ -320,8 +328,8 @@ class StreamService {
           .map((json) => StreamSource.fromJson(Map<String, dynamic>.from(json), addon.manifest.name))
           .where((s) => s.url != null || s.infoHash != null || s.externalUrl != null)
           .toList();
-    } catch (e, st) {
-      debugPrint('Addon ${addon.manifest.name} failed: $e\n$st');
+    } catch (e) {
+      debugPrint('Addon ${addon.manifest.name} stream fetch failed: $e');
       return [];
     }
   }
