@@ -938,10 +938,10 @@ packages:
     dependency: "direct main"
     description:
       name: torrserver_flutter
-      sha256: df7114368c242ea4c6a633e9905e6eab5114eed974b0ebb9f95e7461953d6dc3
+      sha256: a201214494cc7e17bfcf9a62409c79425528bde78ccd845b57ddba0aa3f2472f
       url: "https://pub.dev"
     source: hosted
-    version: "0.0.5"
+    version: "0.0.6"
   typed_data:
     dependency: transitive
     description:

@@ -137,6 +137,7 @@ class _AnimePageState extends State<AnimePage> {
       ]);
 
       if (mounted) {
+        final hasAnyData = results.any((list) => list.isNotEmpty);
         setState(() {
           _trending = results[0];
           _popularSeason = results[1];
@@ -147,6 +148,9 @@ class _AnimePageState extends State<AnimePage> {
           _fantasyAnime = results[6];
           _sciFiAnime = results[7];
           _loading = false;
+          if (!hasAnyData) {
+            _error = 'Failed to load Anime catalog. Please check your internet connection or retry.';
+          }
         });
       }
     } catch (e) {

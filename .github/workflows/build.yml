@@ -66,7 +66,7 @@ jobs:
         run: |
           $ErrorActionPreference = 'Stop'
           $cleanVersion = "${{ github.ref_name }}".TrimStart('v')
-          if ([string]::IsNullOrWhiteSpace($cleanVersion)) { $cleanVersion = "1.1.0" }
+          if ([string]::IsNullOrWhiteSpace($cleanVersion)) { $cleanVersion = "1.1.1" }
 
           $isccCmd = (Get-Command iscc.exe -ErrorAction SilentlyContinue)?.Source
           if (-not $isccCmd) {
