@@ -486,8 +486,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         _isLoading = false;
       });
 
-      // Resume from history if previously watched
-      if (widget.detail != null) {
+      // Resume from history if previously watched -- only a fallback for
+      // callers that didn't already pass initialPosition (e.g. the details
+      // page's own Play button). ContinueWatchingService's own tap-to-resume
+      // already passes initialPosition, which Media(start:...) above already
+      // resumed to natively; re-seeking to essentially the same position
+      // right after open forced the stream to re-buffer, showing a stuck
+      // loading spinner over video that was already playing fine.
+      if (widget.detail != null && widget.initialPosition == null) {
         final historyItem = ContinueWatchingService.getHistoryProgress(
           widget.episode?.id ?? widget.detail!.id,
         );
