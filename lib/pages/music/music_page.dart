@@ -62,7 +62,8 @@ class _MusicPageState extends State<MusicPage> {
 
   String _activeTab =
       'Music'; // 'Music', 'Search', 'Radio', 'Podcasts', 'Library'
-  String _savedType = 'songs'; // Library > Saved sub-tab
+  String _savedType = 'liked'; // Library > Saved sub-tab
+  String _likedTypeFilter = 'all'; // Library > Saved > Liked type chip
   String _inProgressType = 'queue'; // Library > In Progress sub-tab
   String _downloadsType = 'music'; // Library > Downloads sub-tab
 
@@ -1878,33 +1879,136 @@ class _MusicPageState extends State<MusicPage> {
     );
   }
 
-  /// Songs, podcasts, playlists and audiobooks behind one sub-tab, so the
-  /// Listen hub's Library is the same four tabs as every other hub's rather
-  /// than growing one per content type it holds.
+  /// Liked (one grid, type is a filter chip -- not a sub-tab, matching
+  /// Watch's own Saved page) and Playlists (a genuinely different shape --
+  /// named collections, not a per-item status, and Music-only) behind one
+  /// sub-tab, so the Listen hub's Library is the same four tabs as every
+  /// other hub's rather than growing one per content type it holds.
   Widget _buildSavedTab(List<MusicTrack> liked, List<UserPlaylist> playlists) {
     return SectionSubTabs(
       activeId: _savedType,
       onSelected: (id) => setState(() => _savedType = id),
       tabs: const [
-        SubTab(id: 'songs', label: 'Songs', icon: Icons.favorite_rounded),
-        SubTab(id: 'podcasts', label: 'Podcasts', icon: Icons.podcasts_rounded),
-        SubTab(
-          id: 'audiobooks',
-          label: 'Audiobooks',
-          icon: Icons.headphones_rounded,
-        ),
+        SubTab(id: 'liked', label: 'Liked', icon: Icons.favorite_rounded),
         SubTab(
           id: 'playlists',
           label: 'Playlists',
           icon: Icons.queue_music_rounded,
         ),
       ],
-      child: switch (_savedType) {
-        'podcasts' => _buildLikedPodcastsTab(),
-        'audiobooks' => _buildLikedAudiobooksTab(),
-        'playlists' => _buildPlaylistsTab(playlists),
-        _ => _buildLikedSongsTab(liked),
-      },
+      child: _savedType == 'playlists'
+          ? _buildPlaylistsTab(playlists)
+          : _buildLikedTab(liked),
+    );
+  }
+
+  List<_LikedEntry> _likedEntries(List<MusicTrack> likedTracks) {
+    return [
+      for (final t in likedTracks)
+        _LikedEntry(
+          type: 'music',
+          title: t.title,
+          coverUrl: t.coverUrl,
+          fallbackIcon: Icons.music_note_rounded,
+          onTap: () => _playerController.playTrack(t),
+        ),
+      for (final p in PodcastLibraryService.instance.liked)
+        _LikedEntry(
+          type: 'podcasts',
+          title: p.name,
+          coverUrl: p.artworkUrl,
+          fallbackIcon: Icons.podcasts_rounded,
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => PodcastDetailsPage(podcast: p)),
+          ),
+        ),
+      for (final a in AudiobookLibraryService.instance.liked)
+        _LikedEntry(
+          type: 'audiobooks',
+          title: a.title,
+          coverUrl: a.coverImage,
+          fallbackIcon: Icons.headphones_rounded,
+          onTap: () => _openAudiobook(a),
+        ),
+    ];
+  }
+
+  /// One grid across Music/Podcasts/Audiobooks -- each kept in its own
+  /// persisted store (three unrelated models), merged only here for
+  /// display, the same way Watch filters one MyListItem list by type.
+  Widget _buildLikedTab(List<MusicTrack> liked) {
+    final all = _likedEntries(liked);
+    if (all.isEmpty) {
+      return const LibraryEmptyState(
+        icon: Icons.favorite_rounded,
+        title: 'Nothing liked yet',
+        subtitle: 'Tap the heart on a song, podcast or audiobook to save it here.',
+      );
+    }
+    final entries = _likedTypeFilter == 'all'
+        ? all
+        : all.where((e) => e.type == _likedTypeFilter).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Row(
+            children: [
+              _likedTypeChip('All', 'all'),
+              const SizedBox(width: 6),
+              _likedTypeChip('Music', 'music'),
+              const SizedBox(width: 6),
+              _likedTypeChip('Podcasts', 'podcasts'),
+              const SizedBox(width: 6),
+              _likedTypeChip('Audiobooks', 'audiobooks'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: entries.isEmpty
+              ? const LibraryEmptyState(
+                  icon: Icons.favorite_rounded,
+                  title: 'Nothing here',
+                  subtitle: 'Nothing liked matches this filter yet.',
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 200,
+                    mainAxisSpacing: 24,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: 0.8,
+                  ),
+                  itemCount: entries.length,
+                  itemBuilder: (context, index) => _LikedEntryCard(entry: entries[index]),
+                ),
+        ),
+      ],
+    );
+  }
+
+  Widget _likedTypeChip(String label, String value) {
+    final selected = _likedTypeFilter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _likedTypeFilter = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF7C5CFF) : const Color(0xFF141824),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? Colors.white : Colors.white60,
+          ),
+        ),
+      ),
     );
   }
 
@@ -1962,139 +2066,10 @@ class _MusicPageState extends State<MusicPage> {
     );
   }
 
-  Widget _buildLikedPodcastsTab() {
-    final liked = PodcastLibraryService.instance.liked;
-    if (liked.isEmpty) {
-      return const LibraryEmptyState(
-        icon: Icons.podcasts_rounded,
-        title: 'No liked podcasts',
-        subtitle: 'Tap the heart on a podcast to save it here.',
-      );
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        mainAxisSpacing: 24,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.8,
-      ),
-      itemCount: liked.length,
-      itemBuilder: (context, index) {
-        final podcast = liked[index];
-        return GestureDetector(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) => PodcastDetailsPage(podcast: podcast),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: podcast.artworkUrl.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: podcast.artworkUrl,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        )
-                      : Container(
-                          color: Colors.white10,
-                          child: const Icon(
-                            Icons.podcasts_rounded,
-                            color: Colors.white24,
-                            size: 40,
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                podcast.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   void _openAudiobook(Audiobook book) {
     Navigator.push(
       context,
       AudiobookPageRoute(page: AudiobookDetailPage(audiobook: book)),
-    );
-  }
-
-  Widget _buildLikedAudiobooksTab() {
-    final liked = AudiobookLibraryService.instance.liked;
-    if (liked.isEmpty) {
-      return const LibraryEmptyState(
-        icon: Icons.headphones_rounded,
-        title: 'No liked audiobooks',
-        subtitle: 'Tap the heart on an audiobook to save it here.',
-      );
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        mainAxisSpacing: 24,
-        crossAxisSpacing: 16,
-        childAspectRatio: 0.8,
-      ),
-      itemCount: liked.length,
-      itemBuilder: (context, index) {
-        final book = liked[index];
-        return GestureDetector(
-          onTap: () => _openAudiobook(book),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(14),
-                  child: book.coverImage.isNotEmpty
-                      ? CachedNetworkImage(
-                          imageUrl: book.coverImage,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                        )
-                      : Container(
-                          color: Colors.white10,
-                          child: const Icon(
-                            Icons.headphones_rounded,
-                            color: Colors.white24,
-                            size: 40,
-                          ),
-                        ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                book.title,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 
@@ -2371,33 +2346,6 @@ class _MusicPageState extends State<MusicPage> {
     );
   }
 
-  Widget _buildLikedSongsTab(List<MusicTrack> liked) {
-    if (liked.isEmpty) {
-      return const LibraryEmptyState(
-        icon: Icons.favorite_rounded,
-        title: 'No liked songs',
-        subtitle: 'Tap the heart on a song to save it here.',
-      );
-    }
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      itemCount: liked.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        final track = liked[index];
-        return _MusicTrackRow(
-          track: track,
-          isPlaying:
-              _playerController.currentTrack?.id == track.id &&
-              _playerController.isPlaying,
-          isCurrent: _playerController.currentTrack?.id == track.id,
-          onTap: () => _playerController.playTrack(track, playlistQueue: liked),
-          onMoreTap: () => _showAddToPlaylistMenu(track),
-        );
-      },
-    );
-  }
-
   Widget _buildPlaylistsTab(List<UserPlaylist> playlists) {
     // The one place "New Playlist" lives outside the "..." track menu's own
     // inline create action -- scoped to this sub-tab, not the whole Listen
@@ -2549,6 +2497,79 @@ class _RadioTagChip extends StatelessWidget {
             fontWeight: selected ? FontWeight.bold : FontWeight.w500,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Liked -- one grid across Music/Podcasts/Audiobooks
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A display-only merge of three unrelated liked-item models (MusicTrack,
+/// PodcastResult, Audiobook) so the Saved > Liked grid can render and filter
+/// them as one list. Nothing is persisted through this type -- each source
+/// keeps its own store.
+class _LikedEntry {
+  final String type; // 'music' | 'podcasts' | 'audiobooks'
+  final String title;
+  final String? coverUrl;
+  final IconData fallbackIcon;
+  final VoidCallback onTap;
+
+  const _LikedEntry({
+    required this.type,
+    required this.title,
+    required this.coverUrl,
+    required this.fallbackIcon,
+    required this.onTap,
+  });
+}
+
+class _LikedEntryCard extends StatelessWidget {
+  final _LikedEntry entry;
+
+  const _LikedEntryCard({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasCover = entry.coverUrl != null && entry.coverUrl!.isNotEmpty;
+    return GestureDetector(
+      onTap: entry.onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(14),
+              child: hasCover
+                  ? CachedNetworkImage(
+                      imageUrl: entry.coverUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                    )
+                  : Container(
+                      color: Colors.white10,
+                      child: Icon(
+                        entry.fallbackIcon,
+                        color: Colors.white24,
+                        size: 40,
+                      ),
+                    ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            entry.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
       ),
     );
   }

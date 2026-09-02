@@ -10,8 +10,6 @@ import '../../services/books/books_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../widgets/common/library_sections.dart';
 import '../../widgets/common/library_tabs.dart';
-import '../../widgets/common/section_sub_tabs.dart';
-import '../../widgets/manga/manga_card.dart';
 import '../manga/manga_details_page.dart';
 import '../manga/manga_reader_page.dart';
 import '../read/book_reader_page.dart';
@@ -39,8 +37,9 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
   List<_HistoryEntry> _historyEntries = [];
   bool _loadingHistory = true;
 
-  /// Which content type Saved is showing.
-  String _savedType = 'books';
+  /// Saved > Liked type filter chip -- not a sub-tab/page, matching Watch's
+  /// own Saved page (type is a filter, status is the actual navigation).
+  String _likedTypeFilter = 'all';
 
   /// Anything past this counts as finished, so it drops out of Continue and
   /// stays only in History. Readers rarely close a book on the exact last
@@ -273,22 +272,100 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
     );
   }
 
-  Widget _buildSavedTab() {
-    return SectionSubTabs(
-      activeId: _savedType,
-      onSelected: (id) => setState(() => _savedType = id),
-      tabs: const [
-        SubTab(
-          id: 'books',
-          label: 'Books',
-          icon: Icons.import_contacts_rounded,
+  List<_ReadLikedEntry> _likedEntries() {
+    return [
+      for (final b in BookLibraryService.instance.liked)
+        _ReadLikedEntry(
+          type: 'books',
+          title: b.title,
+          coverUrl: null, // libgen.li's list view carries no cover art.
+          fallbackIcon: Icons.import_contacts_rounded,
+          onTap: () => _openLikedBook(b),
         ),
-        SubTab(id: 'manga', label: 'Manga', icon: Icons.auto_stories_rounded),
+      for (final m in _likedManga)
+        _ReadLikedEntry(
+          type: 'manga',
+          title: m.title,
+          coverUrl: m.coverSmall.isNotEmpty ? m.coverSmall : null,
+          fallbackIcon: Icons.auto_stories_rounded,
+          onTap: () => _openManga(m),
+        ),
+    ];
+  }
+
+  /// One grid across Books and Manga -- each its own persisted store
+  /// (BookLibraryService, MangaService), merged only here for display.
+  Widget _buildSavedTab() {
+    final all = _likedEntries();
+    if (all.isEmpty) {
+      return const LibraryEmptyState(
+        icon: Icons.favorite_rounded,
+        title: 'Nothing liked yet',
+        subtitle: 'Tap the heart on a book or manga to save it here.',
+      );
+    }
+    final entries = _likedTypeFilter == 'all'
+        ? all
+        : all.where((e) => e.type == _likedTypeFilter).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+          child: Row(
+            children: [
+              _likedTypeChip('All', 'all'),
+              const SizedBox(width: 6),
+              _likedTypeChip('Books', 'books'),
+              const SizedBox(width: 6),
+              _likedTypeChip('Manga', 'manga'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: entries.isEmpty
+              ? const LibraryEmptyState(
+                  icon: Icons.favorite_rounded,
+                  title: 'Nothing here',
+                  subtitle: 'Nothing liked matches this filter yet.',
+                )
+              : GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 100),
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 200,
+                    mainAxisSpacing: 24,
+                    crossAxisSpacing: 16,
+                    mainAxisExtent: 300,
+                  ),
+                  itemCount: entries.length,
+                  itemBuilder: (context, index) =>
+                      _ReadLikedEntryCard(entry: entries[index]),
+                ),
+        ),
       ],
-      child: switch (_savedType) {
-        'manga' => _buildMangaTab(),
-        _ => _buildBooksTab(),
-      },
+    );
+  }
+
+  Widget _likedTypeChip(String label, String value) {
+    final selected = _likedTypeFilter == value;
+    return GestureDetector(
+      onTap: () => setState(() => _likedTypeFilter = value),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: selected ? const Color(0xFF7C5CFF) : const Color(0xFF141824),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+            color: selected ? Colors.white : Colors.white60,
+          ),
+        ),
+      ),
     );
   }
 
@@ -304,55 +381,6 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
       subtitle:
           'Books and manga are read in place, not downloaded ahead '
           'of time.',
-    );
-  }
-
-  Widget _buildMangaTab() {
-    if (_likedManga.isEmpty) {
-      return const LibraryEmptyState(
-        icon: Icons.auto_stories_rounded,
-        title: 'No liked manga',
-        subtitle: 'Tap the heart on a manga to save it here.',
-      );
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        mainAxisSpacing: 24,
-        crossAxisSpacing: 16,
-        mainAxisExtent: 300,
-      ),
-      itemCount: _likedManga.length,
-      itemBuilder: (context, index) {
-        final manga = _likedManga[index];
-        return MangaCard(manga: manga, onTap: () => _openManga(manga));
-      },
-    );
-  }
-
-  Widget _buildBooksTab() {
-    final liked = BookLibraryService.instance.liked;
-    if (liked.isEmpty) {
-      return const LibraryEmptyState(
-        icon: Icons.import_contacts_rounded,
-        title: 'No liked books',
-        subtitle: 'Tap the heart on a book to save it here.',
-      );
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        mainAxisSpacing: 24,
-        crossAxisSpacing: 16,
-        mainAxisExtent: 300,
-      ),
-      itemCount: liked.length,
-      itemBuilder: (context, index) {
-        final book = liked[index];
-        return _LikedBookCard(book: book, onTap: () => _openLikedBook(book));
-      },
     );
   }
 
@@ -494,35 +522,69 @@ class _HistoryEntry {
   });
 }
 
-class _LikedBookCard extends StatelessWidget {
-  final BookResult book;
+/// A display-only merge of Books and Manga (two unrelated liked-item
+/// models) so the Saved grid can render and filter them as one list.
+/// Nothing is persisted through this type -- each source keeps its own
+/// store (BookLibraryService, MangaService).
+class _ReadLikedEntry {
+  final String type; // 'books' | 'manga'
+  final String title;
+  final String? coverUrl;
+  final IconData fallbackIcon;
   final VoidCallback onTap;
 
-  const _LikedBookCard({required this.book, required this.onTap});
+  const _ReadLikedEntry({
+    required this.type,
+    required this.title,
+    required this.coverUrl,
+    required this.fallbackIcon,
+    required this.onTap,
+  });
+}
+
+class _ReadLikedEntryCard extends StatelessWidget {
+  final _ReadLikedEntry entry;
+
+  const _ReadLikedEntryCard({required this.entry});
 
   @override
   Widget build(BuildContext context) {
+    final hasCover = entry.coverUrl != null && entry.coverUrl!.isNotEmpty;
     return GestureDetector(
-      onTap: onTap,
+      onTap: entry.onTap,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
-              child: Container(
-                color: const Color(0xFF141824),
-                child: const Icon(
-                  Icons.menu_book_rounded,
-                  color: Colors.white24,
-                  size: 40,
-                ),
-              ),
+              child: hasCover
+                  ? Image.network(
+                      entry.coverUrl!,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      errorBuilder: (_, __, ___) => Container(
+                        color: const Color(0xFF141824),
+                        child: Icon(
+                          entry.fallbackIcon,
+                          color: Colors.white24,
+                          size: 40,
+                        ),
+                      ),
+                    )
+                  : Container(
+                      color: const Color(0xFF141824),
+                      child: Icon(
+                        entry.fallbackIcon,
+                        color: Colors.white24,
+                        size: 40,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            book.title,
+            entry.title,
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(
