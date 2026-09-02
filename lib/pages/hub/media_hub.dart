@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../../widgets/common/section_sub_tabs.dart';
 import '../../widgets/common/sectioned_hub_scaffold.dart';
 import '../../utils/hub_controller.dart';
 import '../../utils/search_scope.dart';
@@ -17,13 +16,9 @@ import '../iptv/iptv_page.dart';
 class MediaHub extends StatelessWidget {
   const MediaHub({super.key});
 
-  static const _watchTabs = [
-    SubTab(id: 'movie', label: 'Movies', icon: Icons.movie_rounded),
-    SubTab(id: 'series', label: 'Series', icon: Icons.live_tv_rounded),
-  ];
-
   /// Movies and Series share one section but stay separate catalogs, one tap
-  /// apart. See [SectionSubTabs] for why.
+  /// apart. The type pills now render inside TypeCatalogPage itself, beside
+  /// its other filter controls -- this just owns which type is active.
   static Widget _buildWatch() {
     final type = HubController.instance.watchType;
     final isSeries = type == 'series';
@@ -31,22 +26,19 @@ class MediaHub extends StatelessWidget {
       isSeries ? 'series' : 'movie',
       label: isSeries ? 'Series' : 'Movies',
     );
-    return SectionSubTabs(
-      tabs: _watchTabs,
-      activeId: type,
-      onSelected: HubController.instance.setWatchType,
-      child: isSeries
-          ? const TypeCatalogPage(
-              key: ValueKey('series'),
-              type: 'series',
-              title: 'Series',
-            )
-          : const TypeCatalogPage(
-              key: ValueKey('movie'),
-              type: 'movie',
-              title: 'Movies',
-            ),
-    );
+    return isSeries
+        ? TypeCatalogPage(
+            key: const ValueKey('series'),
+            type: 'series',
+            title: 'Series',
+            onTypeChanged: HubController.instance.setWatchType,
+          )
+        : TypeCatalogPage(
+            key: const ValueKey('movie'),
+            type: 'movie',
+            title: 'Movies',
+            onTypeChanged: HubController.instance.setWatchType,
+          );
   }
 
   static Widget _buildSection(String activeSection) {

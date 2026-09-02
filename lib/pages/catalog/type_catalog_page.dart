@@ -2,15 +2,21 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/movie/movie.dart';
+import '../../models/movie/movie_detail.dart';
 import '../../models/movie/movie_section.dart';
+import '../../services/metadata/metadata_service.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/browse_scaffold.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/page_search_button.dart';
+import '../../widgets/common/pill_tab_row.dart';
+import '../../widgets/home/continue_watching_slider.dart';
 import '../../widgets/movie/movie_card.dart';
+import '../../widgets/movie/upcoming_calendar_row.dart';
 import '../details/details_page.dart';
+import 'latest_releases.dart';
 
 enum _CatalogSort { yearNewest, yearOldest }
 
@@ -21,8 +27,14 @@ enum _CatalogSort { yearNewest, yearOldest }
 class TypeCatalogPage extends StatefulWidget {
   final String type; // 'movie' | 'series'
   final String title;
+  final ValueChanged<String> onTypeChanged;
 
-  const TypeCatalogPage({super.key, required this.type, required this.title});
+  const TypeCatalogPage({
+    super.key,
+    required this.type,
+    required this.title,
+    required this.onTypeChanged,
+  });
 
   @override
   State<TypeCatalogPage> createState() => _TypeCatalogPageState();
@@ -30,6 +42,11 @@ class TypeCatalogPage extends StatefulWidget {
 
 class _TypeCatalogPageState extends State<TypeCatalogPage> {
   final _manager = AddonManager.instance;
+
+  static const _watchTabs = [
+    SubTab(id: 'movie', label: 'Movies', icon: Icons.movie_rounded),
+    SubTab(id: 'series', label: 'Series', icon: Icons.live_tv_rounded),
+  ];
 
   /// The addon catalogs as fetched, each becoming one browse row. The flat
   /// [_items] list below is derived from these and is only used by the
@@ -45,6 +62,13 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
   String? _genreFilter;
   List<Movie> _genreItems = [];
   bool _loadingGenre = false;
+
+  /// Per-hero-item enrichment (genre/synopsis) keyed by movie id — the
+  /// catalog list itself only carries poster/background/year/imdbRating, not
+  /// genres or a synopsis, so the hero fetches those separately once it
+  /// knows which ~6 items it's showing. Missing/failed entries just mean
+  /// that slide stays at today's minimal title+year overlay.
+  Map<String, MovieDetail> _heroDetails = {};
 
   static int? _decadeOf(Movie m) {
     final year = _yearOf(m);
@@ -113,9 +137,11 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
             id: movie.id,
             name: movie.name,
             poster: movie.poster,
+            background: movie.background,
             year: movie.year,
             type: widget.type,
             addonBaseUrl: movie.addonBaseUrl,
+            imdbRating: movie.imdbRating,
           );
           final key = '${typed.type}:${typed.id}';
           if (seen.add(key)) items.add(typed);
@@ -142,6 +168,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
         _availableGenres = filteredGenres;
         _loading = false;
       });
+      _fetchHeroDetails(_heroItems);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -174,9 +201,11 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
             id: movie.id,
             name: movie.name,
             poster: movie.poster,
+            background: movie.background,
             year: movie.year,
             type: widget.type,
             addonBaseUrl: movie.addonBaseUrl,
+            imdbRating: movie.imdbRating,
           );
           final key = '${typed.type}:${typed.id}';
           if (seen.add(key)) items.add(typed);
@@ -205,6 +234,8 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
     if (!_isFiltered) {
       return BrowseScaffold<Movie>(
         header: _buildHeader(context),
+        belowHero: ContinueWatchingSlider(typeFilter: widget.type),
+        afterRows: widget.type == 'series' ? const UpcomingCalendarRow() : null,
         isLoading: _loading,
         heroItems: _heroItems,
         rows: [
@@ -214,6 +245,11 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                 title: section.title,
                 items: _sorted(section.movies),
               ),
+          if (_items.isNotEmpty)
+            BrowseRow<Movie>(
+              title: 'Latest Releases',
+              items: latestReleases(_items),
+            ),
         ],
         heroBuilder: _buildHeroSlide,
         itemBuilder: (context, movie) => MovieCard(movie: movie),
@@ -241,67 +277,110 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
       child: Wrap(
-        alignment: WrapAlignment.end,
+        alignment: WrapAlignment.spaceBetween,
         crossAxisAlignment: WrapCrossAlignment.center,
         spacing: 10,
         runSpacing: 10,
         children: [
-          if (_availableGenres.isNotEmpty) ...[
-            FilterDropdown<String?>(
-              label: _genreFilter ?? 'All genres',
-              icon: Icons.category_rounded,
-              items: [
-                const PopupMenuItem(value: null, child: Text('All genres')),
-                for (final g in _availableGenres)
-                  PopupMenuItem(value: g, child: Text(g)),
-              ],
-              onSelected: _selectGenreFilter,
-            ),
-            if (_loadingGenre)
-              const SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2,
-                  color: Color(0xFF7C5CFF),
-                ),
-              ),
-          ],
-          if (decades.isNotEmpty)
-            FilterDropdown<int?>(
-              label: _decadeFilter == null
-                  ? 'All decades'
-                  : '${_decadeFilter}s',
-              icon: Icons.calendar_today_rounded,
-              items: [
-                const PopupMenuItem(value: null, child: Text('All decades')),
-                for (final d in decades)
-                  PopupMenuItem(value: d, child: Text('${d}s')),
-              ],
-              onSelected: (v) => setState(() => _decadeFilter = v),
-            ),
-          FilterDropdown<_CatalogSort>(
-            label: switch (_sort) {
-              _CatalogSort.yearNewest => 'Newest',
-              _CatalogSort.yearOldest => 'Oldest',
-            },
-            icon: Icons.sort_rounded,
-            items: const [
-              PopupMenuItem(
-                value: _CatalogSort.yearNewest,
-                child: Text('Newest'),
-              ),
-              PopupMenuItem(
-                value: _CatalogSort.yearOldest,
-                child: Text('Oldest'),
-              ),
-            ],
-            onSelected: (v) => setState(() => _sort = v!),
+          PillTabRow(
+            tabs: _watchTabs,
+            activeId: widget.type,
+            onSelected: widget.onTypeChanged,
           ),
-          const PageSearchButton(),
+          Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              if (_availableGenres.isNotEmpty) ...[
+                FilterDropdown<String?>(
+                  label: _genreFilter ?? 'All genres',
+                  icon: Icons.category_rounded,
+                  items: [
+                    const PopupMenuItem(
+                      value: null,
+                      child: Text('All genres'),
+                    ),
+                    for (final g in _availableGenres)
+                      PopupMenuItem(value: g, child: Text(g)),
+                  ],
+                  onSelected: _selectGenreFilter,
+                ),
+                if (_loadingGenre)
+                  const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Color(0xFF7C5CFF),
+                    ),
+                  ),
+              ],
+              if (decades.isNotEmpty)
+                FilterDropdown<int?>(
+                  label: _decadeFilter == null
+                      ? 'All decades'
+                      : '${_decadeFilter}s',
+                  icon: Icons.calendar_today_rounded,
+                  items: [
+                    const PopupMenuItem(
+                      value: null,
+                      child: Text('All decades'),
+                    ),
+                    for (final d in decades)
+                      PopupMenuItem(value: d, child: Text('${d}s')),
+                  ],
+                  onSelected: (v) => setState(() => _decadeFilter = v),
+                ),
+              FilterDropdown<_CatalogSort>(
+                label: switch (_sort) {
+                  _CatalogSort.yearNewest => 'Newest',
+                  _CatalogSort.yearOldest => 'Oldest',
+                },
+                icon: Icons.sort_rounded,
+                items: const [
+                  PopupMenuItem(
+                    value: _CatalogSort.yearNewest,
+                    child: Text('Newest'),
+                  ),
+                  PopupMenuItem(
+                    value: _CatalogSort.yearOldest,
+                    child: Text('Oldest'),
+                  ),
+                ],
+                onSelected: (v) => setState(() => _sort = v!),
+              ),
+              const PageSearchButton(),
+            ],
+          ),
         ],
       ),
     );
+  }
+
+  Future<void> _fetchHeroDetails(List<Movie> heroItems) async {
+    final results = await Future.wait(
+      heroItems.map((m) async {
+        try {
+          final detail = await MetadataService.fetchMeta(
+            baseUrl: m.addonBaseUrl,
+            type: m.type,
+            imdbId: m.id,
+          );
+          return MapEntry(m.id, detail);
+        } catch (_) {
+          return MapEntry(m.id, null);
+        }
+      }),
+    );
+    if (!mounted) return;
+    setState(() {
+      _heroDetails = {
+        for (final entry in results)
+          if (entry.value != null) entry.key: entry.value!,
+      };
+    });
   }
 
   Widget _buildHeroSlide(BuildContext context, Movie movie) {
@@ -310,6 +389,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
     final heroImage = (movie.background != null && movie.background!.isNotEmpty)
         ? movie.background
         : movie.poster;
+    final detail = _heroDetails[movie.id];
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => Navigator.push(
@@ -323,9 +403,6 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
             CachedNetworkImage(
               imageUrl: heroImage,
               fit: BoxFit.cover,
-              // Biased up like Anime's hero so a portrait poster forced into
-              // this landscape slot keeps the face/title art instead of
-              // cropping it out via dead-center framing.
               alignment: const Alignment(0, -0.15),
               filterQuality: FilterQuality.medium,
               placeholder: (_, __) =>
@@ -354,6 +431,81 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Row(
+                    children: [
+                      if ((movie.imdbRating ?? '').isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFFFD700,
+                            ).withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(9),
+                            border: Border.all(
+                              color: const Color(
+                                0xFFFFD700,
+                              ).withValues(alpha: 0.28),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 17,
+                                color: Color(0xFFFFD700),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                movie.imdbRating!,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFFFD700),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      if ((movie.year ?? '').isNotEmpty)
+                        Text(
+                          movie.year!,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.white.withValues(alpha: 0.55),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      if (detail != null && detail.genres.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Icon(
+                            Icons.circle,
+                            size: 4,
+                            color: Colors.white.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            detail.genres.take(3).join(' • '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.white.withValues(alpha: 0.55),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: Text(
@@ -368,13 +520,20 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                       ),
                     ),
                   ),
-                  if ((movie.year ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      movie.year!,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
+                  if (detail != null &&
+                      (detail.description ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: Text(
+                        detail.description!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: Colors.white.withValues(alpha: 0.7),
+                          height: 1.4,
+                        ),
                       ),
                     ),
                   ],
