@@ -383,11 +383,14 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
   }
 
   Widget _buildHeroSlide(BuildContext context, Movie movie) {
-    // Prefer the addon's landscape background over the portrait poster --
-    // the poster only fills this landscape hero slot by force-cropping.
-    final heroImage = (movie.background != null && movie.background!.isNotEmpty)
-        ? movie.background
-        : movie.poster;
+    // The poster, force-cropped into this landscape slot -- not the
+    // addon's own `background` field. Unlike Anime's bannerImage (AniList
+    // curates that field to actually be a landscape banner), a Stremio
+    // addon's `background` has no such guarantee: some addons put an
+    // unrelated portrait image there instead of a real backdrop, which
+    // read as a wrong picture rather than just a tighter crop. The poster
+    // is always a real, correctly-matched image of the title.
+    final heroImage = movie.poster;
     final detail = _heroDetails[movie.id];
     final isCompact = MediaQuery.sizeOf(context).width < 600;
     void openDetails({bool autoPlay = false}) => Navigator.push(
