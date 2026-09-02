@@ -864,7 +864,7 @@ class _DetailsPageState extends State<DetailsPage>
               const SizedBox(height: _Space.lg),
               _buildPlayButton(fullWidth: true),
               const SizedBox(height: _Space.sm),
-              _buildLibraryButton(fullWidth: true),
+              _buildLibraryButton(),
             ],
           ),
         ),
@@ -935,7 +935,7 @@ class _DetailsPageState extends State<DetailsPage>
           children: [
             Expanded(child: _buildPlayButton(fullWidth: true)),
             const SizedBox(width: _Space.sm),
-            _buildLibraryButton(fullWidth: false),
+            _buildLibraryButton(),
           ],
         ),
         if (meta.description != null && meta.description!.isNotEmpty) ...[
@@ -1208,7 +1208,15 @@ class _DetailsPageState extends State<DetailsPage>
   /// PopupMenuButton dropdown, which had no room for a third, independent
   /// state without either cramming it into the same exclusive group it
   /// isn't part of, or hiding it a tap deeper than Watchlist/Watched.
-  Widget _buildLibraryButton({required bool fullWidth}) {
+  ///
+  /// Icon-only with a hover [Tooltip] for the label -- the old pill variant
+  /// rendered the label as always-visible text next to the icon, and
+  /// "Watchlist"/"Watched" didn't fit the width they were given (squeezed
+  /// between each other and the Like button), clipping. An icon can't
+  /// overflow, and [_HoverButton] (already used elsewhere on this page for
+  /// the cast row) gives the same hover/press feedback [LikeButton]'s own
+  /// icon style already has, so all three buttons in the row now match.
+  Widget _buildLibraryButton() {
     return ValueListenableBuilder<List<MyListItem>>(
       valueListenable: MyListService.items,
       builder: (context, items, _) {
@@ -1221,45 +1229,32 @@ class _DetailsPageState extends State<DetailsPage>
           icon: isWatchlist
               ? Icons.bookmark_added_rounded
               : Icons.bookmark_add_outlined,
-          label: 'Watchlist',
+          label: isWatchlist ? 'Remove from watchlist' : 'Add to watchlist',
           active: isWatchlist,
           color: const Color(0xFF7C5CFF),
-          fullWidth: fullWidth,
           onTap: () => MyListService.setWatchlist(_buildMyListItem()),
         );
         final watchedBtn = _libraryStatusButton(
           icon: isWatched
               ? Icons.check_circle_rounded
               : Icons.check_circle_outline_rounded,
-          label: 'Watched',
+          label: isWatched ? 'Mark as unwatched' : 'Mark as watched',
           active: isWatched,
           color: const Color(0xFF00D294),
-          fullWidth: fullWidth,
           onTap: () => MyListService.setWatched(_buildMyListItem()),
         );
         final likedBtn = LikeButton(
           isLiked: isLiked,
           onTap: () => MyListService.toggleLiked(_buildMyListItem()),
-          style: fullWidth ? LikeButtonStyle.pill : LikeButtonStyle.icon,
+          style: LikeButtonStyle.icon,
         );
 
-        if (!fullWidth) {
-          return Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              watchlistBtn,
-              const SizedBox(width: 10),
-              watchedBtn,
-              const SizedBox(width: 10),
-              likedBtn,
-            ],
-          );
-        }
         return Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Expanded(child: watchlistBtn),
+            watchlistBtn,
             const SizedBox(width: 10),
-            Expanded(child: watchedBtn),
+            watchedBtn,
             const SizedBox(width: 10),
             likedBtn,
           ],
@@ -1273,45 +1268,26 @@ class _DetailsPageState extends State<DetailsPage>
     required String label,
     required bool active,
     required Color color,
-    required bool fullWidth,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: fullWidth ? 16 : 12,
-          vertical: 14,
-        ),
-        decoration: BoxDecoration(
-          color: active
-              ? color.withOpacity(0.18)
-              : Colors.white.withOpacity(0.08),
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
+    return Tooltip(
+      message: label,
+      child: _HoverButton(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
             color: active
-                ? color.withOpacity(0.35)
-                : Colors.white.withOpacity(0.14),
+                ? color.withOpacity(0.18)
+                : Colors.white.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: active
+                  ? color.withOpacity(0.35)
+                  : Colors.white.withOpacity(0.14),
+            ),
           ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: active ? color : Colors.white, size: 20),
-            if (fullWidth) ...[
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: active ? color : Colors.white,
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ],
+          child: Icon(icon, color: active ? color : Colors.white, size: 22),
         ),
       ),
     );
