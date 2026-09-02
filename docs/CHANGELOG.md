@@ -4,6 +4,10 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased]
 
+### Cast photos were empty for everyone without a personal TMDB key — 2026-09-02
+- `TmdbService.fetchCast` and `details_page.dart`'s enrichment call both required `TmdbSettings.apiKey` (Settings > TMDB) to be set by the user, or cast enrichment never ran at all — the addon's own cast data is usually names only, so the cast row rendered with no photos out of the box. Upstream never had this gate: it bundles its own public TMDB key (`tmdb_helper.dart`'s `b3556f3b206e16f82df4d1f6fd4545e6`, already present in this fork for scraper ID resolution but unused for cast). Reused it as the default in `TmdbService.fetchCast`, falling back to the user's own key only if they've set one. Affects Movies/Series and Anime (both route through `details_page.dart`) — Anime's separate `_buildCharactersRow` (AniList character images, not TMDB) was checked and found already correct in code.
+- Removed ROADMAP #11 ("Cast photos for Audiobooks") per user request — Audiobooks stays genuinely blocked (no narrator-photo source), not worth tracking as its own line.
+
 ### Movies & Series hero image quality/cropping (ROADMAP #13) — 2026-09-02
 - Movies & Series' hero slide (`type_catalog_page.dart`) used `Image.network` with no caching and default center alignment. Anime's own hero already used `CachedNetworkImage` with a slight upward alignment bias and medium filter quality so a portrait poster force-cropped into the landscape hero slot keeps the subject in frame. Brought Movies & Series to the same treatment.
 - Checked Music's "Download Album" button while in the area — already fully wired to `MusicDownloadService.queueTracks` (`music_page.dart:3583`), nothing to fix there.

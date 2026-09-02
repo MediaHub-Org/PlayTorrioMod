@@ -11,7 +11,6 @@ import '../../services/metadata/bestsimilar_scraper.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/my_list/my_list_service.dart';
 import '../../services/tmdb/tmdb_service.dart';
-import '../../services/tmdb/tmdb_settings.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/like_button.dart';
 import '../discover/discover_page.dart';
@@ -78,8 +77,8 @@ class _DetailsPageState extends State<DetailsPage>
   List<BSItem> _similarItems = [];
   bool _isFetchingSimilar = false;
 
-  // TMDB cast enrichment (photos/character names), only when a key is
-  // configured and the addon's own cast data has none.
+  // TMDB cast enrichment (photos/character names) when the addon's own cast
+  // data has none.
   List<CastMember>? _enrichedCast;
 
   String? _resolvedType;
@@ -375,7 +374,6 @@ class _DetailsPageState extends State<DetailsPage>
     final meta = _detail;
     final tmdbId = meta?.tmdbId;
     if (meta == null || tmdbId == null || tmdbId.isEmpty) return;
-    if (TmdbSettings.apiKey.value == null) return;
 
     // Only skip enrichment when the addon's own cast is already mostly
     // photographed -- a single photo used to be enough to skip TMDB
