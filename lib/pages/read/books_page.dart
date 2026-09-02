@@ -7,6 +7,7 @@ import '../../services/books/book_library_service.dart';
 import '../../services/books/book_progress_service.dart';
 import '../../services/books/books_service.dart';
 import 'book_reader_page.dart';
+import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/like_button.dart';
 
 /// Books section in the Read hub: search libgen.li, download an epub, and
@@ -29,6 +30,46 @@ class _BooksPageState extends State<BooksPage> {
 
   List<BookResult> _browsing = [];
   bool _isBrowsingLoading = true;
+
+  /// The only real filterable fields libgen.li's list view exposes -- no
+  /// genre/subject/cover data comes back from this scrape (see
+  /// `books_service.dart`'s `_parseResults`), so these are the honest
+  /// equivalent of Audiobooks' genre tags rather than a fabricated one.
+  String? _languageFilter;
+  String? _formatFilter;
+
+  List<BookResult> _applyFilters(List<BookResult> items) {
+    return items.where((b) {
+      if (_languageFilter != null && b.language != _languageFilter) {
+        return false;
+      }
+      if (_formatFilter != null &&
+          b.format.toLowerCase() != _formatFilter!.toLowerCase()) {
+        return false;
+      }
+      return true;
+    }).toList();
+  }
+
+  List<String> _availableLanguages(List<BookResult> items) {
+    final languages = items
+        .map((b) => b.language.trim())
+        .where((l) => l.isNotEmpty)
+        .toSet()
+        .toList();
+    languages.sort();
+    return languages;
+  }
+
+  List<String> _availableFormats(List<BookResult> items) {
+    final formats = items
+        .map((b) => b.format.trim())
+        .where((f) => f.isNotEmpty)
+        .toSet()
+        .toList();
+    formats.sort();
+    return formats;
+  }
 
   @override
   void initState() {
@@ -160,6 +201,7 @@ class _BooksPageState extends State<BooksPage> {
 
   @override
   Widget build(BuildContext context) {
+    final filteredResults = _applyFilters(_results);
     return CustomScrollView(
       slivers: [
         SliverPadding(
@@ -204,6 +246,60 @@ class _BooksPageState extends State<BooksPage> {
                     ),
                   ),
                 ),
+                if (_browsing.isNotEmpty || _results.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      Builder(
+                        builder: (context) {
+                          final source = _hasSearched ? _results : _browsing;
+                          final languages = _availableLanguages(source);
+                          if (languages.isEmpty) return const SizedBox.shrink();
+                          return FilterDropdown<String?>(
+                            label: _languageFilter ?? 'All languages',
+                            icon: Icons.language_rounded,
+                            items: [
+                              const PopupMenuItem(
+                                value: null,
+                                child: Text('All languages'),
+                              ),
+                              for (final l in languages)
+                                PopupMenuItem(value: l, child: Text(l)),
+                            ],
+                            onSelected: (v) =>
+                                setState(() => _languageFilter = v),
+                          );
+                        },
+                      ),
+                      Builder(
+                        builder: (context) {
+                          final source = _hasSearched ? _results : _browsing;
+                          final formats = _availableFormats(source);
+                          if (formats.isEmpty) return const SizedBox.shrink();
+                          return FilterDropdown<String?>(
+                            label: _formatFilter ?? 'All formats',
+                            icon: Icons.description_rounded,
+                            items: [
+                              const PopupMenuItem(
+                                value: null,
+                                child: Text('All formats'),
+                              ),
+                              for (final f in formats)
+                                PopupMenuItem(
+                                  value: f,
+                                  child: Text(f.toUpperCase()),
+                                ),
+                            ],
+                            onSelected: (v) =>
+                                setState(() => _formatFilter = v),
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -228,20 +324,30 @@ class _BooksPageState extends State<BooksPage> {
               ),
             ),
           )
+        else if (filteredResults.isEmpty)
+          const SliverFillRemaining(
+            hasScrollBody: false,
+            child: Center(
+              child: Text(
+                'No results match these filters.',
+                style: TextStyle(color: Colors.white54),
+              ),
+            ),
+          )
         else
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
             sliver: SliverList(
               delegate: SliverChildBuilderDelegate(
                 (context, index) => _BookRow(
-                  book: _results[index],
-                  onTap: () => _openDownloadDialog(_results[index]),
+                  book: filteredResults[index],
+                  onTap: () => _openDownloadDialog(filteredResults[index]),
                   isLiked: BookLibraryService.instance.isLiked(
-                    _results[index].editionId,
+                    filteredResults[index].editionId,
                   ),
-                  onToggleLike: () => _toggleLike(_results[index]),
+                  onToggleLike: () => _toggleLike(filteredResults[index]),
                 ),
-                childCount: _results.length,
+                childCount: filteredResults.length,
               ),
             ),
           ),
@@ -289,6 +395,20 @@ class _BooksPageState extends State<BooksPage> {
         ),
       ];
     }
+    final filtered = _applyFilters(_browsing);
+    if (filtered.isEmpty) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Text(
+              'No books match these filters.',
+              style: TextStyle(color: Colors.white54, fontSize: 16),
+            ),
+          ),
+        ),
+      ];
+    }
     return [
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
@@ -308,14 +428,14 @@ class _BooksPageState extends State<BooksPage> {
         sliver: SliverList(
           delegate: SliverChildBuilderDelegate(
             (context, index) => _BookRow(
-              book: _browsing[index],
-              onTap: () => _openDownloadDialog(_browsing[index]),
+              book: filtered[index],
+              onTap: () => _openDownloadDialog(filtered[index]),
               isLiked: BookLibraryService.instance.isLiked(
-                _browsing[index].editionId,
+                filtered[index].editionId,
               ),
-              onToggleLike: () => _toggleLike(_browsing[index]),
+              onToggleLike: () => _toggleLike(filtered[index]),
             ),
-            childCount: _browsing.length,
+            childCount: filtered.length,
           ),
         ),
       ),
