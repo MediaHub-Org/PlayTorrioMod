@@ -56,7 +56,18 @@ class DetailsPage extends StatefulWidget {
   /// if this is null/empty, so it's safe to leave unset for now.
   final List<Movie>? relatedItems;
 
-  const DetailsPage({super.key, required this.movie, this.relatedItems});
+  /// Skips straight to playback once details finish loading -- the same
+  /// action tapping the play button would trigger, just automatic. For a
+  /// "Watch Now" entry point (e.g. a hero carousel) that shouldn't require
+  /// a second tap once the page opens.
+  final bool autoPlay;
+
+  const DetailsPage({
+    super.key,
+    required this.movie,
+    this.relatedItems,
+    this.autoPlay = false,
+  });
 
   @override
   State<DetailsPage> createState() => _DetailsPageState();
@@ -355,6 +366,15 @@ class _DetailsPageState extends State<DetailsPage>
         }
       });
       _animController.forward();
+
+      if (widget.autoPlay && meta != null) {
+        // Same episode/video _buildPlayButton's own onTap picks.
+        _handlePlayAction(
+          _currentSeasonEpisodes.isNotEmpty
+              ? _currentSeasonEpisodes.first
+              : (meta.videos.isNotEmpty ? meta.videos.first : null),
+        );
+      }
 
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {

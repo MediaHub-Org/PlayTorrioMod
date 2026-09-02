@@ -6,6 +6,7 @@ import '../../models/movie/movie_detail.dart';
 import '../../models/movie/movie_section.dart';
 import '../../services/metadata/metadata_service.dart';
 import '../../services/addon/addon_manager.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/browse_scaffold.dart';
 import '../../widgets/common/error_view.dart';
@@ -299,10 +300,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                   label: _genreFilter ?? 'All genres',
                   icon: Icons.category_rounded,
                   items: [
-                    const PopupMenuItem(
-                      value: null,
-                      child: Text('All genres'),
-                    ),
+                    const PopupMenuItem(value: null, child: Text('All genres')),
                     for (final g in _availableGenres)
                       PopupMenuItem(value: g, child: Text(g)),
                   ],
@@ -391,159 +389,227 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
         ? movie.background
         : movie.poster;
     final detail = _heroDetails[movie.id];
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: () => Navigator.push(
-        context,
-        LiquidRevealRoute(page: DetailsPage(movie: movie), tapPosition: null),
+    final isCompact = MediaQuery.sizeOf(context).width < 600;
+    void openDetails({bool autoPlay = false}) => Navigator.push(
+      context,
+      LiquidRevealRoute(
+        page: DetailsPage(movie: movie, autoPlay: autoPlay),
+        tapPosition: null,
       ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          if (heroImage != null && heroImage.isNotEmpty)
-            CachedNetworkImage(
-              imageUrl: heroImage,
-              fit: BoxFit.cover,
-              alignment: const Alignment(0, -0.15),
-              filterQuality: FilterQuality.medium,
-              placeholder: (_, __) =>
-                  const ColoredBox(color: Color(0xFF12151F)),
-              errorWidget: (_, __, ___) =>
-                  const ColoredBox(color: Color(0xFF12151F)),
-            ),
-          const DecoratedBox(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.centerLeft,
-                end: Alignment.centerRight,
-                colors: [
-                  Color(0xEE080A0F),
-                  Color(0x66080A0F),
-                  Color(0x00080A0F),
-                ],
-              ),
+    );
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (heroImage != null && heroImage.isNotEmpty)
+          CachedNetworkImage(
+            imageUrl: heroImage,
+            fit: BoxFit.cover,
+            alignment: const Alignment(0, -0.15),
+            filterQuality: FilterQuality.medium,
+            placeholder: (_, __) => const ColoredBox(color: Color(0xFF12151F)),
+            errorWidget: (_, __, ___) =>
+                const ColoredBox(color: Color(0xFF12151F)),
+          ),
+        const DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xEE080A0F), Color(0x66080A0F), Color(0x00080A0F)],
             ),
           ),
-          Align(
-            alignment: Alignment.bottomLeft,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 34),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      if ((movie.imdbRating ?? '').isNotEmpty) ...[
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 11,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
+        ),
+        Align(
+          alignment: Alignment.bottomLeft,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(24, 0, 24, 34),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    if ((movie.imdbRating ?? '').isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 11,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(
+                            0xFFFFD700,
+                          ).withValues(alpha: 0.14),
+                          borderRadius: BorderRadius.circular(9),
+                          border: Border.all(
                             color: const Color(
                               0xFFFFD700,
-                            ).withValues(alpha: 0.14),
-                            borderRadius: BorderRadius.circular(9),
-                            border: Border.all(
-                              color: const Color(
-                                0xFFFFD700,
-                              ).withValues(alpha: 0.28),
-                            ),
+                            ).withValues(alpha: 0.28),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(
-                                Icons.star_rounded,
-                                size: 17,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 17,
+                              color: Color(0xFFFFD700),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              movie.imdbRating!,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w800,
                                 color: Color(0xFFFFD700),
                               ),
-                              const SizedBox(width: 4),
-                              Text(
-                                movie.imdbRating!,
-                                style: const TextStyle(
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w800,
-                                  color: Color(0xFFFFD700),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 10),
-                      ],
-                      if ((movie.year ?? '').isNotEmpty)
-                        Text(
-                          movie.year!,
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.white.withValues(alpha: 0.55),
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      if (detail != null && detail.genres.isNotEmpty) ...[
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8),
-                          child: Icon(
-                            Icons.circle,
-                            size: 4,
-                            color: Colors.white.withValues(alpha: 0.25),
-                          ),
-                        ),
-                        Flexible(
-                          child: Text(
-                            detail.genres.take(3).join(' • '),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 15,
-                              color: Colors.white.withValues(alpha: 0.55),
-                              fontWeight: FontWeight.w600,
                             ),
-                          ),
+                          ],
                         ),
-                      ],
+                      ),
+                      const SizedBox(width: 10),
                     ],
+                    if ((movie.year ?? '').isNotEmpty)
+                      Text(
+                        movie.year!,
+                        style: TextStyle(
+                          fontSize: 15,
+                          color: Colors.white.withValues(alpha: 0.55),
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: Text(
+                    movie.name,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                    ),
                   ),
-                  const SizedBox(height: 12),
+                ),
+                if (detail != null &&
+                    (detail.description ?? '').isNotEmpty) ...[
+                  const SizedBox(height: 10),
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: Text(
-                      movie.name,
+                      detail.description!,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 26,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: -0.5,
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: Colors.white.withValues(alpha: 0.7),
+                        height: 1.4,
                       ),
                     ),
                   ),
-                  if (detail != null &&
-                      (detail.description ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 10),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: Text(
-                        detail.description!,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                ],
+                if (detail != null && detail.genres.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 6,
+                    children: detail.genres.take(4).map((genre) {
+                      return Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: Text(
+                          genre,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.white.withValues(alpha: 0.70),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+                SizedBox(height: isCompact ? 18 : 22),
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: () => openDetails(autoPlay: true),
+                      icon: const Icon(Icons.play_arrow_rounded, size: 22),
+                      label: Text(
+                        widget.type == 'series' ? 'Watch Now' : 'Play Movie',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14.5,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            AppThemeService.currentPalette.value.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isCompact ? 16 : 24,
+                          vertical: isCompact ? 10 : 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 10,
+                        shadowColor: AppThemeService
+                            .currentPalette
+                            .value
+                            .primaryColor
+                            .withValues(alpha: 0.45),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    OutlinedButton.icon(
+                      onPressed: () => openDetails(),
+                      icon: Icon(
+                        Icons.info_outline_rounded,
+                        size: isCompact ? 17 : 19,
+                        color: Colors.white.withValues(alpha: 0.80),
+                      ),
+                      label: Text(
+                        'Details',
                         style: TextStyle(
-                          fontSize: 13.5,
-                          color: Colors.white.withValues(alpha: 0.7),
-                          height: 1.4,
+                          fontWeight: FontWeight.w700,
+                          fontSize: isCompact ? 13 : 14.5,
+                          color: Colors.white.withValues(alpha: 0.80),
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: isCompact ? 14 : 20,
+                          vertical: isCompact ? 10 : 14,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.18),
+                          width: 1.2,
                         ),
                       ),
                     ),
                   ],
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 
