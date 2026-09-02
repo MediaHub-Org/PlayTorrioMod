@@ -554,7 +554,9 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
         ? 4
         : width < 1200
         ? 5
-        : 6;
+        : width < 1600
+        ? 6
+        : 7;
     final visible = _visibleItems;
 
     return CustomScrollView(
