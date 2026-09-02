@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/movie/movie.dart';
@@ -319,10 +320,17 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
         fit: StackFit.expand,
         children: [
           if (heroImage != null && heroImage.isNotEmpty)
-            Image.network(
-              heroImage,
+            CachedNetworkImage(
+              imageUrl: heroImage,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) =>
+              // Biased up like Anime's hero so a portrait poster forced into
+              // this landscape slot keeps the face/title art instead of
+              // cropping it out via dead-center framing.
+              alignment: const Alignment(0, -0.15),
+              filterQuality: FilterQuality.medium,
+              placeholder: (_, __) =>
+                  const ColoredBox(color: Color(0xFF12151F)),
+              errorWidget: (_, __, ___) =>
                   const ColoredBox(color: Color(0xFF12151F)),
             ),
           const DecoratedBox(
