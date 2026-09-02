@@ -21,16 +21,18 @@ void main() {
   });
 
   group('SectionTopBar', () {
-    testWidgets('renders nothing on mobile — the bottom bar owns sections there',
-        (tester) async {
-      setSurfaceWidth(tester, 400);
-      await tester.pumpWidget(wrap(const SectionTopBar()));
-      await tester.pumpAndSettle();
+    testWidgets(
+      'renders nothing on mobile — the bottom bar owns sections there',
+      (tester) async {
+        setSurfaceWidth(tester, 400);
+        await tester.pumpWidget(wrap(const SectionTopBar()));
+        await tester.pumpAndSettle();
 
-      expect(find.text('Movies & Series'), findsNothing);
-      expect(find.text('Anime'), findsNothing);
-      expect(find.text('Library'), findsNothing);
-    });
+        expect(find.text('Movies & Series'), findsNothing);
+        expect(find.text('Anime'), findsNothing);
+        expect(find.text('Library'), findsNothing);
+      },
+    );
 
     testWidgets('desktop shows every section as a chip', (tester) async {
       setSurfaceWidth(tester, 1200);
@@ -75,7 +77,8 @@ void main() {
         expect(
           HubController.instance.currentSections.length,
           4,
-          reason: '${hub.navLabel} must have four sections so the mobile '
+          reason:
+              '${hub.navLabel} must have four sections so the mobile '
               'bottom bar divides evenly',
         );
       }
@@ -94,9 +97,10 @@ void main() {
       HubController.instance.setWatchType('series');
       expect(HubController.instance.watchType, 'series');
 
-      HubController.instance.setHub(AppHub.books);
-      HubController.instance.setReadableType('comics');
-      expect(HubController.instance.readableType, 'comics');
+      HubController.instance.setHub(AppHub.music);
+      expect(HubController.instance.spokenAudioType, 'podcasts');
+      HubController.instance.setSpokenAudioType('audiobooks');
+      expect(HubController.instance.spokenAudioType, 'audiobooks');
     });
   });
 }

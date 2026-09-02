@@ -2,24 +2,16 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 
-import '../../models/audiobook/audiobook_model.dart';
-import '../../models/download/download_task_model.dart';
 import '../../models/manga/manga.dart';
 import '../../models/manga/manga_chapter.dart';
-import '../../services/audiobook/audiobook_library_service.dart';
-import '../../services/audiobook/audiobook_player_controller.dart';
-import '../../services/audiobook/audiobook_progress_service.dart';
 import '../../services/books/book_library_service.dart';
 import '../../services/books/book_progress_service.dart';
 import '../../services/books/books_service.dart';
-import '../../services/download/download_service.dart';
 import '../../services/manga/manga_service.dart';
 import '../../widgets/common/library_sections.dart';
 import '../../widgets/common/library_tabs.dart';
 import '../../widgets/common/section_sub_tabs.dart';
 import '../../widgets/manga/manga_card.dart';
-import '../audiobooks/audiobook_detail_page.dart';
-import '../audiobooks/audiobook_route_transitions.dart';
 import '../manga/manga_details_page.dart';
 import '../manga/manga_reader_page.dart';
 import '../read/book_reader_page.dart';
@@ -27,10 +19,11 @@ import '../../utils/navigation/route_transitions.dart';
 
 /// The Read hub's Library.
 ///
-/// Carries the same four tabs as every other hub (see [LibrarySection]). The
-/// three content types it holds -- audiobooks, books, manga -- are a sub-tab
-/// inside Saved rather than three top-level tabs, which is what used to make
-/// this Library five tabs wide while Watch's was four.
+/// Carries the same four tabs as every other hub (see [LibrarySection]).
+/// Books and manga are a sub-tab inside Saved rather than two top-level
+/// tabs. Audiobooks used to be a third here too, before Audiobooks itself
+/// moved to Listen (paired with Podcasts) -- its saved/downloads/history now
+/// live in Listen's own Library instead.
 class BooksLibraryPage extends StatefulWidget {
   const BooksLibraryPage({super.key});
 
@@ -47,7 +40,7 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
   bool _loadingHistory = true;
 
   /// Which content type Saved is showing.
-  String _savedType = 'audiobooks';
+  String _savedType = 'books';
 
   /// Anything past this counts as finished, so it drops out of Continue and
   /// stays only in History. Readers rarely close a book on the exact last
@@ -61,7 +54,6 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
   @override
   void initState() {
     super.initState();
-    AudiobookLibraryService.instance.init();
     BookLibraryService.instance.init();
     _loadLikedManga();
     _loadHistory();
@@ -109,16 +101,13 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
 
   Future<void> _loadHistory() async {
     final results = await Future.wait([
-      AudiobookProgressService.instance.getAllProgress(),
       BookProgressService.instance.loadAll(),
       _mangaService.getReadingHistory(),
     ]);
-    final audiobooks = results[0] as List<AudiobookProgress>;
-    final books = results[1] as List<BookProgress>;
-    final manga = results[2] as List<Map<String, dynamic>>;
+    final books = results[0] as List<BookProgress>;
+    final manga = results[1] as List<Map<String, dynamic>>;
 
     final entries = <_HistoryEntry>[
-      for (final p in audiobooks) _historyEntryFromAudiobook(p),
       for (final b in books) _historyEntryFromBook(b),
       for (final m in manga) _historyEntryFromManga(m),
     ]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -129,34 +118,6 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
         _loadingHistory = false;
       });
     }
-  }
-
-  _HistoryEntry _historyEntryFromAudiobook(AudiobookProgress p) {
-    final percent = p.durationMs > 0 ? p.positionMs / p.durationMs : null;
-    return _HistoryEntry(
-      title: p.audiobook.title,
-      coverUrl: p.audiobook.coverImage.isNotEmpty
-          ? p.audiobook.coverImage
-          : null,
-      fallbackIcon: Icons.headphones_rounded,
-      subtitle: percent != null
-          ? '${(percent * 100).toInt()}% listened'
-          : 'Listening',
-      progress: percent,
-      timestamp: DateTime.fromMillisecondsSinceEpoch(p.lastListenedTimestamp),
-      onTap: () {
-        AudiobookPlayerController.instance.play(
-          p.audiobook,
-          p.chapters,
-          chapterIndex: p.chapterIndex,
-          initialPosition: Duration(milliseconds: p.positionMs),
-        );
-      },
-      onDelete: () async {
-        await AudiobookProgressService.instance.removeProgress(p.key);
-        _loadHistory();
-      },
-    );
   }
 
   _HistoryEntry _historyEntryFromBook(BookProgress p) {
@@ -286,13 +247,6 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
     ).then((_) => _loadLikedManga());
   }
 
-  void _openAudiobook(Audiobook book) {
-    Navigator.push(
-      context,
-      AudiobookPageRoute(page: AudiobookDetailPage(audiobook: book)),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     if (_loadingManga || _loadingHistory) {
@@ -325,11 +279,6 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
       onSelected: (id) => setState(() => _savedType = id),
       tabs: const [
         SubTab(
-          id: 'audiobooks',
-          label: 'Audiobooks',
-          icon: Icons.headphones_rounded,
-        ),
-        SubTab(
           id: 'books',
           label: 'Books',
           icon: Icons.import_contacts_rounded,
@@ -337,123 +286,24 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
         SubTab(id: 'manga', label: 'Manga', icon: Icons.auto_stories_rounded),
       ],
       child: switch (_savedType) {
-        'books' => _buildBooksTab(),
         'manga' => _buildMangaTab(),
-        _ => _buildAudiobooksTab(),
+        _ => _buildBooksTab(),
       },
     );
   }
 
+  /// Downloads here were audiobook chapters exclusively -- Books and Manga
+  /// stream/read in place, no `DownloadTask`s of their own. Now that
+  /// Audiobooks lives in Listen, its downloads tab moved there with it
+  /// (see `music_page.dart`'s own Library); this one just stays honestly
+  /// empty rather than carry a dead filter that can never match.
   Widget _buildDownloadsTab() {
-    return ValueListenableBuilder<List<DownloadTask>>(
-      valueListenable: DownloadService.instance.tasksNotifier,
-      builder: (context, allDownloads, _) {
-        final downloads = allDownloads
-            .where((t) => t.type == 'audiobook')
-            .toList();
-        if (downloads.isEmpty) {
-          return const LibraryEmptyState(
-            icon: Icons.download_done_rounded,
-            title: 'No Downloads',
-            subtitle:
-                'Downloaded audiobook chapters will appear here for offline listening.',
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-          itemCount: downloads.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final item = downloads[index];
-            final progress = item.totalBytes > 0
-                ? item.receivedBytes / item.totalBytes
-                : 0.0;
-            return Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: const Color(0xFF12151E),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
-              ),
-              child: Row(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: item.posterUrl != null
-                        ? Image.network(
-                            item.posterUrl!,
-                            width: 50,
-                            height: 75,
-                            fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => Container(
-                              width: 50,
-                              height: 75,
-                              color: Colors.white10,
-                              child: const Icon(
-                                Icons.headphones_rounded,
-                                color: Colors.white30,
-                              ),
-                            ),
-                          )
-                        : Container(
-                            width: 50,
-                            height: 75,
-                            color: Colors.white10,
-                            child: const Icon(
-                              Icons.headphones_rounded,
-                              color: Colors.white30,
-                            ),
-                          ),
-                  ),
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          item.title,
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w700,
-                            fontSize: 15,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        const SizedBox(height: 8),
-                        LinearProgressIndicator(
-                          value: progress > 0 ? progress : null,
-                          backgroundColor: Colors.white10,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF7C5CFF),
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          '${item.status.name.toUpperCase()} • ${(progress * 100).toStringAsFixed(0)}%',
-                          style: const TextStyle(
-                            color: Colors.white38,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  IconButton(
-                    icon: const Icon(
-                      Icons.delete_outline_rounded,
-                      color: Colors.redAccent,
-                    ),
-                    onPressed: () =>
-                        DownloadService.instance.deleteDownload(item.id),
-                  ),
-                ],
-              ),
-            );
-          },
-        );
-      },
+    return const LibraryEmptyState(
+      icon: Icons.download_done_rounded,
+      title: 'No Downloads',
+      subtitle:
+          'Books and manga are read in place, not downloaded ahead '
+          'of time.',
     );
   }
 
@@ -477,34 +327,6 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
       itemBuilder: (context, index) {
         final manga = _likedManga[index];
         return MangaCard(manga: manga, onTap: () => _openManga(manga));
-      },
-    );
-  }
-
-  Widget _buildAudiobooksTab() {
-    final liked = AudiobookLibraryService.instance.liked;
-    if (liked.isEmpty) {
-      return const LibraryEmptyState(
-        icon: Icons.headphones_rounded,
-        title: 'No liked audiobooks',
-        subtitle: 'Tap the heart on an audiobook to save it here.',
-      );
-    }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-        maxCrossAxisExtent: 200,
-        mainAxisSpacing: 24,
-        crossAxisSpacing: 16,
-        mainAxisExtent: 300,
-      ),
-      itemCount: liked.length,
-      itemBuilder: (context, index) {
-        final book = liked[index];
-        return _LikedAudiobookCard(
-          book: book,
-          onTap: () => _openAudiobook(book),
-        );
       },
     );
   }
@@ -670,64 +492,6 @@ class _HistoryEntry {
     required this.onTap,
     required this.onDelete,
   });
-}
-
-class _LikedAudiobookCard extends StatelessWidget {
-  final Audiobook book;
-  final VoidCallback onTap;
-
-  const _LikedAudiobookCard({required this.book, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final hasCover = book.coverImage.isNotEmpty;
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: hasCover
-                  ? Image.network(
-                      book.coverImage,
-                      fit: BoxFit.cover,
-                      width: double.infinity,
-                      errorBuilder: (_, __, ___) => Container(
-                        color: const Color(0xFF141824),
-                        child: const Icon(
-                          Icons.headphones_rounded,
-                          color: Colors.white24,
-                          size: 40,
-                        ),
-                      ),
-                    )
-                  : Container(
-                      color: const Color(0xFF141824),
-                      child: const Icon(
-                        Icons.headphones_rounded,
-                        color: Colors.white24,
-                        size: 40,
-                      ),
-                    ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            book.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              color: Colors.white,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _LikedBookCard extends StatelessWidget {

@@ -262,12 +262,17 @@ class _HubList extends StatelessWidget {
   const _HubList();
 
   static const _hubs = [
-    (Icons.play_circle_outline_rounded, 'Watch',
-        'Movies & Series · Anime · Live TV · Library'),
-    (Icons.headphones_rounded, 'Listen',
-        'Music · Podcasts · Radio · Library'),
-    (Icons.menu_book_rounded, 'Read',
-        'Audiobooks · Books · Comics & Manga · Library'),
+    (
+      Icons.play_circle_outline_rounded,
+      'Watch',
+      'Movies & Series · Anime · Live TV · Library',
+    ),
+    (
+      Icons.headphones_rounded,
+      'Listen',
+      'Music · Podcasts/Audiobooks · Radio · Library',
+    ),
+    (Icons.menu_book_rounded, 'Read', 'Books · Comics · Manga · Library'),
   ];
 
   @override
@@ -448,9 +453,7 @@ class _LinkTile extends StatelessWidget {
       mode: LaunchMode.externalApplication,
     ).catchError((_) => false);
     if (!ok) {
-      messenger?.showSnackBar(
-        SnackBar(content: Text('Could not open $url')),
-      );
+      messenger?.showSnackBar(SnackBar(content: Text('Could not open $url')));
     }
   }
 

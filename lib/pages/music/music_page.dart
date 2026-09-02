@@ -25,6 +25,15 @@ import '../../main.dart' show navigatorKey;
 import '../podcast/podcast_details_page.dart';
 import '../podcast/podcasts_page.dart';
 import '../../services/podcast/podcast_library_service.dart';
+import '../audiobooks/audiobooks_page.dart';
+import '../audiobooks/audiobook_detail_page.dart';
+import '../audiobooks/audiobook_route_transitions.dart';
+import '../../models/audiobook/audiobook_model.dart';
+import '../../models/download/download_task_model.dart';
+import '../../services/audiobook/audiobook_library_service.dart';
+import '../../services/audiobook/audiobook_player_controller.dart';
+import '../../services/audiobook/audiobook_progress_service.dart';
+import '../../services/download/download_service.dart' show DownloadService;
 import '../../services/music/music_player_controller.dart';
 import '../../services/music/music_service.dart';
 import '../../services/music/radio_browser_service.dart';
@@ -54,6 +63,8 @@ class _MusicPageState extends State<MusicPage> {
   String _activeTab =
       'Music'; // 'Music', 'Search', 'Radio', 'Podcasts', 'Library'
   String _savedType = 'songs'; // Library > Saved sub-tab
+  String _inProgressType = 'queue'; // Library > In Progress sub-tab
+  String _downloadsType = 'music'; // Library > Downloads sub-tab
 
   Map<String, List<MusicTrack>> _sections = {};
   String? _errorMessage;
@@ -95,12 +106,14 @@ class _MusicPageState extends State<MusicPage> {
     _playerController.addListener(_onStateChanged);
     _libraryService.addListener(_onStateChanged);
     PodcastLibraryService.instance.addListener(_onStateChanged);
+    AudiobookLibraryService.instance.addListener(_onStateChanged);
     HubController.instance.addListener(_onHubChanged);
     MusicDownloadService.instance.addListener(_onStateChanged);
     MusicSettings.changeNotifier.addListener(_onStateChanged);
     AppThemeService.currentPalette.addListener(_onStateChanged);
     _libraryService.init();
     PodcastLibraryService.instance.init();
+    AudiobookLibraryService.instance.init();
     MusicDownloadService.instance.init();
     // Sync the initial tab from the controller (in case a chip is already active).
     _activeTab = HubController.instance.musicTab;
@@ -122,6 +135,7 @@ class _MusicPageState extends State<MusicPage> {
     _playerController.removeListener(_onStateChanged);
     _libraryService.removeListener(_onStateChanged);
     PodcastLibraryService.instance.removeListener(_onStateChanged);
+    AudiobookLibraryService.instance.removeListener(_onStateChanged);
     HubController.instance.removeListener(_onHubChanged);
     MusicDownloadService.instance.removeListener(_onStateChanged);
     MusicSettings.changeNotifier.removeListener(_onStateChanged);
@@ -1070,8 +1084,32 @@ class _MusicPageState extends State<MusicPage> {
 
     if (_activeTab == 'Radio') return _buildRadioView();
     if (_activeTab == 'Podcasts') {
-      SearchScope.set(null, label: 'Podcasts');
-      return const PodcastsPage();
+      // Podcasts and Audiobooks share this section via a sub-tab -- both
+      // episodic spoken audio, the same reasoning Movies/Series shares one
+      // Watch section for. See HubController.spokenAudioType.
+      final spokenType = HubController.instance.spokenAudioType;
+      final isAudiobooks = spokenType == 'audiobooks';
+      SearchScope.set(
+        isAudiobooks ? 'audiobook' : null,
+        label: isAudiobooks ? 'Audiobooks' : 'Podcasts',
+      );
+      return SectionSubTabs(
+        tabs: const [
+          SubTab(
+            id: 'podcasts',
+            label: 'Podcasts',
+            icon: Icons.podcasts_rounded,
+          ),
+          SubTab(
+            id: 'audiobooks',
+            label: 'Audiobooks',
+            icon: Icons.headphones_rounded,
+          ),
+        ],
+        activeId: spokenType,
+        onSelected: HubController.instance.setSpokenAudioType,
+        child: isAudiobooks ? const AudiobooksPage() : const PodcastsPage(),
+      );
     }
     if (_activeTab == 'Library') {
       SearchScope.set(null, label: 'Library');
@@ -1832,23 +1870,17 @@ class _MusicPageState extends State<MusicPage> {
             icon: section.icon,
             builder: (_) => switch (section) {
               LibrarySection.saved => _buildSavedTab(liked, playlists),
-              LibrarySection.inProgress => _buildQueueTab(),
-              LibrarySection.downloads => _MusicDownloadedTracksModal(
-                embedded: true,
-                onClose: () {},
-                onPlayTrack: (t, queue) =>
-                    _playerController.playTrack(t, playlistQueue: queue),
-                onAddToPlaylist: _showAddToPlaylistMenu,
-              ),
+              LibrarySection.inProgress => _buildInProgressTab(),
+              LibrarySection.downloads => _buildDownloadsTab(),
             },
           ),
       ],
     );
   }
 
-  /// Songs, podcasts and playlists behind one sub-tab, so the Listen hub's
-  /// Library is the same four tabs as every other hub's rather than five with
-  /// its own names.
+  /// Songs, podcasts, playlists and audiobooks behind one sub-tab, so the
+  /// Listen hub's Library is the same four tabs as every other hub's rather
+  /// than growing one per content type it holds.
   Widget _buildSavedTab(List<MusicTrack> liked, List<UserPlaylist> playlists) {
     return SectionSubTabs(
       activeId: _savedType,
@@ -1857,6 +1889,11 @@ class _MusicPageState extends State<MusicPage> {
         SubTab(id: 'songs', label: 'Songs', icon: Icons.favorite_rounded),
         SubTab(id: 'podcasts', label: 'Podcasts', icon: Icons.podcasts_rounded),
         SubTab(
+          id: 'audiobooks',
+          label: 'Audiobooks',
+          icon: Icons.headphones_rounded,
+        ),
+        SubTab(
           id: 'playlists',
           label: 'Playlists',
           icon: Icons.queue_music_rounded,
@@ -1864,9 +1901,31 @@ class _MusicPageState extends State<MusicPage> {
       ],
       child: switch (_savedType) {
         'podcasts' => _buildLikedPodcastsTab(),
+        'audiobooks' => _buildLikedAudiobooksTab(),
         'playlists' => _buildPlaylistsTab(playlists),
         _ => _buildLikedSongsTab(liked),
       },
+    );
+  }
+
+  /// Music's queue and audiobooks' resumable chapter position are different
+  /// shapes of "in progress" -- a sub-tab rather than merging them into one
+  /// list, same reasoning as [_buildSavedTab].
+  Widget _buildInProgressTab() {
+    return SectionSubTabs(
+      activeId: _inProgressType,
+      onSelected: (id) => setState(() => _inProgressType = id),
+      tabs: const [
+        SubTab(id: 'queue', label: 'Queue', icon: Icons.queue_music_rounded),
+        SubTab(
+          id: 'audiobooks',
+          label: 'Audiobooks',
+          icon: Icons.headphones_rounded,
+        ),
+      ],
+      child: _inProgressType == 'audiobooks'
+          ? _buildAudiobookProgressTab()
+          : _buildQueueTab(),
     );
   }
 
@@ -1965,6 +2024,348 @@ class _MusicPageState extends State<MusicPage> {
               ),
             ],
           ),
+        );
+      },
+    );
+  }
+
+  void _openAudiobook(Audiobook book) {
+    Navigator.push(
+      context,
+      AudiobookPageRoute(page: AudiobookDetailPage(audiobook: book)),
+    );
+  }
+
+  Widget _buildLikedAudiobooksTab() {
+    final liked = AudiobookLibraryService.instance.liked;
+    if (liked.isEmpty) {
+      return const LibraryEmptyState(
+        icon: Icons.headphones_rounded,
+        title: 'No liked audiobooks',
+        subtitle: 'Tap the heart on an audiobook to save it here.',
+      );
+    }
+    return GridView.builder(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+        maxCrossAxisExtent: 200,
+        mainAxisSpacing: 24,
+        crossAxisSpacing: 16,
+        childAspectRatio: 0.8,
+      ),
+      itemCount: liked.length,
+      itemBuilder: (context, index) {
+        final book = liked[index];
+        return GestureDetector(
+          onTap: () => _openAudiobook(book),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: book.coverImage.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: book.coverImage,
+                          fit: BoxFit.cover,
+                          width: double.infinity,
+                        )
+                      : Container(
+                          color: Colors.white10,
+                          child: const Icon(
+                            Icons.headphones_rounded,
+                            color: Colors.white24,
+                            size: 40,
+                          ),
+                        ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                book.title,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAudiobookProgressTab() {
+    return FutureBuilder<List<AudiobookProgress>>(
+      future: AudiobookProgressService.instance.getAllProgress(),
+      builder: (context, snapshot) {
+        final entries = snapshot.data ?? const <AudiobookProgress>[];
+        if (entries.isEmpty) {
+          return const LibraryEmptyState(
+            icon: Icons.play_circle_outline_rounded,
+            title: 'Nothing in progress',
+            subtitle: 'Audiobooks you are partway through wait for you here.',
+          );
+        }
+        final sorted = List<AudiobookProgress>.from(entries)
+          ..sort(
+            (a, b) =>
+                b.lastListenedTimestamp.compareTo(a.lastListenedTimestamp),
+          );
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          itemCount: sorted.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final p = sorted[index];
+            final percent = p.durationMs > 0
+                ? p.positionMs / p.durationMs
+                : null;
+            return GestureDetector(
+              onTap: () => AudiobookPlayerController.instance.play(
+                p.audiobook,
+                p.chapters,
+                chapterIndex: p.chapterIndex,
+                initialPosition: Duration(milliseconds: p.positionMs),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF12151E),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.08),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: p.audiobook.coverImage.isNotEmpty
+                          ? Image.network(
+                              p.audiobook.coverImage,
+                              width: 50,
+                              height: 75,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 50,
+                                height: 75,
+                                color: Colors.white10,
+                                child: const Icon(
+                                  Icons.headphones_rounded,
+                                  color: Colors.white30,
+                                ),
+                              ),
+                            )
+                          : Container(
+                              width: 50,
+                              height: 75,
+                              color: Colors.white10,
+                              child: const Icon(
+                                Icons.headphones_rounded,
+                                color: Colors.white30,
+                              ),
+                            ),
+                    ),
+                    const SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            p.audiobook.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 15,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 8),
+                          if (percent != null) ...[
+                            LinearProgressIndicator(
+                              value: percent.clamp(0.0, 1.0),
+                              backgroundColor: Colors.white10,
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                Color(0xFF7C5CFF),
+                              ),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
+                          Text(
+                            percent != null
+                                ? '${(percent * 100).toInt()}% listened'
+                                : 'Listening',
+                            style: const TextStyle(
+                              color: Colors.white38,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        color: Colors.white38,
+                        size: 20,
+                      ),
+                      onPressed: () async {
+                        await AudiobookProgressService.instance.removeProgress(
+                          p.key,
+                        );
+                        setState(() {});
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  /// Music and audiobook downloads use entirely separate services
+  /// ([MusicDownloadService] vs the generic [DownloadService] audiobook
+  /// chapters queue through), so this is a sub-tab rather than one merged
+  /// list, same reasoning as [_buildSavedTab].
+  Widget _buildDownloadsTab() {
+    return SectionSubTabs(
+      activeId: _downloadsType,
+      onSelected: (id) => setState(() => _downloadsType = id),
+      tabs: const [
+        SubTab(id: 'music', label: 'Music', icon: Icons.music_note_rounded),
+        SubTab(
+          id: 'audiobooks',
+          label: 'Audiobooks',
+          icon: Icons.headphones_rounded,
+        ),
+      ],
+      child: _downloadsType == 'audiobooks'
+          ? _buildAudiobookDownloadsTab()
+          : _MusicDownloadedTracksModal(
+              embedded: true,
+              onClose: () {},
+              onPlayTrack: (t, queue) =>
+                  _playerController.playTrack(t, playlistQueue: queue),
+              onAddToPlaylist: _showAddToPlaylistMenu,
+            ),
+    );
+  }
+
+  Widget _buildAudiobookDownloadsTab() {
+    return ValueListenableBuilder<List<DownloadTask>>(
+      valueListenable: DownloadService.instance.tasksNotifier,
+      builder: (context, allDownloads, _) {
+        final downloads = allDownloads
+            .where((t) => t.type == 'audiobook')
+            .toList();
+        if (downloads.isEmpty) {
+          return const LibraryEmptyState(
+            icon: Icons.download_done_rounded,
+            title: 'No Downloads',
+            subtitle:
+                'Downloaded audiobook chapters will appear here for offline listening.',
+          );
+        }
+        return ListView.separated(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          itemCount: downloads.length,
+          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final item = downloads[index];
+            final progress = item.totalBytes > 0
+                ? item.receivedBytes / item.totalBytes
+                : 0.0;
+            return Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF12151E),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: item.posterUrl != null
+                        ? Image.network(
+                            item.posterUrl!,
+                            width: 50,
+                            height: 75,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              width: 50,
+                              height: 75,
+                              color: Colors.white10,
+                              child: const Icon(
+                                Icons.headphones_rounded,
+                                color: Colors.white30,
+                              ),
+                            ),
+                          )
+                        : Container(
+                            width: 50,
+                            height: 75,
+                            color: Colors.white10,
+                            child: const Icon(
+                              Icons.headphones_rounded,
+                              color: Colors.white30,
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.title,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 8),
+                        LinearProgressIndicator(
+                          value: progress > 0 ? progress : null,
+                          backgroundColor: Colors.white10,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF7C5CFF),
+                          ),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          '${item.status.name.toUpperCase()} • ${(progress * 100).toStringAsFixed(0)}%',
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: Colors.redAccent,
+                    ),
+                    onPressed: () =>
+                        DownloadService.instance.deleteDownload(item.id),
+                  ),
+                ],
+              ),
+            );
+          },
         );
       },
     );
