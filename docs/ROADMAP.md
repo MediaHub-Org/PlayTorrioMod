@@ -17,15 +17,6 @@ was collapsed from three hubs to one and no longer matches this repo's
 structure 1:1. See `PlayTorrioMov`'s own `docs/superpowers/specs/` for the
 fork's design rationale.
 
-**Resolved 2026-09-01:** PlayTorrioMov's fork work had found that removing
-the Music/Books hubs also deleted `MediaSessionService` — generic
-infrastructure (mirrors `PlaybackCoordinator` for any source, not
-Music-specific) whose loss cost video its Android/iOS lock-screen,
-notification and Bluetooth controls for no reason tied to the actual fork
-goal. Restored it there — `audio_service` dependency, the service file,
-the Android manifest entries, iOS's `audio` background mode. This repo
-was never affected (kept the service throughout).
-
 ## Navigation principle
 
 Three top-level hubs are the core navigation: **Watch**, **Listen**, **Read**.
@@ -58,16 +49,14 @@ passing `flutter analyze` + the test suite; none has been run on hardware.
 | 3 | **Resume across sources**              | `ContinueWatchingService` absorbed `PlaybackHistoryService`. Resume across movie / series / anime / torrent paths is unconfirmed on a device.                                                                                                                                                             |
 | 4 | **QA on all five platforms**           | Mobile, tablet, desktop, TV. TV needs its own D-pad/remote-input pass. Most work to date has only been exercised on Windows desktop and in CI.                                                                                                                                                            |
 
-**`AppInfo.channel` was cleared 2026-09-02** ahead of this checklist, by
-product decision after a full multi-platform CI build passed — the `(dev)`
-marker no longer gates on these items, but they stay open and worth actually
-checking on hardware when possible.
+The `(dev)` channel marker no longer gates on this list (cleared 2026-09-02
+by product decision) — these items stay open regardless, worth checking on
+hardware when possible.
 
 ## Code and consistency
 
 | # | Task                                                                                              | Why it is still open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 |---|---------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 6 | **35 files do ad-hoc `MediaQuery.sizeOf(context).width`** instead of `AppBreakpoints.of(context)` | Checked 2026-09-01: many are legitimate geometry math (player scrubber positions, card-size ratios), not nav-tier decisions — a blind batch conversion risks real regressions with no way to visually verify 35 files' worth of layout changes. Migrate opportunistically when a file is touched for another reason, not as a batch pass.                                                                                                                                                                                            |
 | 7 | **`music_page.dart` is 5,220 lines**                                                              | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice.                                                                                                                                                                                                                                                                                                                                                                        |
 | 8 | **Kotlin Gradle Plugin will break future Flutter builds**                                         | Every Android build warns: the app and six plugins (`package_info_plus`, `shared_preferences_android`, `torrserver_flutter`, `url_launcher_android`, `video_player_android`, `wakelock_plus`) apply KGP, and *"future versions of Flutter will fail to build if your app uses plugins that apply KGP"*. The app's own `build.gradle.kts` can migrate to Built-in Kotlin; the plugins cannot be fixed here — each needs a version that supports it, or an upstream issue. Not urgent, but it is a dated fuse rather than a style nit. |
 
@@ -95,21 +84,8 @@ checking on hardware when possible.
 ## Staying level with upstream
 
 The fork tracks `ayman708-UX/PlayTorrioV3`. As of 2026-09-02 it is **zero
-commits behind** (`upstream/main` @ `ad81c7b`, "anime4k upscaling and manga
-fixes/improvements").
-
-**Merged 2026-09-02.** Anime4K GPU upscaling (new `Anime4KPreset` enum,
-`video_settings_page.dart`, a Settings entry) landed additively alongside
-this fork's own decoder/buffer/engine settings in `player_settings.dart`
-(not replacing them — see `FORK_DIFFERENCES.md`'s "advanced player settings
-stay" divergence, still true). Manga gained richer scraping (genre/year/
-status/author) and a genre filter; this fork's own try/catch error handling
-and manga customizer sheet both survived the merge. One real bug found by
-the test suite, not by review: `manga_reader_page.dart` (a file upstream
-touched) used a raw `MediaQuery.sizeOf(context).width >= 700` instead of
-`AppBreakpoints.of(context)` — fixed in the same commit. `pubspec.yaml`'s
-only change was registering the new shader asset directory, not a new
-dependency.
+commits behind** (`upstream/main` @ `ad81c7b`, merged same day — see
+`CHANGELOG.md` for what landed).
 
 Merging upstream is not a `git merge` and a green analyzer — past syncs
 both had real breakage in regions git's 3-way diff never flagged, because only
@@ -128,11 +104,17 @@ one side had touched them. The routine that catches it:
 
 ## Signing and releases
 
-- **Android release signing secrets are set** — `ANDROID_KEYSTORE_BASE64` and `ANDROID_KEYSTORE_PASSWORD` both confirmed present on the GitHub repo 2026-09-01 (`gh secret list`, names only — values aren't retrievable, nor were they needed to be). Release builds should now sign with the real key instead of the throwaway debug one, so APKs should install over the previous version and the in-app updater should work. Not yet verified end-to-end with an actual release build — that needs a real CI run, not just confirming the secrets exist. See [release signing](configuration.md#release-signing).
-- **No other platform needs signing for updates**, because none of them self-install. See the table in `configuration.md`.
+**Resolved 2026-09-02.** The v1.1.4 release run confirmed real-key signing
+end-to-end, not just secret presence: both Android jobs logged "Release
+signing configured (alias: playtorriomod)" — the debug-key fallback path
+(which only fires when the secrets are absent) never triggered. APKs from
+here on install over the previous version; the in-app updater works. No
+other platform needs signing for updates, since none of them self-install.
+See [release signing](configuration.md#release-signing).
 
 ## Declined, so they do not get re-litigated
 
+- **A blind batch conversion of the 35 files doing ad-hoc `MediaQuery.sizeOf(context).width`** instead of `AppBreakpoints.of(context)`. Checked 2026-09-01: many are legitimate geometry math (player scrubber positions, card-size ratios), not nav-tier decisions — converting all 35 in one pass risks real regressions with no way to visually verify that many layout changes at once. Migrate opportunistically when a file is touched for another reason instead — which is how several already got fixed this session (`type_catalog_page.dart`, `manga_reader_page.dart`) without a dedicated pass.
 - **Folding `AnimeLibraryService` into `MyListService`.** Considered 2026-09-02 while closing out the Saved-tab Anime type filter (item 25's `isLiked` work surfaced this). Anime's own status picker has four states — Watching, Plan to Watch, Completed, Dropped; `MyListItem` has three flags shaped around Movies/Series — Watchlist, Watched, Liked. "Watching" and "Dropped" have no honest equivalent on either side; mapping them in would mean either lying about an anime's status to fit the wrong shape, or bolting a second state model onto `MyListItem` that only anime uses, which breaks the one-shape-three-hubs property the shared model exists for. Simkl-synced anime already shows correctly under the Saved tab's Anime chip (shipped 2026-09-02, typed via the sync bucket, not this local store) — that covers the case that actually reaches a shared list. Locally-tracked anime status stays in Anime's own pages, where its four states are the right shape for what it's tracking. Reopen only if a concrete complaint names something this loses, not just symmetry for its own sake.
 - **A drawer for mobile hub switching.** Hub pills in the header plus the bottom section bar already cover every width. A drawer would be a third copy of the same control.
 - **A unified hub+submenu component.** The header and section bars already read as one stacked unit. The only trigger to reopen is mobile's stacked chrome becoming an actual complaint.
