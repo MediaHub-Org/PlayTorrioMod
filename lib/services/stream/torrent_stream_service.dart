@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:torrserver_flutter/torrserver_flutter.dart';
 
@@ -86,6 +87,7 @@ class TorrentStreamService {
 
     _setState(EngineState.starting);
     try {
+      await _killOrphanedProcess();
       _log('Starting TorrServer engine with native defaults...');
       await _controller.start();
       final version = await _controller.echo();
@@ -96,6 +98,36 @@ class TorrentStreamService {
       _log('Failed to start TorrServer: $e\n$st');
       _setState(EngineState.error);
       return false;
+    }
+  }
+
+  /// A previous session that didn't shut down cleanly (crash, force-kill, a
+  /// hot-run detach) can leave `torrserver.exe` running standalone, still
+  /// holding bboltDB's single-writer lock on `config.db` -- the subprocess
+  /// this `start()` is about to spawn then fails to open that same file.
+  /// Only reached when [_controller] itself believes nothing is running
+  /// (the early-return above covers that), so any `torrserver.exe` found
+  /// here belongs to a stale instance, not this session's own. Best-effort:
+  /// Windows-only (the only platform this runs TorrServer as a subprocess
+  /// on) and never fatal -- if this fails, `_controller.start()` below still
+  /// runs and surfaces its own error the normal way.
+  Future<void> _killOrphanedProcess() async {
+    if (!Platform.isWindows) return;
+    try {
+      final list = await Process.run('tasklist', [
+        '/FI',
+        'IMAGENAME eq torrserver.exe',
+        '/NH',
+      ]);
+      if (!(list.stdout as String).toLowerCase().contains('torrserver.exe')) {
+        return;
+      }
+      _log('Found an orphaned torrserver.exe from a previous session, stopping it...');
+      await Process.run('taskkill', ['/F', '/IM', 'torrserver.exe']);
+      // Give Windows a moment to actually release the file handle/lock.
+      await Future.delayed(const Duration(milliseconds: 300));
+    } catch (_) {
+      // Best-effort cleanup only.
     }
   }
 
