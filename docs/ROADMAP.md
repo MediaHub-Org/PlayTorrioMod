@@ -3,8 +3,8 @@
 What is **outstanding**. Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md);
 this file stays about what is left.
 
-Last reconciled against the tree: **2026-09-02** (v1.1.4, one commit
-behind upstream — see *Staying level with upstream* below).
+Last reconciled against the tree: **2026-09-02** (v1.1.4, level with
+upstream as of `68140b8` — see *Staying level with upstream* below).
 
 ## Sibling app: PlayTorrioMov
 
@@ -51,8 +51,8 @@ passing `flutter analyze` + the test suite; none has been run on hardware.
 | # | Area                                   | What specifically needs checking                                                                                                                                                                                                                                                                          |
 |---|----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1 | **Media session** (shipped 2026-08-30) | Track title/artist/art in the Android shade; play/pause/skip/stop; audio surviving backgrounding; whether tapping the notification returns to the running app rather than restarting it. iOS lock screen and Control Center likewise.                                                                     |
-| 2 | **media_kit/libmpv playback**          | The engine swap (2026-08-28) changed torrent streaming, live IPTV, subtitle rendering, decoder presets and the volume-boost gesture. Needs a hands-on pass across movie / series / anime / IPTV / music / audiobook. The `mediacodec-copy` fix for the Android black screen (2026-08-29) is part of this. `AudiobookPlayerController` (the background/mini-bar controller) joined this engine 2026-09-02 too — was the one holdout still on `video_player`; needs the same hands-on check as the rest. |
-| 3 | **Resume across sources**              | `ContinueWatchingService` absorbed `PlaybackHistoryService`. Resume across movie / series / anime / torrent paths is unconfirmed on a device.                                                                                                                                                             |
+| 2 | **media_kit/libmpv playback**          | The engine swap (2026-08-28) changed torrent streaming, live IPTV, subtitle rendering, decoder presets and the volume-boost gesture. Needs a hands-on pass across movie / series / anime / IPTV / music / audiobook. The `mediacodec-copy` fix for the Android black screen (2026-08-29) is part of this. `AudiobookPlayerController` (the background/mini-bar controller) joined this engine 2026-09-02 too — was the one holdout still on `video_player`; needs the same hands-on check as the rest. First real hands-on pass done 2026-09-02 (Windows, movie playback only): found and fixed two bugs (`UniversalPlayBar` showing over the full-screen video player; Continue Watching resume getting stuck re-buffering from a redundant seek) and reconfirmed #12 still crashes with active playback. Series/anime/IPTV/music/audiobook paths and every non-Windows platform remain unchecked. |
+| 3 | **Resume across sources**              | `ContinueWatchingService` absorbed `PlaybackHistoryService`. Resume across movie / series / anime / torrent paths is unconfirmed on a device. Movie-path resume-from-history bug found and fixed 2026-09-02 (see item 2) — series/anime/torrent paths still unconfirmed.                                                                                                                                                             |
 | 4 | **QA on all five platforms**           | Mobile, tablet, desktop, TV. TV needs its own D-pad/remote-input pass. Most work to date has only been exercised on Windows desktop and in CI.                                                                                                                                                            |
 
 The `(dev)` channel marker no longer gates on this list (cleared 2026-09-02
@@ -64,7 +64,7 @@ hardware when possible.
 | # | Task                                                                                              | Why it is still open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 |---|---------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 7 | **`music_page.dart` is 6,579 lines** (grew from 5,220 on 2026-09-02, absorbing Audiobooks' Liked/In Progress/Downloads sub-tabs, then Radio's search/liking and the album/playlist play-button work, all the same day) | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice.                                                                                                                                                                                                                                                                                                                                                                        |
-| 8 | **Kotlin Gradle Plugin will break future Flutter builds**                                         | Every Android build warns: the app and six plugins (`package_info_plus`, `shared_preferences_android`, `torrserver_flutter`, `url_launcher_android`, `video_player_android`, `wakelock_plus`) apply KGP, and *"future versions of Flutter will fail to build if your app uses plugins that apply KGP"*. The app's own `build.gradle.kts` can migrate to Built-in Kotlin; the plugins cannot be fixed here — each needs a version that supports it, or an upstream issue. Not urgent, but it is a dated fuse rather than a style nit. |
+| 8 | **Kotlin Gradle Plugin will break future Flutter builds** | Re-checked 2026-09-02: the app's own `settings.gradle.kts`/`build.gradle.kts` already match Flutter 3.44.0's own current app template exactly (`org.jetbrains.kotlin.android` declared with `apply false`, the current recommended shape) — there is no "migrate the app to Built-in Kotlin" step actually available here; that part of the original note didn't hold up. The real issue is six *plugins* independently applying KGP with their own `ext.kotlin_version`/`apply plugin: 'kotlin-android'` in their own `android/build.gradle`, which is what breaks under a future Flutter. `flutter pub upgrade` (same day) already fixed **3 of 6** as a side effect: `shared_preferences_android` (2.4.28), `url_launcher_android` (6.3.33) and `video_player_android` (2.12.2) now use the modern `kotlin { jvmTarget = ... }` block, confirmed by reading each one's `android/build.gradle` in the pub cache. Still on the old pattern: `package_info_plus` (8.3.1 — 10.2.1 exists but is a major bump past our `^8.3.1` constraint, unchecked for breaking API changes), `wakelock_plus` (1.3.3 — 1.8.0 exists and fits our `^1.3.3` constraint, but `flutter pub outdated` shows it's capped at 1.3.3 by some other package's transitive constraint, not ours to relax), `torrserver_flutter` (0.0.6, no newer version published yet). Down to 3 real blockers, none fixable by just editing our own pubspec. |
 
 ## Content sources
 
@@ -106,12 +106,11 @@ row" above.
 
 ## Staying level with upstream
 
-The fork tracks `ayman708-UX/PlayTorrioV3`. As of 2026-09-02 it is **one
-commit behind** (`upstream/main` @ `1ea6c5d` — "Bump version to 1.1.0 and
-enhance TV calendar, addon management, seeder filters, and semantic continue
-watching matcher"; our tree is level with the prior `ad81c7b`). Not merged
-yet — noted while checking upstream's own hero image logic for the item 13
-work above, not otherwise investigated.
+The fork tracks `ayman708-UX/PlayTorrioV3`. Merged 2026-09-02 up to
+`upstream/main` @ `68140b8` ("Fix TorrServer and Debrid episode matching
+engine with multi-episode and directory parsing") — level with upstream as
+of that commit. See `CHANGELOG.md` for what the merge brought in and how
+conflicts were resolved (this fork's hub architecture won on every one).
 
 Merging upstream is not a `git merge` and a green analyzer — past syncs
 both had real breakage in regions git's 3-way diff never flagged, because only
