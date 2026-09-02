@@ -36,7 +36,7 @@ ones, backfilling the slot Audiobooks leaving freed up.
 
 Phones show hubs as icon pills in the header and sections in the bottom bar;
 tablet and desktop show sections as a chip row instead. Search, filters,
-favourites and playback stay consistent across every section — that
+favorites and playback stay consistent across every section — that
 cross-cutting consistency is what "unified" means here, not the content.
 
 Any proposal to merge, flatten or collapse distinct content-type sections, or
@@ -63,7 +63,7 @@ hardware when possible.
 
 | # | Task                                                                                              | Why it is still open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 |---|---------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 7 | **`music_page.dart` is 6,338 lines** (grew from 5,220 on 2026-09-02, absorbing the Liked/In Progress/Downloads sub-tabs for Audiobooks now that it lives in Listen) | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice.                                                                                                                                                                                                                                                                                                                                                                        |
+| 7 | **`music_page.dart` is 6,579 lines** (grew from 5,220 on 2026-09-02, absorbing Audiobooks' Liked/In Progress/Downloads sub-tabs, then Radio's search/liking and the album/playlist play-button work, all the same day) | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice.                                                                                                                                                                                                                                                                                                                                                                        |
 | 8 | **Kotlin Gradle Plugin will break future Flutter builds**                                         | Every Android build warns: the app and six plugins (`package_info_plus`, `shared_preferences_android`, `torrserver_flutter`, `url_launcher_android`, `video_player_android`, `wakelock_plus`) apply KGP, and *"future versions of Flutter will fail to build if your app uses plugins that apply KGP"*. The app's own `build.gradle.kts` can migrate to Built-in Kotlin; the plugins cannot be fixed here — each needs a version that supports it, or an upstream issue. Not urgent, but it is a dated fuse rather than a style nit. |
 
 ## Content sources
@@ -91,10 +91,18 @@ look, folded into item 4 below rather than tracked separately.
 
 Still open, not part of that pass: **Continue Reading matching Continue
 Watching's card style**, and Manga/Comics' own genre/type-selection matching
-Movies & Series' pill row — raised 2026-09-02, not started. Books has no
-cover art (`BookResult` from libgen.li carries none, see Declined below), so
-a literal `ContinueWatchingSlider`-style card would show a fallback icon in
-place of art on every entry, not real backdrop images.
+Movies & Series' pill row (`PillTabRow`/`SubTab`) — raised 2026-09-02, not
+started. Books has no cover art (`BookResult` from libgen.li carries none,
+see Declined below), so a literal `ContinueWatchingSlider`-style card would
+show a fallback icon in place of art on every entry, not real backdrop
+images.
+
+Manga's own layout got a same-day reorder pass (title → genre pills/
+customize/search in one row → Continue Reading → grid) that's a different,
+narrower ask than the one above — repositioning, not restyling. Its genre
+pills are still their own hand-built `AnimatedContainer` chips, not
+`PillTabRow`; that's still what's meant by "matching Movies & Series' pill
+row" above.
 
 ## Staying level with upstream
 
