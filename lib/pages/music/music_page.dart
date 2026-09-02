@@ -11,6 +11,7 @@ import '../../models/music/music_track.dart';
 import '../../services/theme/app_theme_service.dart';
 import '../../services/music/music_download_service.dart';
 import '../../widgets/music/music_track_download_button.dart';
+import '../../widgets/common/filter_dropdown.dart';
 import '../../services/music/music_library_service.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/common/library_sections.dart';
@@ -962,6 +963,22 @@ class _MusicPageState extends State<MusicPage> {
                                   ),
                                 ),
                                 const Spacer(),
+                                if (_genres.isNotEmpty)
+                                  FilterDropdown<MusicGenre?>(
+                                    label: _selectedBrowseGenre?.name ?? 'Genres',
+                                    icon: Icons.category_rounded,
+                                    items: [
+                                      const PopupMenuItem(
+                                        value: null,
+                                        child: Text('All genres'),
+                                      ),
+                                      for (final g in _genres)
+                                        PopupMenuItem(value: g, child: Text(g.name)),
+                                    ],
+                                    onSelected: (g) =>
+                                        g == null ? _backToGenres() : _selectGenre(g),
+                                  ),
+                                const SizedBox(width: 8),
                                 // Playlist creation is reachable from
                                 // Saved > Playlists itself, and from the "..."
                                 // track menu's own "New Playlist" action --

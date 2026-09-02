@@ -91,17 +91,8 @@ class TopBar extends StatelessWidget {
     );
   }
 
-  Widget _settingsButton({required VoidCallback onTap}) {
-    return IconButton(
-      onPressed: onTap,
-      tooltip: 'Settings',
-      style: IconButton.styleFrom(
-        backgroundColor: Colors.white.withValues(alpha: 0.04),
-        foregroundColor: Colors.white70,
-      ),
-      icon: const Icon(Icons.settings_rounded, size: 20),
-    );
-  }
+  Widget _settingsButton({required VoidCallback onTap}) =>
+      SettingsIconButton(onTap: onTap);
 
   /// A top-level "you are here" tab: label + icon with an animated underline,
   /// no fill or border — sits visually above the section chip bar beneath it.
@@ -145,6 +136,37 @@ class TopBar extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// The one Settings (gear) button definition, shared by [TopBar] (tablet/
+/// desktop) and `_MobileTopBar` (`adaptive_nav_shell.dart`).
+///
+/// Used to be two separately hand-tuned `IconButton`s -- desktop's own
+/// default sizing/padding, mobile's a tighter `36x36`/zero-padding one for
+/// its more cramped header -- which put the icon's actual visual center a
+/// few pixels off between the two, reading as the button "moving" when the
+/// window crossed the mobile/desktop breakpoint. Defined mobile-first (the
+/// tighter of the two constraints) since a size that fits the cramped case
+/// always fits the roomier one, not the other way around.
+class SettingsIconButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const SettingsIconButton({super.key, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onTap,
+      tooltip: 'Settings',
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints.tightFor(width: 36, height: 36),
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.white.withValues(alpha: 0.04),
+        foregroundColor: Colors.white70,
+      ),
+      icon: const Icon(Icons.settings_rounded, size: 20),
     );
   }
 }

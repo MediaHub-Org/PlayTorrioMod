@@ -94,14 +94,7 @@ class _MobileTopBar extends StatelessWidget {
           const SizedBox(width: AppSpacing.sm),
           const _MobileHubPills(),
           const Spacer(),
-          if (onSettingsTap != null)
-            IconButton(
-              onPressed: onSettingsTap,
-              tooltip: 'Settings',
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints.tightFor(width: 36, height: 36),
-              icon: const Icon(Icons.settings_rounded, color: Colors.white70, size: 20),
-            ),
+          if (onSettingsTap != null) SettingsIconButton(onTap: onSettingsTap!),
         ],
       ),
     );

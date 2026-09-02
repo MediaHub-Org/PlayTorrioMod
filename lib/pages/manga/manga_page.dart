@@ -476,6 +476,113 @@ class _MangaPageState extends State<MangaPage> {
           child: SizedBox(height: 100), // Spacer for top bar
         ),
 
+        // ── Title ──
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              isMobile ? 16.0 : 32.0,
+              isMobile ? 12.0 : 16.0,
+              isMobile ? 16.0 : 32.0,
+              8.0,
+            ),
+            child: Text(
+              'Manga',
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: isMobile ? 22 : 28,
+                fontWeight: FontWeight.w900,
+                letterSpacing: -0.5,
+              ),
+            ),
+          ),
+        ),
+
+        // ── Genre pills, customize and search -- one row ──
+        if (_searchQuery.isEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(
+                left: isMobile ? 16.0 : 32.0,
+                right: isMobile ? 8.0 : 24.0,
+                bottom: 16.0,
+              ),
+              child: SizedBox(
+                height: 38,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        physics: const BouncingScrollPhysics(),
+                        itemCount: MangaService.popularGenres.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) {
+                          final genre = MangaService.popularGenres[index];
+                          final isSelected = genre == _selectedGenre;
+                          return InkWell(
+                            onTap: () => _onGenreSelected(genre),
+                            borderRadius: BorderRadius.circular(20),
+                            child: AnimatedContainer(
+                              duration: const Duration(milliseconds: 180),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? palette.primaryColor.withValues(alpha: 0.22)
+                                    : Colors.white.withValues(alpha: 0.05),
+                                borderRadius: BorderRadius.circular(20),
+                                border: Border.all(
+                                  color: isSelected
+                                      ? palette.primaryColor.withValues(alpha: 0.7)
+                                      : Colors.white.withValues(alpha: 0.08),
+                                  width: isSelected ? 1.5 : 1.0,
+                                ),
+                                boxShadow: isSelected
+                                    ? [
+                                        BoxShadow(
+                                          color: palette.primaryColor.withValues(
+                                            alpha: 0.25,
+                                          ),
+                                          blurRadius: 10,
+                                          offset: const Offset(0, 2),
+                                        ),
+                                      ]
+                                    : null,
+                              ),
+                              child: Center(
+                                child: Text(
+                                  genre,
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.white.withValues(alpha: 0.7),
+                                    fontWeight: isSelected
+                                        ? FontWeight.w800
+                                        : FontWeight.w500,
+                                    fontSize: 13,
+                                    letterSpacing: -0.1,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.tune_rounded, color: Colors.white70),
+                      tooltip: 'Customize Manga Section',
+                      onPressed: () => _showMangaCustomizer(context),
+                    ),
+                    const PageSearchButton(),
+                  ],
+                ),
+              ),
+            ),
+          ),
+
         // ── Continue Reading ──
         if (showContinue &&
             _readingHistory.isNotEmpty &&
@@ -490,8 +597,8 @@ class _MangaPageState extends State<MangaPage> {
                 'Continue Reading',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: isMobile ? 22 : 28,
-                  fontWeight: FontWeight.w900,
+                  fontSize: isMobile ? 20 : 24,
+                  fontWeight: FontWeight.w800,
                   letterSpacing: -0.5,
                 ),
               ),
@@ -506,112 +613,20 @@ class _MangaPageState extends State<MangaPage> {
             ),
           ),
           SliverToBoxAdapter(child: SizedBox(height: isMobile ? 24 : 40)),
-        ],
-
-        // ── Discovery / Search Results ──
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 16.0 : 32.0,
-              vertical: isMobile ? 12.0 : 16.0,
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _searchQuery.isNotEmpty
-                        ? 'Search Results'
-                        : (_selectedGenre == 'All'
-                              ? 'Discover Manga'
-                              : '$_selectedGenre Manga'),
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: isMobile ? 22 : 28,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.5,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.tune_rounded, color: Colors.white70),
-                  tooltip: 'Customize Manga Section',
-                  onPressed: () => _showMangaCustomizer(context),
-                ),
-                const PageSearchButton(),
-              ],
-            ),
-          ),
-        ),
-
-        // ── Genre Filter Bar (Horizontal scrollable pills) ──
-        if (_searchQuery.isEmpty)
+        ] else if (_searchQuery.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
-              padding: EdgeInsets.only(
-                left: isMobile ? 16.0 : 32.0,
-                right: isMobile ? 16.0 : 32.0,
-                bottom: 16.0,
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 16.0 : 32.0,
+                vertical: isMobile ? 12.0 : 16.0,
               ),
-              child: SizedBox(
-                height: 38,
-                child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: MangaService.popularGenres.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (context, index) {
-                    final genre = MangaService.popularGenres[index];
-                    final isSelected = genre == _selectedGenre;
-                    return InkWell(
-                      onTap: () => _onGenreSelected(genre),
-                      borderRadius: BorderRadius.circular(20),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? palette.primaryColor.withValues(alpha: 0.22)
-                              : Colors.white.withValues(alpha: 0.05),
-                          borderRadius: BorderRadius.circular(20),
-                          border: Border.all(
-                            color: isSelected
-                                ? palette.primaryColor.withValues(alpha: 0.7)
-                                : Colors.white.withValues(alpha: 0.08),
-                            width: isSelected ? 1.5 : 1.0,
-                          ),
-                          boxShadow: isSelected
-                              ? [
-                                  BoxShadow(
-                                    color: palette.primaryColor.withValues(
-                                      alpha: 0.25,
-                                    ),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: Center(
-                          child: Text(
-                            genre,
-                            style: TextStyle(
-                              color: isSelected
-                                  ? Colors.white
-                                  : Colors.white.withValues(alpha: 0.7),
-                              fontWeight: isSelected
-                                  ? FontWeight.w800
-                                  : FontWeight.w500,
-                              fontSize: 13,
-                              letterSpacing: -0.1,
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
+              child: Text(
+                'Search Results',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: isMobile ? 20 : 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
                 ),
               ),
             ),
