@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:playtorrio/widgets/common/browse_scaffold.dart';
+import 'package:playtorrio/widgets/common/custom_scroll_track.dart';
 import 'package:playtorrio/widgets/common/slider_arrow.dart';
 
 Widget wrap(Widget child) => MaterialApp(home: Scaffold(body: child));
@@ -20,6 +21,8 @@ BrowseScaffold<String> build({
   Widget? emptyState,
   Widget? belowHero,
   Widget? afterRows,
+  Widget? header,
+  bool overlayHeader = false,
 }) {
   return BrowseScaffold<String>(
     heroItems: hero,
@@ -29,9 +32,12 @@ BrowseScaffold<String> build({
     emptyState: emptyState,
     belowHero: belowHero,
     afterRows: afterRows,
+    header: header,
+    overlayHeader: overlayHeader,
     // Auto-rotation would leave a pending timer at the end of every test.
     heroInterval: null,
     heroBuilder: (_, item) => ColoredBox(
+      key: const Key('hero-box'),
       color: Colors.blue,
       child: Center(child: Text('hero:$item')),
     ),
@@ -220,5 +226,51 @@ void main() {
       expect(find.text('Trending'), findsOneWidget);
       expect(find.text('footer row'), findsOneWidget);
     });
+
+    testWidgets(
+      'overlayHeader floats the header over the hero instead of pushing it down',
+      (tester) async {
+        setSurfaceWidth(tester, 1400); // desktop tier
+        await tester.pumpWidget(
+          wrap(
+            build(
+              hero: ['a'],
+              header: const Text('filters'),
+              overlayHeader: true,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('filters'), findsOneWidget);
+        expect(find.text('hero:a'), findsOneWidget);
+        // The hero fills to the very top of the page -- the header floats
+        // over it instead of reserving its own flow space above it (which
+        // the inline case, tested below, does).
+        expect(tester.getTopLeft(find.byKey(const Key('hero-box'))).dy, 0.0);
+        // Desktop-only scroll track appears alongside it.
+        expect(find.byType(CustomScrollTrack), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'overlayHeader is off by default -- header pushes the hero down, no scroll track',
+      (tester) async {
+        setSurfaceWidth(tester, 1400);
+        await tester.pumpWidget(
+          wrap(build(hero: ['a'], header: const Text('filters'))),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('filters'), findsOneWidget);
+        // Inline: the header's own flow space pushes the hero down from the
+        // top edge, unlike the overlay case above.
+        expect(
+          tester.getTopLeft(find.byKey(const Key('hero-box'))).dy,
+          greaterThan(0.0),
+        );
+        expect(find.byType(CustomScrollTrack), findsNothing);
+      },
+    );
   });
 }

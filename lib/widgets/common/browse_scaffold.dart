@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../services/app_breakpoints.dart';
 import '../../services/app_spacing.dart';
 import '../movie/movie_card.dart';
 import 'browse_row_view.dart';
+import 'custom_scroll_track.dart';
 import 'error_view.dart';
 import 'hero_carousel_auto_rotate.dart';
 import 'poster_skeleton.dart';
@@ -58,6 +60,15 @@ class BrowseScaffold<T> extends StatefulWidget {
   /// Shown above the hero — a search button, filters, a sub-tab bar.
   final Widget? header;
 
+  /// When true, [header] floats over the content instead of pushing the
+  /// hero down: the hero fills all the way to the top of the page (like
+  /// Anime's and Live TV's own bespoke hero pages), the header stays fixed
+  /// on screen while rows scroll underneath it, and a desktop-only
+  /// [CustomScrollTrack] appears bottom-right (Anime's own scroll
+  /// indicator, otherwise absent here). Off by default so an existing
+  /// consumer's solid-header layout is unaffected.
+  final bool overlayHeader;
+
   /// Shown between the hero and the first row — e.g. a Continue Watching
   /// slider. Only rendered when [heroItems] is non-empty, same guard the
   /// hero itself uses, so a loading/empty page doesn't reserve space for it.
@@ -89,6 +100,7 @@ class BrowseScaffold<T> extends StatefulWidget {
     required this.heroBuilder,
     required this.itemBuilder,
     this.header,
+    this.overlayHeader = false,
     this.belowHero,
     this.afterRows,
     this.isLoading = false,
@@ -105,10 +117,18 @@ class BrowseScaffold<T> extends StatefulWidget {
 
 class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
     with HeroCarouselAutoRotate<BrowseScaffold<T>> {
+  final ScrollController _scrollController = ScrollController();
+
   @override
   void initState() {
     super.initState();
     _restartRotation();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -144,11 +164,15 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
     final sizing = MovieCardSizing.fromWidth(width);
+    // Overlaid, the header floats above every branch below instead of each
+    // one rendering it inline -- see the wrap at the end of this method.
+    final showInlineHeader = widget.header != null && !widget.overlayHeader;
 
+    Widget body;
     if (widget.error != null) {
-      return Column(
+      body = Column(
         children: [
-          if (widget.header != null) widget.header!,
+          if (showInlineHeader) widget.header!,
           Expanded(
             child: ErrorView(
               error: widget.error,
@@ -157,24 +181,49 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
           ),
         ],
       );
+    } else {
+      final hasContent =
+          widget.heroItems.isNotEmpty ||
+          widget.rows.any((r) => r.items.isNotEmpty);
+
+      if (!widget.isLoading && !hasContent && widget.emptyState != null) {
+        body = Column(
+          children: [
+            if (showInlineHeader) widget.header!,
+            Expanded(child: widget.emptyState!),
+          ],
+        );
+      } else {
+        body = _buildScrollable(sizing, width, showInlineHeader);
+      }
     }
 
-    final hasContent =
-        widget.heroItems.isNotEmpty ||
-        widget.rows.any((r) => r.items.isNotEmpty);
+    if (!widget.overlayHeader || widget.header == null) return body;
 
-    if (!widget.isLoading && !hasContent && widget.emptyState != null) {
-      return Column(
-        children: [
-          if (widget.header != null) widget.header!,
-          Expanded(child: widget.emptyState!),
-        ],
-      );
-    }
+    return Stack(
+      children: [
+        body,
+        Positioned(
+          top: 0,
+          left: 0,
+          right: 0,
+          child: SafeArea(bottom: false, child: widget.header!),
+        ),
+        if (AppBreakpoints.of(context) == ScreenTier.desktop)
+          Positioned(
+            right: 24,
+            bottom: 40,
+            child: CustomScrollTrack(controller: _scrollController),
+          ),
+      ],
+    );
+  }
 
+  Widget _buildScrollable(MovieCardSizing sizing, double width, bool showInlineHeader) {
     final content = CustomScrollView(
+      controller: _scrollController,
       slivers: [
-        if (widget.header != null) SliverToBoxAdapter(child: widget.header!),
+        if (showInlineHeader) SliverToBoxAdapter(child: widget.header!),
         if (widget.isLoading)
           SliverToBoxAdapter(child: _buildLoading(sizing, width))
         else ...[
@@ -182,7 +231,11 @@ class _BrowseScaffoldState<T> extends State<BrowseScaffold<T>>
             SliverToBoxAdapter(child: _buildHero(width)),
             if (widget.belowHero != null)
               SliverToBoxAdapter(child: widget.belowHero!),
-          ],
+          ] else if (widget.overlayHeader)
+            // No hero to clear the floating header -- the rows below need
+            // their own headroom instead, or the first row's title would
+            // render right under it.
+            const SliverToBoxAdapter(child: SizedBox(height: 72)),
           for (final row in widget.rows)
             if (row.items.isNotEmpty)
               SliverToBoxAdapter(

@@ -234,6 +234,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
     if (!_isFiltered) {
       return BrowseScaffold<Movie>(
         header: _buildHeader(context),
+        overlayHeader: true,
         belowHero: ContinueWatchingSlider(typeFilter: widget.type),
         afterRows: widget.type == 'series' ? const UpcomingCalendarRow() : null,
         isLoading: _loading,
