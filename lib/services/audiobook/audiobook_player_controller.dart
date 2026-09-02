@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
 
 import '../../models/audiobook/audiobook_model.dart';
 import '../playback_coordinator.dart';
@@ -12,12 +12,20 @@ import '../stream/torrent_stream_service.dart';
 /// Starting an audiobook from a detail page uses this controller (bottom bar
 /// shows). Tapping the bottom bar opens the fullscreen player via
 /// [setExpandCallback].
+///
+/// Built on `media_kit`/libmpv -- the same engine [MusicPlayerController]
+/// and the fullscreen `AudiobookPlayerScreen` already use. This controller
+/// used to run on `video_player` (an audio-only video player, a leftover
+/// workaround), the one place in audiobook playback still on the old
+/// engine while everything else had already moved.
 class AudiobookPlayerController extends ChangeNotifier {
   static final AudiobookPlayerController instance =
       AudiobookPlayerController._internal();
   AudiobookPlayerController._internal();
 
-  VideoPlayerController? _controller;
+  Player? _controller;
+  final List<StreamSubscription> _subscriptions = [];
+  Duration _position = Duration.zero;
   Audiobook? _audiobook;
   List<AudiobookChapter> _chapters = [];
   int _currentIndex = 0;
@@ -76,8 +84,11 @@ class AudiobookPlayerController extends ChangeNotifier {
     notifyListeners();
 
     // Clean up previous controller
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    _subscriptions.clear();
     if (_controller != null) {
-      _controller!.removeListener(_onPlayerStateChanged);
       await _controller!.dispose();
       _controller = null;
     }
@@ -106,19 +117,43 @@ class AudiobookPlayerController extends ChangeNotifier {
       };
       if (chapter.httpHeaders != null) headers.addAll(chapter.httpHeaders!);
 
-      final controller = VideoPlayerController.networkUrl(
-        Uri.parse(sanitized),
-        httpHeaders: headers,
-      );
-      await controller.initialize();
-      controller.addListener(_onPlayerStateChanged);
+      final player = Player();
+      final media = Media(sanitized, httpHeaders: headers);
+
+      _subscriptions.addAll([
+        player.stream.playing.listen((playing) {
+          if (playing != _isPlaying) {
+            _isPlaying = playing;
+            PlaybackCoordinator.setPlaying(playing);
+            notifyListeners();
+          }
+        }),
+        player.stream.position.listen((pos) {
+          _position = pos;
+          PlaybackCoordinator.setProgress(_position, player.state.duration);
+        }),
+        player.stream.duration.listen((_) => notifyListeners()),
+        player.stream.error.listen((err) {
+          _isLoading = false;
+          _isPlaying = false;
+          debugPrint('Audiobook background playback error: $err');
+          notifyListeners();
+        }),
+      ]);
+
+      // Open paused, then seek, then play -- open() defaults to play:true,
+      // which would start the chapter from 0:00 for a moment before a
+      // resume seek landed (see MusicPlayerController for the same fix).
+      await player.open(media, play: false);
+      await player.setVolume(100.0);
       if (initialPosition != null && initialPosition > Duration.zero) {
-        await controller.seekTo(initialPosition);
+        await player.seek(initialPosition);
       }
-      _controller = controller;
+      await player.play();
+
+      _controller = player;
       _isLoading = false;
       _isPlaying = true;
-      await controller.play();
       notifyListeners();
     } catch (e) {
       _isLoading = false;
@@ -128,22 +163,9 @@ class AudiobookPlayerController extends ChangeNotifier {
     }
   }
 
-  void _onPlayerStateChanged() {
-    final c = _controller;
-    if (c == null) return;
-    final value = c.value;
-    PlaybackCoordinator.setProgress(value.position, value.duration);
-    final playing = value.isPlaying;
-    if (playing != _isPlaying) {
-      _isPlaying = playing;
-      PlaybackCoordinator.setPlaying(playing);
-      notifyListeners();
-    }
-  }
-
   Future<void> togglePlayPause() async {
     if (_controller == null) return;
-    if (_controller!.value.isPlaying) {
+    if (_isPlaying) {
       await _controller!.pause();
     } else {
       await _controller!.play();
@@ -151,7 +173,7 @@ class AudiobookPlayerController extends ChangeNotifier {
   }
 
   Future<void> seekTo(Duration position) async {
-    await _controller?.seekTo(position);
+    await _controller?.seek(position);
   }
 
   /// Advances to the next chapter. What the media session's skip-forward
@@ -164,7 +186,7 @@ class AudiobookPlayerController extends ChangeNotifier {
   /// Restarts the current chapter, or steps back a chapter when already near
   /// its start — the convention every media app's skip-back button follows.
   Future<void> previousChapter() async {
-    final position = _controller?.value.position ?? Duration.zero;
+    final position = _position;
     if (position.inSeconds > 3 || _currentIndex == 0) {
       await seekTo(Duration.zero);
       return;
@@ -176,7 +198,10 @@ class AudiobookPlayerController extends ChangeNotifier {
     PlaybackCoordinator.release(
       _audiobook != null ? 'audiobook:${_audiobook!.uuid}:$_currentIndex' : '',
     );
-    _controller?.removeListener(_onPlayerStateChanged);
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    _subscriptions.clear();
     await _controller?.dispose();
     _controller = null;
     _audiobook = null;
@@ -188,7 +213,9 @@ class AudiobookPlayerController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _controller?.removeListener(_onPlayerStateChanged);
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
     _controller?.dispose();
     super.dispose();
   }
