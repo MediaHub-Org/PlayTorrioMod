@@ -57,7 +57,23 @@ class PodcastEpisode {
 /// podcast app sources episode audio, no proprietary catalog needed.
 class PodcastService {
   static const _searchBase = 'https://itunes.apple.com/search';
+  static const _lookupBase = 'https://itunes.apple.com/lookup';
+  static const _topPodcastsBase = 'https://itunes.apple.com/us/rss/toppodcasts';
   static final _client = http.Client();
+
+  List<PodcastResult> _mapLookupResults(List<dynamic> results) {
+    return results
+        .map((e) => e as Map<String, dynamic>)
+        .where((e) => (e['feedUrl'] as String?)?.isNotEmpty == true)
+        .map((e) => PodcastResult(
+              id: '${e['collectionId']}',
+              name: e['collectionName'] as String? ?? '',
+              artistName: e['artistName'] as String? ?? '',
+              artworkUrl: e['artworkUrl600'] as String? ?? e['artworkUrl100'] as String? ?? '',
+              feedUrl: e['feedUrl'] as String,
+            ))
+        .toList();
+  }
 
   Future<List<PodcastResult>> search(String query) async {
     if (query.trim().isEmpty) return [];
@@ -72,18 +88,45 @@ class PodcastService {
       if (response.statusCode != 200) return [];
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
-      final results = json['results'] as List<dynamic>? ?? [];
-      return results
+      return _mapLookupResults(json['results'] as List<dynamic>? ?? []);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  /// Apple's public "Top Podcasts" chart -- no key needed, same as [search].
+  /// The chart feed itself only gives id/name/artist/art, not a usable
+  /// [PodcastResult.feedUrl], so the ids get a second batched `/lookup` call
+  /// (same shape [search] already trusts) to fill that in -- one extra
+  /// request for up to 200 ids, not one request per podcast.
+  Future<List<PodcastResult>> fetchTopPodcasts({int limit = 20}) async {
+    try {
+      final chartUrl = Uri.parse('$_topPodcastsBase/limit=$limit/json');
+      final chartResponse = await _client.get(chartUrl);
+      if (chartResponse.statusCode != 200) return [];
+
+      final chartJson = jsonDecode(chartResponse.body) as Map<String, dynamic>;
+      final entries = (chartJson['feed'] as Map<String, dynamic>?)?['entry'] as List<dynamic>? ?? [];
+      final ids = entries
           .map((e) => e as Map<String, dynamic>)
-          .where((e) => (e['feedUrl'] as String?)?.isNotEmpty == true)
-          .map((e) => PodcastResult(
-                id: '${e['collectionId']}',
-                name: e['collectionName'] as String? ?? '',
-                artistName: e['artistName'] as String? ?? '',
-                artworkUrl: e['artworkUrl600'] as String? ?? e['artworkUrl100'] as String? ?? '',
-                feedUrl: e['feedUrl'] as String,
-              ))
+          .map((e) => ((e['id'] as Map<String, dynamic>?)?['attributes'] as Map<String, dynamic>?)?['im:id'] as String?)
+          .whereType<String>()
           .toList();
+      if (ids.isEmpty) return [];
+
+      final lookupUrl = Uri.parse(_lookupBase).replace(queryParameters: {
+        'id': ids.join(','),
+        'entity': 'podcast',
+      });
+      final lookupResponse = await _client.get(lookupUrl);
+      if (lookupResponse.statusCode != 200) return [];
+
+      final lookupJson = jsonDecode(lookupResponse.body) as Map<String, dynamic>;
+      final byId = {
+        for (final r in _mapLookupResults(lookupJson['results'] as List<dynamic>? ?? [])) r.id: r,
+      };
+      // Preserve chart order -- the lookup response isn't guaranteed to.
+      return ids.map((id) => byId[id]).whereType<PodcastResult>().toList();
     } catch (_) {
       return [];
     }

@@ -22,6 +22,25 @@ class _PodcastsPageState extends State<PodcastsPage> {
   bool _isLoading = false;
   bool _hasSearched = false;
 
+  List<PodcastResult> _trending = [];
+  bool _isTrendingLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTrending();
+  }
+
+  Future<void> _loadTrending() async {
+    final results = await _service.fetchTopPodcasts();
+    if (mounted) {
+      setState(() {
+        _trending = results;
+        _isTrendingLoading = false;
+      });
+    }
+  }
+
   @override
   void dispose() {
     _searchController.dispose();
@@ -94,23 +113,7 @@ class _PodcastsPageState extends State<PodcastsPage> {
             hasScrollBody: false,
             child: Center(child: Text('No podcasts found.', style: TextStyle(color: Colors.white54))),
           )
-        else if (!_hasSearched)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: Padding(
-                padding: EdgeInsets.all(32),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.podcasts_rounded, color: Colors.white24, size: 64),
-                    SizedBox(height: 16),
-                    Text('Search for a podcast to get started', style: TextStyle(color: Colors.white54, fontSize: 16)),
-                  ],
-                ),
-              ),
-            ),
-          )
+        else if (!_hasSearched) ..._browseSlivers(crossAxisCount)
         else
           SliverPadding(
             padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -130,6 +133,69 @@ class _PodcastsPageState extends State<PodcastsPage> {
         const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
       ],
     );
+  }
+
+  /// Shown before any search -- Apple's public Top Podcasts chart, so the
+  /// page has real content to land on instead of a bare search box.
+  List<Widget> _browseSlivers(int crossAxisCount) {
+    if (_isTrendingLoading) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF))),
+        ),
+      ];
+    }
+    if (_trending.isEmpty) {
+      return const [
+        SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.podcasts_rounded, color: Colors.white24, size: 64),
+                  SizedBox(height: 16),
+                  Text('Search for a podcast to get started', style: TextStyle(color: Colors.white54, fontSize: 16)),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ];
+    }
+    return [
+      SliverPadding(
+        padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
+        sliver: SliverToBoxAdapter(
+          child: Text(
+            'Top Podcasts',
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+      ),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        sliver: SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: crossAxisCount,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 0.78,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, index) => _PodcastCard(podcast: _trending[index]),
+            childCount: _trending.length,
+          ),
+        ),
+      ),
+    ];
   }
 }
 
