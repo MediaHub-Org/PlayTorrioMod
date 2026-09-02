@@ -383,15 +383,15 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
   }
 
   Widget _buildHeroSlide(BuildContext context, Movie movie) {
-    // The poster, force-cropped into this landscape slot -- not the
-    // addon's own `background` field. Unlike Anime's bannerImage (AniList
-    // curates that field to actually be a landscape banner), a Stremio
-    // addon's `background` has no such guarantee: some addons put an
-    // unrelated portrait image there instead of a real backdrop, which
-    // read as a wrong picture rather than just a tighter crop. The poster
-    // is always a real, correctly-matched image of the title.
-    final heroImage = movie.poster;
     final detail = _heroDetails[movie.id];
+    // Upstream's own Home hero (home_page.dart:1000) uses exactly this --
+    // detail?.background ?? movie.poster -- the per-item enriched
+    // MetadataService fetch's background, not the raw catalog list's own
+    // `movie.background`. The catalog list's field is the one that turned
+    // out unreliable (some addons put an unrelated portrait image there
+    // instead of a real backdrop); the full per-title meta fetch is the
+    // addon's higher-quality response and is what upstream trusts.
+    final heroImage = detail?.background ?? movie.poster;
     final isCompact = MediaQuery.sizeOf(context).width < 600;
     void openDetails({bool autoPlay = false}) => Navigator.push(
       context,
