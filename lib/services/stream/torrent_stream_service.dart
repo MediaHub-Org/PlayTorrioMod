@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:torrserver_flutter/torrserver_flutter.dart';
 
-import '../../utils/torrent/parse_torrent_title.dart';
 import '../../models/download/download_task_model.dart';
 import '../download/download_service.dart';
+import '../debrid/utils/debrid_media_matcher.dart';
 
 /// Rich torrent statistics object.
 class TorrentStats {
@@ -66,8 +66,6 @@ class TorrentStreamService {
 
   /// Latest torrent update snapshots keyed by infohash.
   final Map<String, TorrentInfo> _latestUpdates = {};
-
-  final ParseTorrentTitle _ptt = ParseTorrentTitle();
 
   // ─────────────────────────────────────────────────────────────────────────
   // Lifecycle
@@ -141,6 +139,7 @@ class TorrentStreamService {
     String magnetLink, {
     int? season,
     int? episode,
+    String? episodeTitle,
     int? fileIdx,
   }) async {
     if (!_controller.isRunning || _state != EngineState.ready) {
@@ -189,6 +188,7 @@ class TorrentStreamService {
         files,
         season: season,
         episode: episode,
+        episodeTitle: episodeTitle,
         preferredIdx: fileIdx,
       );
 
@@ -280,83 +280,29 @@ class TorrentStreamService {
   // ─────────────────────────────────────────────────────────────────────────
   // File selection — intelligent auto file picker
   // ─────────────────────────────────────────────────────────────────────────
-
-  bool _isMediaFile(String name) {
-    final lower = name.toLowerCase();
-    return lower.endsWith('.mp4') ||
-        lower.endsWith('.mkv') ||
-        lower.endsWith('.avi') ||
-        lower.endsWith('.webm') ||
-        lower.endsWith('.mov') ||
-        lower.endsWith('.flv') ||
-        lower.endsWith('.ts') ||
-        lower.endsWith('.mp3') ||
-        lower.endsWith('.m4b') ||
-        lower.endsWith('.m4a') ||
-        lower.endsWith('.aac') ||
-        lower.endsWith('.flac') ||
-        lower.endsWith('.ogg') ||
-        lower.endsWith('.opus') ||
-        lower.endsWith('.wav');
-  }
-
-  bool _isFileMatch(String name, int targetSeason, int targetEpisode) {
-    final result = _ptt.parse(name);
-    final parsedSeason = result['season'] as int?;
-    final parsedEpisode = result['episode'] as int?;
-
-    if (parsedSeason != null && parsedEpisode != null) {
-      return parsedSeason == targetSeason && parsedEpisode == targetEpisode;
-    }
-
-    // If season is missing but episode matches (common for anime and single-season packs)
-    if (parsedSeason == null && parsedEpisode != null) {
-      return parsedEpisode == targetEpisode;
-    }
-
-    return false;
-  }
+  // File selection — intelligent auto file picker
+  // ─────────────────────────────────────────────────────────────────────────
 
   int? _selectFile(
     List<TorrentFileStat> files, {
     int? season,
     int? episode,
+    String? episodeTitle,
     int? preferredIdx,
   }) {
     if (files.isEmpty) return null;
 
-    // 1. Preferred index from caller (e.g. Audiobook chapter index)
-    if (preferredIdx != null) {
-      final match = files.where((f) => f.id == preferredIdx).toList();
-      if (match.isNotEmpty) {
-        return match.first.id;
-      }
-    }
+    final picked = DebridMediaMatcher.pickMediaFile<TorrentFileStat>(
+      files,
+      fileIndex: preferredIdx,
+      season: season,
+      episode: episode,
+      episodeTitle: episodeTitle,
+      name: (f) => f.path,
+      size: (f) => f.length,
+    );
 
-    // Filter to media files (video + audio)
-    final mediaFiles = files.where((f) => _isMediaFile(f.path)).toList();
-    if (mediaFiles.isEmpty) {
-      // Fallback: largest file among all
-      final sorted = List<TorrentFileStat>.from(files)
-        ..sort((a, b) => b.length.compareTo(a.length));
-      return sorted.first.id;
-    }
-
-    // 2. Season/episode match
-    if (season != null && episode != null) {
-      final episodeMatches = mediaFiles
-          .where((f) => _isFileMatch(f.path, season, episode))
-          .toList();
-      if (episodeMatches.isNotEmpty) {
-        episodeMatches.sort((a, b) => b.length.compareTo(a.length));
-        return episodeMatches.first.id;
-      }
-    }
-
-    // 3. Largest media file
-    final sorted = List<TorrentFileStat>.from(mediaFiles)
-      ..sort((a, b) => b.length.compareTo(a.length));
-    return sorted.first.id;
+    return picked?.id;
   }
 
   // ─────────────────────────────────────────────────────────────────────────

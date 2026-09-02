@@ -90,6 +90,7 @@ class AllDebridService {
     String? filename,
     int? season,
     int? episode,
+    String? episodeTitle,
   }) async {
     final apiKey = await getKey();
     if (apiKey == null || apiKey.isEmpty) {
@@ -173,6 +174,7 @@ class AllDebridService {
       filename: filename,
       season: season,
       episode: episode,
+      episodeTitle: episodeTitle,
       name: (f) => (f['path'] as String?) ?? '',
       size: (f) => (f['size'] as num?)?.toInt() ?? 0,
     );

@@ -323,6 +323,7 @@ class ContinueWatchingService {
       episodeId: episode?.id,
       streamName: source.name,
       streamTitle: source.displayTitle,
+      streamDescription: source.description ?? source.title,
       addonName: source.addonName,
       quality: source.quality,
       isTorrent: isTorrent,
@@ -799,10 +800,12 @@ class ContinueWatchingService {
 
       StreamSource? selectedSource;
       if (animeSources.isNotEmpty) {
-        selectedSource = animeSources.firstWhere(
-          (s) => s.name == item.streamName,
-          orElse: () => animeSources.first,
-        );
+        animeSources.sort((a, b) {
+          final scoreA = calculateSourceMatchScore(a, item);
+          final scoreB = calculateSourceMatchScore(b, item);
+          return scoreB.compareTo(scoreA);
+        });
+        selectedSource = animeSources.first;
       }
 
       if (selectedSource != null) {
@@ -922,8 +925,9 @@ class ContinueWatchingService {
       sub = stream.listen(
         (source) {
           candidateSources.add(source);
-          if (source.addonName == item.addonName &&
-              (source.quality == item.quality || source.name == item.streamName)) {
+          // If we found an exceptionally strong match (matching release tags, quality, or exact hash), we can finish promptly
+          final matchScore = calculateSourceMatchScore(source, item);
+          if (matchScore >= 350.0) {
             if (!completer.isCompleted) completer.complete();
           }
         },
@@ -945,26 +949,18 @@ class ContinueWatchingService {
 
     if (!context.mounted) return;
 
-    // Pick best match from rescraped sources
-    StreamSource? selectedSource;
+    // Rank all rescraped candidate sources using our semantic matcher
+    candidateSources.sort((a, b) {
+      final scoreA = calculateSourceMatchScore(a, item);
+      final scoreB = calculateSourceMatchScore(b, item);
+      return scoreB.compareTo(scoreA);
+    });
 
-    // Rule A: If saved as PlayTorrioHTTP, strictly select from PlayTorrioHTTP
-    if (item.addonName == 'PlayTorrioHTTP') {
-      final httpSources = candidateSources.where((s) => s.addonName == 'PlayTorrioHTTP').toList();
-      if (httpSources.isNotEmpty) {
-        selectedSource = httpSources.firstWhere(
-          (s) => s.name == item.streamName || s.quality == item.quality,
-          orElse: () => httpSources.first,
-        );
-      }
-    } else if (candidateSources.isNotEmpty) {
-      selectedSource = candidateSources.firstWhere(
-        (s) => s.addonName == item.addonName && (s.name == item.streamName || s.quality == item.quality),
-        orElse: () => candidateSources.firstWhere(
-          (s) => s.quality == item.quality,
-          orElse: () => candidateSources.first,
-        ),
-      );
+    StreamSource? selectedSource;
+    if (candidateSources.isNotEmpty) {
+      selectedSource = candidateSources.first;
+      final bestScore = calculateSourceMatchScore(selectedSource, item);
+      debugPrint('[ContinueWatchingService] Best source match: "${selectedSource.addonName} - ${selectedSource.displayTitle}" (Match Score: $bestScore)');
     }
 
     if (selectedSource != null) {
@@ -996,5 +992,164 @@ class ContinueWatchingService {
         ),
       );
     }
+  }
+
+  /// Calculates a comprehensive relevance/match score between a rescraped [candidate] stream
+  /// and the saved [target] continue-watching session.
+  ///
+  /// Matches on:
+  /// 1. Exact infoHash / magnet / URL fingerprint (+1000 pts)
+  /// 2. Addon Provider (+150 pts)
+  /// 3. Stream / Scraper Name match (+80 pts)
+  /// 4. Video filename, description & release group tags (FLUX, PSA, GalaxyRG, YTS, EZTV, WEB-DL, BluRay, etc.) (+35 pts per tag)
+  /// 5. Resolution / Quality match (+80 pts)
+  /// 6. Audio / Video Codec / HDR tags match (+30 pts)
+  /// 7. Text Token Overlap (Jaccard / Dice similarity on words) (+120 pts)
+  /// 8. Stream Type (Torrent / Debrid / Direct HTTP) consistency (+40 pts)
+  static double calculateSourceMatchScore(
+    StreamSource candidate,
+    ContinueWatchingItem target,
+  ) {
+    double score = 0.0;
+
+    // 1. Exact Unique Fingerprints
+    if (target.infoHash != null &&
+        target.infoHash!.isNotEmpty &&
+        candidate.infoHash != null &&
+        candidate.infoHash!.toLowerCase() == target.infoHash!.toLowerCase()) {
+      score += 1000.0;
+      if (target.fileIdx != null && candidate.fileIdx == target.fileIdx) {
+        score += 200.0;
+      }
+    }
+
+    if (target.rawUrl != null &&
+        target.rawUrl!.isNotEmpty &&
+        candidate.url != null &&
+        candidate.url == target.rawUrl) {
+      score += 1000.0;
+    }
+
+    // 2. Addon Provider Match
+    final targetAddon = (target.addonName ?? '').trim().toLowerCase();
+    final candidateAddon = candidate.addonName.trim().toLowerCase();
+    if (targetAddon.isNotEmpty && targetAddon == candidateAddon) {
+      score += 150.0;
+    }
+
+    // 3. Stream Scraper / Server Name Match
+    final targetName = (target.streamName ?? '').trim().toLowerCase();
+    final candidateName = (candidate.name ?? '').trim().toLowerCase();
+    if (targetName.isNotEmpty && candidateName.isNotEmpty) {
+      if (targetName == candidateName) {
+        score += 80.0;
+      } else if (candidateName.contains(targetName) || targetName.contains(candidateName)) {
+        score += 40.0;
+      }
+    }
+
+    // 4. Resolution / Quality Match
+    final targetQuality = (target.quality ?? '').trim().toUpperCase();
+    final candidateQuality = (candidate.quality ?? '').trim().toUpperCase();
+    if (targetQuality.isNotEmpty && candidateQuality.isNotEmpty) {
+      if (targetQuality == candidateQuality) {
+        score += 80.0;
+      } else {
+        final diff = (candidate.qualityRank - (target.quality != null ? _parseQualityRank(target.quality!) : 0)).abs();
+        if (diff == 1) {
+          score += 25.0; // Adjacent quality
+        }
+      }
+    }
+
+    // 5. Codec, HDR, and Release Group Tags Match
+    final targetCombinedText = '${target.streamName ?? ''} ${target.streamTitle ?? ''} ${target.streamDescription ?? ''}'.toLowerCase();
+    final candidateCombinedText = '${candidate.name ?? ''} ${candidate.title ?? ''} ${candidate.description ?? ''}'.toLowerCase();
+
+    // HDR Match
+    final targetIsHDR = targetCombinedText.contains('hdr') || targetCombinedText.contains('dolby vision') || targetCombinedText.contains('dv');
+    if (targetIsHDR && candidate.isHDR) {
+      score += 30.0;
+    } else if (!targetIsHDR && !candidate.isHDR) {
+      score += 10.0;
+    }
+
+    // Codec Match
+    final candidateCodec = candidate.codec?.toLowerCase();
+    if (candidateCodec != null && targetCombinedText.contains(candidateCodec)) {
+      score += 30.0;
+    }
+
+    // 6. Release Group & Video Scene Tags Match
+    const knownTags = [
+      'web-dl', 'webdl', 'webrip', 'bluray', 'bdrip', 'brrip', 'hdrip', 'remux',
+      'atmos', 'ddp5.1', 'dts', 'aac', 'ac3', 'truehd', '5.1', '7.1',
+      '10bit', '8bit', 'hevc', 'x265', 'h265', 'x264', 'h264', 'av1',
+      'flux', 'psa', 'yts', 'eztv', 'galaxy', 'galaxyrg', 'rarbg', 'qxr', 'd3g', 'ntb',
+      'amzn', 'nf', 'atvp', 'hmax', 'dnp', 'dsnp', 'hulu', 'bcore', 'framestor', 'epsilon',
+      'proper', 'repack', 'subbed', 'dubbed', 'dual-audio', 'multi',
+    ];
+
+    for (final tag in knownTags) {
+      final inTarget = _hasWordBoundary(targetCombinedText, tag);
+      final inCandidate = _hasWordBoundary(candidateCombinedText, tag);
+      if (inTarget && inCandidate) {
+        score += 35.0; // Boost for matching release groups and video tags!
+      }
+    }
+
+    // 7. Token Overlap / Word Similarity on File Name & Description
+    final targetTokens = _extractMeaningfulTokens(targetCombinedText);
+    final candidateTokens = _extractMeaningfulTokens(candidateCombinedText);
+
+    if (targetTokens.isNotEmpty && candidateTokens.isNotEmpty) {
+      int matchingTokens = 0;
+      for (final token in candidateTokens) {
+        if (targetTokens.contains(token)) {
+          matchingTokens++;
+        }
+      }
+      final overlapRatio = (2.0 * matchingTokens) / (targetTokens.length + candidateTokens.length);
+      score += overlapRatio * 120.0;
+    }
+
+    // 8. Stream Type Consistency (Torrent vs Debrid vs Direct HTTP)
+    if (target.isTorrent == candidate.isTorrent) {
+      score += 40.0;
+    }
+
+    return score;
+  }
+
+  static bool _hasWordBoundary(String text, String word) {
+    if (!text.contains(word)) return false;
+    final regex = RegExp('(^|[^a-z0-9])${RegExp.escape(word)}([^a-z0-9]|\$)', caseSensitive: false);
+    return regex.hasMatch(text);
+  }
+
+  static Set<String> _extractMeaningfulTokens(String text) {
+    final rawWords = text.split(RegExp(r'[\s\.\-_/\[\]\(\)\+:]+'));
+    const stopWords = {
+      'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'to', 'for', 'with', 'by',
+      'season', 'episode', 'series', 'movie', 'complete', 's', 'e', 'gb', 'mb', 'tb',
+      'kib', 'mib', 'gib', 'torrent', 'stream', 'seeds', 'seeders', 'peers',
+    };
+    final result = <String>{};
+    for (final w in rawWords) {
+      final clean = w.trim().toLowerCase();
+      if (clean.length >= 3 && !stopWords.contains(clean) && !RegExp(r'^\d+$').hasMatch(clean)) {
+        result.add(clean);
+      }
+    }
+    return result;
+  }
+
+  static int _parseQualityRank(String quality) {
+    final q = quality.toUpperCase();
+    if (q.contains('4K') || q.contains('2160')) return 4;
+    if (q.contains('1080')) return 3;
+    if (q.contains('720')) return 2;
+    if (q.contains('480')) return 1;
+    return 0;
   }
 }

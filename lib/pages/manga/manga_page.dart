@@ -230,6 +230,12 @@ class _MangaPageState extends State<MangaPage> {
     );
   }
 
+  void _onRemoveHistory(String mangaId) {
+    _mangaService.removeHistory(mangaId).then((_) {
+      _loadHistory();
+    });
+  }
+
   void _showMangaCustomizer(BuildContext context) {
     final palette = AppThemeService.currentPalette.value;
 
@@ -608,6 +614,7 @@ class _MangaPageState extends State<MangaPage> {
             child: _ContinueReadingSlider(
               readingHistory: _readingHistory,
               onResume: _resumeReading,
+              onRemove: _onRemoveHistory,
               screenWidth: _screenWidth,
               isMobile: isMobile,
             ),
@@ -698,12 +705,14 @@ class _MangaPageState extends State<MangaPage> {
 class _ContinueReadingSlider extends StatefulWidget {
   final List<Map<String, dynamic>> readingHistory;
   final void Function(Map<String, dynamic>) onResume;
+  final void Function(String mangaId) onRemove;
   final double screenWidth;
   final bool isMobile;
 
   const _ContinueReadingSlider({
     required this.readingHistory,
     required this.onResume,
+    required this.onRemove,
     required this.screenWidth,
     required this.isMobile,
   });
@@ -831,6 +840,7 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
   Widget _buildHistoryCard(Map<String, dynamic> entry) {
     final palette = AppThemeService.currentPalette.value;
     final mangaJson = entry['manga'];
+    final mangaId = (mangaJson['id'] ?? '').toString();
     final title = mangaJson['title'] ?? 'Unknown';
     final coverUrl =
         mangaJson['cover_normal'] ?? mangaJson['cover_small'] ?? '';
@@ -940,6 +950,43 @@ class _ContinueReadingSliderState extends State<_ContinueReadingSlider> {
                               ],
                             ),
                           ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                // Remove from Continue Reading Button
+                Positioned(
+                  top: 16,
+                  left: 16,
+                  child: Tooltip(
+                    message: 'Remove from Continue Reading',
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        onTap: () => widget.onRemove(mangaId),
+                        borderRadius: BorderRadius.circular(20),
+                        child: Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.65),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.2),
+                              width: 1.0,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.5),
+                                blurRadius: 8,
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         ),
                       ),
                     ),

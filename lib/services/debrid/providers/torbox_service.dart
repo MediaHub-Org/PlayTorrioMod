@@ -55,6 +55,7 @@ class TorBoxService {
     String? filename,
     int? season,
     int? episode,
+    String? episodeTitle,
   }) async {
     final apiKey = await getKey();
     if (apiKey == null || apiKey.isEmpty) {
@@ -115,6 +116,7 @@ class TorBoxService {
       filename: filename,
       season: season,
       episode: episode,
+      episodeTitle: episodeTitle,
       name: (f) => (f['name'] as String?) ?? '',
       size: (f) => (f['size'] as num?)?.toInt() ?? 0,
     );

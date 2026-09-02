@@ -171,16 +171,23 @@ class ParseTorrentTitle {
     addHandler('encoder', RegExp(r'-[ ([]*(?:(\w+)[ \][)]+)\w+(?:\.\w+)?(?<!\.mkv|\.mp4)[)\]]?(?:\.(?:mkv|mp4))?$', caseSensitive: false));
 
     // Season
-    addHandler('season', RegExp(r'([0-9]{1,2})xall', caseSensitive: false), type: 'integer');
+    addHandler('season', RegExp(r'([0-9]{1,2})[xX×✕✖]all', caseSensitive: false), type: 'integer');
     addHandler('season', RegExp(r'S([0-9]{1,2}) ?E[0-9]{1,2}', caseSensitive: false), type: 'integer');
-    addHandler('season', RegExp(r'([0-9]{1,2})x[0-9]{1,2}'), type: 'integer');
+    addHandler('season', RegExp(r'([0-9]{1,2})[xX×✕✖][0-9]{1,2}', caseSensitive: false), type: 'integer');
     addHandler('season', RegExp(r'(?:Saison|Season)[. _-]?([0-9]{1,2})', caseSensitive: false), type: 'integer');
     addHandler('season', RegExp(r'\bS([0-9]{1,2})(?![0-9])', caseSensitive: false), type: 'integer');
+    addHandler('season', RegExp(r'\[([0-9]{1,2})[._ -]([0-9]{1,2})\]', caseSensitive: false), type: 'integer');
+    addHandler('season', RegExp(r'\b0*([0-9]{1,2})\s*-\s*0*[0-9]{1,2}\b'), type: 'integer');
 
     // Episode
     addHandler('episode', RegExp(r'S[0-9]{1,2} ?E([0-9]{1,5})', caseSensitive: false), type: 'integer');
-    addHandler('episode', RegExp(r'[0-9]{1,2}x([0-9]{1,5})'), type: 'integer');
+    addHandler('episode', RegExp(r'[0-9]{1,2}[xX×✕✖]([0-9]{1,5})', caseSensitive: false), type: 'integer');
     addHandler('episode', RegExp(r'[ée]p(?:isode)?[. _-]?([0-9]{1,5})', caseSensitive: false), type: 'integer');
+    addHandler('episode', RegExp(r'\bE([0-9]{1,5})\b', caseSensitive: false), type: 'integer');
+    addHandler('episode', RegExp(r'\[[0-9]{1,2}[._ -]([0-9]{1,2})\]', caseSensitive: false), type: 'integer');
+    addHandler('episode', RegExp(r'\b0*[0-9]{1,2}\s*-\s*0*([0-9]{1,2})\b'), type: 'integer');
+    addHandler('episode', RegExp(r'^0*([0-9]{1,4})[ ._-]+[a-zA-Z]'), type: 'integer');
+    addHandler('episode', RegExp(r'(?:^|[\\/])0*([0-9]{1,4})\.[a-zA-Z0-9]+$'), type: 'integer');
 
     // Language
     addHandler('language', RegExp(r'\bMULTi(?:Lang|-audio|-VF2)?\b', caseSensitive: false), value: 'multi');
@@ -278,7 +285,17 @@ class ParseTorrentTitle {
     return cleanedTitle;
   }
 
-  Map<String, dynamic> parse(String title) {
+  static String normalizeTorrentTitle(String title) {
+    return title
+        .replaceAll('×', 'x')
+        .replaceAll('✕', 'x')
+        .replaceAll('✖', 'x')
+        .replaceAll('Х', 'x')
+        .replaceAll('х', 'x');
+  }
+
+  Map<String, dynamic> parse(String rawTitle) {
+    final String title = normalizeTorrentTitle(rawTitle);
     final Map<String, dynamic> result = {};
     int endOfTitle = title.length;
 
@@ -290,9 +307,56 @@ class ParseTorrentTitle {
       }
     }
 
+    // Multi-episode range check (e.g. S01E01-E04, S05E03-E04, 01x01-04, 01-04, E01-E04)
+    final rangeRegexes = [
+      RegExp(r'S[0-9]{1,2}[ ._x-]*E([0-9]{1,4})[ ._x\-\+~]+(?:E|e)?([0-9]{1,4})', caseSensitive: false),
+      RegExp(r'[0-9]{1,2}[xX]([0-9]{1,4})[ ._x\-\+~]+(?:[0-9]{1,2}[xX])?([0-9]{1,4})', caseSensitive: false),
+      RegExp(r'\bE([0-9]{1,4})[ ._x\-\+~]+(?:E|e)?([0-9]{1,4})\b', caseSensitive: false),
+      RegExp(r'\b0*([0-9]{1,4})\s*-\s*0*([0-9]{1,4})\b'),
+    ];
+    for (final r in rangeRegexes) {
+      final m = r.firstMatch(title);
+      if (m != null) {
+        final start = int.tryParse(m.group(1) ?? '');
+        final end = int.tryParse(m.group(2) ?? '');
+        if (start != null && end != null && end > start && (end - start) <= 25) {
+          result['episodeRange'] = [start, end];
+          break;
+        }
+      }
+    }
+
     result['title'] = _cleanTitle(title.substring(0, endOfTitle));
 
     return result;
+  }
+
+  /// Parses full directory file path (e.g. "Show/Season 05/01 - Episode.mkv")
+  /// merging parent folder season metadata if the filename alone only contains episode numbering.
+  Map<String, dynamic> parsePath(String fullPath) {
+    final normalized = fullPath.replaceAll('\\', '/');
+    final segments = normalized.split('/').where((s) => s.trim().isNotEmpty).toList();
+    if (segments.isEmpty) return parse(fullPath);
+
+    final filename = segments.last;
+    final fileResult = parse(filename);
+
+    // If season is already detected in filename, return it
+    if (fileResult['season'] != null) {
+      return fileResult;
+    }
+
+    // Inspect parent directories for season (e.g. "Season 05", "S05", "S5")
+    for (int i = segments.length - 2; i >= 0; i--) {
+      final folder = segments[i];
+      final folderResult = parse(folder);
+      if (folderResult['season'] != null) {
+        fileResult['season'] = folderResult['season'];
+        break;
+      }
+    }
+
+    return fileResult;
   }
 }
 

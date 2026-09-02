@@ -55,6 +55,7 @@ class RealDebridService {
     String? filename,
     int? season,
     int? episode,
+    String? episodeTitle,
   }) async {
     final token = await getToken();
     if (token == null || token.isEmpty) {
@@ -114,6 +115,7 @@ class RealDebridService {
       filename: filename,
       season: season,
       episode: episode,
+      episodeTitle: episodeTitle,
       name: (f) => (f['path'] as String?) ?? '',
       size: (f) => (f['bytes'] as num?)?.toInt() ?? 0,
     );

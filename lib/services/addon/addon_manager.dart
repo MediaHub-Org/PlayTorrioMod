@@ -7,6 +7,7 @@ import '../../models/movie/movie.dart';
 import '../../models/movie/movie_section.dart';
 import '../../utils/search/relevance_scorer.dart';
 import '../metadata/metadata_service.dart';
+import '../p2p/p2p_settings_service.dart';
 
 /// Manages installed Stremio metadata addons.
 ///
@@ -22,22 +23,126 @@ class AddonManager {
   List<InstalledAddon> _addons = [];
   bool _initialized = false;
 
-  List<InstalledAddon> get addons => List.unmodifiable(_addons);
+  void _ensureBuiltInsExist() {
+    bool changed = false;
+    if (!_addons.any((a) => a.manifest.id == 'builtin.playtorrio' || a.baseUrl == 'builtin:playtorrio')) {
+      _addons.add(playTorrioBuiltin);
+      changed = true;
+    }
+    if (!_addons.any((a) => a.manifest.id == 'builtin.playtorriohttp' || a.baseUrl == 'builtin:playtorriohttp')) {
+      _addons.add(playTorrioHttpBuiltin);
+      changed = true;
+    }
+    if (changed && _initialized) {
+      _save();
+    }
+  }
 
-  List<InstalledAddon> get activeAddons =>
-      _addons.where((a) => a.enabled).toList();
+  List<InstalledAddon> get addons {
+    _ensureBuiltInsExist();
+    return List.unmodifiable(_addons);
+  }
 
-  List<InstalledAddon> get activeCatalogAddons =>
-      _addons.where((a) => a.isCatalogsActive).toList();
+  List<InstalledAddon> get activeAddons {
+    _ensureBuiltInsExist();
+    return _addons.where((a) => a.enabled).toList();
+  }
 
-  List<InstalledAddon> get activeSearchAddons =>
-      _addons.where((a) => a.isSearchActive).toList();
+  List<InstalledAddon> get activeCatalogAddons {
+    _ensureBuiltInsExist();
+    return _addons.where((a) => a.isCatalogsActive).toList();
+  }
 
-  List<InstalledAddon> get activeSubtitleAddons =>
-      _addons.where((a) => a.isSubtitlesActive).toList();
+  List<InstalledAddon> get activeSearchAddons {
+    _ensureBuiltInsExist();
+    return _addons.where((a) => a.isSearchActive).toList();
+  }
 
-  List<InstalledAddon> get activeStreamAddons =>
-      _addons.where((a) => a.isStreamsActive).toList();
+  List<InstalledAddon> get activeSubtitleAddons {
+    _ensureBuiltInsExist();
+    return _addons.where((a) => a.isSubtitlesActive).toList();
+  }
+
+  List<InstalledAddon> get activeStreamAddons {
+    _ensureBuiltInsExist();
+    return _addons.where((a) => a.isStreamsActive && !a.baseUrl.startsWith('builtin:')).toList();
+  }
+
+  bool get isPlayTorrioActive {
+    _ensureBuiltInsExist();
+    final p2p = _addons.firstWhere(
+      (a) => a.manifest.id == 'builtin.playtorrio' || a.baseUrl == 'builtin:playtorrio',
+      orElse: () => playTorrioBuiltin,
+    );
+    return p2p.isStreamsActive;
+  }
+
+  bool get isPlayTorrioHttpActive {
+    _ensureBuiltInsExist();
+    final http = _addons.firstWhere(
+      (a) => a.manifest.id == 'builtin.playtorriohttp' || a.baseUrl == 'builtin:playtorriohttp',
+      orElse: () => playTorrioHttpBuiltin,
+    );
+    return http.isStreamsActive;
+  }
+
+  /// Returns the logo URL or asset path for a given addon name or id.
+  String? getAddonLogo(String addonName) {
+    _ensureBuiltInsExist();
+    final nameLower = addonName.trim().toLowerCase();
+    if (nameLower == 'playtorrio' ||
+        nameLower == 'playtorriohttp' ||
+        nameLower.startsWith('builtin')) {
+      return 'asset:assets/icon.png';
+    }
+    for (final addon in _addons) {
+      if (addon.manifest.name.toLowerCase() == nameLower ||
+          addon.manifest.id.toLowerCase() == nameLower) {
+        if (addon.manifest.logo != null && addon.manifest.logo!.isNotEmpty) {
+          return addon.manifest.logo;
+        }
+      }
+    }
+    return null;
+  }
+
+  static final InstalledAddon playTorrioBuiltin = InstalledAddon(
+    baseUrl: 'builtin:playtorrio',
+    manifest: AddonManifest(
+      id: 'builtin.playtorrio',
+      name: 'PlayTorrio',
+      version: '3.0.0',
+      description: 'Built-in BitTorrent P2P streaming engine (TorrServer). Plays torrents, magnets, and infohashes directly.',
+      resources: ['stream'],
+      types: ['movie', 'series', 'anime'],
+      idPrefixes: ['tt', 'tmdb:', 'kitsu:', 'mal:'],
+      catalogs: [],
+    ),
+    enabled: true,
+    enableCatalogs: false,
+    enableSearch: false,
+    enableSubtitles: false,
+    enableStreams: true,
+  );
+
+  static final InstalledAddon playTorrioHttpBuiltin = InstalledAddon(
+    baseUrl: 'builtin:playtorriohttp',
+    manifest: AddonManifest(
+      id: 'builtin.playtorriohttp',
+      name: 'PlayTorrioHTTP',
+      version: '3.0.0',
+      description: 'Built-in fast HTTP stream scrapers (111477, Cinejoy, Vuflix, Movy, RiveStream, Vadapav, VidCore, VidSrc, etc.)',
+      resources: ['stream'],
+      types: ['movie', 'series', 'anime'],
+      idPrefixes: ['tt', 'tmdb:', 'kitsu:', 'mal:'],
+      catalogs: [],
+    ),
+    enabled: true,
+    enableCatalogs: false,
+    enableSearch: false,
+    enableSubtitles: false,
+    enableStreams: true,
+  );
 
   // ── Initialization ────────────────────────────────────────────────────
 
@@ -67,10 +172,61 @@ class AddonManager {
       }
     }
 
+    // Ensure PlayTorrio P2P engine is registered in the list
+    if (!_addons.any((a) => a.manifest.id == 'builtin.playtorrio' || a.baseUrl == 'builtin:playtorrio')) {
+      _addons.add(playTorrioBuiltin);
+      await _save();
+    }
+
+    // Ensure PlayTorrioHTTP is registered in the list
+    if (!_addons.any((a) => a.manifest.id == 'builtin.playtorriohttp' || a.baseUrl == 'builtin:playtorriohttp')) {
+      _addons.add(playTorrioHttpBuiltin);
+      await _save();
+    }
+
+    // Sync P2P state
+    final p2pAddon = _addons.firstWhere(
+      (a) => a.manifest.id == 'builtin.playtorrio' || a.baseUrl == 'builtin:playtorrio',
+      orElse: () => playTorrioBuiltin,
+    );
+    P2pSettingsService.isP2pEnabled.value = p2pAddon.isStreamsActive;
+
     _initialized = true;
   }
 
-  // ── Add / Remove / Toggle ─────────────────────────────────────────────
+  // ── Add / Remove / Toggle / Reorder ───────────────────────────────────
+
+  /// Reorder addons by index and persist to storage.
+  Future<void> reorderAddons(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 || oldIndex >= _addons.length) return;
+    if (newIndex < 0 || newIndex > _addons.length) return;
+
+    if (oldIndex < newIndex) {
+      newIndex -= 1;
+    }
+    final item = _addons.removeAt(oldIndex);
+    _addons.insert(newIndex, item);
+    MetadataService.clearCache();
+    await _save();
+  }
+
+  /// Move addon up by 1 position.
+  Future<void> moveAddonUp(int index) async {
+    if (index <= 0 || index >= _addons.length) return;
+    final item = _addons.removeAt(index);
+    _addons.insert(index - 1, item);
+    MetadataService.clearCache();
+    await _save();
+  }
+
+  /// Move addon down by 1 position.
+  Future<void> moveAddonDown(int index) async {
+    if (index < 0 || index >= _addons.length - 1) return;
+    final item = _addons.removeAt(index);
+    _addons.insert(index + 1, item);
+    MetadataService.clearCache();
+    await _save();
+  }
 
   /// Install an addon by its base URL or manifest URL.
   Future<InstalledAddon> addAddon(String url) async {
@@ -117,6 +273,11 @@ class AddonManager {
   }
 
   Future<void> removeAddon(String addonId) async {
+    if (addonId == 'builtin.playtorrio' || addonId == 'builtin.playtorriohttp') {
+      // For built-in providers, disable instead of deleting
+      await toggleAddon(addonId, false);
+      return;
+    }
     _addons.removeWhere((a) => a.manifest.id == addonId);
     MetadataService.clearCache();
     await _save();
@@ -128,6 +289,9 @@ class AddonManager {
         addon.enabled = enabled;
         break;
       }
+    }
+    if (addonId == 'builtin.playtorrio') {
+      await P2pSettingsService.setP2pEnabled(enabled);
     }
     MetadataService.clearCache();
     await _save();
@@ -148,6 +312,9 @@ class AddonManager {
         if (enableStreams != null) addon.enableStreams = enableStreams;
         break;
       }
+    }
+    if (addonId == 'builtin.playtorrio' && enableStreams != null) {
+      await P2pSettingsService.setP2pEnabled(enableStreams);
     }
     MetadataService.clearCache();
     await _save();

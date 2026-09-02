@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../models/movie/movie_section.dart';
+import '../../pages/calendar/tv_calendar_page.dart';
 import '../../pages/catalog/catalog_page.dart';
+import '../../services/theme/app_theme_service.dart';
 import '../../utils/navigation/route_transitions.dart';
 import './movie_card.dart';
 import '../common/horizontal_slider_scroll.dart';
@@ -10,10 +12,12 @@ import '../common/slider_arrow.dart';
 
 class MovieSliderSection extends StatefulWidget {
   final MovieSection section;
+  final bool showCalendarButton;
 
   const MovieSliderSection({
     super.key,
     required this.section,
+    this.showCalendarButton = false,
   });
 
   @override
@@ -40,6 +44,46 @@ class _MovieSliderSectionState extends State<MovieSliderSection>
             child: SectionHeader(
               title: widget.section.title,
               subtitle: widget.section.subtitle,
+              trailing: widget.showCalendarButton
+                  ? InkWell(
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const TvCalendarPage()),
+                        );
+                      },
+                      borderRadius: BorderRadius.circular(12),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: 0.12),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.calendar_month_rounded,
+                              size: 14,
+                              color: AppThemeService.currentPalette.value.primaryColor,
+                            ),
+                            const SizedBox(width: 5),
+                            const Text(
+                              'Calendar',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  : null,
               onSeeAll: () {
                 Navigator.push(
                   context,

@@ -346,13 +346,14 @@ class _PlayerScreenState extends State<PlayerScreen>
         }
 
         final useDebrid = await DebridService().isDebridActiveForStreams();
+        final seasonNum = _currentEpisode?.season;
+        final episodeNum = _currentEpisode?.episode;
+        final epTitle = _currentEpisode?.title;
+
         if (useDebrid) {
           final activeService = await DebridService().getSelectedService();
           if (!mounted) return;
           setState(() => _statusMessage = 'Using $activeService for files...');
-
-          final seasonNum = _currentEpisode?.season;
-          final episodeNum = _currentEpisode?.episode;
 
           final debridFiles = await DebridService().resolveMagnet(
             magnet: magnet,
@@ -360,6 +361,7 @@ class _PlayerScreenState extends State<PlayerScreen>
             filename: _currentTitle,
             season: seasonNum,
             episode: episodeNum,
+            episodeTitle: epTitle,
           );
 
           if (debridFiles.isEmpty || debridFiles.first.downloadUrl.isEmpty) {
@@ -374,6 +376,9 @@ class _PlayerScreenState extends State<PlayerScreen>
 
           streamUrl = await TorrentStreamService().streamTorrent(
             magnet,
+            season: seasonNum,
+            episode: episodeNum,
+            episodeTitle: epTitle,
             fileIdx: _currentSource.fileIdx,
           );
         }

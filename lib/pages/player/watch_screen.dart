@@ -17,6 +17,7 @@ import '../../models/movie/movie_detail.dart';
 import '../../models/stream/stream_model.dart';
 import '../../models/download/download_task_model.dart';
 import './player_screen.dart';
+import '../../services/addon/addon_manager.dart';
 import '../../services/stream/stream_service.dart';
 import '../../services/download/download_service.dart';
 import '../../services/theme/glass_settings.dart';
@@ -195,6 +196,7 @@ class _WatchScreenState extends State<WatchScreen>
   String? _selectedAddonFilter;
   String? _selectedSizeFilter;
   String _selectedTypeFilter = 'all'; // 'all', 'debrid', 'torrent', 'direct'
+  String _selectedSeederFilter = 'all'; // 'all', 'most', '50+', '20+', '5+', '1+'
 
   List<StreamSource> get _filteredSources {
     var list = List<StreamSource>.from(_sources);
@@ -243,14 +245,75 @@ class _WatchScreenState extends State<WatchScreen>
       }
     }
 
-    if (_selectedSizeFilter == 'largest') {
+    if (_selectedSeederFilter == '50+') {
+      list = list.where((s) => (s.seeders ?? 0) >= 50).toList();
+    } else if (_selectedSeederFilter == '20+') {
+      list = list.where((s) => (s.seeders ?? 0) >= 20).toList();
+    } else if (_selectedSeederFilter == '5+') {
+      list = list.where((s) => (s.seeders ?? 0) >= 5).toList();
+    } else if (_selectedSeederFilter == '1+') {
+      list = list.where((s) => (s.seeders ?? 0) >= 1).toList();
+    }
+
+    // Filter by active status of built-in providers
+    if (!AddonManager.instance.isPlayTorrioActive) {
+      list = list.where((s) => !s.isTorrent || s.isDebrid).toList();
+    }
+    if (!AddonManager.instance.isPlayTorrioHttpActive) {
+      list = list.where((s) => s.addonName.toLowerCase() != 'playtorriohttp').toList();
+    }
+
+    // Dynamic addon priority lookup from user's installed addons order
+    final addonOrder = <String, int>{};
+    final allAddons = AddonManager.instance.addons;
+    for (int i = 0; i < allAddons.length; i++) {
+      final a = allAddons[i];
+      addonOrder[a.manifest.name.toLowerCase()] = i;
+      addonOrder[a.manifest.id.toLowerCase()] = i;
+      if (a.manifest.id == 'builtin.playtorriohttp' || a.baseUrl == 'builtin:playtorriohttp') {
+        addonOrder['playtorriohttp'] = i;
+      }
+      if (a.manifest.id == 'builtin.playtorrio' || a.baseUrl == 'builtin:playtorrio') {
+        addonOrder['playtorrio'] = i;
+      }
+    }
+
+    if (_selectedSeederFilter == 'most') {
+      list.sort((a, b) => (b.seeders ?? 0).compareTo(a.seeders ?? 0));
+    } else if (_selectedSizeFilter == 'largest') {
       list.sort((a, b) => (b.sizeBytes ?? 0).compareTo(a.sizeBytes ?? 0));
     } else if (_selectedSizeFilter == 'smallest') {
       list.sort((a, b) => (a.sizeBytes ?? double.infinity).compareTo(b.sizeBytes ?? double.infinity));
     } else {
-      list.sort((a, b) => b.qualityRank.compareTo(a.qualityRank));
+      list.sort((a, b) {
+        final orderA = addonOrder[a.addonName.toLowerCase()] ?? 999;
+        final orderB = addonOrder[b.addonName.toLowerCase()] ?? 999;
+        if (orderA != orderB) {
+          return orderA.compareTo(orderB);
+        }
+        final qComp = b.qualityRank.compareTo(a.qualityRank);
+        if (qComp != 0) return qComp;
+        return (b.seeders ?? 0).compareTo(a.seeders ?? 0);
+      });
     }
     return list;
+  }
+
+  String _getSeederFilterLabel(String filter) {
+    switch (filter) {
+      case 'most':
+        return 'Most Seeds';
+      case '50+':
+        return '50+ Seeds';
+      case '20+':
+        return '20+ Seeds';
+      case '5+':
+        return '5+ Seeds';
+      case '1+':
+        return 'Active Seeds';
+      default:
+        return 'All Seeds';
+    }
   }
 
   String _getSizeFilterLabel(String? filter) {
@@ -520,6 +583,8 @@ class _WatchScreenState extends State<WatchScreen>
                         physics: const BouncingScrollPhysics(),
                         child: Row(
                           children: [
+                            _buildSeederFilterDropdown(),
+                            const SizedBox(width: 8),
                             _buildSizeFilterDropdown(),
                             const SizedBox(width: 8),
                             _buildAddonFilterDropdown(),
@@ -1042,6 +1107,7 @@ class _WatchScreenState extends State<WatchScreen>
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             const Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.stream_rounded, color: _C.accent, size: 20),
                 SizedBox(width: _S.xs),
@@ -1055,18 +1121,15 @@ class _WatchScreenState extends State<WatchScreen>
                 ),
               ],
             ),
-            if (_sources.isNotEmpty)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _buildSizeFilterDropdown(),
-                  const SizedBox(width: 8),
-                  _buildAddonFilterDropdown(),
-                ],
-              ),
+            Text(
+              _isLoadingSources
+                  ? 'Searching sources...'
+                  : '${filtered.length} source${filtered.length == 1 ? '' : 's'} found',
+              style: const TextStyle(color: _C.textTertiary, fontSize: 12),
+            ),
           ],
         ),
-        const SizedBox(height: _S.sm),
+        const SizedBox(height: 10),
 
         // Stream Type Filter Bar (All / Debrid / Torrents / Direct HTTP)
         if (_sources.isNotEmpty) ...[
@@ -1100,17 +1163,22 @@ class _WatchScreenState extends State<WatchScreen>
               ],
             ),
           ),
-          const SizedBox(height: _S.sm),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                _buildSeederFilterDropdown(),
+                const SizedBox(width: 8),
+                _buildSizeFilterDropdown(),
+                const SizedBox(width: 8),
+                _buildAddonFilterDropdown(),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
         ],
-
-        // Source count
-        Text(
-          _isLoadingSources
-              ? 'Searching sources...'
-              : '${filtered.length} source${filtered.length == 1 ? '' : 's'} found',
-          style: const TextStyle(color: _C.textTertiary, fontSize: 12),
-        ),
-        const SizedBox(height: _S.md),
 
         // Source list
         if (isDesktop)
@@ -1184,6 +1252,207 @@ class _WatchScreenState extends State<WatchScreen>
     );
 
     return list;
+  }
+
+  Widget _buildSeederFilterDropdown() {
+    final currentText = _getSeederFilterLabel(_selectedSeederFilter);
+
+    return Builder(
+      builder: (buttonContext) {
+        return GestureDetector(
+          onTap: () => _showSeederGlassDropdown(buttonContext),
+          child: DecoratedBox(
+            decoration: const BoxDecoration(
+              borderRadius: BorderRadius.all(Radius.circular(18)),
+              boxShadow: [
+                BoxShadow(
+                  color: Color(0x40000000),
+                  blurRadius: 10,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            child: PerformanceLiquidLens(
+              style: PerformanceGlassStyles.menuButton,
+              child: Container(
+                height: 36,
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: _selectedSeederFilter != 'all'
+                        ? const Color(0xFF10B981).withValues(alpha: 0.6)
+                        : const Color(0x26FFFFFF),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.people_alt_rounded,
+                      color: _selectedSeederFilter != 'all'
+                          ? const Color(0xFF10B981)
+                          : Colors.white70,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      currentText,
+                      style: TextStyle(
+                        color: _selectedSeederFilter != 'all'
+                            ? const Color(0xFF10B981)
+                            : Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(
+                      Icons.arrow_drop_down,
+                      color: Colors.white70,
+                      size: 20,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showSeederGlassDropdown(BuildContext buttonContext) {
+    final RenderBox button = buttonContext.findRenderObject() as RenderBox;
+    final RenderBox overlay =
+        Navigator.of(context).overlay!.context.findRenderObject() as RenderBox;
+    final Offset buttonOffset = button.localToGlobal(
+      Offset.zero,
+      ancestor: overlay,
+    );
+    const double dialogWidth = 220.0;
+    final topOffset = (buttonOffset.dy + button.size.height + 8).clamp(8.0, (overlay.size.height - 350.0).clamp(8.0, overlay.size.height));
+    final rawRightOffset = overlay.size.width - buttonOffset.dx - button.size.width;
+    final rightOffset = rawRightOffset.clamp(8.0, (overlay.size.width - dialogWidth - 8.0).clamp(8.0, overlay.size.width));
+
+    showGeneralDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.transparent,
+      transitionDuration: const Duration(milliseconds: 250),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Stack(
+          children: [
+            Positioned(
+              top: topOffset,
+              right: rightOffset,
+              child: Material(
+                color: Colors.transparent,
+                child: TweenAnimationBuilder<double>(
+                  tween: Tween(begin: 0.0, end: 1.0),
+                  duration: const Duration(milliseconds: 250),
+                  curve: Curves.easeOut,
+                  builder: (context, value, child) {
+                    return Transform.translate(
+                      offset: Offset(0, -10 * (1 - value)),
+                      child: Opacity(
+                        opacity: value.clamp(0.0, 1.0),
+                        child: child,
+                      ),
+                    );
+                  },
+                  child: DecoratedBox(
+                    decoration: const BoxDecoration(
+                      borderRadius: BorderRadius.all(Radius.circular(16)),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Color(0x99000000),
+                          blurRadius: 18,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: PerformanceLiquidLens(
+                      style: PerformanceGlassStyles.menu,
+                      child: Container(
+                        width: 220,
+                        constraints: const BoxConstraints(maxHeight: 380),
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: const Color(0x26FFFFFF)),
+                        ),
+                        child: SingleChildScrollView(
+                          physics: const BouncingScrollPhysics(),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildSeederDropdownItem('All Seeds', 'all'),
+                              const SizedBox(height: 4),
+                              Container(
+                                height: 1,
+                                color: Colors.white.withValues(alpha: 0.1),
+                              ),
+                              const SizedBox(height: 4),
+                              _buildSeederDropdownItem('Most Seeds (High to Low)', 'most'),
+                              _buildSeederDropdownItem('50+ Seeds', '50+'),
+                              _buildSeederDropdownItem('20+ Seeds', '20+'),
+                              _buildSeederDropdownItem('5+ Seeds', '5+'),
+                              _buildSeederDropdownItem('Active Seeds (>0)', '1+'),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildSeederDropdownItem(String title, String value) {
+    final isSelected = _selectedSeederFilter == value;
+    return InkWell(
+      onTap: () {
+        setState(() {
+          _selectedSeederFilter = value;
+        });
+        Navigator.pop(context);
+      },
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: isSelected
+              ? Colors.white.withValues(alpha: 0.1)
+              : Colors.transparent,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : Colors.white70,
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                ),
+              ),
+            ),
+            if (isSelected)
+              const Icon(Icons.check_circle, color: Color(0xFF10B981), size: 18),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildSizeFilterDropdown() {
@@ -1679,6 +1948,12 @@ class _SourceCardState extends State<_SourceCard> {
     if (s.isHDR) badges.add(_badge('HDR', const Color(0xFFFFD43B)));
     if (s.codec != null) badges.add(_badge(s.codec!, _C.textTertiary));
     if (s.fileSize != null) badges.add(_badge(s.fileSize!, _C.textTertiary));
+    if (s.seeders != null) {
+      final seederColor = s.seeders! >= 20
+          ? const Color(0xFF10B981)
+          : (s.seeders! >= 5 ? const Color(0xFFFFD43B) : const Color(0xFFFF922B));
+      badges.add(_badge('👤 ${s.seeders} Seeds', seederColor));
+    }
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -1768,19 +2043,7 @@ class _SourceCardState extends State<_SourceCard> {
               child: Row(
                 children: [
                   // Addon icon
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: _C.accent.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: const Icon(
-                      Icons.extension_rounded,
-                      color: _C.accent,
-                      size: 20,
-                    ),
-                  ),
+                  _AddonSourceIcon(addonName: s.addonName),
                   const SizedBox(width: _S.sm),
                   // Info
                   Expanded(
@@ -1960,6 +2223,133 @@ class _SourceCardState extends State<_SourceCard> {
           fontSize: 10,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Addon Source Icon / App Logo
+// ─────────────────────────────────────────────────────────────────────────────
+class _AddonSourceIcon extends StatelessWidget {
+  final String addonName;
+
+  const _AddonSourceIcon({required this.addonName});
+
+  @override
+  Widget build(BuildContext context) {
+    final nameLower = addonName.trim().toLowerCase();
+    final isBuiltIn = nameLower == 'playtorrio' ||
+        nameLower == 'playtorriohttp' ||
+        nameLower.startsWith('builtin');
+
+    if (isBuiltIn) {
+      return Container(
+        width: 40,
+        height: 40,
+        padding: const EdgeInsets.all(5),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: const Color(0xFF7C5CFF).withValues(alpha: 0.25),
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: Image.asset(
+            'assets/icon.png',
+            width: 30,
+            height: 30,
+            fit: BoxFit.contain,
+          ),
+        ),
+      );
+    }
+
+    final logoUrl = AddonManager.instance.getAddonLogo(addonName);
+
+    if (logoUrl != null && logoUrl.isNotEmpty) {
+      if (logoUrl.startsWith('asset:')) {
+        final assetPath = logoUrl.substring('asset:'.length);
+        return Container(
+          width: 40,
+          height: 40,
+          padding: const EdgeInsets.all(5),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.05),
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.asset(
+              assetPath,
+              width: 30,
+              height: 30,
+              fit: BoxFit.contain,
+            ),
+          ),
+        );
+      }
+
+      return Container(
+        width: 40,
+        height: 40,
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.05),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: CachedNetworkImage(
+            imageUrl: logoUrl,
+            width: 32,
+            height: 32,
+            fit: BoxFit.contain,
+            placeholder: (context, url) => Container(
+              color: Colors.white.withValues(alpha: 0.04),
+              child: const Center(
+                child: SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: _C.accent,
+                  ),
+                ),
+              ),
+            ),
+            errorWidget: (context, url, error) => _buildFallbackIcon(),
+          ),
+        ),
+      );
+    }
+
+    return _buildFallbackIcon();
+  }
+
+  Widget _buildFallbackIcon() {
+    final firstLetter = addonName.isNotEmpty ? addonName[0].toUpperCase() : 'A';
+    return Container(
+      width: 40,
+      height: 40,
+      decoration: BoxDecoration(
+        color: _C.accent.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: _C.accent.withValues(alpha: 0.3)),
+      ),
+      child: Center(
+        child: Text(
+          firstLetter,
+          style: const TextStyle(
+            color: _C.accent,
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+          ),
         ),
       ),
     );
