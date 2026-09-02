@@ -10,6 +10,7 @@ import '../../widgets/common/error_view.dart';
 import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/page_search_button.dart';
 import '../../widgets/common/pill_tab_row.dart';
+import '../../widgets/home/continue_watching_slider.dart';
 import '../../widgets/movie/movie_card.dart';
 import '../details/details_page.dart';
 import 'latest_releases.dart';
@@ -218,6 +219,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
     if (!_isFiltered) {
       return BrowseScaffold<Movie>(
         header: _buildHeader(context),
+        belowHero: ContinueWatchingSlider(typeFilter: widget.type),
         isLoading: _loading,
         heroItems: _heroItems,
         rows: [
