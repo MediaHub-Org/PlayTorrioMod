@@ -4,6 +4,10 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased]
 
+### Movies & Series hero image quality/cropping (ROADMAP #13) — 2026-09-02
+- Movies & Series' hero slide (`type_catalog_page.dart`) used `Image.network` with no caching and default center alignment. Anime's own hero already used `CachedNetworkImage` with a slight upward alignment bias and medium filter quality so a portrait poster force-cropped into the landscape hero slot keeps the subject in frame. Brought Movies & Series to the same treatment.
+- Checked Music's "Download Album" button while in the area — already fully wired to `MusicDownloadService.queueTracks` (`music_page.dart:3583`), nothing to fix there.
+
 ### Read hub: PDF support; AnimeLibraryService unification declined (ROADMAP #9/#18) — 2026-09-02
 - **PDF books now read.** Added `pdfrx`, ported upstream's `pdf_reader_page.dart`, and widened `BooksService`'s libgen filter from epub-only to epub+pdf. Found mid-port that `pdf_reader_page.dart`'s upstream reference used a different, disconnected `BookResult`/`ContinueReadingService` pair (`models/book/`) that nothing in this fork's real Read hub actually imports — the live flow runs on `services/books/books_service.dart`'s own `BookResult` and `BookProgressService` instead. Rewrote against the real ones: `openBookReaderFor()` (new, in `book_reader_page.dart`) now picks `BookReaderPage` or `PdfReaderPage` by format at all four places a reader gets opened. Also fixed `BookProgressService.bookFilePath` hardcoding `.epub` regardless of actual format — harmless while epub was the only format, silently wrong the moment PDF could reach it.
 - **Not done**: MOBI/FB2. Upstream normalizes both into the same chapter/HTML shape the EPUB reader consumes, via a parser service this fork never ported — a real, bigger, riskier change than PDF's standalone `pdfrx` viewer. Still open.
