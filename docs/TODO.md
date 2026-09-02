@@ -56,15 +56,16 @@
   between the two. Extracted one shared `SettingsIconButton`
   (`top_bar.dart`), defined mobile-first (the tighter constraint fits both
   cases).
+- [x] **Podcasts click-to-open** — real root cause found:
+  `PodcastPlayerController` was still on `video_player`, same silent-catch
+  failure class already fixed for Audiobooks — a failed stream init just
+  logged and went nowhere, tap looked like it did nothing. Migrated to
+  `media_kit`, mirroring `AudiobookPlayerController`'s pattern. Compiles
+  clean, full analyzer + test suite (237 tests) pass; still no live
+  tap-to-play verification possible in this environment.
 
 ## Still open
 
-- [ ] **Podcasts click-to-open** — checked the code path
-  (`_PodcastCard.onTap` → `PodcastDetailsPage`), looks correct and matches
-  what worked before. Couldn't reproduce without live interaction — no UI
-  automation available in this environment. If this is still happening,
-  need the exact screen it's happening on (trending grid vs. search
-  results vs. Audiobooks' own cards) to dig further.
 - [ ] **#12 (Windows close crash)** — candidate fix already shipped
   (`docs/ROADMAP.md`). Still needs the hands-on close-while-playing-video
   verification that can't be done without UI automation here. No new code

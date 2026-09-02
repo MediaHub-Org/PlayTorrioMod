@@ -1,5 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
+import 'package:media_kit/media_kit.dart';
 
 import '../playback_coordinator.dart';
 import 'podcast_service.dart';
@@ -7,11 +9,20 @@ import 'podcast_service.dart';
 /// Plays one podcast episode at a time in the background, matching
 /// [AudiobookPlayerController]'s shape but simpler -- a podcast episode is
 /// a single audio stream, no chapters.
+///
+/// Built on `media_kit`/libmpv -- was on `video_player` (an audio-only
+/// video player, a leftover workaround), the same issue
+/// AudiobookPlayerController had before its own migration earlier this
+/// session. That engine could fail to initialize a stream silently (a
+/// caught exception, `debugPrint`-only, no UI-visible error) -- tapping an
+/// episode looked like nothing happened at all, matching a report of
+/// podcast playback just not starting.
 class PodcastPlayerController extends ChangeNotifier {
   static final PodcastPlayerController instance = PodcastPlayerController._internal();
   PodcastPlayerController._internal();
 
-  VideoPlayerController? _controller;
+  Player? _controller;
+  final List<StreamSubscription> _subscriptions = [];
   PodcastResult? _podcast;
   PodcastEpisode? _episode;
   bool _isPlaying = false;
@@ -52,20 +63,49 @@ class PodcastPlayerController extends ChangeNotifier {
       onFullStop: stop,
     );
 
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    _subscriptions.clear();
     if (_controller != null) {
-      _controller!.removeListener(_onPlayerStateChanged);
       await _controller!.dispose();
       _controller = null;
     }
 
     try {
-      final controller = VideoPlayerController.networkUrl(Uri.parse(episode.audioUrl));
-      await controller.initialize();
-      controller.addListener(_onPlayerStateChanged);
-      _controller = controller;
+      final player = Player();
+      final media = Media(episode.audioUrl);
+
+      _subscriptions.addAll([
+        player.stream.playing.listen((playing) {
+          if (playing != _isPlaying) {
+            _isPlaying = playing;
+            PlaybackCoordinator.setPlaying(playing);
+            notifyListeners();
+          }
+        }),
+        player.stream.position.listen((pos) {
+          PlaybackCoordinator.setProgress(pos, player.state.duration);
+        }),
+        player.stream.duration.listen((_) => notifyListeners()),
+        player.stream.error.listen((err) {
+          _isLoading = false;
+          _isPlaying = false;
+          debugPrint('Podcast playback error: $err');
+          notifyListeners();
+        }),
+      ]);
+
+      // Open paused, then play -- open() defaults to play:true, which
+      // would start playback a moment before the volume/other setup
+      // below took effect (see MusicPlayerController for the same fix).
+      await player.open(media, play: false);
+      await player.setVolume(100.0);
+      await player.play();
+
+      _controller = player;
       _isLoading = false;
       _isPlaying = true;
-      await controller.play();
       notifyListeners();
     } catch (e) {
       _isLoading = false;
@@ -75,22 +115,9 @@ class PodcastPlayerController extends ChangeNotifier {
     }
   }
 
-  void _onPlayerStateChanged() {
-    final c = _controller;
-    if (c == null) return;
-    final value = c.value;
-    PlaybackCoordinator.setProgress(value.position, value.duration);
-    final playing = value.isPlaying;
-    if (playing != _isPlaying) {
-      _isPlaying = playing;
-      PlaybackCoordinator.setPlaying(playing);
-      notifyListeners();
-    }
-  }
-
   Future<void> togglePlayPause() async {
     if (_controller == null) return;
-    if (_controller!.value.isPlaying) {
+    if (_isPlaying) {
       await _controller!.pause();
     } else {
       await _controller!.play();
@@ -98,14 +125,17 @@ class PodcastPlayerController extends ChangeNotifier {
   }
 
   Future<void> seekTo(Duration position) async {
-    await _controller?.seekTo(position);
+    await _controller?.seek(position);
   }
 
   Future<void> stop() async {
     PlaybackCoordinator.release(
       _podcast != null && _episode != null ? 'podcast:${_podcast!.id}:${_episode!.audioUrl}' : '',
     );
-    _controller?.removeListener(_onPlayerStateChanged);
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    _subscriptions.clear();
     await _controller?.dispose();
     _controller = null;
     _podcast = null;
@@ -117,7 +147,10 @@ class PodcastPlayerController extends ChangeNotifier {
 
   @override
   void dispose() {
-    _controller?.removeListener(_onPlayerStateChanged);
+    for (final s in _subscriptions) {
+      s.cancel();
+    }
+    _subscriptions.clear();
     _controller?.dispose();
     super.dispose();
   }
