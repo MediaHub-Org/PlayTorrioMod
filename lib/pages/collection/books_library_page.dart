@@ -70,12 +70,16 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
   Future<void> _openLikedBook(BookResult book) async {
     final progress = await BookProgressService.instance.loadAll();
     if (!mounted) return;
-    final entry = progress.where((p) => p.book.editionId == book.editionId).firstOrNull;
-    if (entry != null && File(entry.filePath).existsSync() && File(entry.filePath).lengthSync() > 1000) {
+    final entry = progress
+        .where((p) => p.book.editionId == book.editionId)
+        .firstOrNull;
+    if (entry != null &&
+        File(entry.filePath).existsSync() &&
+        File(entry.filePath).lengthSync() > 1000) {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => BookReaderPage(
+          builder: (_) => openBookReaderFor(
             file: File(entry.filePath),
             title: book.title,
             bookResult: book,
@@ -86,7 +90,9 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
       _loadHistory();
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Search for "${book.title}" in Books to download it.')),
+        SnackBar(
+          content: Text('Search for "${book.title}" in Books to download it.'),
+        ),
       );
     }
   }
@@ -129,9 +135,13 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
     final percent = p.durationMs > 0 ? p.positionMs / p.durationMs : null;
     return _HistoryEntry(
       title: p.audiobook.title,
-      coverUrl: p.audiobook.coverImage.isNotEmpty ? p.audiobook.coverImage : null,
+      coverUrl: p.audiobook.coverImage.isNotEmpty
+          ? p.audiobook.coverImage
+          : null,
       fallbackIcon: Icons.headphones_rounded,
-      subtitle: percent != null ? '${(percent * 100).toInt()}% listened' : 'Listening',
+      subtitle: percent != null
+          ? '${(percent * 100).toInt()}% listened'
+          : 'Listening',
       progress: percent,
       timestamp: DateTime.fromMillisecondsSinceEpoch(p.lastListenedTimestamp),
       onTap: () {
@@ -163,7 +173,7 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
           await Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => BookReaderPage(
+              builder: (_) => openBookReaderFor(
                 file: file,
                 title: p.book.title,
                 bookResult: p.book,
@@ -174,7 +184,11 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
           _loadHistory();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('File no longer available — redownload from Books.')),
+            const SnackBar(
+              content: Text(
+                'File no longer available — redownload from Books.',
+              ),
+            ),
           );
         }
       },
@@ -183,17 +197,28 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
           context: context,
           builder: (ctx) => AlertDialog(
             backgroundColor: const Color(0xFF0F121C),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: const Text('Delete Book', style: TextStyle(color: Colors.white)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text(
+              'Delete Book',
+              style: TextStyle(color: Colors.white),
+            ),
             content: Text(
               'Delete "${p.book.title}" and its reading progress?',
               style: const TextStyle(color: Colors.white70),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Cancel'),
+              ),
               TextButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                child: const Text(
+                  'Delete',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
               ),
             ],
           ),
@@ -210,8 +235,12 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
     final manga = Manga.fromJson(entry['manga']);
     final chapterIndex = entry['chapterIndex'] as int;
     final pageIndex = entry['pageIndex'] as int;
-    final chapters = (entry['chapters'] as List).map((c) => MangaChapter.fromJson(c)).toList();
-    final percent = chapters.isNotEmpty ? (chapterIndex + 1) / chapters.length : null;
+    final chapters = (entry['chapters'] as List)
+        .map((c) => MangaChapter.fromJson(c))
+        .toList();
+    final percent = chapters.isNotEmpty
+        ? (chapterIndex + 1) / chapters.length
+        : null;
     return _HistoryEntry(
       title: manga.title,
       coverUrl: manga.coverSmall.isNotEmpty ? manga.coverSmall : null,
@@ -220,19 +249,23 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
           ? 'Chapter ${chapterIndex + 1} of ${chapters.length}'
           : 'Chapter ${chapterIndex + 1}',
       progress: percent,
-      timestamp: DateTime.tryParse(entry['timestamp']?.toString() ?? '') ?? DateTime.fromMillisecondsSinceEpoch(0),
+      timestamp:
+          DateTime.tryParse(entry['timestamp']?.toString() ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
       onTap: () {
         Navigator.of(context).push(
           PageRouteBuilder(
-            pageBuilder: (context, animation, secondaryAnimation) => MangaReaderPage(
-              manga: manga,
-              chapters: chapters,
-              currentChapterIndex: chapterIndex,
-              resumePageIndex: pageIndex,
-            ),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                MangaReaderPage(
+                  manga: manga,
+                  chapters: chapters,
+                  currentChapterIndex: chapterIndex,
+                  resumePageIndex: pageIndex,
+                ),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(opacity: animation, child: child);
+                },
           ),
         );
       },
@@ -246,7 +279,10 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
   void _openManga(Manga manga) {
     Navigator.push(
       context,
-      LiquidRevealRoute(page: MangaDetailsPage(manga: manga), tapPosition: null),
+      LiquidRevealRoute(
+        page: MangaDetailsPage(manga: manga),
+        tapPosition: null,
+      ),
     ).then((_) => _loadLikedManga());
   }
 
@@ -312,12 +348,15 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
     return ValueListenableBuilder<List<DownloadTask>>(
       valueListenable: DownloadService.instance.tasksNotifier,
       builder: (context, allDownloads, _) {
-        final downloads = allDownloads.where((t) => t.type == 'audiobook').toList();
+        final downloads = allDownloads
+            .where((t) => t.type == 'audiobook')
+            .toList();
         if (downloads.isEmpty) {
           return const LibraryEmptyState(
             icon: Icons.download_done_rounded,
             title: 'No Downloads',
-            subtitle: 'Downloaded audiobook chapters will appear here for offline listening.',
+            subtitle:
+                'Downloaded audiobook chapters will appear here for offline listening.',
           );
         }
 
@@ -327,7 +366,9 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final item = downloads[index];
-            final progress = item.totalBytes > 0 ? item.receivedBytes / item.totalBytes : 0.0;
+            final progress = item.totalBytes > 0
+                ? item.receivedBytes / item.totalBytes
+                : 0.0;
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -349,14 +390,20 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
                               width: 50,
                               height: 75,
                               color: Colors.white10,
-                              child: const Icon(Icons.headphones_rounded, color: Colors.white30),
+                              child: const Icon(
+                                Icons.headphones_rounded,
+                                color: Colors.white30,
+                              ),
                             ),
                           )
                         : Container(
                             width: 50,
                             height: 75,
                             color: Colors.white10,
-                            child: const Icon(Icons.headphones_rounded, color: Colors.white30),
+                            child: const Icon(
+                              Icons.headphones_rounded,
+                              color: Colors.white30,
+                            ),
                           ),
                   ),
                   const SizedBox(width: 14),
@@ -366,7 +413,10 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
                       children: [
                         Text(
                           item.title,
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 15,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -374,20 +424,29 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
                         LinearProgressIndicator(
                           value: progress > 0 ? progress : null,
                           backgroundColor: Colors.white10,
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF7C5CFF),
+                          ),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           '${item.status.name.toUpperCase()} • ${(progress * 100).toStringAsFixed(0)}%',
-                          style: const TextStyle(color: Colors.white38, fontSize: 11),
+                          style: const TextStyle(
+                            color: Colors.white38,
+                            fontSize: 11,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-                    onPressed: () => DownloadService.instance.deleteDownload(item.id),
+                    icon: const Icon(
+                      Icons.delete_outline_rounded,
+                      color: Colors.redAccent,
+                    ),
+                    onPressed: () =>
+                        DownloadService.instance.deleteDownload(item.id),
                   ),
                 ],
               ),
@@ -442,7 +501,10 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
       itemCount: liked.length,
       itemBuilder: (context, index) {
         final book = liked[index];
-        return _LikedAudiobookCard(book: book, onTap: () => _openAudiobook(book));
+        return _LikedAudiobookCard(
+          book: book,
+          onTap: () => _openAudiobook(book),
+        );
       },
     );
   }
@@ -481,7 +543,8 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
       return const LibraryEmptyState(
         icon: Icons.play_circle_outline_rounded,
         title: 'Nothing in progress',
-        subtitle: 'Audiobooks, books and manga you are partway through wait '
+        subtitle:
+            'Audiobooks, books and manga you are partway through wait '
             'for you here.',
       );
     }
@@ -518,14 +581,20 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
                             width: 50,
                             height: 75,
                             color: Colors.white10,
-                            child: Icon(entry.fallbackIcon, color: Colors.white30),
+                            child: Icon(
+                              entry.fallbackIcon,
+                              color: Colors.white30,
+                            ),
                           ),
                         )
                       : Container(
                           width: 50,
                           height: 75,
                           color: Colors.white10,
-                          child: Icon(entry.fallbackIcon, color: Colors.white30),
+                          child: Icon(
+                            entry.fallbackIcon,
+                            color: Colors.white30,
+                          ),
                         ),
                 ),
                 const SizedBox(width: 14),
@@ -535,7 +604,10 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
                     children: [
                       Text(
                         entry.title,
-                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 15,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -544,20 +616,29 @@ class _BooksLibraryPageState extends State<BooksLibraryPage> {
                         LinearProgressIndicator(
                           value: entry.progress!.clamp(0.0, 1.0),
                           backgroundColor: Colors.white10,
-                          valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF7C5CFF)),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF7C5CFF),
+                          ),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         const SizedBox(height: 4),
                       ],
                       Text(
                         entry.subtitle,
-                        style: const TextStyle(color: Colors.white38, fontSize: 11),
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 11,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.close_rounded, color: Colors.white38, size: 20),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white38,
+                    size: 20,
+                  ),
                   onPressed: entry.onDelete,
                 ),
               ],
@@ -615,14 +696,20 @@ class _LikedAudiobookCard extends StatelessWidget {
                       width: double.infinity,
                       errorBuilder: (_, __, ___) => Container(
                         color: const Color(0xFF141824),
-                        child: const Icon(Icons.headphones_rounded,
-                            color: Colors.white24, size: 40),
+                        child: const Icon(
+                          Icons.headphones_rounded,
+                          color: Colors.white24,
+                          size: 40,
+                        ),
                       ),
                     )
                   : Container(
                       color: const Color(0xFF141824),
-                      child: const Icon(Icons.headphones_rounded,
-                          color: Colors.white24, size: 40),
+                      child: const Icon(
+                        Icons.headphones_rounded,
+                        color: Colors.white24,
+                        size: 40,
+                      ),
                     ),
             ),
           ),
@@ -661,7 +748,11 @@ class _LikedBookCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
               child: Container(
                 color: const Color(0xFF141824),
-                child: const Icon(Icons.menu_book_rounded, color: Colors.white24, size: 40),
+                child: const Icon(
+                  Icons.menu_book_rounded,
+                  color: Colors.white24,
+                  size: 40,
+                ),
               ),
             ),
           ),

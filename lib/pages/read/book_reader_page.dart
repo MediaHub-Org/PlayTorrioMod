@@ -8,6 +8,31 @@ import 'package:xml/xml.dart';
 
 import '../../services/books/book_progress_service.dart';
 import '../../services/books/books_service.dart';
+import 'pdf_reader_page.dart';
+
+/// Picks [BookReaderPage] or [PdfReaderPage] by [bookResult]'s own format --
+/// the one place that decision is made, so every call site routes new
+/// formats correctly without duplicating the check.
+Widget openBookReaderFor({
+  required File file,
+  required String title,
+  BookResult? bookResult,
+  int initialChapter = 0,
+}) {
+  if (bookResult != null && bookResult.format.toLowerCase() == 'pdf') {
+    return PdfReaderPage(
+      file: file,
+      book: bookResult,
+      initialPage: initialChapter + 1,
+    );
+  }
+  return BookReaderPage(
+    file: file,
+    title: title,
+    bookResult: bookResult,
+    initialChapter: initialChapter,
+  );
+}
 
 /// Reads an already-downloaded epub file.
 ///
@@ -63,7 +88,11 @@ class _ManifestItem {
   final String href;
   final String mediaType;
   final String properties;
-  const _ManifestItem({required this.href, required this.mediaType, required this.properties});
+  const _ManifestItem({
+    required this.href,
+    required this.mediaType,
+    required this.properties,
+  });
 }
 
 class _BookReaderPageState extends State<BookReaderPage> {
@@ -115,7 +144,9 @@ class _BookReaderPageState extends State<BookReaderPage> {
           .split('/')
           .last
           .replaceAll('.epub', '');
-      final extractDir = Directory('${widget.file.parent.path}${Platform.pathSeparator}epub_$epubName');
+      final extractDir = Directory(
+        '${widget.file.parent.path}${Platform.pathSeparator}epub_$epubName',
+      );
 
       if (!extractDir.existsSync()) {
         extractDir.createSync(recursive: true);
@@ -138,8 +169,13 @@ class _BookReaderPageState extends State<BookReaderPage> {
       if (!containerFile.existsSync()) {
         throw Exception('Invalid EPUB -- META-INF/container.xml missing');
       }
-      final containerXml = XmlDocument.parse(await containerFile.readAsString());
-      final opfPath = containerXml.findAllElements('rootfile').first.getAttribute('full-path')!;
+      final containerXml = XmlDocument.parse(
+        await containerFile.readAsString(),
+      );
+      final opfPath = containerXml
+          .findAllElements('rootfile')
+          .first
+          .getAttribute('full-path')!;
 
       final opfFile = File('${extractDir.path}/$opfPath');
       final opfXml = XmlDocument.parse(await opfFile.readAsString());
@@ -172,9 +208,14 @@ class _BookReaderPageState extends State<BookReaderPage> {
             final ncx = XmlDocument.parse(await ncxFile.readAsString());
             for (final np in ncx.findAllElements('navPoint')) {
               final label = np.findAllElements('text').firstOrNull?.innerText;
-              final src = np.findAllElements('content').firstOrNull?.getAttribute('src');
+              final src = np
+                  .findAllElements('content')
+                  .firstOrNull
+                  ?.getAttribute('src');
               if (label != null && src != null) {
-                final clean = src.contains('#') ? src.substring(0, src.indexOf('#')) : src;
+                final clean = src.contains('#')
+                    ? src.substring(0, src.indexOf('#'))
+                    : src;
                 tocLabels.putIfAbsent(clean, () => label.trim());
               }
             }
@@ -189,11 +230,19 @@ class _BookReaderPageState extends State<BookReaderPage> {
           if (navFile.existsSync()) {
             try {
               final navHtml = await navFile.readAsString();
-              final re = RegExp(r'<a[^>]+href="([^"]*)"[^>]*>(.*?)</a>', dotAll: true);
+              final re = RegExp(
+                r'<a[^>]+href="([^"]*)"[^>]*>(.*?)</a>',
+                dotAll: true,
+              );
               for (final m in re.allMatches(navHtml)) {
                 final href = m.group(1)!;
-                final title = m.group(2)!.replaceAll(RegExp(r'<[^>]*>'), '').trim();
-                final clean = href.contains('#') ? href.substring(0, href.indexOf('#')) : href;
+                final title = m
+                    .group(2)!
+                    .replaceAll(RegExp(r'<[^>]*>'), '')
+                    .trim();
+                final clean = href.contains('#')
+                    ? href.substring(0, href.indexOf('#'))
+                    : href;
                 if (title.isNotEmpty) tocLabels.putIfAbsent(clean, () => title);
               }
             } catch (_) {}
@@ -207,16 +256,19 @@ class _BookReaderPageState extends State<BookReaderPage> {
         final idref = ref.getAttribute('idref')!;
         final item = manifest[idref];
         if (item == null) continue;
-        if (!item.mediaType.contains('html') && !item.mediaType.contains('xml')) continue;
+        if (!item.mediaType.contains('html') && !item.mediaType.contains('xml'))
+          continue;
 
         final href = item.href;
         final fullPath = opfDir.isEmpty ? href : '$opfDir/$href';
         final filePath = '${extractDir.path}/$fullPath';
         final title = tocLabels[href] ?? tocLabels[fullPath] ?? '';
-        chapters.add(_Chapter(
-          filePath: filePath.replaceAll('\\', '/'),
-          title: title.isNotEmpty ? title : 'Chapter ${chapters.length + 1}',
-        ));
+        chapters.add(
+          _Chapter(
+            filePath: filePath.replaceAll('\\', '/'),
+            title: title.isNotEmpty ? title : 'Chapter ${chapters.length + 1}',
+          ),
+        );
       }
 
       if (chapters.isEmpty) throw Exception('No readable chapters found');
@@ -239,14 +291,20 @@ class _BookReaderPageState extends State<BookReaderPage> {
   }
 
   void _loadChapter(int index) {
-    if (index < 0 || index >= _chapters.length || _webController == null) return;
+    if (index < 0 || index >= _chapters.length || _webController == null)
+      return;
     _saveProgress();
     setState(() {
       _currentChapter = index;
       _lastScrollFraction = 0.0;
     });
-    final uri = Uri.file(_chapters[index].filePath, windows: Platform.isWindows);
-    _webController!.loadUrl(urlRequest: URLRequest(url: WebUri(uri.toString())));
+    final uri = Uri.file(
+      _chapters[index].filePath,
+      windows: Platform.isWindows,
+    );
+    _webController!.loadUrl(
+      urlRequest: URLRequest(url: WebUri(uri.toString())),
+    );
   }
 
   void _injectTheme() {
@@ -255,7 +313,9 @@ class _BookReaderPageState extends State<BookReaderPage> {
     final link = _isDarkMode ? '#bb86fc' : '#6200ee';
     final border = _isDarkMode ? '#333' : '#ccc';
 
-    _webController?.evaluateJavascript(source: '''
+    _webController?.evaluateJavascript(
+      source:
+          '''
 (function(){
   var s=document.getElementById('_rt');
   if(!s){s=document.createElement('style');s.id='_rt';document.head.appendChild(s);}
@@ -271,9 +331,11 @@ class _BookReaderPageState extends State<BookReaderPage> {
    +'pre,code{white-space:pre-wrap!important}'
    +'table{max-width:100%!important}';
 })();
-''');
+''',
+    );
 
-    _webController?.evaluateJavascript(source: '''
+    _webController?.evaluateJavascript(
+      source: '''
 (function(){
   if(window._rtBound) return;
   window._rtBound=true;
@@ -283,14 +345,17 @@ class _BookReaderPageState extends State<BookReaderPage> {
     }
   });
 })();
-''');
+''',
+    );
   }
 
   void _showChapterSheet() {
     showModalBottomSheet(
       context: context,
       backgroundColor: const Color(0xFF0F121C),
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) {
         return SafeArea(
           child: ListView.builder(
@@ -323,7 +388,9 @@ class _BookReaderPageState extends State<BookReaderPage> {
     if (_loading) {
       return const Scaffold(
         backgroundColor: Color(0xFF080A0F),
-        body: Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF))),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
+        ),
       );
     }
     if (_error != null) {
@@ -336,7 +403,11 @@ class _BookReaderPageState extends State<BookReaderPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(Icons.error_outline_rounded, color: Colors.white38, size: 48),
+                const Icon(
+                  Icons.error_outline_rounded,
+                  color: Colors.white38,
+                  size: 48,
+                ),
                 const SizedBox(height: 16),
                 Text(
                   'Could not open this book.\n$_error',
@@ -389,14 +460,16 @@ class _BookReaderPageState extends State<BookReaderPage> {
                 controller.addJavaScriptHandler(
                   handlerName: 'scrollProgress',
                   callback: (args) {
-                    if (args.isNotEmpty) _lastScrollFraction = (args[0] as num).toDouble();
+                    if (args.isNotEmpty)
+                      _lastScrollFraction = (args[0] as num).toDouble();
                   },
                 );
                 _loadChapter(_currentChapter);
               },
               onLoadStop: (controller, url) async {
                 _injectTheme();
-                controller.evaluateJavascript(source: '''
+                controller.evaluateJavascript(
+                  source: '''
 (function(){
   if(window._scrollBound) return;
   window._scrollBound=true;
@@ -410,7 +483,8 @@ class _BookReaderPageState extends State<BookReaderPage> {
     },300);
   });
 })();
-''');
+''',
+                );
               },
             ),
           ),
@@ -424,17 +498,26 @@ class _BookReaderPageState extends State<BookReaderPage> {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [barBg.withValues(alpha: 0.97), barBg.withValues(alpha: 0.0)],
+                    colors: [
+                      barBg.withValues(alpha: 0.97),
+                      barBg.withValues(alpha: 0.0),
+                    ],
                   ),
                 ),
                 child: SafeArea(
                   bottom: false,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     child: Row(
                       children: [
                         IconButton(
-                          icon: Icon(Icons.arrow_back_rounded, color: iconColor),
+                          icon: Icon(
+                            Icons.arrow_back_rounded,
+                            color: iconColor,
+                          ),
                           onPressed: () => Navigator.pop(context),
                         ),
                         Expanded(
@@ -444,14 +527,21 @@ class _BookReaderPageState extends State<BookReaderPage> {
                             children: [
                               Text(
                                 widget.title,
-                                style: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 15),
+                                style: TextStyle(
+                                  color: textColor,
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 15,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
                               if (_chapters.isNotEmpty)
                                 Text(
                                   _chapters[_currentChapter].title,
-                                  style: TextStyle(color: subtextColor, fontSize: 11),
+                                  style: TextStyle(
+                                    color: subtextColor,
+                                    fontSize: 11,
+                                  ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -459,7 +549,12 @@ class _BookReaderPageState extends State<BookReaderPage> {
                           ),
                         ),
                         IconButton(
-                          icon: Icon(_isDarkMode ? Icons.light_mode_rounded : Icons.dark_mode_rounded, color: iconColor),
+                          icon: Icon(
+                            _isDarkMode
+                                ? Icons.light_mode_rounded
+                                : Icons.dark_mode_rounded,
+                            color: iconColor,
+                          ),
                           tooltip: _isDarkMode ? 'Light mode' : 'Dark mode',
                           onPressed: () {
                             setState(() => _isDarkMode = !_isDarkMode);
@@ -488,13 +583,19 @@ class _BookReaderPageState extends State<BookReaderPage> {
                   gradient: LinearGradient(
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
-                    colors: [barBg.withValues(alpha: 0.97), barBg.withValues(alpha: 0.0)],
+                    colors: [
+                      barBg.withValues(alpha: 0.97),
+                      barBg.withValues(alpha: 0.0),
+                    ],
                   ),
                 ),
                 child: SafeArea(
                   top: false,
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
@@ -502,7 +603,9 @@ class _BookReaderPageState extends State<BookReaderPage> {
                           icon: Icons.chevron_left_rounded,
                           iconColor: iconColor,
                           isDark: _isDarkMode,
-                          onTap: _currentChapter > 0 ? () => _loadChapter(_currentChapter - 1) : null,
+                          onTap: _currentChapter > 0
+                              ? () => _loadChapter(_currentChapter - 1)
+                              : null,
                         ),
                         const SizedBox(width: 12),
                         _pill(
@@ -517,7 +620,10 @@ class _BookReaderPageState extends State<BookReaderPage> {
                               : null,
                         ),
                         const SizedBox(width: 4),
-                        Text('${_fontSize}px', style: TextStyle(color: subtextColor, fontSize: 11)),
+                        Text(
+                          '${_fontSize}px',
+                          style: TextStyle(color: subtextColor, fontSize: 11),
+                        ),
                         const SizedBox(width: 4),
                         _pill(
                           icon: Icons.text_increase_rounded,
@@ -535,7 +641,9 @@ class _BookReaderPageState extends State<BookReaderPage> {
                           icon: Icons.chevron_right_rounded,
                           iconColor: iconColor,
                           isDark: _isDarkMode,
-                          onTap: _currentChapter < _chapters.length - 1 ? () => _loadChapter(_currentChapter + 1) : null,
+                          onTap: _currentChapter < _chapters.length - 1
+                              ? () => _loadChapter(_currentChapter + 1)
+                              : null,
                         ),
                       ],
                     ),
@@ -548,7 +656,12 @@ class _BookReaderPageState extends State<BookReaderPage> {
     );
   }
 
-  Widget _pill({required IconData icon, required Color iconColor, required bool isDark, VoidCallback? onTap}) {
+  Widget _pill({
+    required IconData icon,
+    required Color iconColor,
+    required bool isDark,
+    VoidCallback? onTap,
+  }) {
     return Material(
       color: (isDark ? Colors.white : Colors.black).withValues(alpha: 0.1),
       borderRadius: BorderRadius.circular(24),
@@ -557,7 +670,11 @@ class _BookReaderPageState extends State<BookReaderPage> {
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(8),
-          child: Icon(icon, color: onTap != null ? iconColor : iconColor.withValues(alpha: 0.3), size: 22),
+          child: Icon(
+            icon,
+            color: onTap != null ? iconColor : iconColor.withValues(alpha: 0.3),
+            size: 22,
+          ),
         ),
       ),
     );

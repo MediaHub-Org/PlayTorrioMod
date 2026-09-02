@@ -36,36 +36,36 @@ class BookResult {
   });
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        'series': series,
-        'author': author,
-        'publisher': publisher,
-        'year': year,
-        'language': language,
-        'pages': pages,
-        'size': size,
-        'format': format,
-        'isbn': isbn,
-        'editionId': editionId,
-        'editionUrl': editionUrl,
-        'fileId': fileId,
-      };
+    'title': title,
+    'series': series,
+    'author': author,
+    'publisher': publisher,
+    'year': year,
+    'language': language,
+    'pages': pages,
+    'size': size,
+    'format': format,
+    'isbn': isbn,
+    'editionId': editionId,
+    'editionUrl': editionUrl,
+    'fileId': fileId,
+  };
 
   factory BookResult.fromJson(Map<String, dynamic> json) => BookResult(
-        title: json['title'] ?? '',
-        series: json['series'] ?? '',
-        author: json['author'] ?? '',
-        publisher: json['publisher'] ?? '',
-        year: json['year'] ?? '',
-        language: json['language'] ?? '',
-        pages: json['pages'] ?? '',
-        size: json['size'] ?? '',
-        format: json['format'] ?? '',
-        isbn: json['isbn'] ?? '',
-        editionId: json['editionId'] ?? '',
-        editionUrl: json['editionUrl'] ?? '',
-        fileId: json['fileId'] ?? '',
-      );
+    title: json['title'] ?? '',
+    series: json['series'] ?? '',
+    author: json['author'] ?? '',
+    publisher: json['publisher'] ?? '',
+    year: json['year'] ?? '',
+    language: json['language'] ?? '',
+    pages: json['pages'] ?? '',
+    size: json['size'] ?? '',
+    format: json['format'] ?? '',
+    isbn: json['isbn'] ?? '',
+    editionId: json['editionId'] ?? '',
+    editionUrl: json['editionUrl'] ?? '',
+    fileId: json['fileId'] ?? '',
+  );
 }
 
 class BookEditionDetails {
@@ -86,7 +86,8 @@ class BooksService {
   static final _client = http.Client();
 
   static const Map<String, String> _headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    'User-Agent':
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
         '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'Accept-Language': 'en-US,en;q=0.5',
@@ -97,7 +98,9 @@ class BooksService {
   Future<List<BookResult>> search(String query) async {
     if (query.trim().isEmpty) return [];
     try {
-      final url = Uri.parse('$_base/index.php?req=${Uri.encodeComponent(query)}&curtab=f');
+      final url = Uri.parse(
+        '$_base/index.php?req=${Uri.encodeComponent(query)}&curtab=f',
+      );
       final response = await _client.get(url, headers: _headers);
       if (response.statusCode != 200) return [];
       return _parseResults(response.body);
@@ -142,8 +145,10 @@ class BooksService {
       if (editionId == null || editionId.isEmpty) continue;
 
       final series = firstTd.querySelector('b')?.text.trim() ?? '';
-      final isbn = firstTd.querySelector('font[color="green"]')?.text.trim() ?? '';
-      final fileId = firstTd.querySelector('.badge-secondary')?.text.trim() ?? '';
+      final isbn =
+          firstTd.querySelector('font[color="green"]')?.text.trim() ?? '';
+      final fileId =
+          firstTd.querySelector('.badge-secondary')?.text.trim() ?? '';
 
       final author = tds[1].text.trim();
       final publisher = tds[2].text.trim();
@@ -157,23 +162,28 @@ class BooksService {
           : sizeTd.text.trim();
 
       final format = tds[7].text.trim();
-      if (format.toLowerCase() != 'epub') continue;
+      // PDF renders through pdfrx, no parsing shared with the epub reader --
+      // MOBI/FB2 stay filtered out, they'd need a parser this fork doesn't
+      // have (see PdfReaderPage's own doc comment).
+      if (!const ['epub', 'pdf'].contains(format.toLowerCase())) continue;
 
-      results.add(BookResult(
-        title: title,
-        series: series,
-        author: author,
-        publisher: publisher,
-        year: year,
-        language: language,
-        pages: pages,
-        size: size,
-        format: format,
-        isbn: isbn,
-        editionId: editionId,
-        editionUrl: '$_base/edition.php?id=$editionId',
-        fileId: fileId,
-      ));
+      results.add(
+        BookResult(
+          title: title,
+          series: series,
+          author: author,
+          publisher: publisher,
+          year: year,
+          language: language,
+          pages: pages,
+          size: size,
+          format: format,
+          isbn: isbn,
+          editionId: editionId,
+          editionUrl: '$_base/edition.php?id=$editionId',
+          fileId: fileId,
+        ),
+      );
     }
     return results;
   }
@@ -186,11 +196,19 @@ class BooksService {
       if (response.statusCode != 200) return null;
 
       final document = hp.parse(response.body);
-      final adsLink = document.querySelector('a[href^="ads.php?md5="]')?.attributes['href'];
-      final md5 = RegExp(r'md5=([a-f0-9]+)').firstMatch(adsLink ?? '')?.group(1);
+      final adsLink = document
+          .querySelector('a[href^="ads.php?md5="]')
+          ?.attributes['href'];
+      final md5 = RegExp(
+        r'md5=([a-f0-9]+)',
+      ).firstMatch(adsLink ?? '')?.group(1);
       if (md5 == null || md5.isEmpty) return null;
 
-      return BookEditionDetails(editionId: editionId, md5: md5, adsUrl: '$_base/ads.php?md5=$md5');
+      return BookEditionDetails(
+        editionId: editionId,
+        md5: md5,
+        adsUrl: '$_base/ads.php?md5=$md5',
+      );
     } catch (_) {
       return null;
     }
@@ -204,7 +222,9 @@ class BooksService {
       if (response.statusCode != 200) return null;
 
       final document = hp.parse(response.body);
-      final getLink = document.querySelector('table#main a[href^="get.php"]')?.attributes['href'];
+      final getLink = document
+          .querySelector('table#main a[href^="get.php"]')
+          ?.attributes['href'];
       if (getLink == null || getLink.isEmpty) return null;
 
       return '$_base/$getLink';

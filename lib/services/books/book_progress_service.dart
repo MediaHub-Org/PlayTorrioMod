@@ -25,20 +25,20 @@ class BookProgress {
   });
 
   Map<String, dynamic> toJson() => {
-        'book': book.toJson(),
-        'chapter': chapter,
-        'scrollFraction': scrollFraction,
-        'filePath': filePath,
-        'lastReadTimestamp': lastReadTimestamp,
-      };
+    'book': book.toJson(),
+    'chapter': chapter,
+    'scrollFraction': scrollFraction,
+    'filePath': filePath,
+    'lastReadTimestamp': lastReadTimestamp,
+  };
 
   factory BookProgress.fromJson(Map<String, dynamic> json) => BookProgress(
-        book: BookResult.fromJson(json['book'] as Map<String, dynamic>),
-        chapter: json['chapter'] ?? 0,
-        scrollFraction: (json['scrollFraction'] ?? 0.0).toDouble(),
-        filePath: json['filePath'] ?? '',
-        lastReadTimestamp: json['lastReadTimestamp'] ?? 0,
-      );
+    book: BookResult.fromJson(json['book'] as Map<String, dynamic>),
+    chapter: json['chapter'] ?? 0,
+    scrollFraction: (json['scrollFraction'] ?? 0.0).toDouble(),
+    filePath: json['filePath'] ?? '',
+    lastReadTimestamp: json['lastReadTimestamp'] ?? 0,
+  );
 }
 
 class BookProgressService {
@@ -49,14 +49,20 @@ class BookProgressService {
 
   Future<Directory> get booksDir async {
     final docs = await getApplicationDocumentsDirectory();
-    final dir = Directory('${docs.path}${Platform.pathSeparator}PlayTorrio_Books');
+    final dir = Directory(
+      '${docs.path}${Platform.pathSeparator}PlayTorrio_Books',
+    );
     if (!dir.existsSync()) dir.createSync(recursive: true);
     return dir;
   }
 
-  Future<String> bookFilePath(String editionId) async {
+  Future<String> bookFilePath(
+    String editionId, {
+    String format = 'epub',
+  }) async {
     final dir = await booksDir;
-    return '${dir.path}${Platform.pathSeparator}book_$editionId.epub';
+    final ext = format.trim().isEmpty ? 'epub' : format.trim().toLowerCase();
+    return '${dir.path}${Platform.pathSeparator}book_$editionId.$ext';
   }
 
   Future<List<BookProgress>> loadAll() async {
@@ -65,7 +71,9 @@ class BookProgressService {
       final raw = prefs.getString(_prefsKey);
       if (raw == null || raw.isEmpty) return [];
       final list = jsonDecode(raw) as List<dynamic>;
-      return list.map((e) => BookProgress.fromJson(e as Map<String, dynamic>)).toList()
+      return list
+          .map((e) => BookProgress.fromJson(e as Map<String, dynamic>))
+          .toList()
         ..sort((a, b) => b.lastReadTimestamp.compareTo(a.lastReadTimestamp));
     } catch (_) {
       return [];
@@ -74,7 +82,10 @@ class BookProgressService {
 
   Future<void> _saveAll(List<BookProgress> entries) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefsKey, jsonEncode(entries.map((e) => e.toJson()).toList()));
+    await prefs.setString(
+      _prefsKey,
+      jsonEncode(entries.map((e) => e.toJson()).toList()),
+    );
   }
 
   Future<void> saveProgress({
@@ -104,7 +115,9 @@ class BookProgressService {
       try {
         final f = File(entry.filePath);
         if (f.existsSync()) f.deleteSync();
-        final dir = Directory('${f.parent.path}${Platform.pathSeparator}epub_book_$editionId');
+        final dir = Directory(
+          '${f.parent.path}${Platform.pathSeparator}epub_book_$editionId',
+        );
         if (dir.existsSync()) dir.deleteSync(recursive: true);
       } catch (_) {}
     }

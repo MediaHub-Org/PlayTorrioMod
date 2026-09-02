@@ -93,7 +93,7 @@ class _BooksPageState extends State<BooksPage> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => BookReaderPage(
+              builder: (_) => openBookReaderFor(
                 file: file,
                 title: book.title,
                 bookResult: book,
@@ -112,7 +112,7 @@ class _BooksPageState extends State<BooksPage> {
       await Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => BookReaderPage(
+          builder: (_) => openBookReaderFor(
             file: file,
             title: entry.book.title,
             bookResult: entry.book,
@@ -138,10 +138,16 @@ class _BooksPageState extends State<BooksPage> {
           style: const TextStyle(color: Colors.white70),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.redAccent)),
+            child: const Text(
+              'Delete',
+              style: TextStyle(color: Colors.redAccent),
+            ),
           ),
         ],
       ),
@@ -164,7 +170,12 @@ class _BooksPageState extends State<BooksPage> {
               children: [
                 const Text(
                   'Books',
-                  style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5),
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
+                  ),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -176,12 +187,21 @@ class _BooksPageState extends State<BooksPage> {
                     hintStyle: const TextStyle(color: Colors.white38),
                     filled: true,
                     fillColor: Colors.white.withValues(alpha: 0.06),
-                    prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54),
+                    prefixIcon: const Icon(
+                      Icons.search_rounded,
+                      color: Colors.white54,
+                    ),
                     suffixIcon: IconButton(
-                      icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFF7C5CFF)),
+                      icon: const Icon(
+                        Icons.arrow_forward_rounded,
+                        color: Color(0xFF7C5CFF),
+                      ),
                       onPressed: () => _search(_searchController.text),
                     ),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
                 ),
               ],
@@ -194,13 +214,18 @@ class _BooksPageState extends State<BooksPage> {
         ] else if (_isLoading)
           const SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF))),
+            child: Center(
+              child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
+            ),
           )
         else if (_results.isEmpty)
           const SliverFillRemaining(
             hasScrollBody: false,
             child: Center(
-              child: Text('No epub results found.', style: TextStyle(color: Colors.white54)),
+              child: Text(
+                'No epub results found.',
+                style: TextStyle(color: Colors.white54),
+              ),
             ),
           )
         else
@@ -211,7 +236,9 @@ class _BooksPageState extends State<BooksPage> {
                 (context, index) => _BookRow(
                   book: _results[index],
                   onTap: () => _openDownloadDialog(_results[index]),
-                  isLiked: BookLibraryService.instance.isLiked(_results[index].editionId),
+                  isLiked: BookLibraryService.instance.isLiked(
+                    _results[index].editionId,
+                  ),
                   onToggleLike: () => _toggleLike(_results[index]),
                 ),
                 childCount: _results.length,
@@ -228,7 +255,9 @@ class _BooksPageState extends State<BooksPage> {
         SliverPadding(
           padding: EdgeInsets.only(top: 40),
           sliver: SliverToBoxAdapter(
-            child: Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF))),
+            child: Center(
+              child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
+            ),
           ),
         ),
       ];
@@ -243,9 +272,16 @@ class _BooksPageState extends State<BooksPage> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.import_contacts_rounded, color: Colors.white24, size: 64),
+                  Icon(
+                    Icons.import_contacts_rounded,
+                    color: Colors.white24,
+                    size: 64,
+                  ),
                   SizedBox(height: 16),
-                  Text('Search for a book to get started', style: TextStyle(color: Colors.white54, fontSize: 16)),
+                  Text(
+                    'Search for a book to get started',
+                    style: TextStyle(color: Colors.white54, fontSize: 16),
+                  ),
                 ],
               ),
             ),
@@ -259,7 +295,11 @@ class _BooksPageState extends State<BooksPage> {
         sliver: SliverToBoxAdapter(
           child: Text(
             'Recently Added',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ),
@@ -270,7 +310,9 @@ class _BooksPageState extends State<BooksPage> {
             (context, index) => _BookRow(
               book: _browsing[index],
               onTap: () => _openDownloadDialog(_browsing[index]),
-              isLiked: BookLibraryService.instance.isLiked(_browsing[index].editionId),
+              isLiked: BookLibraryService.instance.isLiked(
+                _browsing[index].editionId,
+              ),
               onToggleLike: () => _toggleLike(_browsing[index]),
             ),
             childCount: _browsing.length,
@@ -287,24 +329,25 @@ class _BooksPageState extends State<BooksPage> {
         sliver: SliverToBoxAdapter(
           child: Text(
             'Continue Reading',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 16, fontWeight: FontWeight.bold),
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.8),
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+            ),
           ),
         ),
       ),
       SliverPadding(
         padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
         sliver: SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              final entry = _reading[index];
-              return _ContinueReadingRow(
-                entry: entry,
-                onTap: () => _resumeBook(entry),
-                onDelete: () => _deleteBook(entry),
-              );
-            },
-            childCount: _reading.length,
-          ),
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final entry = _reading[index];
+            return _ContinueReadingRow(
+              entry: entry,
+              onTap: () => _resumeBook(entry),
+              onDelete: () => _deleteBook(entry),
+            );
+          }, childCount: _reading.length),
         ),
       ),
     ];
@@ -345,7 +388,11 @@ class _BookRow extends StatelessWidget {
                     color: const Color(0xFF7C5CFF).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.menu_book_rounded, color: Color(0xFF7C5CFF), size: 20),
+                  child: const Icon(
+                    Icons.menu_book_rounded,
+                    color: Color(0xFF7C5CFF),
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -354,7 +401,11 @@ class _BookRow extends StatelessWidget {
                     children: [
                       Text(
                         book.title,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -365,7 +416,10 @@ class _BookRow extends StatelessWidget {
                           if (book.year.isNotEmpty) book.year,
                           if (book.size.isNotEmpty) book.size,
                         ].join(' · '),
-                        style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -378,7 +432,11 @@ class _BookRow extends StatelessWidget {
                   style: LikeButtonStyle.icon,
                   size: 20,
                 ),
-                const Icon(Icons.download_rounded, color: Colors.white38, size: 20),
+                const Icon(
+                  Icons.download_rounded,
+                  color: Colors.white38,
+                  size: 20,
+                ),
               ],
             ),
           ),
@@ -393,7 +451,11 @@ class _ContinueReadingRow extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
-  const _ContinueReadingRow({required this.entry, required this.onTap, required this.onDelete});
+  const _ContinueReadingRow({
+    required this.entry,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +478,11 @@ class _ContinueReadingRow extends StatelessWidget {
                     color: const Color(0xFF7C5CFF).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.auto_stories_rounded, color: Color(0xFF7C5CFF), size: 20),
+                  child: const Icon(
+                    Icons.auto_stories_rounded,
+                    color: Color(0xFF7C5CFF),
+                    size: 20,
+                  ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -425,20 +491,31 @@ class _ContinueReadingRow extends StatelessWidget {
                     children: [
                       Text(
                         entry.book.title,
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
                       const SizedBox(height: 3),
                       Text(
                         'Chapter ${entry.chapter + 1}',
-                        style: const TextStyle(color: Colors.white54, fontSize: 12),
+                        style: const TextStyle(
+                          color: Colors.white54,
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.white38, size: 20),
+                  icon: const Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.white38,
+                    size: 20,
+                  ),
                   onPressed: onDelete,
                 ),
               ],
@@ -455,7 +532,11 @@ class _DownloadDialog extends StatefulWidget {
   final BookResult book;
   final void Function(File file) onFileReady;
 
-  const _DownloadDialog({required this.service, required this.book, required this.onFileReady});
+  const _DownloadDialog({
+    required this.service,
+    required this.book,
+    required this.onFileReady,
+  });
 
   @override
   State<_DownloadDialog> createState() => _DownloadDialogState();
@@ -474,7 +555,10 @@ class _DownloadDialogState extends State<_DownloadDialog> {
 
   Future<void> _run() async {
     try {
-      final filePath = await BookProgressService.instance.bookFilePath(widget.book.editionId);
+      final filePath = await BookProgressService.instance.bookFilePath(
+        widget.book.editionId,
+        format: widget.book.format,
+      );
       final cacheFile = File(filePath);
       if (cacheFile.existsSync() && cacheFile.lengthSync() > 1000) {
         if (mounted) widget.onFileReady(cacheFile);
@@ -482,7 +566,9 @@ class _DownloadDialogState extends State<_DownloadDialog> {
       }
 
       if (mounted) setState(() => _status = 'Resolving download link...');
-      final downloadUrl = await widget.service.resolveDownloadUrl(widget.book.editionId);
+      final downloadUrl = await widget.service.resolveDownloadUrl(
+        widget.book.editionId,
+      );
       if (downloadUrl == null) {
         if (mounted) {
           setState(() {
@@ -509,7 +595,8 @@ class _DownloadDialogState extends State<_DownloadDialog> {
       await for (final chunk in response.stream) {
         bytes.addAll(chunk);
         received += chunk.length;
-        if (total > 0 && mounted) setState(() => _downloadProgress = received / total);
+        if (total > 0 && mounted)
+          setState(() => _downloadProgress = received / total);
       }
 
       if (response.statusCode != 200) {
@@ -547,7 +634,11 @@ class _DownloadDialogState extends State<_DownloadDialog> {
           Expanded(
             child: Text(
               widget.book.title,
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.white),
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -568,13 +659,22 @@ class _DownloadDialogState extends State<_DownloadDialog> {
             const CircularProgressIndicator(color: Color(0xFF7C5CFF)),
             const SizedBox(height: 12),
           ],
-          Text(_status, style: TextStyle(color: _failed ? Colors.redAccent : Colors.white70, fontSize: 13)),
+          Text(
+            _status,
+            style: TextStyle(
+              color: _failed ? Colors.redAccent : Colors.white70,
+              fontSize: 13,
+            ),
+          ),
         ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text(_failed ? 'Close' : 'Cancel', style: const TextStyle(color: Colors.white54)),
+          child: Text(
+            _failed ? 'Close' : 'Cancel',
+            style: const TextStyle(color: Colors.white54),
+          ),
         ),
       ],
     );

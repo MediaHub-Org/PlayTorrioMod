@@ -69,11 +69,15 @@ dependencies:
   window_manager: ^0.5.2
   file_picker: ^8.1.7
   audio_service: ^0.18.19
-  # Discord Rich Presence, from upstream v1.0.8. The other four packages that
-  # arrived with it (pdfrx, dart_mobi, fb2_parse,
-  # flutter_widget_from_html_core) back upstream's PDF/MOBI/FB2 reader pages,
-  # which this fork does not have -- its Read hub is EPUB-only. See ROADMAP.
   dart_discord_presence: ^1.2.0
+  # PDF reading, ported from upstream's pdf_reader_page.dart 2026-09-02 --
+  # PDF renders standalone (no shared parsing with the EPUB reader), so it
+  # was addable without touching the working EPUB path. MOBI/FB2 stay out:
+  # upstream normalizes both into the same chapter/HTML shape the EPUB
+  # reader consumes via a parser service (dart_mobi, fb2_parse,
+  # flutter_widget_from_html_core) this fork never ported -- a bigger,
+  # riskier change than PDF's standalone viewer. See ROADMAP.
+  pdfrx: ^2.4.7
 
 dev_dependencies:
   flutter_test:
