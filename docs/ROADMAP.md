@@ -3,8 +3,8 @@
 What is **outstanding**. Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md);
 this file stays about what is left.
 
-Last reconciled against the tree: **2026-09-02** (v1.1.4, level with
-upstream @ `ad81c7b`).
+Last reconciled against the tree: **2026-09-02** (v1.1.4, one commit
+behind upstream — see *Staying level with upstream* below).
 
 ## Sibling app: PlayTorrioMov
 
@@ -22,11 +22,17 @@ fork's design rationale.
 Three top-level hubs are the core navigation: **Watch**, **Listen**, **Read**.
 Each has exactly four sections, the fourth always being Library:
 
-| Hub    | Sections                                      |
-|:-------|:----------------------------------------------|
-| Watch  | Movies & Series · Anime · Live TV · Library   |
-| Listen | Music · Podcasts · Radio · Library            |
-| Read   | Audiobooks · Books · Comics & Manga · Library |
+| Hub    | Sections                                              |
+|:-------|:-------------------------------------------------------|
+| Watch  | Movies & Series · Anime · Live TV · Library             |
+| Listen | Music · Podcasts/Audiobooks (sub-tab) · Radio · Library |
+| Read   | Books · Comics · Manga · Library                        |
+
+Audiobooks moved from Read to Listen 2026-09-02, paired with Podcasts behind
+a sub-tab (`HubController.spokenAudioType`) — both are episodic spoken audio,
+the same reasoning Movies/Series share one Watch section for. Comics and
+Manga split from one shared "Comics & Manga" section into two independent
+ones, backfilling the slot Audiobooks leaving freed up.
 
 Phones show hubs as icon pills in the header and sections in the bottom bar;
 tablet and desktop show sections as a chip row instead. Search, filters,
@@ -45,7 +51,7 @@ passing `flutter analyze` + the test suite; none has been run on hardware.
 | # | Area                                   | What specifically needs checking                                                                                                                                                                                                                                                                          |
 |---|----------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1 | **Media session** (shipped 2026-08-30) | Track title/artist/art in the Android shade; play/pause/skip/stop; audio surviving backgrounding; whether tapping the notification returns to the running app rather than restarting it. iOS lock screen and Control Center likewise.                                                                     |
-| 2 | **media_kit/libmpv playback**          | The engine swap (2026-08-28) changed torrent streaming, live IPTV, subtitle rendering, decoder presets and the volume-boost gesture. Needs a hands-on pass across movie / series / anime / IPTV / music / audiobook. The `mediacodec-copy` fix for the Android black screen (2026-08-29) is part of this. |
+| 2 | **media_kit/libmpv playback**          | The engine swap (2026-08-28) changed torrent streaming, live IPTV, subtitle rendering, decoder presets and the volume-boost gesture. Needs a hands-on pass across movie / series / anime / IPTV / music / audiobook. The `mediacodec-copy` fix for the Android black screen (2026-08-29) is part of this. `AudiobookPlayerController` (the background/mini-bar controller) joined this engine 2026-09-02 too — was the one holdout still on `video_player`; needs the same hands-on check as the rest. |
 | 3 | **Resume across sources**              | `ContinueWatchingService` absorbed `PlaybackHistoryService`. Resume across movie / series / anime / torrent paths is unconfirmed on a device.                                                                                                                                                             |
 | 4 | **QA on all five platforms**           | Mobile, tablet, desktop, TV. TV needs its own D-pad/remote-input pass. Most work to date has only been exercised on Windows desktop and in CI.                                                                                                                                                            |
 
@@ -57,7 +63,7 @@ hardware when possible.
 
 | # | Task                                                                                              | Why it is still open                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 |---|---------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 7 | **`music_page.dart` is 5,220 lines**                                                              | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice.                                                                                                                                                                                                                                                                                                                                                                        |
+| 7 | **`music_page.dart` is 6,338 lines** (grew from 5,220 on 2026-09-02, absorbing the Liked/In Progress/Downloads sub-tabs for Audiobooks now that it lives in Listen) | Four other files are over 2,000. Splitting is worthwhile but is a refactor with no user-visible payoff, so it waits behind anything that a user would notice.                                                                                                                                                                                                                                                                                                                                                                        |
 | 8 | **Kotlin Gradle Plugin will break future Flutter builds**                                         | Every Android build warns: the app and six plugins (`package_info_plus`, `shared_preferences_android`, `torrserver_flutter`, `url_launcher_android`, `video_player_android`, `wakelock_plus`) apply KGP, and *"future versions of Flutter will fail to build if your app uses plugins that apply KGP"*. The app's own `build.gradle.kts` can migrate to Built-in Kotlin; the plugins cannot be fixed here — each needs a version that supports it, or an upstream issue. Not urgent, but it is a dated fuse rather than a style nit. |
 
 ## Content sources
@@ -75,15 +81,29 @@ hardware when possible.
 
 ## Requested UI work
 
-| #  | Task                                                                                         | Notes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
-|----|----------------------------------------------------------------------------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| 13 | **Movies/Series & Anime browse page — carousel, Continue Watching, layout parity with upstream's Home** | Raised 2026-09-02. Hero image quality/cropping fixed for Movies & Series and Anime (see `CHANGELOG.md`); Live TV's own hero (`iptv_hero_carousel.dart:234-238`) already renders correctly in code, still needs an on-device look. Broader ask on the table: a Continue Watching row, the Movies/Series pill switcher moved into the same row as the genre/decade/sort filters, and upstream-style Featured/Latest/Calendar rows on the Movies & Series page. This is a real redesign touching a shared widget (`SectionSubTabs`) and wiring the already-ported-but-unused `ContinueWatchingSlider`/`MovieSliderSection`/`TraktCalendarService`/`SimklCalendarService` into the page — needs a short design agreed before starting, not a drive-by fix. |
+Nothing outstanding here right now — item 13 (Movies/Series & Anime browse
+page parity: hero image, Continue Watching, pill switcher, Latest
+Releases/Calendar rows, consistent search UX across Listen/Read, the
+Audiobooks/Podcasts nav restructure) shipped 2026-09-02; see `CHANGELOG.md`
+for the full breakdown. Live TV's own hero (`iptv_hero_carousel.dart:234-238`)
+was checked and already renders correctly in code — still worth an on-device
+look, folded into item 4 below rather than tracked separately.
+
+Still open, not part of that pass: **Continue Reading matching Continue
+Watching's card style**, and Manga/Comics' own genre/type-selection matching
+Movies & Series' pill row — raised 2026-09-02, not started. Books has no
+cover art (`BookResult` from libgen.li carries none, see Declined below), so
+a literal `ContinueWatchingSlider`-style card would show a fallback icon in
+place of art on every entry, not real backdrop images.
 
 ## Staying level with upstream
 
-The fork tracks `ayman708-UX/PlayTorrioV3`. As of 2026-09-02 it is **zero
-commits behind** (`upstream/main` @ `ad81c7b`, merged same day — see
-`CHANGELOG.md` for what landed).
+The fork tracks `ayman708-UX/PlayTorrioV3`. As of 2026-09-02 it is **one
+commit behind** (`upstream/main` @ `1ea6c5d` — "Bump version to 1.1.0 and
+enhance TV calendar, addon management, seeder filters, and semantic continue
+watching matcher"; our tree is level with the prior `ad81c7b`). Not merged
+yet — noted while checking upstream's own hero image logic for the item 13
+work above, not otherwise investigated.
 
 Merging upstream is not a `git merge` and a green analyzer — past syncs
 both had real breakage in regions git's 3-way diff never flagged, because only
