@@ -2,7 +2,9 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../models/movie/movie.dart';
+import '../../models/movie/movie_detail.dart';
 import '../../models/movie/movie_section.dart';
+import '../../services/metadata/metadata_service.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../utils/navigation/route_transitions.dart';
 import '../../widgets/common/browse_scaffold.dart';
@@ -60,6 +62,13 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
   String? _genreFilter;
   List<Movie> _genreItems = [];
   bool _loadingGenre = false;
+
+  /// Per-hero-item enrichment (genre/synopsis) keyed by movie id — the
+  /// catalog list itself only carries poster/background/year/imdbRating, not
+  /// genres or a synopsis, so the hero fetches those separately once it
+  /// knows which ~6 items it's showing. Missing/failed entries just mean
+  /// that slide stays at today's minimal title+year overlay.
+  Map<String, MovieDetail> _heroDetails = {};
 
   static int? _decadeOf(Movie m) {
     final year = _yearOf(m);
@@ -157,6 +166,7 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
         _availableGenres = filteredGenres;
         _loading = false;
       });
+      _fetchHeroDetails(_heroItems);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -345,12 +355,33 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
     );
   }
 
+  Future<void> _fetchHeroDetails(List<Movie> heroItems) async {
+    final results = await Future.wait(
+      heroItems.map((m) async {
+        final detail = await MetadataService.fetchMeta(
+          baseUrl: m.addonBaseUrl,
+          type: m.type,
+          imdbId: m.id,
+        );
+        return MapEntry(m.id, detail);
+      }),
+    );
+    if (!mounted) return;
+    setState(() {
+      _heroDetails = {
+        for (final entry in results)
+          if (entry.value != null) entry.key: entry.value!,
+      };
+    });
+  }
+
   Widget _buildHeroSlide(BuildContext context, Movie movie) {
     // Prefer the addon's landscape background over the portrait poster --
     // the poster only fills this landscape hero slot by force-cropping.
     final heroImage = (movie.background != null && movie.background!.isNotEmpty)
         ? movie.background
         : movie.poster;
+    final detail = _heroDetails[movie.id];
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => Navigator.push(
@@ -364,9 +395,6 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
             CachedNetworkImage(
               imageUrl: heroImage,
               fit: BoxFit.cover,
-              // Biased up like Anime's hero so a portrait poster forced into
-              // this landscape slot keeps the face/title art instead of
-              // cropping it out via dead-center framing.
               alignment: const Alignment(0, -0.15),
               filterQuality: FilterQuality.medium,
               placeholder: (_, __) =>
@@ -395,6 +423,81 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  Row(
+                    children: [
+                      if ((movie.imdbRating ?? '').isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 11,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(
+                              0xFFFFD700,
+                            ).withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(9),
+                            border: Border.all(
+                              color: const Color(
+                                0xFFFFD700,
+                              ).withValues(alpha: 0.28),
+                            ),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(
+                                Icons.star_rounded,
+                                size: 17,
+                                color: Color(0xFFFFD700),
+                              ),
+                              const SizedBox(width: 4),
+                              Text(
+                                movie.imdbRating!,
+                                style: const TextStyle(
+                                  fontSize: 15,
+                                  fontWeight: FontWeight.w800,
+                                  color: Color(0xFFFFD700),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
+                      if ((movie.year ?? '').isNotEmpty)
+                        Text(
+                          movie.year!,
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: Colors.white.withValues(alpha: 0.55),
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      if (detail != null && detail.genres.isNotEmpty) ...[
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 8),
+                          child: Icon(
+                            Icons.circle,
+                            size: 4,
+                            color: Colors.white.withValues(alpha: 0.25),
+                          ),
+                        ),
+                        Flexible(
+                          child: Text(
+                            detail.genres.take(3).join(' • '),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: Colors.white.withValues(alpha: 0.55),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 12),
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: Text(
@@ -409,13 +512,20 @@ class _TypeCatalogPageState extends State<TypeCatalogPage> {
                       ),
                     ),
                   ),
-                  if ((movie.year ?? '').isNotEmpty) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      movie.year!,
-                      style: const TextStyle(
-                        color: Colors.white70,
-                        fontSize: 13,
+                  if (detail != null &&
+                      (detail.description ?? '').isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: Text(
+                        detail.description!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: Colors.white.withValues(alpha: 0.7),
+                          height: 1.4,
+                        ),
                       ),
                     ),
                   ],
