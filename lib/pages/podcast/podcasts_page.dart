@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../services/podcast/podcast_service.dart';
+import '../search/simple_search_page.dart';
 import 'podcast_details_page.dart';
 
 /// Podcasts section in the Listen hub: search via the iTunes Search API
@@ -16,11 +17,6 @@ class PodcastsPage extends StatefulWidget {
 
 class _PodcastsPageState extends State<PodcastsPage> {
   final PodcastService _service = PodcastService();
-  final TextEditingController _searchController = TextEditingController();
-
-  List<PodcastResult> _results = [];
-  bool _isLoading = false;
-  bool _hasSearched = false;
 
   List<PodcastResult> _trending = [];
   bool _isTrendingLoading = true;
@@ -41,108 +37,80 @@ class _PodcastsPageState extends State<PodcastsPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _search(String query) async {
-    query = query.trim();
-    if (query.isEmpty) return;
-    setState(() {
-      _isLoading = true;
-      _hasSearched = true;
-      _results = [];
-    });
-    final results = await _service.search(query);
-    if (mounted) {
-      setState(() {
-        _results = results;
-        _isLoading = false;
-      });
-    }
+  void _openSearch() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SimpleSearchPage<PodcastResult>(
+          hintText: 'Search podcasts...',
+          onSearch: _service.search,
+          emptyIcon: Icons.podcasts_rounded,
+          emptyMessage: 'Search for a podcast to get started',
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            mainAxisSpacing: 16,
+            crossAxisSpacing: 16,
+            childAspectRatio: 0.78,
+          ),
+          itemBuilder: (context, podcast) => _PodcastCard(podcast: podcast),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final crossAxisCount = width < 600 ? 2 : (width < 900 ? 3 : (width < 1200 ? 4 : 5));
+    final crossAxisCount = width < 600
+        ? 2
+        : (width < 900 ? 3 : (width < 1200 ? 4 : 5));
 
     return CustomScrollView(
       slivers: [
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           sliver: SliverToBoxAdapter(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            child: Row(
               children: [
-                const Text(
-                  'Podcasts',
-                  style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w900, letterSpacing: -0.5),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _searchController,
-                  style: const TextStyle(color: Colors.white),
-                  onSubmitted: _search,
-                  decoration: InputDecoration(
-                    hintText: 'Search podcasts...',
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.06),
-                    prefixIcon: const Icon(Icons.search_rounded, color: Colors.white54),
-                    suffixIcon: IconButton(
-                      icon: const Icon(Icons.arrow_forward_rounded, color: Color(0xFF7C5CFF)),
-                      onPressed: () => _search(_searchController.text),
+                const Expanded(
+                  child: Text(
+                    'Podcasts',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
                     ),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14), borderSide: BorderSide.none),
                   ),
+                ),
+                IconButton(
+                  tooltip: 'Search',
+                  icon: Icon(
+                    Icons.search_rounded,
+                    color: Colors.white.withValues(alpha: 0.75),
+                  ),
+                  onPressed: _openSearch,
                 ),
               ],
             ),
           ),
         ),
-        if (_isLoading)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF))),
-          )
-        else if (_hasSearched && _results.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(child: Text('No podcasts found.', style: TextStyle(color: Colors.white54))),
-          )
-        else if (!_hasSearched) ..._browseSlivers(crossAxisCount)
-        else
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            sliver: SliverGrid(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: crossAxisCount,
-                mainAxisSpacing: 16,
-                crossAxisSpacing: 16,
-                childAspectRatio: 0.78,
-              ),
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _PodcastCard(podcast: _results[index]),
-                childCount: _results.length,
-              ),
-            ),
-          ),
+        ..._browseSlivers(crossAxisCount),
         const SliverPadding(padding: EdgeInsets.only(bottom: 24)),
       ],
     );
   }
 
-  /// Shown before any search -- Apple's public Top Podcasts chart, so the
-  /// page has real content to land on instead of a bare search box.
+  /// Apple's public Top Podcasts chart, so the page has real content to
+  /// land on instead of a bare search box.
   List<Widget> _browseSlivers(int crossAxisCount) {
     if (_isTrendingLoading) {
       return const [
         SliverFillRemaining(
           hasScrollBody: false,
-          child: Center(child: CircularProgressIndicator(color: Color(0xFF7C5CFF))),
+          child: Center(
+            child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
+          ),
         ),
       ];
     }
@@ -158,7 +126,10 @@ class _PodcastsPageState extends State<PodcastsPage> {
                 children: [
                   Icon(Icons.podcasts_rounded, color: Colors.white24, size: 64),
                   SizedBox(height: 16),
-                  Text('Search for a podcast to get started', style: TextStyle(color: Colors.white54, fontSize: 16)),
+                  Text(
+                    'Search for a podcast to get started',
+                    style: TextStyle(color: Colors.white54, fontSize: 16),
+                  ),
                 ],
               ),
             ),
@@ -219,17 +190,29 @@ class _PodcastCard extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: podcast.artworkUrl.isNotEmpty
-                  ? CachedNetworkImage(imageUrl: podcast.artworkUrl, fit: BoxFit.cover, width: double.infinity)
+                  ? CachedNetworkImage(
+                      imageUrl: podcast.artworkUrl,
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                    )
                   : Container(
                       color: Colors.white10,
-                      child: const Icon(Icons.podcasts_rounded, color: Colors.white24, size: 40),
+                      child: const Icon(
+                        Icons.podcasts_rounded,
+                        color: Colors.white24,
+                        size: 40,
+                      ),
                     ),
             ),
           ),
           const SizedBox(height: 8),
           Text(
             podcast.name,
-            style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
           ),

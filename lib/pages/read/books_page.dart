@@ -7,6 +7,7 @@ import '../../services/books/book_library_service.dart';
 import '../../services/books/book_progress_service.dart';
 import '../../services/books/books_service.dart';
 import 'book_reader_page.dart';
+import '../search/simple_search_page.dart';
 import '../../widgets/common/filter_dropdown.dart';
 import '../../widgets/common/like_button.dart';
 
@@ -21,11 +22,7 @@ class BooksPage extends StatefulWidget {
 
 class _BooksPageState extends State<BooksPage> {
   final BooksService _service = BooksService();
-  final TextEditingController _searchController = TextEditingController();
 
-  List<BookResult> _results = [];
-  bool _isLoading = false;
-  bool _hasSearched = false;
   List<BookProgress> _reading = [];
 
   List<BookResult> _browsing = [];
@@ -94,32 +91,29 @@ class _BooksPageState extends State<BooksPage> {
     }
   }
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
   Future<void> _loadReadingList() async {
     final entries = await BookProgressService.instance.loadAll();
     if (mounted) setState(() => _reading = entries);
   }
 
-  Future<void> _search(String query) async {
-    query = query.trim();
-    if (query.isEmpty) return;
-    setState(() {
-      _isLoading = true;
-      _hasSearched = true;
-      _results = [];
-    });
-    final results = await _service.search(query);
-    if (mounted) {
-      setState(() {
-        _results = results;
-        _isLoading = false;
-      });
-    }
+  void _openSearch() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SimpleSearchPage<BookResult>(
+          hintText: 'Search books (title, author...)',
+          onSearch: _service.search,
+          emptyIcon: Icons.import_contacts_rounded,
+          emptyMessage: 'Search for a book to get started',
+          itemBuilder: (context, book) => _BookRow(
+            book: book,
+            onTap: () => _openDownloadDialog(book),
+            isLiked: BookLibraryService.instance.isLiked(book.editionId),
+            onToggleLike: () => _toggleLike(book),
+          ),
+        ),
+      ),
+    );
   }
 
   void _openDownloadDialog(BookResult book, {int resumeChapter = 0}) {
@@ -201,7 +195,6 @@ class _BooksPageState extends State<BooksPage> {
 
   @override
   Widget build(BuildContext context) {
-    final filteredResults = _applyFilters(_results);
     return CustomScrollView(
       slivers: [
         SliverPadding(
@@ -210,43 +203,30 @@ class _BooksPageState extends State<BooksPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'Books',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 28,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: _searchController,
-                  style: const TextStyle(color: Colors.white),
-                  onSubmitted: _search,
-                  decoration: InputDecoration(
-                    hintText: 'Search books (title, author...)',
-                    hintStyle: const TextStyle(color: Colors.white38),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.06),
-                    prefixIcon: const Icon(
-                      Icons.search_rounded,
-                      color: Colors.white54,
-                    ),
-                    suffixIcon: IconButton(
-                      icon: const Icon(
-                        Icons.arrow_forward_rounded,
-                        color: Color(0xFF7C5CFF),
+                Row(
+                  children: [
+                    const Expanded(
+                      child: Text(
+                        'Books',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.5,
+                        ),
                       ),
-                      onPressed: () => _search(_searchController.text),
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      borderSide: BorderSide.none,
+                    IconButton(
+                      tooltip: 'Search',
+                      icon: Icon(
+                        Icons.search_rounded,
+                        color: Colors.white.withValues(alpha: 0.75),
+                      ),
+                      onPressed: _openSearch,
                     ),
-                  ),
+                  ],
                 ),
-                if (_browsing.isNotEmpty || _results.isNotEmpty) ...[
+                if (_browsing.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Wrap(
                     spacing: 10,
@@ -254,8 +234,7 @@ class _BooksPageState extends State<BooksPage> {
                     children: [
                       Builder(
                         builder: (context) {
-                          final source = _hasSearched ? _results : _browsing;
-                          final languages = _availableLanguages(source);
+                          final languages = _availableLanguages(_browsing);
                           if (languages.isEmpty) return const SizedBox.shrink();
                           return FilterDropdown<String?>(
                             label: _languageFilter ?? 'All languages',
@@ -275,8 +254,7 @@ class _BooksPageState extends State<BooksPage> {
                       ),
                       Builder(
                         builder: (context) {
-                          final source = _hasSearched ? _results : _browsing;
-                          final formats = _availableFormats(source);
+                          final formats = _availableFormats(_browsing);
                           if (formats.isEmpty) return const SizedBox.shrink();
                           return FilterDropdown<String?>(
                             label: _formatFilter ?? 'All formats',
@@ -304,53 +282,8 @@ class _BooksPageState extends State<BooksPage> {
             ),
           ),
         ),
-        if (!_hasSearched) ...[
-          if (_reading.isNotEmpty) ..._continueReadingSlivers(),
-          ..._browseSlivers(),
-        ] else if (_isLoading)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: CircularProgressIndicator(color: Color(0xFF7C5CFF)),
-            ),
-          )
-        else if (_results.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: Text(
-                'No epub results found.',
-                style: TextStyle(color: Colors.white54),
-              ),
-            ),
-          )
-        else if (filteredResults.isEmpty)
-          const SliverFillRemaining(
-            hasScrollBody: false,
-            child: Center(
-              child: Text(
-                'No results match these filters.',
-                style: TextStyle(color: Colors.white54),
-              ),
-            ),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-            sliver: SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) => _BookRow(
-                  book: filteredResults[index],
-                  onTap: () => _openDownloadDialog(filteredResults[index]),
-                  isLiked: BookLibraryService.instance.isLiked(
-                    filteredResults[index].editionId,
-                  ),
-                  onToggleLike: () => _toggleLike(filteredResults[index]),
-                ),
-                childCount: filteredResults.length,
-              ),
-            ),
-          ),
+        if (_reading.isNotEmpty) ..._continueReadingSlivers(),
+        ..._browseSlivers(),
       ],
     );
   }
