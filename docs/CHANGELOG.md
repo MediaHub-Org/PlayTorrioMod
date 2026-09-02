@@ -4,6 +4,10 @@ All notable changes to PlayTorrio V3 will be documented in this file.
 
 ## [unreleased]
 
+### Merged upstream, fixed clipped Watchlist/Watched labels — 2026-09-02
+- **Merged `ayman708-UX/PlayTorrioV3` up to `68140b8`**: multi-episode/directory-aware torrent title parsing, per-provider Debrid episode-matching fixes, and a new TV airing calendar page/service. Two commits behind, not the one docs previously claimed. Kept this fork's hub architecture on every conflict — re-deleted the old single home page and its settings (upstream kept editing it; this fork replaced it with Watch/Listen/Read), kept this fork's rewritten Settings/About/Updates pages and this session's Manga reorder over upstream's competing versions, dropped the TV Calendar/AI Quiz toggles that depended on the deleted home-page settings. `flutter analyze` and the full suite (237 tests) green after resolution.
+- **Fixed clipped Watchlist/Watched button labels.** The full-width pill packed an icon, gap and label ("Watchlist", "Watched") into a third of the row's width split three ways — too narrow, so the text clipped. Switched to icon-only with a hover `Tooltip` for the label (can't overflow), and gave both buttons the same hover/press feedback `LikeButton`'s icon style and the cast row's `_HoverButton` already use, instead of a plain `InkWell`.
+
 ### Listen UX pass: Radio search/liking, Music play buttons, Podcasts & Audiobooks rename, Manga reorder, Settings icon fix — 2026-09-02
 - **Fixed the real duplicate-search-icon bug.** `music_page.dart`'s top-right search icon rendered unconditionally on every Listen sub-tab (Music/Radio/Podcasts/Library), always opening *Music's own* inline Search tab — wrong destination on Radio/Podcasts, and a visible second icon stacked on Podcasts & Audiobooks' own correct one. Now Music-only, and carries a "Music" title label alongside it (matching Podcasts' own treatment from earlier this session).
 - **"Podcasts" renamed "Podcasts & Audiobooks"** everywhere the section label shows — it already held both behind a sub-tab, the label just didn't say so.
