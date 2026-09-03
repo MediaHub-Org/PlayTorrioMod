@@ -322,8 +322,10 @@ class ContinueWatchingService {
       episodeTitle: episode?.title,
       episodeId: episode?.id,
       streamName: source.name,
-      streamTitle: source.displayTitle,
-      streamDescription: source.description ?? source.title,
+      streamTitle: (source.title != null && source.title!.isNotEmpty)
+          ? source.title!
+          : source.displayTitle,
+      streamDescription: source.description,
       addonName: source.addonName,
       quality: source.quality,
       isTorrent: isTorrent,
@@ -777,7 +779,8 @@ class ContinueWatchingService {
         sub = stream.listen(
           (source) {
             animeSources.add(source);
-            if (source.name == item.streamName || source.addonName == item.addonName) {
+            final matchScore = calculateSourceMatchScore(source, item);
+            if (matchScore >= 950.0) {
               if (!completer.isCompleted) completer.complete();
             }
           },
@@ -925,9 +928,9 @@ class ContinueWatchingService {
       sub = stream.listen(
         (source) {
           candidateSources.add(source);
-          // If we found an exceptionally strong match (matching release tags, quality, or exact hash), we can finish promptly
+          // If we found an exceptionally strong match (matching release tags, exact title/description, or exact hash), we can finish promptly
           final matchScore = calculateSourceMatchScore(source, item);
-          if (matchScore >= 350.0) {
+          if (matchScore >= 950.0) {
             if (!completer.isCompleted) completer.complete();
           }
         },
@@ -1030,14 +1033,51 @@ class ContinueWatchingService {
       score += 1000.0;
     }
 
-    // 2. Addon Provider Match
+    // 2. Source Card Line 2: Exact Title & Scraper Prefix Match
+    // e.g. "FSOnline · FileSuN · 1080p"
+    final targetTitle = (target.streamTitle ?? '').trim();
+    final candidateTitle = (candidate.title ?? candidate.displayTitle).trim();
+    if (targetTitle.isNotEmpty && candidateTitle.isNotEmpty) {
+      final cleanTarget = _normalizeForComparison(targetTitle);
+      final cleanCand = _normalizeForComparison(candidateTitle);
+
+      if (cleanTarget == cleanCand) {
+        score += 700.0; // Exact normalized title match!
+      } else {
+        // Match scraper name / server prefix (e.g. "fsonline", "vidrock", "lookmovie", "cinesu", etc.)
+        final targetPrefix = cleanTarget.split(' ').firstOrNull ?? '';
+        final candPrefix = cleanCand.split(' ').firstOrNull ?? '';
+        if (targetPrefix.isNotEmpty && targetPrefix == candPrefix) {
+          score += 350.0; // Same scraper / provider prefix!
+        } else if (cleanTarget.contains(cleanCand) || cleanCand.contains(cleanTarget)) {
+          score += 200.0;
+        }
+      }
+    }
+
+    // 3. Source Card Line 3: Description / Comments Match ("these comments under it")
+    // e.g. "FSOnline HLS Stream"
+    final targetDesc = (target.streamDescription ?? '').trim();
+    final candidateDesc = (candidate.description ?? '').trim();
+    if (targetDesc.isNotEmpty && candidateDesc.isNotEmpty) {
+      final cleanTargetDesc = _normalizeForComparison(targetDesc);
+      final cleanCandDesc = _normalizeForComparison(candidateDesc);
+
+      if (cleanTargetDesc == cleanCandDesc) {
+        score += 500.0; // Exact normalized description match!
+      } else if (cleanCandDesc.contains(cleanTargetDesc) || cleanTargetDesc.contains(cleanCandDesc)) {
+        score += 250.0; // Substring description match!
+      }
+    }
+
+    // 4. Source Card Line 1: Addon Provider Match (e.g. "PlayTorrioHTTP")
     final targetAddon = (target.addonName ?? '').trim().toLowerCase();
     final candidateAddon = candidate.addonName.trim().toLowerCase();
     if (targetAddon.isNotEmpty && targetAddon == candidateAddon) {
       score += 150.0;
     }
 
-    // 3. Stream Scraper / Server Name Match
+    // Stream Scraper / Server Name Match
     final targetName = (target.streamName ?? '').trim().toLowerCase();
     final candidateName = (candidate.name ?? '').trim().toLowerCase();
     if (targetName.isNotEmpty && candidateName.isNotEmpty) {
@@ -1048,7 +1088,7 @@ class ContinueWatchingService {
       }
     }
 
-    // 4. Resolution / Quality Match
+    // 5. Resolution / Quality Match
     final targetQuality = (target.quality ?? '').trim().toUpperCase();
     final candidateQuality = (candidate.quality ?? '').trim().toUpperCase();
     if (targetQuality.isNotEmpty && candidateQuality.isNotEmpty) {
@@ -1151,5 +1191,13 @@ class ContinueWatchingService {
     if (q.contains('720')) return 2;
     if (q.contains('480')) return 1;
     return 0;
+  }
+
+  static String _normalizeForComparison(String s) {
+    return s
+        .toLowerCase()
+        .replaceAll(RegExp(r'[\s\.\-_·\|:/\(\)\[\]]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 }

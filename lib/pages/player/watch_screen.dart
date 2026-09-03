@@ -87,6 +87,26 @@ class _WatchScreenState extends State<WatchScreen>
   final ScrollController _sourcesScrollController = ScrollController();
   final ScrollController _mainScrollController = ScrollController();
 
+  // Addon priority caching
+  Map<String, int>? _cachedAddonOrder;
+  Map<String, int> get _addonOrder {
+    if (_cachedAddonOrder != null) return _cachedAddonOrder!;
+    final map = <String, int>{};
+    final allAddons = AddonManager.instance.addons;
+    for (int i = 0; i < allAddons.length; i++) {
+      final a = allAddons[i];
+      map[a.manifest.name.toLowerCase()] = i;
+      map[a.manifest.id.toLowerCase()] = i;
+      if (a.manifest.id == 'builtin.playtorriohttp' || a.baseUrl == 'builtin:playtorriohttp') {
+        map['playtorriohttp'] = i;
+      }
+      if (a.manifest.id == 'builtin.playtorrio' || a.baseUrl == 'builtin:playtorrio') {
+        map['playtorrio'] = i;
+      }
+    }
+    return _cachedAddonOrder = map;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -263,20 +283,8 @@ class _WatchScreenState extends State<WatchScreen>
       list = list.where((s) => s.addonName.toLowerCase() != 'playtorriohttp').toList();
     }
 
-    // Dynamic addon priority lookup from user's installed addons order
-    final addonOrder = <String, int>{};
-    final allAddons = AddonManager.instance.addons;
-    for (int i = 0; i < allAddons.length; i++) {
-      final a = allAddons[i];
-      addonOrder[a.manifest.name.toLowerCase()] = i;
-      addonOrder[a.manifest.id.toLowerCase()] = i;
-      if (a.manifest.id == 'builtin.playtorriohttp' || a.baseUrl == 'builtin:playtorriohttp') {
-        addonOrder['playtorriohttp'] = i;
-      }
-      if (a.manifest.id == 'builtin.playtorrio' || a.baseUrl == 'builtin:playtorrio') {
-        addonOrder['playtorrio'] = i;
-      }
-    }
+    // Cached dynamic addon priority lookup from user's installed addons order
+    final addonOrder = _addonOrder;
 
     if (_selectedSeederFilter == 'most') {
       list.sort((a, b) => (b.seeders ?? 0).compareTo(a.seeders ?? 0));
@@ -1864,7 +1872,7 @@ class _WatchScreenState extends State<WatchScreen>
   }
 
   Widget _buildShimmerCard() {
-    return const _ShimmerCard();
+    return const RepaintBoundary(child: _ShimmerCard());
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1955,11 +1963,12 @@ class _SourceCardState extends State<_SourceCard> {
       badges.add(_badge('👤 ${s.seeders} Seeds', seederColor));
     }
 
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: ClipRRect(
+    return RepaintBoundary(
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        child: ClipRRect(
         borderRadius: BorderRadius.circular(12),
         child: Material(
           color: Colors.transparent,
@@ -2141,8 +2150,9 @@ class _SourceCardState extends State<_SourceCard> {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Future<void> _startDownload(BuildContext context, StreamSource s) async {
     final detail = widget.detail;

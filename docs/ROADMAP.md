@@ -2,7 +2,7 @@
 
 What is **outstanding**. Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md).
 
-Last reconciled: **2026-09-02** (v1.1.4, level with upstream `ayman708-UX/PlayTorrioV3` @ `68140b8`).
+Last reconciled: **2026-09-03** (v1.1.5, level with upstream `ayman708-UX/PlayTorrioV3` @ `9d34d4c`, on branch `upstream-v3-sync` pending merge to `main`).
 
 ## Sibling app: PlayTorrioMov
 
@@ -62,7 +62,7 @@ moving to the shared `PillTabRow` instead of their own hand-built ones.
 
 ## Staying level with upstream
 
-Tracks `ayman708-UX/PlayTorrioV3`, level as of `68140b8`. Merging is never
+Tracks `ayman708-UX/PlayTorrioV3`, level as of `9d34d4c`. Merging is never
 just `git merge` + green analyzer — past syncs had real breakage git's
 3-way diff didn't flag. Routine:
 
@@ -74,6 +74,27 @@ just `git merge` + green analyzer — past syncs had real breakage git's
    `LibrarySection.values`, namespaced `my_list_item` keys,
    `_buildFatalErrorView`.
 5. `flutter analyze` + suite.
+
+2026-09-03: merged the 3-commit gap from `68140b8` on branch
+`upstream-v3-sync` (not yet merged to `main`).
+- `cc07994` (AniList 403 fix) merged: User-Agent/Origin/Referer/15s timeout
+  in `anilist_service.dart` landed clean. Its `anime_page.dart` "no data"
+  message was moot -- this fork's `_selectGenre` already had its own (and
+  correctly scoped) no-data handling; upstream's version of that function
+  was still the old one that over-fetched all 8 home sections on every
+  genre pick.
+- `b0aecf5` (new sources, mapple fix) merged: ~30 scraper sites under
+  `lib/services/scraper/sites/`, 7 anime extractors, `video_settings_page.dart`
+  additions (libass / Android surface-producer toggles), `stream_model.dart`
+  memoization. Kept this fork's `getEffectiveHwdecString()` decoder choice
+  in `getVideoControllerConfiguration` over upstream's hardcoded
+  `auto-safe` (the "advanced player settings stay" divergence above still
+  applies). Took upstream's removal of the `StreamHealthChecker`
+  dead-stream probe from `ScraperManager` -- a GET-and-sniff per source was
+  adding real latency now that there are ~50 scraper sites; the class
+  itself is untouched, just unused from that path. Reopen if dead links
+  become a visible complaint.
+- `9d34d4c` (upstream's own README) skipped -- this fork keeps its own.
 
 ## Declined, so they do not get re-litigated
 

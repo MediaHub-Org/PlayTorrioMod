@@ -318,6 +318,7 @@ abstract final class PlayerSettings {
   static const _keySubPos = 'player_sub_pos';
   static const _keySubAlignX = 'player_sub_align_x';
   static const _keySubAssOverride = 'player_sub_ass_override';
+  static const _keyEnableSurfaceProducer = 'player_enable_surface_producer';
 
   // ValueNotifiers for reactive UI binding
   static final ValueNotifier<DecoderPreset> decoderPreset =
@@ -357,6 +358,9 @@ abstract final class PlayerSettings {
     0.0,
   );
   static final ValueNotifier<bool> autoNextEnabled = ValueNotifier<bool>(true);
+
+  /// Android Direct Surface (SurfaceProducer / SurfaceView) toggle. Default: false (off).
+  static final ValueNotifier<bool> enableSurfaceProducer = ValueNotifier<bool>(false);
 
   // Anime4K Video Upscaling ValueNotifier
   static final ValueNotifier<Anime4KPreset> anime4kPreset =
@@ -581,6 +585,7 @@ abstract final class PlayerSettings {
     subAlignX.value = prefs.getString(_keySubAlignX) ?? 'center';
     subAssOverride.value = prefs.getString(_keySubAssOverride) ?? 'no';
     useLibass.value = prefs.getBool(_keyUseLibass) ?? false;
+    enableSurfaceProducer.value = prefs.getBool(_keyEnableSurfaceProducer) ?? false;
 
     // Extract bundled font for libass fallback
     await _extractLibassFontFallback();
@@ -839,7 +844,7 @@ abstract final class PlayerSettings {
       hwdec: hwdec,
       enableHardwareAcceleration: hwdec != 'no',
       androidAttachSurfaceAfterVideoParameters: true,
-      enableAndroidSurfaceProducer: false,
+      enableAndroidSurfaceProducer: enableSurfaceProducer.value,
     );
   }
 
@@ -1685,6 +1690,13 @@ abstract final class PlayerSettings {
     _notify();
   }
 
+  static Future<void> setEnableSurfaceProducer(bool val) async {
+    enableSurfaceProducer.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyEnableSurfaceProducer, val);
+    _notify();
+  }
+
   static Future<void> resetSubtitleDefaults({Player? player}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keySubStylePreset);
@@ -1798,8 +1810,9 @@ abstract final class PlayerSettings {
     );
 
     await prefs.remove(_keyAnime4kPreset);
+    await prefs.remove(_keyEnableSurfaceProducer);
     anime4kPreset.value = Anime4KPreset.off;
-
+    enableSurfaceProducer.value = false;
     await resetSubtitleDefaults();
     _notify();
   }

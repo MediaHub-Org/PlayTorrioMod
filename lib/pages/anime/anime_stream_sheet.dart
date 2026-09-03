@@ -307,91 +307,93 @@ class _AnimeStreamSheetState extends State<AnimeStreamSheet> {
                                       (s.name?.toLowerCase().contains('dub') ??
                                           false);
 
-                              return Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: () => _playSource(s),
-                                  borderRadius: BorderRadius.circular(14),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 16,
-                                      vertical: 12,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF191C28),
-                                      borderRadius: BorderRadius.circular(14),
-                                      border: Border.all(
-                                        color:
-                                            Colors.white.withValues(alpha: 0.08),
+                              return RepaintBoundary(
+                                child: Material(
+                                  color: Colors.transparent,
+                                  child: InkWell(
+                                    onTap: () => _playSource(s),
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 12,
                                       ),
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          padding: const EdgeInsets.all(8),
-                                          decoration: BoxDecoration(
-                                            color: const Color(0xFF7C5CFF)
-                                                .withValues(alpha: 0.2),
-                                            borderRadius:
-                                                BorderRadius.circular(10),
-                                          ),
-                                          child: const Icon(
-                                            Icons.play_circle_fill_rounded,
-                                            color: Color(0xFF7C5CFF),
-                                            size: 24,
-                                          ),
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF191C28),
+                                        borderRadius: BorderRadius.circular(14),
+                                        border: Border.all(
+                                          color:
+                                              Colors.white.withValues(alpha: 0.08),
                                         ),
-                                        const SizedBox(width: 14),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                s.name ?? 'Stream Source',
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.bold,
-                                                ),
-                                              ),
-                                              const SizedBox(height: 3),
-                                              Text(
-                                                s.description ?? s.addonName,
-                                                style: const TextStyle(
-                                                  color: Colors.white54,
-                                                  fontSize: 11,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 8,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: isDub
-                                                ? Colors.orange
-                                                    .withValues(alpha: 0.2)
-                                                : Colors.blue
-                                                    .withValues(alpha: 0.2),
-                                            borderRadius:
-                                                BorderRadius.circular(6),
-                                          ),
-                                          child: Text(
-                                            isDub ? 'DUB' : 'SUB',
-                                            style: TextStyle(
-                                              color: isDub
-                                                  ? Colors.orangeAccent
-                                                  : Colors.lightBlueAccent,
-                                              fontSize: 10,
-                                              fontWeight: FontWeight.w900,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.all(8),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF7C5CFF)
+                                                  .withValues(alpha: 0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(10),
+                                            ),
+                                            child: const Icon(
+                                              Icons.play_circle_fill_rounded,
+                                              color: Color(0xFF7C5CFF),
+                                              size: 24,
                                             ),
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(width: 14),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  s.name ?? 'Stream Source',
+                                                  style: const TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 14,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                                ),
+                                                const SizedBox(height: 3),
+                                                Text(
+                                                  s.description ?? s.addonName,
+                                                  style: const TextStyle(
+                                                    color: Colors.white54,
+                                                    fontSize: 11,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 8,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: isDub
+                                                  ? Colors.orange
+                                                      .withValues(alpha: 0.2)
+                                                  : Colors.blue
+                                                      .withValues(alpha: 0.2),
+                                              borderRadius:
+                                                  BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              isDub ? 'DUB' : 'SUB',
+                                              style: TextStyle(
+                                                color: isDub
+                                                    ? Colors.orangeAccent
+                                                    : Colors.lightBlueAccent,
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.w900,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ),
