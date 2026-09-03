@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../models/stream/stream_model.dart';
-import '../stream/stream_health_checker.dart';
 import '../p2p/p2p_settings_service.dart';
 
 abstract class StreamScraper {
@@ -85,12 +84,11 @@ class ScraperManager {
     debugPrint('[ScraperManager] Scraping across ${activeScrapers.length} active scrapers (${activeScrapers.map((s) => s.runtimeType).join(", ")}) for "$title" (P2P enabled: $p2pAllowed)...');
 
     int pendingScrapers = activeScrapers.length;
-    int inFlightChecks = 0;
     final seenHashes = <String>{};
     final seenUrls = <String>{};
 
     void checkClose() {
-      if (pendingScrapers == 0 && inFlightChecks == 0 && !controller.isClosed) {
+      if (pendingScrapers == 0 && !controller.isClosed) {
         controller.close();
       }
     }
@@ -129,21 +127,7 @@ class ScraperManager {
           if (rawUrl != null && rawUrl.startsWith('http')) {
             if (seenUrls.contains(rawUrl)) return;
             seenUrls.add(rawUrl);
-
-            // Automatically check HTTP/HLS stream health in background
-            inFlightChecks++;
-            StreamHealthChecker.isAlive(source).then((alive) {
-              if (alive && !controller.isClosed) {
-                controller.add(source);
-              } else if (!alive) {
-                debugPrint('[PlayTorrioHTTP] Omitted dead stream: ${source.title} ($rawUrl)');
-              }
-            }).catchError((_) {
-              // Silently drop on error
-            }).whenComplete(() {
-              inFlightChecks--;
-              checkClose();
-            });
+            controller.add(source);
           } else {
             controller.add(source);
           }

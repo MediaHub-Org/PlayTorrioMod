@@ -87,6 +87,7 @@ class ContinueWatchingItem {
     return StreamSource(
       name: streamName ?? addonName ?? 'Stream',
       title: streamTitle ?? title,
+      description: streamDescription,
       url: isTorrent ? (magnetUrl ?? rawUrl) : rawUrl,
       infoHash: infoHash,
       fileIdx: fileIdx,

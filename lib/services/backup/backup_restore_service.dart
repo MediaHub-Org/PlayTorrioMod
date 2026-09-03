@@ -9,7 +9,7 @@ import '../theme/custom_background_service.dart';
 import '../debrid/debrid_service.dart';
 
 class BackupRestoreService {
-  static const String appVersion = '1.1.1';
+  static const String appVersion = '1.1.2';
 
   /// Exports all app settings, installed addons, IPTV portals/playlists,
   /// theme preferences, and credentials into a formatted JSON string.

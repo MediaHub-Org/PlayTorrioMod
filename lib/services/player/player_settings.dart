@@ -137,12 +137,16 @@ abstract final class PlayerSettings {
   static const _keySubAlignX = 'player_sub_align_x';
   static const _keySubAssOverride = 'player_sub_ass_override';
   static const _keyUseLibass = 'player_use_libass';
+  static const _keyEnableSurfaceProducer = 'player_enable_surface_producer';
 
   // Hardcoded engine defaults — not user-configurable
   // autoResyncOnStall and hardwareAudioClock are kept as ValueNotifiers for
   // compatibility with player_screen.dart but are always true.
   static final ValueNotifier<bool> autoResyncOnStall = ValueNotifier<bool>(true);
   static final ValueNotifier<bool> hardwareAudioClock = ValueNotifier<bool>(true);
+
+  /// Android Direct Surface (SurfaceProducer / SurfaceView) toggle. Default: false (off).
+  static final ValueNotifier<bool> enableSurfaceProducer = ValueNotifier<bool>(false);
 
   // Anime4K Video Upscaling ValueNotifier
   static final ValueNotifier<Anime4KPreset> anime4kPreset =
@@ -233,6 +237,7 @@ abstract final class PlayerSettings {
     subAlignX.value = prefs.getString(_keySubAlignX) ?? 'center';
     subAssOverride.value = prefs.getString(_keySubAssOverride) ?? 'no';
     useLibass.value = prefs.getBool(_keyUseLibass) ?? false;
+    enableSurfaceProducer.value = prefs.getBool(_keyEnableSurfaceProducer) ?? false;
 
     // Extract bundled font for libass fallback
     await _extractLibassFontFallback();
@@ -373,11 +378,11 @@ abstract final class PlayerSettings {
   /// Returns a configured [VideoControllerConfiguration] for media_kit [VideoController].
   /// Uses 'auto-safe' — MPV picks the best hardware decoder natively with automatic software fallback.
   static VideoControllerConfiguration getVideoControllerConfiguration() {
-    return const VideoControllerConfiguration(
+    return VideoControllerConfiguration(
       hwdec: 'auto-safe',
       enableHardwareAcceleration: true,
       androidAttachSurfaceAfterVideoParameters: true,
-      enableAndroidSurfaceProducer: false,
+      enableAndroidSurfaceProducer: enableSurfaceProducer.value,
     );
   }
 
@@ -954,6 +959,13 @@ abstract final class PlayerSettings {
     _notify();
   }
 
+  static Future<void> setEnableSurfaceProducer(bool val) async {
+    enableSurfaceProducer.value = val;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keyEnableSurfaceProducer, val);
+    _notify();
+  }
+
   static Future<void> resetSubtitleDefaults({Player? player}) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keySubStylePreset);
@@ -999,7 +1011,9 @@ abstract final class PlayerSettings {
   static Future<void> resetToDefaults() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_keyAnime4kPreset);
+    await prefs.remove(_keyEnableSurfaceProducer);
     anime4kPreset.value = Anime4KPreset.off;
+    enableSurfaceProducer.value = false;
     await resetSubtitleDefaults();
   }
 

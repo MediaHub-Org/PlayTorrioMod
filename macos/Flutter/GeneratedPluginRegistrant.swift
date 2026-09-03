@@ -15,7 +15,6 @@ import shared_preferences_foundation
 import sqflite_darwin
 import torrserver_flutter
 import url_launcher_macos
-import video_player_avfoundation
 import wakelock_plus
 import window_manager
 
@@ -30,7 +29,6 @@ func RegisterGeneratedPlugins(registry: FlutterPluginRegistry) {
   SqflitePlugin.register(with: registry.registrar(forPlugin: "SqflitePlugin"))
   TorrserverFlutterPlugin.register(with: registry.registrar(forPlugin: "TorrserverFlutterPlugin"))
   UrlLauncherPlugin.register(with: registry.registrar(forPlugin: "UrlLauncherPlugin"))
-  VideoPlayerPlugin.register(with: registry.registrar(forPlugin: "VideoPlayerPlugin"))
   WakelockPlusMacosPlugin.register(with: registry.registrar(forPlugin: "WakelockPlusMacosPlugin"))
   WindowManagerPlugin.register(with: registry.registrar(forPlugin: "WindowManagerPlugin"))
 }
