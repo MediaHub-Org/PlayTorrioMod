@@ -2,7 +2,7 @@
 
 What is **outstanding**. Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md).
 
-Last reconciled: **2026-09-03** (v1.1.5, level with upstream `ayman708-UX/PlayTorrioV3` @ `9d34d4c`, on branch `upstream-v3-sync` pending merge to `main`).
+Last reconciled: **2026-09-03** (v1.1.5, level with upstream `ayman708-UX/PlayTorrioV3` @ `9d34d4c`, merged to `main` at `f5c8b97`). Upstream has since moved to `ad0e40d` (2026-09-04) — not yet merged, see below.
 
 ## Sibling app: PlayTorrioMov
 
@@ -76,7 +76,7 @@ just `git merge` + green analyzer — past syncs had real breakage git's
 5. `flutter analyze` + suite.
 
 2026-09-03: merged the 3-commit gap from `68140b8` on branch
-`upstream-v3-sync` (not yet merged to `main`).
+`upstream-v3-sync`, fast-forwarded into `main` at `f5c8b97`.
 - `cc07994` (AniList 403 fix) merged: User-Agent/Origin/Referer/15s timeout
   in `anilist_service.dart` landed clean. Its `anime_page.dart` "no data"
   message was moot -- this fork's `_selectGenre` already had its own (and
@@ -95,6 +95,17 @@ just `git merge` + green analyzer — past syncs had real breakage git's
   itself is untouched, just unused from that path. Reopen if dead links
   become a visible complaint.
 - `9d34d4c` (upstream's own README) skipped -- this fork keeps its own.
+
+**Not yet merged:** `ad0e40d` "Bump 1.1.3: audio dub & language filtering,
+backend scraper extractions, and responsive UI" -- landed on `v3/main`
+2026-09-04, found on a routine re-fetch, not merged this pass. 22 files,
++1555/-148: a ~1080-line rewrite of `watch_screen.dart` (audio-track/dub
+language picker, responsive layout), a further `stream_model.dart`
+extension, and touch-ups to `fsharetv.dart`, `fsonic.dart`, `movy.dart`,
+`nova.dart`, `purstream.dart`, `vidvault.dart`, `vidzee.dart`, `vixsrc.dart`,
+`vuflix.dart`, `xdownloader.dart`. Needs the same by-hand conflict pass as
+the batch above, not a blind merge -- `watch_screen.dart` in particular is
+large enough that a 3-way diff alone won't be trustworthy.
 
 ## Declined, so they do not get re-litigated
 
