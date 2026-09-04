@@ -14,6 +14,7 @@ import '../../services/audiobook/audiobook_settings.dart';
 import '../../services/debrid/debrid_service.dart';
 import '../../services/stream/torrent_stream_service.dart';
 import '../../services/discord/discord_rpc_service.dart';
+import '../../services/player/player_settings.dart';
 import '../../widgets/audiobook/audiobook_interactive_physics_button.dart';
 import '../../widgets/audiobook/audiobook_waveform_seekbar.dart';
 import '../settings/appearance/audiobook_player_studio_page.dart';
@@ -247,6 +248,10 @@ class _AudiobookPlayerScreenState extends State<AudiobookPlayerScreen> with Sing
           }
         }),
         player.stream.error.listen((err) {
+          if (PlayerSettings.isNonFatalError(err)) {
+            debugPrint('[AudiobookPlayer] Ignored non-fatal error: $err');
+            return;
+          }
           if (mounted) {
             setState(() {
               _isLoading = false;

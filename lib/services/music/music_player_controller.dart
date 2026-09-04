@@ -10,6 +10,7 @@ import 'music_library_service.dart';
 import 'music_service.dart';
 import 'youtube_stream_http.dart';
 import '../discord/discord_rpc_service.dart';
+import '../player/player_settings.dart';
 
 enum MusicRepeatMode { off, all, one }
 
@@ -227,6 +228,10 @@ class MusicPlayerController extends ChangeNotifier {
           }
         }),
         player.stream.error.listen((err) {
+          if (PlayerSettings.isNonFatalError(err)) {
+            debugPrint('[MusicPlayer] Ignored non-fatal error: $err');
+            return;
+          }
           _isLoading = false;
           _isPlaying = false;
           _errorMessage = 'Could not load audio: $err';
