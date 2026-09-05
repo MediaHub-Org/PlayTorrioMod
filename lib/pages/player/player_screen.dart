@@ -513,12 +513,17 @@ class _PlayerScreenState extends State<PlayerScreen>
 
         final detail = widget.detail;
         if (detail != null) {
-          final targetId = detail.id.startsWith('tt')
-              ? detail.id
-              : (detail.tmdbId ?? detail.id);
+          final isColl = detail.isCollection;
+          final targetId =
+              (_currentEpisode != null &&
+                  _currentEpisode!.id.startsWith('tt'))
+              ? _currentEpisode!.id
+              : (detail.id.startsWith('tt')
+                    ? detail.id
+                    : (detail.tmdbId ?? detail.id));
           if (targetId.isNotEmpty) {
-            final s = _currentEpisode?.season;
-            final e = _currentEpisode?.episode;
+            final s = isColl ? null : _currentEpisode?.season;
+            final e = isColl ? null : _currentEpisode?.episode;
             final initPos = widget.initialPosition?.inSeconds ?? 0;
             final dur = _player.state.duration.inSeconds;
             final progress = (dur > 0 ? (initPos / dur) * 100.0 : 0.0).clamp(
@@ -816,17 +821,37 @@ class _PlayerScreenState extends State<PlayerScreen>
         final yMatch = RegExp(r'\b(19\d\d|20\d\d)\b').firstMatch(rawName);
         if (yMatch != null) searchYear = int.tryParse(yMatch.group(1)!);
       }
-      final showName = cleanMediaTitle(rawName);
+      final isColl = widget.detail?.isCollection == true;
+      final targetImdbId =
+          (_currentEpisode != null && _currentEpisode!.id.startsWith('tt'))
+          ? _currentEpisode!.id
+          : widget.detail?.id;
+      final targetName =
+          (isColl &&
+              _currentEpisode != null &&
+              _currentEpisode!.title.isNotEmpty)
+          ? _currentEpisode!.title
+          : rawName;
+      final targetYear =
+          (isColl &&
+              _currentEpisode?.released != null &&
+              _currentEpisode!.released!.length >= 4)
+          ? int.tryParse(_currentEpisode!.released!.substring(0, 4))
+          : searchYear;
+      final targetSeason = isColl ? null : _currentEpisode?.season;
+      final targetEpisode = isColl ? null : _currentEpisode?.episode;
+      final showName = cleanMediaTitle(targetName);
+
       print(
-        '[PlayerScreen] Scraping initial subtitles for "$showName" (year: $searchYear, imdb: ${widget.detail?.id})...',
+        '[PlayerScreen] Scraping initial subtitles for "$showName" (year: $targetYear, imdb: $targetImdbId)...',
       );
 
       final groups = await SubtitleService().fetchAllSubtitles(
         showName,
-        imdbId: widget.detail?.id,
-        season: _currentEpisode?.season,
-        episode: _currentEpisode?.episode,
-        year: searchYear,
+        imdbId: targetImdbId,
+        season: targetSeason,
+        episode: targetEpisode,
+        year: targetYear,
       );
       print(
         '[PlayerScreen] Scraped ${groups.length} subtitle language groups with ${groups.fold(0, (s, g) => s + g.variants.length)} total variants',
@@ -1159,16 +1184,16 @@ class _PlayerScreenState extends State<PlayerScreen>
   void _onControllerError(dynamic err) {
     if (!mounted) return;
     final errorMsg = err.toString();
-    print('[PlayerScreen ERROR] Player error: $errorMsg');
-
-    // Ignore non-fatal subtitle track loading errors so video playback is not interrupted
     final lower = errorMsg.toLowerCase();
+
+    // 1. Subtitle track loading errors - non-fatal, notify user briefly without interrupting playback
     if (lower.contains('can not open external file') ||
         lower.contains('subtitle') ||
         lower.contains('sub-add') ||
         lower.contains('.srt') ||
         lower.contains('.vtt') ||
         lower.contains('.ass')) {
+      debugPrint('[PlayerScreen] Ignored non-fatal subtitle warning: $errorMsg');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1179,6 +1204,37 @@ class _PlayerScreenState extends State<PlayerScreen>
       }
       return;
     }
+
+    // 2. Ignore non-fatal MPV/FFmpeg network and demuxer warnings (e.g. "tcp: ffurl_read returned 0xffffff99")
+    if (PlayerSettings.isNonFatalError(err)) {
+      debugPrint('[PlayerScreen] Ignored non-fatal player warning: $errorMsg');
+      return;
+    }
+
+    // 3. Active playback protection:
+    // Only routine non-fatal hiccups during ongoing playback (where media has actively loaded and progressed)
+    // should be suppressed. Startup errors where media has not loaded must trigger error handling.
+    final bool hasActivelyProgressed = _duration > Duration.zero &&
+        (_position > Duration.zero || _player.state.position > Duration.zero) &&
+        (_isPlaying || _player.state.playing);
+
+    final bool isFatalOpenFailure = lower.contains('failed to open') ||
+        lower.contains('cannot open') ||
+        lower.contains('could not open') ||
+        lower.contains('failed to recognize file format') ||
+        lower.contains('unsupported file format') ||
+        lower.contains('server returned 4') ||
+        lower.contains('server returned 5') ||
+        lower.contains('failed to resolve') ||
+        lower.contains('no such host');
+
+    if (hasActivelyProgressed && !isFatalOpenFailure) {
+      debugPrint('[PlayerScreen WARNING] Ignored player warning during active playback: $errorMsg');
+      return;
+    }
+
+    // 4. Critical error on dead stream
+    print('[PlayerScreen ERROR] Critical player error on dead stream: $errorMsg');
 
     if (_currentEpisode != null && widget.detail?.videos.isNotEmpty == true) {
       setState(() {
@@ -1932,9 +1988,12 @@ class _PlayerScreenState extends State<PlayerScreen>
   Widget _buildControlsOverlay() {
     final buffered = _buffered;
 
+    final isColl = widget.detail?.isCollection == true;
     final episodeTitle = _currentEpisode?.title;
     final episodeSubtitle = _currentEpisode != null
-        ? 'S${_currentEpisode!.season ?? 1}:E${_currentEpisode!.episode ?? 1}${episodeTitle != null && episodeTitle.isNotEmpty ? " • $episodeTitle" : ""}'
+        ? (isColl
+            ? 'Part ${_currentEpisode!.episode ?? 1}${episodeTitle != null && episodeTitle.isNotEmpty ? " • $episodeTitle" : ""}'
+            : 'S${_currentEpisode!.season ?? 1}:E${_currentEpisode!.episode ?? 1}${episodeTitle != null && episodeTitle.isNotEmpty ? " • $episodeTitle" : ""}')
         : widget.detail?.year;
 
     final isOfflineFile = _currentSource.name == 'Downloaded';
