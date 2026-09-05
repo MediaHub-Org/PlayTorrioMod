@@ -24,6 +24,7 @@ import '../../widgets/movie/movie_slider_section.dart';
 import '../search/search_page.dart';
 import '../ai/wewatch_quiz_page.dart';
 import '../calendar/tv_calendar_page.dart';
+import '../discover/discover_page.dart';
 import '../settings/settings_page.dart';
 import '../../services/theme/dock_settings.dart';
 import '../../widgets/common/app_liquid_dock.dart';
@@ -612,6 +613,21 @@ class _GlassAppBar extends StatelessWidget {
                       MaterialPageRoute(builder: (_) => const TvCalendarPage()),
                     );
                   },
+                );
+              },
+            ),
+            // Discover Catalogs
+            IconButton(
+              icon: Icon(
+                Icons.explore_rounded,
+                color: Colors.white.withValues(alpha: 0.75),
+                size: 23,
+              ),
+              tooltip: 'Discover Catalogs',
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DiscoverPage()),
                 );
               },
             ),

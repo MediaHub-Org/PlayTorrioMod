@@ -9,6 +9,13 @@ enum DockItemKey {
     isRemovable: false,
     description: 'Explore trending, continue watching, and catalog recommendations.',
   ),
+  discover(
+    key: 'discover',
+    label: 'Discover',
+    icon: Icons.explore_rounded,
+    isRemovable: true,
+    description: 'Explore and filter addon catalogs, genres, and special selectors.',
+  ),
   manga(
     key: 'manga',
     label: 'Manga',

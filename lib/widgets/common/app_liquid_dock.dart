@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../pages/anime/anime_page.dart';
 import '../../pages/audiobooks/audiobooks_page.dart';
 import '../../pages/books/books_page.dart';
+import '../../pages/discover/discover_page.dart';
 import '../../pages/downloads/downloads_page.dart';
 import '../../pages/home/home_page.dart';
 import '../../pages/iptv/iptv_page.dart';
@@ -102,6 +103,19 @@ class AppLiquidDock extends StatelessWidget {
                   icon: itemKey.icon,
                   label: itemKey.label,
                   onTap: () => _handleHomeTap(context),
+                ),
+              );
+              break;
+
+            case DockItemKey.discover:
+              items.add(
+                DockItem(
+                  icon: itemKey.icon,
+                  label: itemKey.label,
+                  onTap: () {
+                    if (currentDestination == DockItemKey.discover) return;
+                    _navigateToPage(context, const DiscoverPage());
+                  },
                 ),
               );
               break;
