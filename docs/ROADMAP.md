@@ -2,7 +2,7 @@
 
 What is **outstanding**. Shipped work lives in [`CHANGELOG.md`](CHANGELOG.md).
 
-Last reconciled: **2026-09-03** (v1.1.5, level with upstream `ayman708-UX/PlayTorrioV3` @ `9d34d4c`, merged to `main` at `f5c8b97`). Upstream has since moved to `ad0e40d` (2026-09-04) — not yet merged, see below.
+Last reconciled: **2026-09-03** (v1.1.5, level with upstream `ayman708-UX/PlayTorrioV3` @ `9d34d4c`, merged to `main` at `f5c8b97`). The next 3-commit gap (`ad0e40d`, `6c4d0cf`, `f1f1310`) is merged on branch `upstream-v3-sync-2`, pending review before it lands on `main` — see below.
 
 ## Sibling app: PlayTorrioMov
 
@@ -96,16 +96,63 @@ just `git merge` + green analyzer — past syncs had real breakage git's
   become a visible complaint.
 - `9d34d4c` (upstream's own README) skipped -- this fork keeps its own.
 
-**Not yet merged:** `ad0e40d` "Bump 1.1.3: audio dub & language filtering,
-backend scraper extractions, and responsive UI" -- landed on `v3/main`
-2026-09-04, found on a routine re-fetch, not merged this pass. 22 files,
-+1555/-148: a ~1080-line rewrite of `watch_screen.dart` (audio-track/dub
-language picker, responsive layout), a further `stream_model.dart`
-extension, and touch-ups to `fsharetv.dart`, `fsonic.dart`, `movy.dart`,
-`nova.dart`, `purstream.dart`, `vidvault.dart`, `vidzee.dart`, `vixsrc.dart`,
-`vuflix.dart`, `xdownloader.dart`. Needs the same by-hand conflict pass as
-the batch above, not a blind merge -- `watch_screen.dart` in particular is
-large enough that a 3-way diff alone won't be trustworthy.
+2026-09-05: merged the next 3-commit gap (`ad0e40d`, `6c4d0cf`, `f1f1310`)
+on branch `upstream-v3-sync-2` via a real `git merge upstream/main`, not yet
+fast-forwarded into `main` -- pending review. `flutter analyze` clean,
+full test suite green (305 tests, including the 5 new files this gap
+brings: `catalog_extra_test.dart`, `collection_addon_test.dart`,
+`cinejoy_scraper_test.dart`, `audio_language_detector_test.dart`,
+`test_player_error_filter.dart`).
+- `ad0e40d` (audio dub & language filtering, responsive UI) merged: the
+  ~1080-line `watch_screen.dart` rewrite came through a real 3-way merge
+  with only two textual conflicts -- a duplicate `dart:io`/`dart:ui` import
+  line, and the `_SourceCard` tap handler where upstream added
+  collection-aware `effectiveTitle` resolution. Combined upstream's
+  `effectiveTitle` with this fork's own `pushFullscreen(CinematicSlideRoute(...))`
+  navigation (needed for ROADMAP #2's consistent transitions) and kept the
+  `onNextEpisode` auto-next-episode wiring and the per-source download
+  button, both untouched by upstream and confirmed present after the merge.
+  Scraper touch-ups to fsharetv/fsonic/movy/nova/purstream/vidvault/vidzee/
+  vixsrc/vuflix/xdownloader applied clean.
+- `6c4d0cf` (stream error filtering & health verification) merged: took
+  upstream's re-add of `StreamHealthChecker.isAlive` into
+  `ScraperManager.scrapeAll` back -- the 2026-09-03 entry above dropped it
+  because a GET-and-sniff per source was adding latency across ~50 sources,
+  but upstream itself reversed that removal here specifically to catch
+  dead/403/429 streams, shipping a `cinejoy_scraper_test.dart` update
+  alongside it. That's upstream deliberately deciding it needs the check,
+  not drift, so it's back in; reopen if the latency complaint resurfaces.
+  `PlayerSettings.isNonFatalError` refinement, the Dulo/VidRock scraper
+  fixes, and new CDN referer rules (Dulo, VidFast) applied clean.
+  `audiobook_player_screen.dart` and `music_player_controller.dart`
+  touch-ups applied clean too -- this fork keeps Music/Audiobooks, unlike
+  its own downstream fork PlayTorrioMov, which dropped both.
+- `f1f1310` (Stremio catalog-extra handling & collection addons) merged:
+  the `AddonCatalogExtra` model, `Movie.isCollection` /
+  `MovieDetail.isCollection`, collection-aware Details/Player/WatchScreen UI
+  (franchise part numbers, "Play First Movie", IMDb-id normalization for
+  scraping/subtitles across collection parts), and
+  `AddonManager.getAvailableDiscoverCatalogs` all merged in clean or with
+  straightforward conflicts (mostly upstream's additive code layered onto
+  this fork's existing getters). `discover_page.dart` turned out to be the
+  *same* file on both sides -- this fork already had a small query/genre
+  results grid there, pushed from `details_page.dart`. Upstream repurposed
+  it into a much bigger Stremio catalog-browser but kept the old `query` /
+  `isGenre` constructor params as a "legacy mode" fallback, so this fork's 3
+  existing call sites keep working unchanged, no adaptation needed. Its new
+  full-browsing mode (`initialCatalog`/`initialAddon`) is present and
+  functional but has **no nav entry point**: upstream wired it into
+  `dock_settings.dart` / `app_liquid_dock.dart` / `home_page.dart`, all
+  three of which this fork deleted in `fa00ca1` when navigation was
+  restructured into the Watch/Listen/Read `AppHub` system -- confirmed via
+  `git log --diff-filter=D` before resolving, not assumed. Those three
+  files stayed deleted (`git rm`'d again during the merge) and the "Liquid
+  Dock Navbar" `Positioned` block referencing them was stripped out of
+  `discover_page.dart` along with its two now-dead imports. Reopen by
+  wiring a Discover entry into `MediaHub`'s section switcher
+  (`lib/pages/hub/media_hub.dart`) if/when the feature is wanted -- the
+  underlying browsing code doesn't need rewriting to do it, just calling
+  from somewhere.
 
 ## Declined, so they do not get re-litigated
 

@@ -6,8 +6,6 @@ import '../../models/movie/movie.dart';
 import '../../models/movie/movie_section.dart';
 import '../../services/addon/addon_manager.dart';
 import '../../services/metadata/metadata_service.dart';
-import '../../services/theme/dock_settings.dart';
-import '../../widgets/common/app_liquid_dock.dart';
 import '../../widgets/common/error_view.dart';
 import '../../widgets/movie/movie_card.dart';
 import '../../services/app_breakpoints.dart';
@@ -418,18 +416,6 @@ class _DiscoverPageState extends State<DiscoverPage> {
               toolbarH: toolbarH,
               selectorH: selectorH,
               extrasH: extrasH,
-            ),
-          ),
-
-          // ── Liquid Dock Navbar ──
-          Positioned(
-            bottom: 12.0 + bottomInset,
-            left: 0,
-            right: 0,
-            child: const Center(
-              child: AppLiquidDock(
-                currentDestination: DockItemKey.discover,
-              ),
             ),
           ),
         ],
